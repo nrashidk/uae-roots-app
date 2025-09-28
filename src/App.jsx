@@ -1366,8 +1366,7 @@ function App() {
               className="bg-white rounded-lg shadow-xl"
               style={{
                 width: '420px',
-                height: 'auto',
-                maxHeight: '95vh',
+                height: '85vh',
                 position: 'absolute',
                 right: '40px',
                 top: '50%',
@@ -1375,7 +1374,6 @@ function App() {
                 overflowY: 'auto',
                 display: 'flex',
                 flexDirection: 'column',
-                justifyContent: 'center',
               }}
             >
               <div className="p-6">
@@ -1910,18 +1908,18 @@ function PersonForm({ person, onSave, onCancel, relationshipType, anchorPerson }
       {/* Form Actions */}
       <div className="flex justify-end gap-3 pt-4">
         <Button
+          type="submit"
+          className="arabic-text"
+        >
+          {person ? t.update : t.save}
+        </Button>
+        <Button
           type="button"
           onClick={onCancel}
           variant="outline"
           className="arabic-text"
         >
           {t.cancel}
-        </Button>
-        <Button
-          type="submit"
-          className="arabic-text"
-        >
-          {person ? t.update : t.save}
         </Button>
       </div>
     </form>
