@@ -1274,14 +1274,10 @@ function App() {
             </div>
           </div>
 
-          {/* Relationship Controls */}
+          {/* Compact Action Icons */}
           {selectedPerson && treePeople.find(p => p.id === selectedPerson) && (
-            <div className="absolute right-4 top-1/2 transform -translate-y-1/2">
-              <div className="bg-white rounded-lg shadow-lg border p-3 space-y-2">
-                <div className="text-sm font-medium text-gray-700 text-center arabic-text mb-3">
-                  {treePeople.find(p => p.id === selectedPerson)?.firstName}
-                </div>
-                
+            <div className="absolute -top-8 left-1/2 transform -translate-x-1/2">
+              <div className="flex gap-1 bg-white rounded-lg shadow-lg border p-1">
                 <Button
                   onClick={() => {
                     setRelationshipType('spouse');
@@ -1289,11 +1285,11 @@ function App() {
                     setShowPersonForm(true);
                   }}
                   size="sm"
-                  variant="outline"
-                  className="w-full justify-start arabic-text"
+                  variant="ghost"
+                  className="w-8 h-8 p-0 hover:bg-blue-50"
+                  title={t.addSpouse}
                 >
                   {getRelationshipIcon('spouse')}
-                  <span className="mr-2">{t.addSpouse}</span>
                 </Button>
                 
                 <Button
@@ -1303,11 +1299,11 @@ function App() {
                     setShowPersonForm(true);
                   }}
                   size="sm"
-                  variant="outline"
-                  className="w-full justify-start arabic-text"
+                  variant="ghost"
+                  className="w-8 h-8 p-0 hover:bg-blue-50"
+                  title={t.addChild}
                 >
                   {getRelationshipIcon('child')}
-                  <span className="mr-2">{t.addChild}</span>
                 </Button>
                 
                 <Button
@@ -1317,11 +1313,11 @@ function App() {
                     setShowPersonForm(true);
                   }}
                   size="sm"
-                  variant="outline"
-                  className="w-full justify-start arabic-text"
+                  variant="ghost"
+                  className="w-8 h-8 p-0 hover:bg-blue-50"
+                  title={t.addParent}
                 >
                   {getRelationshipIcon('parent')}
-                  <span className="mr-2">{t.addParent}</span>
                 </Button>
                 
                 <Button
@@ -1331,14 +1327,14 @@ function App() {
                     setShowPersonForm(true);
                   }}
                   size="sm"
-                  variant="outline"
-                  className="w-full justify-start arabic-text"
+                  variant="ghost"
+                  className="w-8 h-8 p-0 hover:bg-blue-50"
+                  title={t.addSibling}
                 >
                   {getRelationshipIcon('sibling')}
-                  <span className="mr-2">{t.addSibling}</span>
                 </Button>
                 
-                <hr className="my-2" />
+                <div className="w-px bg-gray-300 mx-1"></div>
                 
                 <Button
                   onClick={() => {
@@ -1347,21 +1343,21 @@ function App() {
                     setShowPersonForm(true);
                   }}
                   size="sm"
-                  variant="outline"
-                  className="w-full justify-start arabic-text"
+                  variant="ghost"
+                  className="w-8 h-8 p-0 hover:bg-green-50"
+                  title={t.editPerson}
                 >
-                  <Edit3 className="w-4 h-4" />
-                  <span className="mr-2">{t.editPerson}</span>
+                  <Edit3 className="w-4 h-4 text-green-600" />
                 </Button>
                 
                 <Button
                   onClick={() => deletePerson(selectedPerson)}
                   size="sm"
-                  variant="outline"
-                  className="w-full justify-start text-red-600 hover:text-red-700 arabic-text"
+                  variant="ghost"
+                  className="w-8 h-8 p-0 hover:bg-red-50"
+                  title={t.deletePerson}
                 >
-                  <Trash2 className="w-4 h-4" />
-                  <span className="mr-2">{t.deletePerson}</span>
+                  <Trash2 className="w-4 h-4 text-red-600" />
                 </Button>
               </div>
             </div>
