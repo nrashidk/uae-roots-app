@@ -1,11 +1,8 @@
 {
-  "name": "uae-roots-family-tree",
+  "name": "uae-roots-app",
   "private": true,
-  "version": "1.0.0",
+  "version": "0.0.0",
   "type": "module",
-  "description": "UAE Roots Family Tree Application - جذور الإمارات",
-  "keywords": ["family-tree", "genealogy", "uae", "arabic", "react"],
-  "author": "UAE Roots Team",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
@@ -76,7 +73,5 @@
     "tw-animate-css": "^1.2.9",
     "vite": "^6.3.5"
   },
-  "engines": {
-    "node": ">=18.0.0"
-  }
+  "packageManager": "pnpm@10.4.1+sha512.c753b6c3ad7afa13af388fa6d808035a008e30ea9993f58c6663e2bc5ff21679aa834db094987129aa4d488b86df57f7b634981b2f827cdcacc698cc0cfb88af"
 }

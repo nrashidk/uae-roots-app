@@ -1,16 +1,17 @@
 import { useState, useEffect, useRef } from 'react'
 import { Button } from '@/components/ui/button.jsx'
+import { Heart, Baby, Users, UserPlus, Edit3, Trash2, X, Settings, Download, Home, Share, Calendar, Printer, ZoomIn, ZoomOut, RotateCcw } from 'lucide-react'
 import './App.css'
 
-// UAE Roots Family Tree Application - Complete React Application
+// UAE Roots Family Tree Application - Enhanced with FamilyEcho Features
 function App() {
   // Card dimensions constants
   const CARD = {
-    w: 120,
-    h: 80
+    w: 140,
+    h: 90
   };
 
-  // Relationship type constants (single source of truth)
+  // Relationship type constants
   const REL = {
     PARTNER: 'partner',
     PARENT_CHILD: 'parent-child',
@@ -30,9 +31,8 @@ function App() {
   const [showOptions, setShowOptions] = useState(false);
   const [showDownloadModal, setShowDownloadModal] = useState(false);
   const [selectedDownloadFormat, setSelectedDownloadFormat] = useState('html');
-  const [familyViewFilter, setFamilyViewFilter] = useState('all'); // 'all', 'husband', 'wife'
 
-  // COMPREHENSIVE DISPLAY OPTIONS (FamilyEcho-style)
+  // Enhanced Display Options (FamilyEcho-style)
   const [displayOptions, setDisplayOptions] = useState({
     // Personal Information Display
     showName: true,
@@ -66,73 +66,32 @@ function App() {
     showActivities: false
   });
 
-  // STYLING OPTIONS
+  // Enhanced Styling Options
   const [stylingOptions, setStylingOptions] = useState({
-    backgroundColor: '#f5f5dc',
-    maleBoxColor: '#87ceeb',
-    femaleBoxColor: '#ffb6c1',
+    backgroundColor: '#f8fafc',
+    maleBoxColor: '#bfdbfe',
+    femaleBoxColor: '#fce7f3',
     otherBoxColor: '#e6e6fa',
     livingTextColor: '#000000',
-    deceasedTextColor: '#666666',
-    boxWidth: 120,
-    textSize: 12
+    deceasedTextColor: '#6b7280',
+    boxWidth: 140,
+    textSize: 14
   });
 
-  // GENERATION DISPLAY OPTIONS
-  const [generationOptions, setGenerationOptions] = useState({
-    surnameDisplay: 'now', // 'now', 'before'
-    givenNameDisplay: 'before', // 'before', 'after'
-    leftPartner: 'female', // 'female', 'male'
-    parentsGenerations: 5,
-    childrenGenerations: 8,
-    othersGenerations: 2
-  });
-
-  // CONNECTION LINE OPTIONS
+  // Connection Line Options
   const [connectionOptions, setConnectionOptions] = useState({
-    currentPartners: 'thick', // 'thick', 'medium', 'thin'
+    currentPartners: 'thick',
     otherPartners: 'medium',
     parents: 'medium',
     nonBiological: 'gray'
   });
 
-  // Zoom & Pan
+  // Enhanced Zoom & Pan with smooth controls
   const [zoom, setZoom] = useState(1);
   const [panOffset, setPanOffset] = useState({ x: 0, y: 0 });
-  const isPanningRef = useRef(false);
-  const panStartRef = useRef({ x: 0, y: 0 });
-  const startOffsetRef = useRef({ x: 0, y: 0 });
-
-  // Add global mouse event listeners for better drag functionality
-  useEffect(() => {
-    const handleGlobalMouseMove = (e) => {
-      if (!isPanningRef.current) return;
-      
-      e.preventDefault();
-      const dx = e.clientX - panStartRef.current.x;
-      const dy = e.clientY - panStartRef.current.y;
-      setPanOffset({ 
-        x: startOffsetRef.current.x + dx, 
-        y: startOffsetRef.current.y + dy 
-      });
-    };
-    
-    const handleGlobalMouseUp = (e) => { 
-      if (isPanningRef.current) {
-        e.preventDefault();
-        isPanningRef.current = false;
-        document.body.style.cursor = 'default';
-      }
-    };
-
-    document.addEventListener('mousemove', handleGlobalMouseMove);
-    document.addEventListener('mouseup', handleGlobalMouseUp);
-    
-    return () => {
-      document.removeEventListener('mousemove', handleGlobalMouseMove);
-      document.removeEventListener('mouseup', handleGlobalMouseUp);
-    };
-  }, []);
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
+  const [dragStartOffset, setDragStartOffset] = useState({ x: 0, y: 0 });
 
   // Relationship intent when adding a person
   const [relationshipType, setRelationshipType] = useState(null);
@@ -140,12 +99,12 @@ function App() {
   // Canvas ref for viewport calculations
   const canvasRef = useRef(null);
 
-  // Arabic translations
+  // Arabic translations - Complete Arabic interface
   const t = {
     welcome: 'مرحباً بكم في جذور الإمارات',
-    continueWithGoogle: 'المتابعة مع Google',
-    continueWithApple: 'المتابعة مع Apple',
-    uaeMobile: 'رقم الإمارات (+971)',
+    continueWithGoogle: 'التسجيل عبر Google',
+    continueWithApple: 'التسجيل عبر Apple', 
+    uaeMobile: 'التسجيل عبر الهاتف الإماراتي',
     dashboard: 'لوحة التحكم',
     myFamilyTrees: 'أشجار عائلتي',
     familyMembers: 'أفراد العائلة',
@@ -153,24 +112,17 @@ function App() {
     createNewTree: 'إنشاء شجرة جديدة',
     noFamilyTrees: 'لا توجد أشجار عائلة بعد',
     createFirstTree: 'أنشئ شجرة عائلتك الأولى للبدء',
-    backToDashboard: 'العودة إلى لوحة التحكم',
     addPerson: 'إضافة شخص',
-    options: 'خيارات',
-    print: 'طباعة',
-    calendar: 'التقويم',
-    share: 'مشاركة',
     startBuilding: 'ابدأ ببناء شجرة عائلتك',
     addFirstMember: 'أضف أول فرد من العائلة للبدء',
-    personal: 'البيانات',
-    partners: 'الشركاء',
+    personal: 'البيانات الشخصية',
     contact: 'معلومات التواصل',
     biography: 'السيرة الذاتية',
     addFamilyMember: 'إضافة فرد من العائلة',
     editFamilyMember: 'تعديل فرد من العائلة',
+    allFieldsOptional: 'جميع الحقول اختيارية',
     firstName: 'الاسم الأول',
     lastName: 'اسم العائلة',
-    arabicFirstName: 'الاسم الأول (عربي)',
-    arabicLastName: 'اسم العائلة (عربي)',
     gender: 'الجنس',
     male: 'ذكر',
     female: 'أنثى',
@@ -186,43 +138,61 @@ function App() {
     bioNotes: 'ملاحظات السيرة الذاتية',
     save: 'حفظ',
     cancel: 'إلغاء',
-    ok: 'موافق',
-    addPartner: 'إضافة شريك',
+    update: 'تحديث',
+    addSpouse: 'إضافة زوج/زوجة',
     addParent: 'إضافة والد',
     addChild: 'إضافة طفل',
     addSibling: 'إضافة شقيق',
-    // Options panel
+    options: 'خيارات',
     displayOptions: 'خيارات العرض',
+    stylingOptions: 'خيارات التصميم',
     showNames: 'إظهار الأسماء',
+    showSurnames: 'إظهار أسماء العائلة',
     showBirthDates: 'إظهار تواريخ الميلاد',
     showBirthPlaces: 'إظهار أماكن الميلاد',
-    colorOptions: 'خيارات الألوان',
+    showProfessions: 'إظهار المهن',
+    showPhones: 'إظهار الهواتف',
+    showEmails: 'إظهار البريد الإلكتروني',
+    showAddresses: 'إظهار العناوين',
     maleBoxColor: 'لون صندوق الذكر',
     femaleBoxColor: 'لون صندوق الأنثى',
-    lineThickness: 'سماكة الخطوط',
     textSize: 'حجم النص',
-    // Download functionality
+    backgroundColor: 'لون الخلفية',
+    resetView: 'إعادة تعيين العرض',
+    logout: 'تسجيل الخروج',
+    backToDashboard: 'العودة إلى لوحة التحكم',
+    openFamilyTree: 'فتح شجرة العائلة',
+    applyChanges: 'تطبيق التغييرات',
+    familyTreeName: 'شجرة عائلتي',
+    deleteConfirm: 'هل أنت متأكد من حذف هذا الشخص؟',
+    editPerson: 'تعديل',
+    deletePerson: 'حذف',
+    enterFirstName: 'يرجى إدخال الاسم الأول',
+    boxWidth: 'عرض الصندوق',
+    familyStats: 'أفراد العائلة',
+    relationshipStats: 'العلاقات',
+    spouse: 'زوج/زوجة',
+    child: 'طفل', 
+    parent: 'والد',
+    sibling: 'شقيق',
+    print: 'طباعة',
+    share: 'مشاركة',
+    calendar: 'التقويم',
     download: 'تنزيل',
     selectDownloadFormat: 'اختر تنسيق التنزيل لهذه العائلة:',
     readOnlyHTML: 'HTML للقراءة فقط (ملف واحد)',
     readOnlyHTMLDesc: 'للتصفح من القرص أو الإضافة إلى موقع ويب، مع واجهة تفاعلية للقراءة فقط.',
     gedcom: 'GEDCOM',
     gedcomDesc: 'تنسيق قياسي لبيانات الأنساب. لاستيراد البيانات في برامج الأنساب المختلفة.',
-    familyScript: 'FamilyScript',
-    familyScriptDesc: 'تنسيق أصلي للأشجار العائلية. لاستيراد البيانات في برامج تدعمه.',
     csv: 'CSV (مفصولة بفواصل)',
     csvDesc: 'لاستيراد البيانات في جداول البيانات أو قواعد البيانات.',
     plainText: 'نص عادي',
     plainTextDesc: 'للعرض في معالجات النصوص مثل المفكرة و Word، أو الإرسال بالبريد الإلكتروني.',
     downloadBtn: 'تنزيل',
-    done: 'تم',
-    familyView: 'عرض العائلة',
-    showAllFamily: 'إظهار جميع أفراد العائلة',
-    showHusbandFamily: 'إظهار عائلة الزوج',
-    showWifeFamily: 'إظهار عائلة الزوجة'
+    done: 'تم'
   };
 
-  // Authentication handlers (mock)
+  // Authentication handlers
   const handleGoogleAuth = () => { setIsAuthenticated(true); setCurrentView('dashboard'); };
   const handleAppleAuth = () => { setIsAuthenticated(true); setCurrentView('dashboard'); };
   const handleUAEMobileAuth = () => { setIsAuthenticated(true); setCurrentView('dashboard'); };
@@ -234,7 +204,25 @@ function App() {
     setCurrentView('tree-builder');
   };
 
-  // Auto positioning for new relative with better spacing and collision detection
+  // Enhanced auto-center view on a specific person
+  const centerOnPerson = (person) => {
+    if (!canvasRef.current) return;
+    
+    const canvas = canvasRef.current;
+    const rect = canvas.getBoundingClientRect();
+    const viewportCenterX = rect.width / 2;
+    const viewportCenterY = rect.height / 2;
+    
+    const personCenterX = person.x + CARD.w / 2;
+    const personCenterY = person.y + CARD.h / 2;
+    
+    const newOffsetX = viewportCenterX - personCenterX * zoom;
+    const newOffsetY = viewportCenterY - personCenterY * zoom;
+    
+    setPanOffset({ x: newOffsetX, y: newOffsetY });
+  };
+
+  // Enhanced positioning algorithm with better collision detection
   const calculatePosition = (relType, anchorPerson) => {
     // For the first person, center them in the viewport
     if (!anchorPerson) {
@@ -249,13 +237,11 @@ function App() {
       return { x: 400, y: 300 };
     }
 
-    const horizontalSpacing = 220; // Increased spacing to prevent overlap
-    const verticalSpacing = 180;   // Increased vertical spacing between generations
-    const partnerSpacing = 190;    // Space between partners
-    const minDistance = 150;       // Minimum distance between any two cards
-    const generationSpacing = 200; // Extra spacing between different generations
+    const horizontalSpacing = 200;
+    const verticalSpacing = 160;
+    const partnerSpacing = 160;
+    const minDistance = 140;
 
-    // Helper function to check if a position conflicts with existing people
     const hasCollision = (x, y, excludeId = null) => {
       return people.some(person => {
         if (person.id === excludeId || person.treeId !== currentTree?.id) return false;
@@ -265,7 +251,6 @@ function App() {
       });
     };
 
-    // Helper function to find a non-colliding position near the target
     const findNonCollidingPosition = (targetX, targetY, excludeId = null) => {
       let x = targetX;
       let y = targetY;
@@ -273,8 +258,7 @@ function App() {
       const maxAttempts = 20;
 
       while (hasCollision(x, y, excludeId) && attempts < maxAttempts) {
-        // Try different offsets in a spiral pattern
-        const offset = Math.floor(attempts / 4) * 50 + 50;
+        const offset = Math.floor(attempts / 4) * 60 + 60;
         const direction = attempts % 4;
         
         switch (direction) {
@@ -290,22 +274,19 @@ function App() {
     };
 
     switch (relType) {
-      case REL.PARTNER:
+      case 'spouse':
         {
-          // Position partner to the right with proper spacing
           const targetX = anchorPerson.x + CARD.w + partnerSpacing;
           const targetY = anchorPerson.y;
           return findNonCollidingPosition(targetX, targetY);
         }
       
-      case REL.PARENT_CHILD: // adding as a child OF anchor
+      case 'child':
         {
-          // Get existing children of this parent
           const existingChildren = relationships.filter(
             r => r.type === REL.PARENT_CHILD && r.parentId === anchorPerson.id && r.treeId === currentTree?.id
           );
           
-          // Find partner to calculate couple center
           const partnerRel = relationships.find(
             r => r.type === REL.PARTNER && (r.person1Id === anchorPerson.id || r.person2Id === anchorPerson.id) && r.treeId === currentTree?.id
           );
@@ -315,53 +296,43 @@ function App() {
             const partnerId = partnerRel.person1Id === anchorPerson.id ? partnerRel.person2Id : partnerRel.person1Id;
             const partner = people.find(p => p.id === partnerId);
             if (partner) {
-              // Center children under the couple
               const coupleCenter = (anchorPerson.x + CARD.w/2 + partner.x + CARD.w/2) / 2;
               baseX = coupleCenter - (existingChildren.length * horizontalSpacing / 2) - CARD.w/2;
             }
           } else {
-            // Single parent - center children under parent
             baseX = anchorPerson.x - (existingChildren.length * horizontalSpacing / 2);
           }
           
           const targetX = baseX + (existingChildren.length * horizontalSpacing);
-          const targetY = anchorPerson.y + generationSpacing;
+          const targetY = anchorPerson.y + verticalSpacing;
           return findNonCollidingPosition(targetX, targetY);
         }
       
-      case 'parent': // internal hint when user clicks "add parent"
+      case 'parent':
         {
-          // The anchor is the person whose parent we're adding
-          const person = anchorPerson;
-          const targetX = person.x; // keep same x as the child
-          const targetY = person.y - generationSpacing; // one generation above
+          const targetX = anchorPerson.x;
+          const targetY = anchorPerson.y - verticalSpacing;
           return findNonCollidingPosition(targetX, targetY);
         }
       
-      case REL.SIBLING:
+      case 'sibling':
         {
-          // Get all siblings of the anchor person (including the anchor)
           const allSiblingRelations = relationships.filter(
             r => r.type === REL.SIBLING && (r.person1Id === anchorPerson.id || r.person2Id === anchorPerson.id) && r.treeId === currentTree?.id
           );
           
-          // Get all sibling IDs including the anchor person
           const siblingIds = new Set([anchorPerson.id]);
           allSiblingRelations.forEach(rel => {
             siblingIds.add(rel.person1Id);
             siblingIds.add(rel.person2Id);
           });
           
-          // Get all sibling persons and sort by x position to maintain order
           const siblings = Array.from(siblingIds)
             .map(id => people.find(p => p.id === id))
             .filter(p => p)
             .sort((a, b) => a.x - b.x);
           
-          // Use the same Y position as existing siblings (horizontal alignment)
           const targetY = anchorPerson.y;
-          
-          // Position new sibling to the right of the rightmost sibling
           const rightmostSibling = siblings[siblings.length - 1];
           const targetX = rightmostSibling.x + horizontalSpacing;
           
@@ -377,62 +348,49 @@ function App() {
     }
   };
 
-  // Add a person + appropriate relationship
+  // Enhanced add person with smart gender defaults
   const addPerson = (personData) => {
     const anchorPerson = selectedPerson ? people.find(p => p.id === selectedPerson) : null;
-    // map UI click types to relationship constants
-    const relIntent = relationshipType === 'child' ? REL.PARENT_CHILD : relationshipType;
-
-    // Calculate position - ensure first person is centered
-    let position;
-    if (anchorPerson && relationshipType) {
-      position = calculatePosition(relIntent, anchorPerson);
-    } else {
-      // First person or standalone - center in viewport
-      const canvas = canvasRef.current;
-      if (canvas) {
-        const rect = canvas.getBoundingClientRect();
-        position = { 
-          x: (rect.width / 2) - (CARD.w / 2), 
-          y: (rect.height / 2) - (CARD.h / 2) 
-        };
-      } else {
-        // Fallback to center of a standard viewport
-        position = { 
-          x: 600 - (CARD.w / 2), // Center horizontally 
-          y: 400 - (CARD.h / 2)  // Center vertically
-        };
+    
+    // Smart gender defaults for spouse
+    let finalPersonData = { ...personData };
+    if (relationshipType === 'spouse' && anchorPerson) {
+      if (anchorPerson.gender === 'male' && !personData.gender) {
+        finalPersonData.gender = 'female';
+      } else if (anchorPerson.gender === 'female' && !personData.gender) {
+        finalPersonData.gender = 'male';
       }
     }
 
+    const position = calculatePosition(relationshipType, anchorPerson);
+
     const newPerson = {
       id: Date.now(),
-      ...personData,
+      ...finalPersonData,
       x: position.x,
       y: position.y,
       treeId: currentTree?.id,
-      isLiving: personData.isLiving !== false
+      isLiving: finalPersonData.isLiving !== false
     };
 
     setPeople(prev => [...prev, newPerson]);
 
-    // Create relationship if adding relative to an existing person
+    // Create relationships
     if (selectedPerson && relationshipType) {
       const newRelationship = { id: Date.now() + 1, treeId: currentTree?.id };
 
       switch (relationshipType) {
-        case 'partner':
+        case 'spouse':
           newRelationship.type = REL.PARTNER;
           newRelationship.person1Id = selectedPerson;
           newRelationship.person2Id = newPerson.id;
           break;
         case 'child':
-          // Create parent-child relationship with the selected person
           newRelationship.type = REL.PARENT_CHILD;
           newRelationship.parentId = selectedPerson;
           newRelationship.childId = newPerson.id;
           
-          // If the selected person has a spouse, also create a parent-child relationship with the spouse
+          // Add relationship with spouse if exists
           const spouseRel = relationships.find(
             r => r.type === REL.PARTNER && 
             (r.person1Id === selectedPerson || r.person2Id === selectedPerson) && 
@@ -452,7 +410,6 @@ function App() {
           }
           break;
         case 'parent':
-          // Create parent-child relationship with the new person as parent
           newRelationship.type = REL.PARENT_CHILD;
           newRelationship.parentId = newPerson.id;
           newRelationship.childId = selectedPerson;
@@ -467,101 +424,376 @@ function App() {
       setRelationships(prev => [...prev, newRelationship]);
     }
 
+    // Auto-center on new person
+    setTimeout(() => {
+      centerOnPerson(newPerson);
+    }, 100);
+
     setShowPersonForm(false);
     setRelationshipType(null);
     setEditingPerson(null);
+    setSelectedPerson(newPerson.id);
   };
 
-  // Delete person and their relationships
-  const deletePerson = (personId) => {
-    setPeople(prev => prev.filter(p => p.id !== personId));
-    setRelationships(prev => prev.filter(r => 
-      r.person1Id !== personId && 
-      r.person2Id !== personId && 
-      r.parentId !== personId && 
-      r.childId !== personId
+  // Update person
+  const updatePerson = (personData) => {
+    setPeople(prev => prev.map(p => 
+      p.id === editingPerson ? { ...p, ...personData } : p
     ));
+    setShowPersonForm(false);
+    setEditingPerson(null);
   };
 
-  // Handle canvas mouse events for panning
-  const handleCanvasMouseDown = (e) => {
-    if (e.target === e.currentTarget) {
-      isPanningRef.current = true;
-      panStartRef.current = { x: e.clientX, y: e.clientY };
-      startOffsetRef.current = { ...panOffset };
-      document.body.style.cursor = 'grabbing';
-      e.preventDefault();
+  // Delete person
+  const deletePerson = (personId) => {
+    if (window.confirm(t.deleteConfirm)) {
+      setPeople(prev => prev.filter(p => p.id !== personId));
+      setRelationships(prev => prev.filter(r => 
+        r.person1Id !== personId && 
+        r.person2Id !== personId && 
+        r.parentId !== personId && 
+        r.childId !== personId
+      ));
+      setSelectedPerson(null);
     }
   };
 
-  // Handle zoom
+  // Enhanced pan handling with smooth dragging
+  const handleMouseDown = (e) => {
+    if (e.target === e.currentTarget) {
+      setIsDragging(true);
+      setDragStart({ x: e.clientX, y: e.clientY });
+      setDragStartOffset({ ...panOffset });
+      e.currentTarget.style.cursor = 'grabbing';
+    }
+  };
+
+  const handleMouseMove = (e) => {
+    if (isDragging) {
+      const deltaX = e.clientX - dragStart.x;
+      const deltaY = e.clientY - dragStart.y;
+      setPanOffset({
+        x: dragStartOffset.x + deltaX,
+        y: dragStartOffset.y + deltaY
+      });
+    }
+  };
+
+  const handleMouseUp = (e) => {
+    if (isDragging) {
+      setIsDragging(false);
+      e.currentTarget.style.cursor = 'grab';
+    }
+  };
+
+  useEffect(() => {
+    if (isDragging) {
+      document.addEventListener('mousemove', handleMouseMove);
+      document.addEventListener('mouseup', handleMouseUp);
+      return () => {
+        document.removeEventListener('mousemove', handleMouseMove);
+        document.removeEventListener('mouseup', handleMouseUp);
+      };
+    }
+  }, [isDragging, dragStart, dragStartOffset]);
+
+  // Enhanced zoom with smooth controls
   const handleWheel = (e) => {
     e.preventDefault();
     const delta = e.deltaY > 0 ? 0.9 : 1.1;
-    setZoom(prev => Math.max(0.1, Math.min(3, prev * delta)));
+    setZoom(prev => Math.max(0.3, Math.min(3, prev * delta)));
   };
 
-  // Reset view
+  // Zoom controls
+  const zoomIn = () => setZoom(prev => Math.min(3, prev * 1.2));
+  const zoomOut = () => setZoom(prev => Math.max(0.3, prev / 1.2));
   const resetView = () => {
     setZoom(1);
     setPanOffset({ x: 0, y: 0 });
   };
 
-  // Get filtered people based on family view
-  const getFilteredPeople = () => {
-    const filtered = people.filter(p => p.treeId === currentTree?.id);
-    
-    if (familyViewFilter === 'all') return filtered;
-    
-    // For husband/wife filtering, we'd need to implement logic to determine family sides
-    // For now, return all people
-    return filtered;
+  // Enhanced export functionality
+  const handleDownload = (format) => {
+    const treeData = {
+      people: people.filter(p => p.treeId === currentTree?.id),
+      relationships: relationships.filter(r => r.treeId === currentTree?.id),
+      tree: currentTree
+    };
+
+    switch (format) {
+      case 'html':
+        downloadAsHTML(treeData);
+        break;
+      case 'gedcom':
+        downloadAsGEDCOM(treeData);
+        break;
+      case 'csv':
+        downloadAsCSV(treeData);
+        break;
+      case 'plaintext':
+        downloadAsPlainText(treeData);
+        break;
+    }
+    setShowDownloadModal(false);
   };
 
-  // Render authentication screen
+  const downloadAsHTML = (treeData) => {
+    const htmlContent = `
+<!DOCTYPE html>
+<html dir="rtl" lang="ar">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>${currentTree?.name || 'شجرة العائلة'}</title>
+    <style>
+        body { font-family: 'Sakkal Majalla', Arial, sans-serif; direction: rtl; }
+        .person { border: 1px solid #ccc; padding: 10px; margin: 5px; display: inline-block; }
+        .male { background-color: #bfdbfe; }
+        .female { background-color: #fce7f3; }
+    </style>
+</head>
+<body>
+    <h1>${currentTree?.name || 'شجرة العائلة'}</h1>
+    <div>
+        ${treeData.people.map(person => `
+            <div class="person ${person.gender}">
+                <strong>${person.firstName} ${person.lastName || ''}</strong>
+                ${person.birthDate ? `<br>تاريخ الميلاد: ${person.birthDate}` : ''}
+                ${person.profession ? `<br>المهنة: ${person.profession}` : ''}
+            </div>
+        `).join('')}
+    </div>
+</body>
+</html>`;
+    
+    const blob = new Blob([htmlContent], { type: 'text/html;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${currentTree?.name || 'family-tree'}.html`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const downloadAsGEDCOM = (treeData) => {
+    let gedcom = '0 HEAD\n1 SOUR UAE Roots\n1 GEDC\n2 VERS 5.5\n1 CHAR UTF-8\n';
+    
+    treeData.people.forEach((person, index) => {
+      gedcom += `0 @I${index + 1}@ INDI\n`;
+      gedcom += `1 NAME ${person.firstName} /${person.lastName || ''}/\n`;
+      if (person.gender) gedcom += `1 SEX ${person.gender === 'male' ? 'M' : 'F'}\n`;
+      if (person.birthDate) gedcom += `1 BIRT\n2 DATE ${person.birthDate}\n`;
+      if (person.birthPlace) gedcom += `2 PLAC ${person.birthPlace}\n`;
+    });
+    
+    gedcom += '0 TRLR\n';
+    
+    const blob = new Blob([gedcom], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${currentTree?.name || 'family-tree'}.ged`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const downloadAsCSV = (treeData) => {
+    const headers = ['الاسم الأول', 'اسم العائلة', 'الجنس', 'تاريخ الميلاد', 'مكان الميلاد', 'المهنة', 'الهاتف', 'البريد الإلكتروني'];
+    const csvContent = [
+      headers.join(','),
+      ...treeData.people.map(person => [
+        person.firstName || '',
+        person.lastName || '',
+        person.gender === 'male' ? 'ذكر' : person.gender === 'female' ? 'أنثى' : '',
+        person.birthDate || '',
+        person.birthPlace || '',
+        person.profession || '',
+        person.phone || '',
+        person.email || ''
+      ].join(','))
+    ].join('\n');
+    
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${currentTree?.name || 'family-tree'}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const downloadAsPlainText = (treeData) => {
+    const textContent = `${currentTree?.name || 'شجرة العائلة'}\n\n` +
+      treeData.people.map(person => 
+        `${person.firstName} ${person.lastName || ''}\n` +
+        (person.birthDate ? `تاريخ الميلاد: ${person.birthDate}\n` : '') +
+        (person.profession ? `المهنة: ${person.profession}\n` : '') +
+        '\n'
+      ).join('');
+    
+    const blob = new Blob([textContent], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${currentTree?.name || 'family-tree'}.txt`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  // Share functionality
+  const handleShare = async () => {
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: currentTree?.name || 'شجرة العائلة',
+          text: 'شاهد شجرة عائلتي على جذور الإمارات',
+          url: window.location.href
+        });
+      } catch (err) {
+        console.log('Error sharing:', err);
+      }
+    } else {
+      // Fallback: copy to clipboard
+      navigator.clipboard.writeText(window.location.href);
+      alert('تم نسخ الرابط إلى الحافظة');
+    }
+  };
+
+  // Print functionality
+  const handlePrint = () => {
+    window.print();
+  };
+
+  // Calendar functionality
+  const handleCalendar = () => {
+    const events = people
+      .filter(p => p.treeId === currentTree?.id && p.birthDate)
+      .map(p => ({
+        title: `عيد ميلاد ${p.firstName}`,
+        date: p.birthDate
+      }));
+    
+    // Create calendar data
+    const calendarData = events.map(event => 
+      `BEGIN:VEVENT\nSUMMARY:${event.title}\nDTSTART:${event.date.replace(/-/g, '')}\nEND:VEVENT`
+    ).join('\n');
+    
+    const icalContent = `BEGIN:VCALENDAR\nVERSION:2.0\nPRODID:UAE Roots\n${calendarData}\nEND:VCALENDAR`;
+    
+    const blob = new Blob([icalContent], { type: 'text/calendar;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'family-events.ics';
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  // Get relationship icon
+  const getRelationshipIcon = (type) => {
+    switch (type) {
+      case 'spouse': return <Heart className="w-4 h-4" />;
+      case 'child': return <Baby className="w-4 h-4" />;
+      case 'parent': return <Users className="w-4 h-4" />;
+      case 'sibling': return <UserPlus className="w-4 h-4" />;
+      default: return <UserPlus className="w-4 h-4" />;
+    }
+  };
+
+  // Render connection lines
+  const renderConnectionLines = () => {
+    const lines = [];
+    
+    relationships.forEach(rel => {
+      if (rel.treeId !== currentTree?.id) return;
+      
+      if (rel.type === REL.PARTNER) {
+        const person1 = people.find(p => p.id === rel.person1Id);
+        const person2 = people.find(p => p.id === rel.person2Id);
+        
+        if (person1 && person2) {
+          const x1 = person1.x + CARD.w;
+          const y1 = person1.y + CARD.h / 2;
+          const x2 = person2.x;
+          const y2 = person2.y + CARD.h / 2;
+          
+          lines.push(
+            <line
+              key={`partner-${rel.id}`}
+              x1={x1}
+              y1={y1}
+              x2={x2}
+              y2={y2}
+              stroke="#ef4444"
+              strokeWidth="3"
+            />
+          );
+        }
+      }
+      
+      if (rel.type === REL.PARENT_CHILD) {
+        const parent = people.find(p => p.id === rel.parentId);
+        const child = people.find(p => p.id === rel.childId);
+        
+        if (parent && child) {
+          const x1 = parent.x + CARD.w / 2;
+          const y1 = parent.y + CARD.h;
+          const x2 = child.x + CARD.w / 2;
+          const y2 = child.y;
+          
+          lines.push(
+            <line
+              key={`parent-child-${rel.id}`}
+              x1={x1}
+              y1={y1}
+              x2={x2}
+              y2={y2}
+              stroke="#3b82f6"
+              strokeWidth="2"
+            />
+          );
+        }
+      }
+    });
+    
+    return lines;
+  };
+
+  // Authentication screen
   if (!isAuthenticated) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-purple-400 via-purple-500 to-purple-600 flex items-center justify-center p-4">
         <div className="bg-white rounded-2xl shadow-xl p-8 w-full max-w-md">
           <div className="text-center mb-8">
-            <h1 className="text-3xl font-bold text-gray-800 mb-2" style={{fontFamily: 'Sakkal Majalla, Arial, sans-serif'}}>
+            <h1 className="text-4xl font-bold text-gray-800 mb-2 arabic-text">
               {t.welcome}
             </h1>
-            <div className="w-16 h-1 bg-emerald-500 mx-auto rounded"></div>
+            <div className="w-16 h-1 bg-purple-500 mx-auto rounded"></div>
           </div>
           
           <div className="space-y-4">
-            <Button 
+            <Button
               onClick={handleGoogleAuth}
-              className="w-full bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 py-3 flex items-center justify-center space-x-3 space-x-reverse"
+              className="w-full bg-green-600 hover:bg-green-700 text-white py-3 rounded-lg flex items-center justify-center gap-3"
             >
-              <span className="text-lg">🟢</span>
-              <span style={{fontFamily: 'Sakkal Majalla, Arial, sans-serif'}}>التسجيل من خلال Google</span>
+              <span className="text-2xl">🟢</span>
+              <span className="arabic-text">{t.continueWithGoogle}</span>
             </Button>
             
-            <Button 
+            <Button
               onClick={handleAppleAuth}
-              className="w-full bg-black text-white hover:bg-gray-800 py-3 flex items-center justify-center space-x-3 space-x-reverse"
+              className="w-full bg-black hover:bg-gray-800 text-white py-3 rounded-lg flex items-center justify-center gap-3"
             >
-              <span className="text-lg">🍎</span>
-              <span style={{fontFamily: 'Sakkal Majalla, Arial, sans-serif'}}>التسجيل من خلال Apple</span>
+              <span className="text-2xl">🍎</span>
+              <span className="arabic-text">{t.continueWithApple}</span>
             </Button>
             
-            <div className="relative">
-              <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-gray-300"></div>
-              </div>
-              <div className="relative flex justify-center text-sm">
-                <span className="px-2 bg-white text-gray-500" style={{fontFamily: 'Sakkal Majalla, Arial, sans-serif'}}>أو</span>
-              </div>
-            </div>
-            
-            <Button 
+            <Button
               onClick={handleUAEMobileAuth}
-              className="w-full bg-emerald-600 text-white hover:bg-emerald-700 py-3 flex items-center justify-center space-x-3 space-x-reverse"
+              className="w-full bg-orange-500 hover:bg-orange-600 text-white py-3 rounded-lg flex items-center justify-center gap-3"
             >
-              <span className="text-lg">🇦🇪</span>
-              <span style={{fontFamily: 'Sakkal Majalla, Arial, sans-serif'}}>التسجيل من خلال الهاتف</span>
+              <span className="text-2xl">🇦🇪</span>
+              <span className="arabic-text">{t.uaeMobile}</span>
             </Button>
           </div>
         </div>
@@ -569,812 +801,962 @@ function App() {
     );
   }
 
-  // Render dashboard
+  // Dashboard view
   if (currentView === 'dashboard') {
     return (
-      <div className="min-h-screen bg-gray-50" dir="rtl">
-        <header className="bg-white shadow-sm border-b">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="flex justify-between items-center h-16">
-              <h1 className="text-2xl font-bold text-gray-900" style={{fontFamily: 'Sakkal Majalla, Arial, sans-serif'}}>
-                {t.dashboard}
-              </h1>
-              <Button 
+      <div className="min-h-screen bg-gray-50">
+        <div className="bg-white shadow-sm border-b">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+            <div className="flex justify-between items-center">
+              <h1 className="text-2xl font-bold text-gray-900 arabic-text">{t.dashboard}</h1>
+              <Button
                 onClick={() => setIsAuthenticated(false)}
                 variant="outline"
+                className="arabic-text"
               >
-                تسجيل الخروج
+                {t.logout}
               </Button>
             </div>
           </div>
-        </header>
+        </div>
 
-        <main className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
-          <div className="px-4 py-6 sm:px-0">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-              <div 
-                className="bg-white overflow-hidden shadow rounded-lg cursor-pointer hover:shadow-lg transition-shadow"
-                onClick={() => currentTree && setCurrentView('tree-builder')}
-              >
-                <div className="p-5">
-                  <div className="flex items-center">
-                    <div className="flex-shrink-0">
-                      <svg className="h-6 w-6 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                      </svg>
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div className="bg-white rounded-lg shadow p-6">
+              <h3 className="text-lg font-semibold text-gray-900 mb-4 arabic-text">{t.myFamilyTrees}</h3>
+              {currentTree ? (
+                <div className="space-y-3">
+                  <div className="border rounded-lg p-4">
+                    <h4 className="font-medium text-gray-900 arabic-text">{currentTree.name}</h4>
+                    <div className="text-sm text-gray-500 mt-2 arabic-text">
+                      <span>{people.filter(p => p.treeId === currentTree.id).length} {t.familyStats}</span>
+                      <span className="mx-2">•</span>
+                      <span>{relationships.filter(r => r.treeId === currentTree.id).length} {t.relationshipStats}</span>
                     </div>
-                    <div className="mr-5 w-0 flex-1">
-                      <dl>
-                        <dt className="text-sm font-medium text-gray-500 truncate" style={{fontFamily: 'Sakkal Majalla, Arial, sans-serif'}}>
-                          {t.myFamilyTrees}
-                        </dt>
-                        <dd className="text-lg font-medium text-gray-900">
-                          {currentTree ? 1 : 0}
-                        </dd>
-                      </dl>
-                    </div>
+                    <Button
+                      onClick={() => setCurrentView('tree-builder')}
+                      className="mt-3 w-full arabic-text"
+                    >
+                      {t.openFamilyTree}
+                    </Button>
                   </div>
                 </div>
-              </div>
-
-              <div 
-                className="bg-white overflow-hidden shadow rounded-lg cursor-pointer hover:shadow-lg transition-shadow"
-                onClick={() => currentTree && setCurrentView('tree-builder')}
-              >
-                <div className="p-5">
-                  <div className="flex items-center">
-                    <div className="flex-shrink-0">
-                      <svg className="h-6 w-6 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z" />
-                      </svg>
-                    </div>
-                    <div className="mr-5 w-0 flex-1">
-                      <dl>
-                        <dt className="text-sm font-medium text-gray-500 truncate" style={{fontFamily: 'Sakkal Majalla, Arial, sans-serif'}}>
-                          {t.familyMembers}
-                        </dt>
-                        <dd className="text-lg font-medium text-gray-900">
-                          {people.filter(p => p.treeId === currentTree?.id).length}
-                        </dd>
-                      </dl>
-                    </div>
-                  </div>
+              ) : (
+                <div className="text-center py-8">
+                  <p className="text-gray-500 mb-4 arabic-text">{t.noFamilyTrees}</p>
+                  <Button onClick={createNewTree} className="arabic-text">
+                    {t.createNewTree}
+                  </Button>
                 </div>
-              </div>
+              )}
+            </div>
 
-              <div 
-                className="bg-white overflow-hidden shadow rounded-lg cursor-pointer hover:shadow-lg transition-shadow"
-                onClick={() => currentTree && setCurrentView('tree-builder')}
-              >
-                <div className="p-5">
-                  <div className="flex items-center">
-                    <div className="flex-shrink-0">
-                      <svg className="h-6 w-6 text-purple-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
-                      </svg>
-                    </div>
-                    <div className="mr-5 w-0 flex-1">
-                      <dl>
-                        <dt className="text-sm font-medium text-gray-500 truncate" style={{fontFamily: 'Sakkal Majalla, Arial, sans-serif'}}>
-                          {t.relationships}
-                        </dt>
-                        <dd className="text-lg font-medium text-gray-900">
-                          {relationships.filter(r => r.treeId === currentTree?.id).length}
-                        </dd>
-                      </dl>
-                    </div>
-                  </div>
-                </div>
+            <div className="bg-white rounded-lg shadow p-6">
+              <h3 className="text-lg font-semibold text-gray-900 mb-4 arabic-text">{t.familyMembers}</h3>
+              <div className="text-3xl font-bold text-blue-600">
+                {people.filter(p => p.treeId === currentTree?.id).length}
               </div>
             </div>
 
-            <div className="bg-white shadow rounded-lg">
-              <div className="px-4 py-5 sm:p-6">
-                {currentTree ? (
-                  <div>
-                    <h3 className="text-lg leading-6 font-medium text-gray-900 mb-4" style={{fontFamily: 'Sakkal Majalla, Arial, sans-serif'}}>
-                      {currentTree.name}
-                    </h3>
-                    <Button 
-                      onClick={() => setCurrentView('tree-builder')}
-                      className="bg-emerald-600 hover:bg-emerald-700"
-                    >
-                      فتح شجرة العائلة
-                    </Button>
-                  </div>
-                ) : (
-                  <div className="text-center">
-                    <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
-                    </svg>
-                    <h3 className="mt-2 text-sm font-medium text-gray-900" style={{fontFamily: 'Sakkal Majalla, Arial, sans-serif'}}>
-                      {t.noFamilyTrees}
-                    </h3>
-                    <p className="mt-1 text-sm text-gray-500" style={{fontFamily: 'Sakkal Majalla, Arial, sans-serif'}}>
-                      {t.createFirstTree}
-                    </p>
-                    <div className="mt-6">
-                      <Button 
-                        onClick={createNewTree}
-                        className="bg-emerald-600 hover:bg-emerald-700"
-                      >
-                        {t.createNewTree}
-                      </Button>
-                    </div>
-                  </div>
-                )}
+            <div className="bg-white rounded-lg shadow p-6">
+              <h3 className="text-lg font-semibold text-gray-900 mb-4 arabic-text">{t.relationships}</h3>
+              <div className="text-3xl font-bold text-green-600">
+                {relationships.filter(r => r.treeId === currentTree?.id).length}
               </div>
             </div>
           </div>
-        </main>
+
+          {!currentTree && (
+            <div className="mt-8 text-center">
+              <p className="text-gray-600 mb-4 arabic-text">{t.createFirstTree}</p>
+              <Button onClick={createNewTree} size="lg" className="arabic-text">
+                {t.createNewTree}
+              </Button>
+            </div>
+          )}
+        </div>
       </div>
     );
   }
 
-  // Render tree builder
-  return (
-    <div className="h-screen flex flex-col bg-gray-100" dir="rtl">
-      {/* Header */}
-      <header className="bg-white shadow-sm border-b flex items-center justify-between px-4 py-2">
-        <div className="flex items-center">
-          <Button 
-            onClick={() => setCurrentView('dashboard')}
-            variant="outline"
-            size="sm"
-          >
-            العودة إلى لوحة التحكم
-          </Button>
-        </div>
-        
-        <div className="flex-1 flex justify-center">
-          <h1 className="text-xl font-semibold" style={{fontFamily: 'Sakkal Majalla, Arial, sans-serif'}}>
-            شجرة عائلتي
-          </h1>
-        </div>
-        
-        <div className="flex items-center space-x-2 space-x-reverse">
-          <Button 
-            onClick={() => window.print()}
-            variant="outline"
-            size="sm"
-          >
-            🖨️ طباعة
-          </Button>
-        </div>
-      </header>
-
-      {/* Add Person Button - Center of Page */}
-      <div className="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-20">
-        <Button 
-          onClick={() => {
-            setSelectedPerson(null);
-            setRelationshipType(null);
-            setEditingPerson(null);
-            setShowPersonForm(true);
-          }}
-          size="lg"
-          className="bg-emerald-600 hover:bg-emerald-700 text-white px-8 py-4 text-lg shadow-lg"
-        >
-          + إضافة شخص
-        </Button>
-      </div>
-
-      {/* Options Button and Stats - Bottom Center */}
-      <div className="fixed bottom-6 left-1/2 transform -translate-x-1/2 z-20 flex flex-col items-center space-y-2">
-        <Button 
-          onClick={() => setShowOptions(!showOptions)}
-          variant="outline"
-          size="lg"
-          className="bg-white shadow-lg px-6 py-3"
-        >
-          ⚙️ خيارات
-        </Button>
-        
-        <div className="bg-white rounded-lg shadow-lg px-4 py-2 flex items-center space-x-4 space-x-reverse">
-          <span className="text-sm text-gray-600" style={{fontFamily: 'Sakkal Majalla, Arial, sans-serif'}}>
-            {getFilteredPeople().length} أفراد العائلة
-          </span>
-          <span className="text-gray-400">|</span>
-          <span className="text-sm text-gray-600" style={{fontFamily: 'Sakkal Majalla, Arial, sans-serif'}}>
-            {relationships.filter(r => r.treeId === currentTree?.id).length} العلاقات
-          </span>
-        </div>
-      </div>
-
-      {/* Zoom Controls - Middle Left */}
-      <div className="fixed left-6 top-1/2 transform -translate-y-1/2 z-20 flex flex-col space-y-2">
-        <Button
-          onClick={() => setZoom(prev => Math.min(prev * 1.2, 3))}
-          variant="outline"
-          size="lg"
-          className="bg-white shadow-lg w-12 h-12 p-0"
-        >
-          +
-        </Button>
-        <div className="bg-white rounded-lg shadow-lg px-3 py-2 text-center">
-          <span className="text-sm font-medium">{Math.round(zoom * 100)}%</span>
-        </div>
-        <Button
-          onClick={() => setZoom(prev => Math.max(prev / 1.2, 0.3))}
-          variant="outline"
-          size="lg"
-          className="bg-white shadow-lg w-12 h-12 p-0"
-        >
-          -
-        </Button>
-        <Button 
-          onClick={resetView}
-          variant="outline"
-          size="sm"
-          className="bg-white shadow-lg px-2 py-1 text-xs"
-        >
-          🔄
-        </Button>
-      </div>
-
-      {/* Main Canvas Area */}
-      <div className="flex-1 relative overflow-hidden bg-gradient-to-br from-gray-50 to-gray-100">
-        <div 
-          ref={canvasRef}
-          className="w-full h-full cursor-grab active:cursor-grabbing"
-          onMouseDown={handleCanvasMouseDown}
-          onWheel={handleWheel}
-          style={{
-            transform: `scale(${zoom}) translate(${panOffset.x}px, ${panOffset.y}px)`,
-            transformOrigin: '0 0',
-            backgroundImage: 'radial-gradient(circle, #e5e7eb 1px, transparent 1px)',
-            backgroundSize: '20px 20px'
-          }}
-        >
-          {/* Family Tree Canvas */}
-          <div className="relative w-full h-full min-w-[2000px] min-h-[1500px]">
-            {/* SVG for connection lines */}
-            <svg 
-              className="absolute inset-0 w-full h-full pointer-events-none"
-              style={{ zIndex: 1 }}
+  // Tree builder view
+  if (currentView === 'tree-builder') {
+    const treePeople = people.filter(p => p.treeId === currentTree?.id);
+    
+    return (
+      <div className="h-screen bg-gray-100 overflow-hidden">
+        {/* Header */}
+        <div className="bg-white shadow-sm border-b px-4 py-3 flex justify-between items-center">
+          <div className="flex items-center gap-4">
+            <Button
+              onClick={() => setCurrentView('dashboard')}
+              variant="outline"
+              size="sm"
+              className="arabic-text"
             >
-              {/* Render relationship lines */}
-              {relationships
-                .filter(r => r.treeId === currentTree?.id)
-                .map(relationship => {
-                  const person1 = people.find(p => p.id === relationship.person1Id || p.id === relationship.parentId);
-                  const person2 = people.find(p => p.id === relationship.person2Id || p.id === relationship.childId);
-                  
-                  if (!person1 || !person2) return null;
-                  
-                  const x1 = person1.x + CARD.w / 2;
-                  const y1 = person1.y + CARD.h / 2;
-                  const x2 = person2.x + CARD.w / 2;
-                  const y2 = person2.y + CARD.h / 2;
-                  
-                  // Different line styles for different relationship types
-                  let strokeWidth = 2;
-                  let strokeColor = '#6b7280';
-                  let strokeDasharray = 'none';
-                  
-                  switch (relationship.type) {
-                    case REL.PARTNER:
-                      strokeWidth = connectionOptions.currentPartners === 'thick' ? 3 : 
-                                   connectionOptions.currentPartners === 'medium' ? 2 : 1;
-                      strokeColor = '#dc2626'; // Red for partners
-                      break;
-                    case REL.PARENT_CHILD:
-                      strokeWidth = connectionOptions.parents === 'thick' ? 3 : 
-                                   connectionOptions.parents === 'medium' ? 2 : 1;
-                      strokeColor = '#059669'; // Green for parent-child
-                      break;
-                    case REL.SIBLING:
-                      strokeWidth = 2;
-                      strokeColor = '#7c3aed'; // Purple for siblings
-                      strokeDasharray = '5,5'; // Dashed line for siblings
-                      break;
-                  }
-                  
-                  // For parent-child relationships, use L-shaped lines
-                  if (relationship.type === REL.PARENT_CHILD) {
-                    const midY = y1 + (y2 - y1) / 2;
-                    return (
-                      <g key={relationship.id}>
-                        <path
-                          d={`M ${x1} ${y1} L ${x1} ${midY} L ${x2} ${midY} L ${x2} ${y2}`}
-                          stroke={strokeColor}
-                          strokeWidth={strokeWidth}
-                          fill="none"
-                          strokeDasharray={strokeDasharray}
-                        />
-                      </g>
-                    );
-                  }
-                  
-                  // For other relationships, use straight lines
-                  return (
-                    <line
-                      key={relationship.id}
-                      x1={x1}
-                      y1={y1}
-                      x2={x2}
-                      y2={y2}
-                      stroke={strokeColor}
-                      strokeWidth={strokeWidth}
-                      strokeDasharray={strokeDasharray}
-                    />
-                  );
-                })}
+              <Home className="w-4 h-4 ml-2" />
+              {t.backToDashboard}
+            </Button>
+            <h1 className="text-xl font-semibold text-gray-900 arabic-text">
+              {currentTree?.name || t.familyTreeName}
+            </h1>
+          </div>
+          
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-gray-600 arabic-text">
+              {treePeople.length} {t.familyStats} • {relationships.filter(r => r.treeId === currentTree?.id).length} {t.relationshipStats}
+            </span>
+          </div>
+        </div>
+
+        {/* Canvas */}
+        <div className="relative h-full">
+          <div
+            ref={canvasRef}
+            className="w-full h-full cursor-grab active:cursor-grabbing overflow-hidden"
+            style={{ backgroundColor: stylingOptions.backgroundColor }}
+            onMouseDown={handleMouseDown}
+            onMouseUp={handleMouseUp}
+            onWheel={handleWheel}
+          >
+            <svg
+              className="absolute inset-0 pointer-events-none"
+              style={{
+                transform: `translate(${panOffset.x}px, ${panOffset.y}px) scale(${zoom})`,
+                transformOrigin: '0 0'
+              }}
+            >
+              {renderConnectionLines()}
             </svg>
             
-            {getFilteredPeople().length === 0 ? (
-              <div className="absolute inset-0 flex items-center justify-center">
-                <div className="text-center">
-                  <h2 className="text-2xl font-semibold text-gray-700 mb-2" style={{fontFamily: 'Sakkal Majalla, Arial, sans-serif'}}>
-                    {t.startBuilding}
-                  </h2>
-                  <p className="text-gray-500" style={{fontFamily: 'Sakkal Majalla, Arial, sans-serif'}}>
-                    {t.addFirstMember}
-                  </p>
-                </div>
-              </div>
-            ) : (
-              getFilteredPeople().map(person => (
+            <div
+              className="absolute inset-0"
+              style={{
+                transform: `translate(${panOffset.x}px, ${panOffset.y}px) scale(${zoom})`,
+                transformOrigin: '0 0'
+              }}
+            >
+              {treePeople.map(person => (
                 <div
                   key={person.id}
-                  className="absolute bg-white border-2 border-gray-300 rounded-lg shadow-md cursor-pointer hover:shadow-lg transition-shadow"
+                  className={`absolute border-2 rounded-lg p-3 cursor-pointer transition-all duration-200 ${
+                    selectedPerson === person.id 
+                      ? 'border-green-500 shadow-lg' 
+                      : 'border-gray-300 hover:border-gray-400'
+                  }`}
                   style={{
                     left: person.x,
                     top: person.y,
-                    width: CARD.w,
+                    width: stylingOptions.boxWidth,
                     height: CARD.h,
-                    zIndex: 10,
-                    backgroundColor: person.gender === 'male' ? stylingOptions.maleBoxColor : 
-                                   person.gender === 'female' ? stylingOptions.femaleBoxColor : 
-                                   stylingOptions.otherBoxColor
+                    backgroundColor: person.gender === 'male' 
+                      ? stylingOptions.maleBoxColor 
+                      : stylingOptions.femaleBoxColor,
+                    fontSize: stylingOptions.textSize,
+                    color: person.isLiving ? stylingOptions.livingTextColor : stylingOptions.deceasedTextColor
                   }}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setSelectedPerson(person.id);
-                  }}
+                  onClick={() => setSelectedPerson(person.id)}
                 >
-                  <div className="p-2 h-full flex flex-col justify-center">
-                    <div className="text-center">
-                      <div 
-                        className="font-semibold text-sm truncate"
-                        style={{
-                          fontFamily: 'Sakkal Majalla, Arial, sans-serif',
-                          fontSize: `${stylingOptions.textSize}px`,
-                          color: person.isLiving ? stylingOptions.livingTextColor : stylingOptions.deceasedTextColor
-                        }}
-                      >
-                        {displayOptions.showName && `${person.firstName} ${person.lastName}`}
+                  <div className="text-center h-full flex flex-col justify-center">
+                    {displayOptions.showName && (
+                      <div className="font-semibold truncate arabic-text">
+                        {person.firstName}
                       </div>
-                      {displayOptions.showBirthDate && person.birthDate && (
-                        <div className="text-xs text-gray-600 truncate">
-                          {person.birthDate}
-                        </div>
-                      )}
-                      {displayOptions.showBirthPlace && person.birthPlace && (
-                        <div className="text-xs text-gray-600 truncate">
-                          {person.birthPlace}
-                        </div>
-                      )}
-                    </div>
+                    )}
+                    {displayOptions.showSurname && person.lastName && (
+                      <div className="text-sm truncate arabic-text">
+                        {person.lastName}
+                      </div>
+                    )}
+                    {displayOptions.showBirthDate && person.birthDate && (
+                      <div className="text-xs truncate">
+                        {person.birthDate}
+                      </div>
+                    )}
+                    {displayOptions.showProfession && person.profession && (
+                      <div className="text-xs truncate arabic-text">
+                        {person.profession}
+                      </div>
+                    )}
                   </div>
-                  
-                  {/* Relationship buttons */}
-                  {selectedPerson === person.id && (
-                    <div className="absolute -bottom-8 left-0 right-0 flex justify-center space-x-1 space-x-reverse">
-                      <Button
-                        size="sm"
-                        className="text-xs bg-blue-500 hover:bg-blue-600"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setRelationshipType('partner');
-                          setShowPersonForm(true);
-                        }}
-                      >
-                        👫
-                      </Button>
-                      <Button
-                        size="sm"
-                        className="text-xs bg-green-500 hover:bg-green-600"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setRelationshipType('child');
-                          setShowPersonForm(true);
-                        }}
-                      >
-                        👶
-                      </Button>
-                      <Button
-                        size="sm"
-                        className="text-xs bg-purple-500 hover:bg-purple-600"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setRelationshipType('parent');
-                          setShowPersonForm(true);
-                        }}
-                      >
-                        👨‍👩‍👧‍👦
-                      </Button>
-                      <Button
-                        size="sm"
-                        className="text-xs bg-orange-500 hover:bg-orange-600"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setRelationshipType('sibling');
-                          setShowPersonForm(true);
-                        }}
-                      >
-                        👫
-                      </Button>
-                      <Button
-                        size="sm"
-                        className="text-xs bg-gray-500 hover:bg-gray-600"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setEditingPerson(person);
-                          setShowPersonForm(true);
-                        }}
-                      >
-                        ✏️
-                      </Button>
-                      <Button
-                        size="sm"
-                        className="text-xs bg-red-500 hover:bg-red-600"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          if (confirm('هل أنت متأكد من حذف هذا الشخص؟')) {
-                            deletePerson(person.id);
-                            setSelectedPerson(null);
-                          }
-                        }}
-                      >
-                        🗑️
-                      </Button>
-                    </div>
-                  )}
                 </div>
-              ))
+              ))}
+            </div>
+
+            {/* Add first person button */}
+            {treePeople.length === 0 && (
+              <div className="absolute inset-0 flex items-center justify-center">
+                <div className="text-center">
+                  <h2 className="text-xl font-semibold text-gray-700 mb-4 arabic-text">
+                    {t.startBuilding}
+                  </h2>
+                  <p className="text-gray-500 mb-6 arabic-text">
+                    {t.addFirstMember}
+                  </p>
+                  <Button
+                    onClick={() => {
+                      setRelationshipType(null);
+                      setEditingPerson(null);
+                      setShowPersonForm(true);
+                    }}
+                    size="lg"
+                    className="arabic-text"
+                  >
+                    <UserPlus className="w-5 h-5 ml-2" />
+                    {t.addPerson}
+                  </Button>
+                </div>
+              </div>
             )}
           </div>
-        </div>
-      </div>
 
-      {/* Person Form Modal */}
-      {showPersonForm && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
-            <PersonForm
-              person={editingPerson}
-              onSave={addPerson}
-              onCancel={() => {
-                setShowPersonForm(false);
-                setEditingPerson(null);
-                setRelationshipType(null);
-              }}
-              activeTab={activeTab}
-              setActiveTab={setActiveTab}
-              t={t}
-            />
+          {/* Floating Controls */}
+          
+          {/* Zoom Controls */}
+          <div className="absolute left-4 top-1/2 transform -translate-y-1/2 flex flex-col gap-2">
+            <Button
+              onClick={zoomIn}
+              size="sm"
+              className="w-10 h-10 p-0"
+            >
+              <ZoomIn className="w-4 h-4" />
+            </Button>
+            <div className="bg-white px-2 py-1 rounded text-sm font-medium text-center">
+              {Math.round(zoom * 100)}%
+            </div>
+            <Button
+              onClick={zoomOut}
+              size="sm"
+              className="w-10 h-10 p-0"
+            >
+              <ZoomOut className="w-4 h-4" />
+            </Button>
+            <Button
+              onClick={resetView}
+              size="sm"
+              variant="outline"
+              className="w-10 h-10 p-0"
+            >
+              <RotateCcw className="w-4 h-4" />
+            </Button>
           </div>
+
+          {/* Bottom Toolbar */}
+          <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2">
+            <div className="bg-white rounded-lg shadow-lg border flex items-center gap-2 px-4 py-2">
+              {treePeople.length > 0 && (
+                <Button
+                  onClick={() => {
+                    setRelationshipType(null);
+                    setEditingPerson(null);
+                    setShowPersonForm(true);
+                  }}
+                  size="sm"
+                  className="arabic-text"
+                >
+                  <UserPlus className="w-4 h-4 ml-1" />
+                  {t.addPerson}
+                </Button>
+              )}
+              
+              <Button
+                onClick={() => setShowOptions(true)}
+                size="sm"
+                variant="outline"
+                className="arabic-text"
+              >
+                <Settings className="w-4 h-4 ml-1" />
+                {t.options}
+              </Button>
+              
+              <Button
+                onClick={handlePrint}
+                size="sm"
+                variant="outline"
+                className="arabic-text"
+              >
+                <Printer className="w-4 h-4 ml-1" />
+                {t.print}
+              </Button>
+              
+              <Button
+                onClick={() => setShowDownloadModal(true)}
+                size="sm"
+                variant="outline"
+                className="arabic-text"
+              >
+                <Download className="w-4 h-4 ml-1" />
+                {t.download}
+              </Button>
+              
+              <Button
+                onClick={handleShare}
+                size="sm"
+                variant="outline"
+                className="arabic-text"
+              >
+                <Share className="w-4 h-4 ml-1" />
+                {t.share}
+              </Button>
+              
+              <Button
+                onClick={handleCalendar}
+                size="sm"
+                variant="outline"
+                className="arabic-text"
+              >
+                <Calendar className="w-4 h-4 ml-1" />
+                {t.calendar}
+              </Button>
+            </div>
+          </div>
+
+          {/* Relationship Controls */}
+          {selectedPerson && treePeople.find(p => p.id === selectedPerson) && (
+            <div className="absolute right-4 top-1/2 transform -translate-y-1/2">
+              <div className="bg-white rounded-lg shadow-lg border p-3 space-y-2">
+                <div className="text-sm font-medium text-gray-700 text-center arabic-text mb-3">
+                  {treePeople.find(p => p.id === selectedPerson)?.firstName}
+                </div>
+                
+                <Button
+                  onClick={() => {
+                    setRelationshipType('spouse');
+                    setEditingPerson(null);
+                    setShowPersonForm(true);
+                  }}
+                  size="sm"
+                  variant="outline"
+                  className="w-full justify-start arabic-text"
+                >
+                  {getRelationshipIcon('spouse')}
+                  <span className="mr-2">{t.addSpouse}</span>
+                </Button>
+                
+                <Button
+                  onClick={() => {
+                    setRelationshipType('child');
+                    setEditingPerson(null);
+                    setShowPersonForm(true);
+                  }}
+                  size="sm"
+                  variant="outline"
+                  className="w-full justify-start arabic-text"
+                >
+                  {getRelationshipIcon('child')}
+                  <span className="mr-2">{t.addChild}</span>
+                </Button>
+                
+                <Button
+                  onClick={() => {
+                    setRelationshipType('parent');
+                    setEditingPerson(null);
+                    setShowPersonForm(true);
+                  }}
+                  size="sm"
+                  variant="outline"
+                  className="w-full justify-start arabic-text"
+                >
+                  {getRelationshipIcon('parent')}
+                  <span className="mr-2">{t.addParent}</span>
+                </Button>
+                
+                <Button
+                  onClick={() => {
+                    setRelationshipType('sibling');
+                    setEditingPerson(null);
+                    setShowPersonForm(true);
+                  }}
+                  size="sm"
+                  variant="outline"
+                  className="w-full justify-start arabic-text"
+                >
+                  {getRelationshipIcon('sibling')}
+                  <span className="mr-2">{t.addSibling}</span>
+                </Button>
+                
+                <hr className="my-2" />
+                
+                <Button
+                  onClick={() => {
+                    setEditingPerson(selectedPerson);
+                    setRelationshipType(null);
+                    setShowPersonForm(true);
+                  }}
+                  size="sm"
+                  variant="outline"
+                  className="w-full justify-start arabic-text"
+                >
+                  <Edit3 className="w-4 h-4" />
+                  <span className="mr-2">{t.editPerson}</span>
+                </Button>
+                
+                <Button
+                  onClick={() => deletePerson(selectedPerson)}
+                  size="sm"
+                  variant="outline"
+                  className="w-full justify-start text-red-600 hover:text-red-700 arabic-text"
+                >
+                  <Trash2 className="w-4 h-4" />
+                  <span className="mr-2">{t.deletePerson}</span>
+                </Button>
+              </div>
+            </div>
+          )}
         </div>
-      )}
-    </div>
-  );
+
+        {/* Person Form Modal */}
+        {showPersonForm && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-lg shadow-xl w-full max-w-md mx-4 max-h-[90vh] overflow-y-auto">
+              <div className="p-6">
+                <div className="flex justify-between items-center mb-6">
+                  <h2 className="text-xl font-semibold text-gray-900 arabic-text">
+                    {editingPerson ? t.editFamilyMember : t.addFamilyMember}
+                  </h2>
+                  <Button
+                    onClick={() => {
+                      setShowPersonForm(false);
+                      setEditingPerson(null);
+                      setRelationshipType(null);
+                    }}
+                    variant="ghost"
+                    size="sm"
+                  >
+                    <X className="w-4 h-4" />
+                  </Button>
+                </div>
+
+                <div className="mb-4 p-3 bg-blue-50 rounded-lg">
+                  <p className="text-sm text-blue-700 text-center arabic-text">
+                    {t.allFieldsOptional}
+                  </p>
+                </div>
+
+                <PersonForm
+                  person={editingPerson ? treePeople.find(p => p.id === editingPerson) : null}
+                  onSave={editingPerson ? updatePerson : addPerson}
+                  onCancel={() => {
+                    setShowPersonForm(false);
+                    setEditingPerson(null);
+                    setRelationshipType(null);
+                  }}
+                  relationshipType={relationshipType}
+                  anchorPerson={selectedPerson ? treePeople.find(p => p.id === selectedPerson) : null}
+                />
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Options Modal */}
+        {showOptions && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl mx-4 max-h-[90vh] overflow-y-auto">
+              <div className="p-6">
+                <div className="flex justify-between items-center mb-6">
+                  <h2 className="text-xl font-semibold text-gray-900 arabic-text">{t.options}</h2>
+                  <Button
+                    onClick={() => setShowOptions(false)}
+                    variant="ghost"
+                    size="sm"
+                  >
+                    <X className="w-4 h-4" />
+                  </Button>
+                </div>
+
+                <div className="space-y-6">
+                  {/* Display Options */}
+                  <div>
+                    <h3 className="text-lg font-medium text-gray-900 mb-4 arabic-text">{t.displayOptions}</h3>
+                    <div className="grid grid-cols-2 gap-4">
+                      {Object.entries(displayOptions).map(([key, value]) => (
+                        <label key={key} className="flex items-center gap-2">
+                          <input
+                            type="checkbox"
+                            checked={value}
+                            onChange={(e) => setDisplayOptions(prev => ({
+                              ...prev,
+                              [key]: e.target.checked
+                            }))}
+                            className="rounded"
+                          />
+                          <span className="text-sm text-gray-700 arabic-text">
+                            {t[key] || key}
+                          </span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Styling Options */}
+                  <div>
+                    <h3 className="text-lg font-medium text-gray-900 mb-4 arabic-text">{t.stylingOptions}</h3>
+                    <div className="space-y-4">
+                      <div className="flex items-center gap-4">
+                        <label className="text-sm text-gray-700 arabic-text">{t.maleBoxColor}</label>
+                        <input
+                          type="color"
+                          value={stylingOptions.maleBoxColor}
+                          onChange={(e) => setStylingOptions(prev => ({
+                            ...prev,
+                            maleBoxColor: e.target.value
+                          }))}
+                          className="w-8 h-8 rounded border"
+                        />
+                      </div>
+                      
+                      <div className="flex items-center gap-4">
+                        <label className="text-sm text-gray-700 arabic-text">{t.femaleBoxColor}</label>
+                        <input
+                          type="color"
+                          value={stylingOptions.femaleBoxColor}
+                          onChange={(e) => setStylingOptions(prev => ({
+                            ...prev,
+                            femaleBoxColor: e.target.value
+                          }))}
+                          className="w-8 h-8 rounded border"
+                        />
+                      </div>
+                      
+                      <div className="flex items-center gap-4">
+                        <label className="text-sm text-gray-700 arabic-text">{t.backgroundColor}</label>
+                        <input
+                          type="color"
+                          value={stylingOptions.backgroundColor}
+                          onChange={(e) => setStylingOptions(prev => ({
+                            ...prev,
+                            backgroundColor: e.target.value
+                          }))}
+                          className="w-8 h-8 rounded border"
+                        />
+                      </div>
+                      
+                      <div className="flex items-center gap-4">
+                        <label className="text-sm text-gray-700 arabic-text">{t.boxWidth}</label>
+                        <input
+                          type="range"
+                          min="100"
+                          max="200"
+                          value={stylingOptions.boxWidth}
+                          onChange={(e) => setStylingOptions(prev => ({
+                            ...prev,
+                            boxWidth: parseInt(e.target.value)
+                          }))}
+                          className="flex-1"
+                        />
+                        <span className="text-sm text-gray-600">{stylingOptions.boxWidth}px</span>
+                      </div>
+                      
+                      <div className="flex items-center gap-4">
+                        <label className="text-sm text-gray-700 arabic-text">{t.textSize}</label>
+                        <input
+                          type="range"
+                          min="10"
+                          max="20"
+                          value={stylingOptions.textSize}
+                          onChange={(e) => setStylingOptions(prev => ({
+                            ...prev,
+                            textSize: parseInt(e.target.value)
+                          }))}
+                          className="flex-1"
+                        />
+                        <span className="text-sm text-gray-600">{stylingOptions.textSize}px</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex justify-end gap-3 mt-6">
+                  <Button
+                    onClick={() => setShowOptions(false)}
+                    variant="outline"
+                    className="arabic-text"
+                  >
+                    {t.cancel}
+                  </Button>
+                  <Button
+                    onClick={() => setShowOptions(false)}
+                    className="arabic-text"
+                  >
+                    {t.applyChanges}
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Download Modal */}
+        {showDownloadModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-lg shadow-xl w-full max-w-md mx-4">
+              <div className="p-6">
+                <div className="flex justify-between items-center mb-6">
+                  <h2 className="text-xl font-semibold text-gray-900 arabic-text">{t.download}</h2>
+                  <Button
+                    onClick={() => setShowDownloadModal(false)}
+                    variant="ghost"
+                    size="sm"
+                  >
+                    <X className="w-4 h-4" />
+                  </Button>
+                </div>
+
+                <p className="text-gray-600 mb-4 arabic-text">{t.selectDownloadFormat}</p>
+
+                <div className="space-y-3">
+                  <label className="flex items-start gap-3 p-3 border rounded-lg cursor-pointer hover:bg-gray-50">
+                    <input
+                      type="radio"
+                      name="downloadFormat"
+                      value="html"
+                      checked={selectedDownloadFormat === 'html'}
+                      onChange={(e) => setSelectedDownloadFormat(e.target.value)}
+                      className="mt-1"
+                    />
+                    <div>
+                      <div className="font-medium text-gray-900 arabic-text">{t.readOnlyHTML}</div>
+                      <div className="text-sm text-gray-600 arabic-text">{t.readOnlyHTMLDesc}</div>
+                    </div>
+                  </label>
+
+                  <label className="flex items-start gap-3 p-3 border rounded-lg cursor-pointer hover:bg-gray-50">
+                    <input
+                      type="radio"
+                      name="downloadFormat"
+                      value="gedcom"
+                      checked={selectedDownloadFormat === 'gedcom'}
+                      onChange={(e) => setSelectedDownloadFormat(e.target.value)}
+                      className="mt-1"
+                    />
+                    <div>
+                      <div className="font-medium text-gray-900 arabic-text">{t.gedcom}</div>
+                      <div className="text-sm text-gray-600 arabic-text">{t.gedcomDesc}</div>
+                    </div>
+                  </label>
+
+                  <label className="flex items-start gap-3 p-3 border rounded-lg cursor-pointer hover:bg-gray-50">
+                    <input
+                      type="radio"
+                      name="downloadFormat"
+                      value="csv"
+                      checked={selectedDownloadFormat === 'csv'}
+                      onChange={(e) => setSelectedDownloadFormat(e.target.value)}
+                      className="mt-1"
+                    />
+                    <div>
+                      <div className="font-medium text-gray-900 arabic-text">{t.csv}</div>
+                      <div className="text-sm text-gray-600 arabic-text">{t.csvDesc}</div>
+                    </div>
+                  </label>
+
+                  <label className="flex items-start gap-3 p-3 border rounded-lg cursor-pointer hover:bg-gray-50">
+                    <input
+                      type="radio"
+                      name="downloadFormat"
+                      value="plaintext"
+                      checked={selectedDownloadFormat === 'plaintext'}
+                      onChange={(e) => setSelectedDownloadFormat(e.target.value)}
+                      className="mt-1"
+                    />
+                    <div>
+                      <div className="font-medium text-gray-900 arabic-text">{t.plainText}</div>
+                      <div className="text-sm text-gray-600 arabic-text">{t.plainTextDesc}</div>
+                    </div>
+                  </label>
+                </div>
+
+                <div className="flex justify-end gap-3 mt-6">
+                  <Button
+                    onClick={() => setShowDownloadModal(false)}
+                    variant="outline"
+                    className="arabic-text"
+                  >
+                    {t.cancel}
+                  </Button>
+                  <Button
+                    onClick={() => handleDownload(selectedDownloadFormat)}
+                    className="arabic-text"
+                  >
+                    {t.downloadBtn}
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  return null;
 }
 
 // Person Form Component
-function PersonForm({ person, onSave, onCancel, activeTab, setActiveTab, t }) {
+function PersonForm({ person, onSave, onCancel, relationshipType, anchorPerson }) {
   const [formData, setFormData] = useState({
-    firstName: '',
-    lastName: '',
-    gender: 'male',
-    birthDate: '',
-    birthPlace: '',
-    isLiving: true,
-    deathDate: '',
-    phone: '',
-    email: '',
-    address: '',
-    profession: '',
-    company: '',
-    bioNotes: '',
-    ...person
+    firstName: person?.firstName || '',
+    lastName: person?.lastName || '',
+    gender: person?.gender || (relationshipType === 'spouse' && anchorPerson ? 
+      (anchorPerson.gender === 'male' ? 'female' : 'male') : ''),
+    birthDate: person?.birthDate || '',
+    birthPlace: person?.birthPlace || '',
+    isLiving: person?.isLiving !== false,
+    deathDate: person?.deathDate || '',
+    phone: person?.phone || '',
+    email: person?.email || '',
+    address: person?.address || '',
+    profession: person?.profession || '',
+    company: person?.company || '',
+    bioNotes: person?.bioNotes || ''
   });
+
+  const t = {
+    firstName: 'الاسم الأول',
+    lastName: 'اسم العائلة',
+    gender: 'الجنس',
+    male: 'ذكر',
+    female: 'أنثى',
+    birthDate: 'تاريخ الميلاد',
+    birthPlace: 'مكان الميلاد',
+    isLiving: 'على قيد الحياة',
+    deathDate: 'تاريخ الوفاة',
+    phone: 'الهاتف',
+    email: 'البريد الإلكتروني',
+    address: 'العنوان',
+    profession: 'المهنة',
+    company: 'الشركة',
+    bioNotes: 'ملاحظات السيرة الذاتية',
+    save: 'حفظ',
+    cancel: 'إلغاء',
+    update: 'تحديث',
+    personal: 'البيانات الشخصية',
+    contact: 'معلومات التواصل',
+    biography: 'السيرة الذاتية'
+  };
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    // Only require firstName for form submission
     if (!formData.firstName.trim()) {
-      alert('يرجى إدخال الاسم الأول على الأقل');
+      alert('يرجى إدخال الاسم الأول');
       return;
     }
     onSave(formData);
   };
 
-  const tabs = [
-    { id: 'personal', label: t.personal },
-    { id: 'partners', label: t.partners },
-    { id: 'contact', label: t.contact },
-    { id: 'biography', label: t.biography }
-  ];
+  const handleChange = (field, value) => {
+    setFormData(prev => ({ ...prev, [field]: value }));
+  };
 
   return (
-    <form onSubmit={handleSubmit} className="p-6">
-      <div className="flex justify-between items-center mb-6">
-        <h2 className="text-xl font-semibold" style={{fontFamily: 'Sakkal Majalla, Arial, sans-serif'}}>
-          {person ? t.editFamilyMember : t.addFamilyMember}
-        </h2>
-        <Button 
-          type="button"
-          onClick={onCancel}
-          variant="outline"
-          size="sm"
-        >
-          ✕
-        </Button>
-      </div>
-
-      {/* Tabs */}
-      <div className="flex border-b mb-6">
-        {tabs.map(tab => (
-          <button
-            key={tab.id}
-            type="button"
-            onClick={() => setActiveTab(tab.id)}
-            className={`px-4 py-2 font-medium text-sm ${
-              activeTab === tab.id
-                ? 'border-b-2 border-emerald-500 text-emerald-600'
-                : 'text-gray-500 hover:text-gray-700'
-            }`}
-            style={{fontFamily: 'Sakkal Majalla, Arial, sans-serif'}}
-          >
-            {tab.label}
-          </button>
-        ))}
-      </div>
-
-      {/* Tab Content */}
-      {activeTab === 'personal' && (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      {/* Personal Information */}
+      <div>
+        <h3 className="text-lg font-medium text-gray-900 mb-3 arabic-text">{t.personal}</h3>
         <div className="space-y-4">
-          {/* First Name Field */}
           <div>
-            <label className="block text-sm font-medium mb-1" style={{fontFamily: 'Sakkal Majalla, Arial, sans-serif'}}>
-              الاسم الأول (اختياري)
+            <label className="block text-sm font-medium text-gray-700 mb-1 arabic-text">
+              {t.firstName}
             </label>
             <input
               type="text"
               value={formData.firstName}
-              onChange={(e) => setFormData(prev => ({ ...prev, firstName: e.target.value }))}
-              className="w-full border rounded px-3 py-2 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
-              placeholder="مثال: أحمد، فاطمة، محمد"
+              onChange={(e) => handleChange('firstName', e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 arabic-text"
               dir="rtl"
             />
           </div>
 
-          {/* Family Name Field */}
           <div>
-            <label className="block text-sm font-medium mb-1" style={{fontFamily: 'Sakkal Majalla, Arial, sans-serif'}}>
-              اسم العائلة (اختياري)
+            <label className="block text-sm font-medium text-gray-700 mb-1 arabic-text">
+              {t.lastName}
             </label>
             <input
               type="text"
               value={formData.lastName}
-              onChange={(e) => setFormData(prev => ({ ...prev, lastName: e.target.value }))}
-              className="w-full border rounded px-3 py-2 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
-              placeholder="مثال: الزعابي، المنصوري، الكعبي"
+              onChange={(e) => handleChange('lastName', e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 arabic-text"
               dir="rtl"
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium mb-1" style={{fontFamily: 'Sakkal Majalla, Arial, sans-serif'}}>
-              الجنس
+            <label className="block text-sm font-medium text-gray-700 mb-1 arabic-text">
+              {t.gender}
             </label>
             <select
               value={formData.gender}
-              onChange={(e) => setFormData(prev => ({ ...prev, gender: e.target.value }))}
-              className="w-full border rounded px-3 py-2 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+              onChange={(e) => handleChange('gender', e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 arabic-text"
             >
-              <option value="male">ذكر</option>
-              <option value="female">أنثى</option>
+              <option value="">اختر الجنس</option>
+              <option value="male">{t.male}</option>
+              <option value="female">{t.female}</option>
             </select>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium mb-1" style={{fontFamily: 'Sakkal Majalla, Arial, sans-serif'}}>
-                تاريخ الميلاد (اختياري)
-              </label>
-              <input
-                type="date"
-                value={formData.birthDate}
-                onChange={(e) => setFormData(prev => ({ ...prev, birthDate: e.target.value }))}
-                className="w-full border rounded px-3 py-2 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium mb-1" style={{fontFamily: 'Sakkal Majalla, Arial, sans-serif'}}>
-                مكان الميلاد (اختياري)
-              </label>
-              <input
-                type="text"
-                value={formData.birthPlace}
-                onChange={(e) => setFormData(prev => ({ ...prev, birthPlace: e.target.value }))}
-                className="w-full border rounded px-3 py-2 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
-                placeholder="مثال: أبوظبي، دبي، الشارقة"
-                dir="rtl"
-              />
-            </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1 arabic-text">
+              {t.birthDate}
+            </label>
+            <input
+              type="date"
+              value={formData.birthDate}
+              onChange={(e) => handleChange('birthDate', e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
           </div>
 
-          <div className="flex items-center space-x-2 space-x-reverse">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1 arabic-text">
+              {t.birthPlace}
+            </label>
+            <input
+              type="text"
+              value={formData.birthPlace}
+              onChange={(e) => handleChange('birthPlace', e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 arabic-text"
+              dir="rtl"
+            />
+          </div>
+
+          <div className="flex items-center gap-2">
             <input
               type="checkbox"
               id="isLiving"
               checked={formData.isLiving}
-              onChange={(e) => setFormData(prev => ({ ...prev, isLiving: e.target.checked }))}
+              onChange={(e) => handleChange('isLiving', e.target.checked)}
               className="rounded"
             />
-            <label htmlFor="isLiving" className="text-sm font-medium" style={{fontFamily: 'Sakkal Majalla, Arial, sans-serif'}}>
-              على قيد الحياة
+            <label htmlFor="isLiving" className="text-sm text-gray-700 arabic-text">
+              {t.isLiving}
             </label>
           </div>
 
           {!formData.isLiving && (
             <div>
-              <label className="block text-sm font-medium mb-1" style={{fontFamily: 'Sakkal Majalla, Arial, sans-serif'}}>
-                تاريخ الوفاة (اختياري)
+              <label className="block text-sm font-medium text-gray-700 mb-1 arabic-text">
+                {t.deathDate}
               </label>
               <input
                 type="date"
                 value={formData.deathDate}
-                onChange={(e) => setFormData(prev => ({ ...prev, deathDate: e.target.value }))}
-                className="w-full border rounded px-3 py-2 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                onChange={(e) => handleChange('deathDate', e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
           )}
         </div>
-      )}
+      </div>
 
-      {activeTab === 'partners' && (
-        <div className="text-center py-8">
-          <p className="text-gray-500" style={{fontFamily: 'Sakkal Majalla, Arial, sans-serif'}}>
-            سيتم إضافة إدارة الشركاء قريباً
-          </p>
-        </div>
-      )}
-
-      {activeTab === 'contact' && (
+      {/* Contact Information */}
+      <div>
+        <h3 className="text-lg font-medium text-gray-900 mb-3 arabic-text">{t.contact}</h3>
         <div className="space-y-4">
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
-            <p className="text-sm text-blue-700" style={{fontFamily: 'Sakkal Majalla, Arial, sans-serif'}}>
-              جميع معلومات التواصل اختيارية ويمكن إضافتها لاحقاً
-            </p>
-          </div>
-          
           <div>
-            <label className="block text-sm font-medium mb-1" style={{fontFamily: 'Sakkal Majalla, Arial, sans-serif'}}>
-              رقم الهاتف (اختياري)
+            <label className="block text-sm font-medium text-gray-700 mb-1 arabic-text">
+              {t.phone}
             </label>
             <input
               type="tel"
               value={formData.phone}
-              onChange={(e) => setFormData(prev => ({ ...prev, phone: e.target.value }))}
-              className="w-full border rounded px-3 py-2 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
-              placeholder="مثال: +971501234567"
+              onChange={(e) => handleChange('phone', e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
               dir="ltr"
             />
           </div>
-          
+
           <div>
-            <label className="block text-sm font-medium mb-1" style={{fontFamily: 'Sakkal Majalla, Arial, sans-serif'}}>
-              البريد الإلكتروني (اختياري)
+            <label className="block text-sm font-medium text-gray-700 mb-1 arabic-text">
+              {t.email}
             </label>
             <input
               type="email"
               value={formData.email}
-              onChange={(e) => setFormData(prev => ({ ...prev, email: e.target.value }))}
-              className="w-full border rounded px-3 py-2 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
-              placeholder="example@email.com"
+              onChange={(e) => handleChange('email', e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
               dir="ltr"
             />
           </div>
-          
+
           <div>
-            <label className="block text-sm font-medium mb-1" style={{fontFamily: 'Sakkal Majalla, Arial, sans-serif'}}>
-              العنوان (اختياري)
+            <label className="block text-sm font-medium text-gray-700 mb-1 arabic-text">
+              {t.address}
             </label>
-            <textarea
+            <input
+              type="text"
               value={formData.address}
-              onChange={(e) => setFormData(prev => ({ ...prev, address: e.target.value }))}
-              className="w-full border rounded px-3 py-2 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
-              rows="3"
-              placeholder="مثال: أبوظبي، الإمارات العربية المتحدة"
+              onChange={(e) => handleChange('address', e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 arabic-text"
               dir="rtl"
             />
           </div>
-          
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium mb-1" style={{fontFamily: 'Sakkal Majalla, Arial, sans-serif'}}>
-                المهنة (اختياري)
-              </label>
-              <input
-                type="text"
-                value={formData.profession}
-                onChange={(e) => setFormData(prev => ({ ...prev, profession: e.target.value }))}
-                className="w-full border rounded px-3 py-2 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
-                placeholder="مثال: مهندس، طبيب، معلم"
-                dir="rtl"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium mb-1" style={{fontFamily: 'Sakkal Majalla, Arial, sans-serif'}}>
-                الشركة (اختياري)
-              </label>
-              <input
-                type="text"
-                value={formData.company}
-                onChange={(e) => setFormData(prev => ({ ...prev, company: e.target.value }))}
-                className="w-full border rounded px-3 py-2 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
-                placeholder="مثال: أدنوك، طيران الإمارات، بنك الإمارات"
-                dir="rtl"
-              />
-            </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1 arabic-text">
+              {t.profession}
+            </label>
+            <input
+              type="text"
+              value={formData.profession}
+              onChange={(e) => handleChange('profession', e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 arabic-text"
+              dir="rtl"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1 arabic-text">
+              {t.company}
+            </label>
+            <input
+              type="text"
+              value={formData.company}
+              onChange={(e) => handleChange('company', e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 arabic-text"
+              dir="rtl"
+            />
           </div>
         </div>
-      )}
+      </div>
 
-      {activeTab === 'biography' && (
+      {/* Biography */}
+      <div>
+        <h3 className="text-lg font-medium text-gray-900 mb-3 arabic-text">{t.biography}</h3>
         <div>
-          <div className="bg-purple-50 border border-purple-200 rounded-lg p-4 mb-4">
-            <p className="text-sm text-purple-700" style={{fontFamily: 'Sakkal Majalla, Arial, sans-serif'}}>
-              السيرة الذاتية اختيارية ويمكن إضافة معلومات شخصية أو قصص عائلية
-            </p>
-          </div>
-          
-          <label className="block text-sm font-medium mb-1" style={{fontFamily: 'Sakkal Majalla, Arial, sans-serif'}}>
-            ملاحظات السيرة الذاتية (اختياري)
+          <label className="block text-sm font-medium text-gray-700 mb-1 arabic-text">
+            {t.bioNotes}
           </label>
           <textarea
             value={formData.bioNotes}
-            onChange={(e) => setFormData(prev => ({ ...prev, bioNotes: e.target.value }))}
-            className="w-full border rounded px-3 py-2 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
-            rows="8"
-            placeholder="أضف معلومات عن الشخص مثل:
-• الإنجازات والمساهمات
-• القصص العائلية المهمة
-• الهوايات والاهتمامات
-• التعليم والخبرات
-• أي معلومات أخرى مهمة للعائلة"
+            onChange={(e) => handleChange('bioNotes', e.target.value)}
+            rows={4}
+            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 arabic-text"
             dir="rtl"
           />
         </div>
-      )}
+      </div>
 
       {/* Form Actions */}
-      <div className="flex justify-between items-center mt-6 pt-6 border-t">
-        <div className="text-sm text-gray-600" style={{fontFamily: 'Sakkal Majalla, Arial, sans-serif'}}>
-          جميع الحقول اختيارية
-        </div>
-        <div className="flex space-x-2 space-x-reverse">
-          <Button 
-            type="submit"
-            className="bg-emerald-600 hover:bg-emerald-700 px-6"
-          >
-            {person ? 'تحديث' : 'حفظ'}
-          </Button>
-          <Button 
-            type="button"
-            onClick={onCancel}
-            variant="outline"
-            className="px-6"
-          >
-            إلغاء
-          </Button>
-        </div>
+      <div className="flex justify-end gap-3 pt-4">
+        <Button
+          type="button"
+          onClick={onCancel}
+          variant="outline"
+          className="arabic-text"
+        >
+          {t.cancel}
+        </Button>
+        <Button
+          type="submit"
+          className="arabic-text"
+        >
+          {person ? t.update : t.save}
+        </Button>
       </div>
     </form>
   );
 }
 
-export default App
+export default App;
