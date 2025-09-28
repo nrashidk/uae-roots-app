@@ -944,7 +944,10 @@ function App() {
     return (
       <div className="h-screen bg-gray-100 overflow-hidden">
         {/* Header */}
-        <div className="bg-white shadow-sm border-b px-4 py-3 flex justify-between items-center">
+        <div 
+          className="bg-white shadow-sm border-b px-4 py-3 flex justify-between items-center transition-all duration-300 ease-in-out"
+          style={{ marginRight: showPersonForm ? '400px' : '0' }}
+        >
           <div className="flex items-center gap-4">
             <Button
               onClick={() => setCurrentView('dashboard')}
@@ -968,7 +971,13 @@ function App() {
         </div>
 
         {/* Canvas */}
-        <div className="relative h-full">
+        <div 
+          className="relative transition-all duration-300 ease-in-out"
+          style={{ 
+            marginRight: showPersonForm ? '400px' : '0',
+            height: 'calc(100vh - 64px)' // Subtract header height
+          }}
+        >
           <div
             ref={canvasRef}
             className="w-full h-full cursor-grab active:cursor-grabbing overflow-hidden"
@@ -1359,41 +1368,33 @@ function App() {
           )}
         </div>
 
-        {/* Person Form Modal */}
+        {/* Person Form Sidebar */}
         {showPersonForm && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-end z-50">
-            <div
-              className="bg-white rounded-lg shadow-xl"
-              style={{
-                width: '420px',
-                height: '85vh',
-                position: 'absolute',
-                right: '40px',
-                top: '50%',
-                transform: 'translateY(-50%)',
-                overflowY: 'auto',
-                display: 'flex',
-                flexDirection: 'column',
-              }}
-            >
-              <div className="p-6">
-                <div className="flex justify-between items-center mb-6">
-                  <h2 className="text-xl font-semibold text-gray-900 arabic-text">
-                    {editingPerson ? t.editFamilyMember : t.addFamilyMember}
-                  </h2>
-                  <Button
-                    onClick={() => {
-                      setShowPersonForm(false);
-                      setEditingPerson(null);
-                      setRelationshipType(null);
-                    }}
-                    variant="ghost"
-                    size="sm"
-                  >
-                    <X className="w-4 h-4" />
-                  </Button>
-                </div>
+          <div className="fixed right-0 bg-white shadow-2xl border-l border-gray-200 z-40"
+               style={{ 
+                 width: '400px',
+                 top: '64px', // Start below header
+                 bottom: '0'
+               }}>
+            <div className="h-full flex flex-col">
+              <div className="flex justify-between items-center p-4 border-b border-gray-200">
+                <h2 className="text-lg font-semibold text-gray-900 arabic-text">
+                  {editingPerson ? t.editFamilyMember : t.addFamilyMember}
+                </h2>
+                <Button
+                  onClick={() => {
+                    setShowPersonForm(false);
+                    setEditingPerson(null);
+                    setRelationshipType(null);
+                  }}
+                  variant="ghost"
+                  size="sm"
+                >
+                  <X className="w-4 h-4" />
+                </Button>
+              </div>
 
+              <div className="flex-1 overflow-y-auto p-4">
                 <div className="mb-4 p-3 bg-blue-50 rounded-lg">
                   <p className="text-sm text-blue-700 text-center arabic-text">
                     {t.allFieldsOptional}
@@ -1717,35 +1718,37 @@ function PersonForm({ person, onSave, onCancel, relationshipType, anchorPerson }
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
+    <form onSubmit={handleSubmit} className="space-y-3">
       {/* Personal Information */}
       <div>
-        <h3 className="text-lg font-medium text-gray-900 mb-3 arabic-text">{t.personal}</h3>
-        <div className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1 arabic-text">
-              {t.firstName}
-            </label>
-            <input
-              type="text"
-              value={formData.firstName}
-              onChange={(e) => handleChange('firstName', e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 arabic-text"
-              dir="rtl"
-            />
-          </div>
+        <h3 className="text-md font-medium text-gray-900 mb-2 arabic-text">{t.personal}</h3>
+        <div className="space-y-3">
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1 arabic-text">
+                {t.firstName}
+              </label>
+              <input
+                type="text"
+                value={formData.firstName}
+                onChange={(e) => handleChange('firstName', e.target.value)}
+                className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 arabic-text"
+                dir="rtl"
+              />
+            </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1 arabic-text">
-              {t.lastName}
-            </label>
-            <input
-              type="text"
-              value={formData.lastName}
-              onChange={(e) => handleChange('lastName', e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 arabic-text"
-              dir="rtl"
-            />
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1 arabic-text">
+                {t.lastName}
+              </label>
+              <input
+                type="text"
+                value={formData.lastName}
+                onChange={(e) => handleChange('lastName', e.target.value)}
+                className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 arabic-text"
+                dir="rtl"
+              />
+            </div>
           </div>
 
           <div>
@@ -1755,7 +1758,7 @@ function PersonForm({ person, onSave, onCancel, relationshipType, anchorPerson }
             <select
               value={formData.gender}
               onChange={(e) => handleChange('gender', e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 arabic-text"
+              className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 arabic-text"
             >
               <option value="">اختر الجنس</option>
               <option value="male">{t.male}</option>
@@ -1783,7 +1786,7 @@ function PersonForm({ person, onSave, onCancel, relationshipType, anchorPerson }
               type="text"
               value={formData.birthPlace}
               onChange={(e) => handleChange('birthPlace', e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 arabic-text"
+              className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 arabic-text"
               dir="rtl"
             />
           </div>
@@ -1819,8 +1822,8 @@ function PersonForm({ person, onSave, onCancel, relationshipType, anchorPerson }
 
       {/* Contact Information */}
       <div>
-        <h3 className="text-lg font-medium text-gray-900 mb-3 arabic-text">{t.contact}</h3>
-        <div className="space-y-4">
+        <h3 className="text-md font-medium text-gray-900 mb-2 arabic-text">{t.contact}</h3>
+        <div className="space-y-3">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1 arabic-text">
               {t.phone}
@@ -1855,7 +1858,7 @@ function PersonForm({ person, onSave, onCancel, relationshipType, anchorPerson }
               type="text"
               value={formData.address}
               onChange={(e) => handleChange('address', e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 arabic-text"
+              className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 arabic-text"
               dir="rtl"
             />
           </div>
@@ -1868,7 +1871,7 @@ function PersonForm({ person, onSave, onCancel, relationshipType, anchorPerson }
               type="text"
               value={formData.profession}
               onChange={(e) => handleChange('profession', e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 arabic-text"
+              className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 arabic-text"
               dir="rtl"
             />
           </div>
@@ -1881,7 +1884,7 @@ function PersonForm({ person, onSave, onCancel, relationshipType, anchorPerson }
               type="text"
               value={formData.company}
               onChange={(e) => handleChange('company', e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 arabic-text"
+              className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 arabic-text"
               dir="rtl"
             />
           </div>
@@ -1890,7 +1893,7 @@ function PersonForm({ person, onSave, onCancel, relationshipType, anchorPerson }
 
       {/* Biography */}
       <div>
-        <h3 className="text-lg font-medium text-gray-900 mb-3 arabic-text">{t.biography}</h3>
+        <h3 className="text-md font-medium text-gray-900 mb-2 arabic-text">{t.biography}</h3>
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1 arabic-text">
             {t.bioNotes}
@@ -1898,7 +1901,7 @@ function PersonForm({ person, onSave, onCancel, relationshipType, anchorPerson }
           <textarea
             value={formData.bioNotes}
             onChange={(e) => handleChange('bioNotes', e.target.value)}
-            rows={4}
+            rows={3}
             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 arabic-text"
             dir="rtl"
           />
@@ -1906,7 +1909,7 @@ function PersonForm({ person, onSave, onCancel, relationshipType, anchorPerson }
       </div>
 
       {/* Form Actions */}
-      <div className="flex justify-end gap-3 pt-4">
+      <div className="flex justify-end gap-2 pt-3 border-t border-gray-200 mt-4">
         <Button
           type="submit"
           className="arabic-text"
