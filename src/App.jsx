@@ -1108,22 +1108,116 @@ function App() {
                   style={{
                     left: person.x,
                     top: person.y,
-                    width: stylingOptions.boxWidth,
+                    width: selectedPerson === person.id ? stylingOptions.boxWidth + 200 : stylingOptions.boxWidth,
                     height: CARD.h,
                     backgroundColor: person.gender === 'male' 
                       ? stylingOptions.maleBoxColor 
                       : stylingOptions.femaleBoxColor,
                     fontSize: stylingOptions.textSize,
                     color: person.isLiving ? stylingOptions.livingTextColor : stylingOptions.deceasedTextColor,
-                    zIndex: 10
+                    zIndex: 10,
+                    transition: 'width 0.2s ease-in-out'
                   }}
                   onClick={() => setSelectedPerson(person.id)}
                   // Drag-and-drop removed for auto-layout
                 >
                   <div className="text-center h-full flex flex-col justify-center">
                     {displayOptions.showName && (
-                      <div className="font-semibold truncate arabic-text">
-                        {person.firstName}
+                      <div className="flex items-center justify-between w-full px-2">
+                        <div className="font-semibold arabic-text flex-1 text-center">
+                          {person.firstName}
+                        </div>
+                        {selectedPerson === person.id && (
+                          <div className="flex gap-1 ml-2">
+                            <Button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setRelationshipType('spouse');
+                                setEditingPerson(null);
+                                setShowPersonForm(true);
+                              }}
+                              size="sm"
+                              variant="ghost"
+                              className="w-6 h-6 p-0 hover:bg-blue-50 rounded-full"
+                              title={t.addSpouse}
+                            >
+                              {getRelationshipIcon('spouse')}
+                            </Button>
+                            
+                            <Button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setRelationshipType('child');
+                                setEditingPerson(null);
+                                setShowPersonForm(true);
+                              }}
+                              size="sm"
+                              variant="ghost"
+                              className="w-6 h-6 p-0 hover:bg-blue-50 rounded-full"
+                              title={t.addChild}
+                            >
+                              {getRelationshipIcon('child')}
+                            </Button>
+                            
+                            <Button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setRelationshipType('parent');
+                                setEditingPerson(null);
+                                setShowPersonForm(true);
+                              }}
+                              size="sm"
+                              variant="ghost"
+                              className="w-6 h-6 p-0 hover:bg-blue-50 rounded-full"
+                              title={t.addParent}
+                            >
+                              {getRelationshipIcon('parent')}
+                            </Button>
+                            
+                            <Button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setRelationshipType('sibling');
+                                setEditingPerson(null);
+                                setShowPersonForm(true);
+                              }}
+                              size="sm"
+                              variant="ghost"
+                              className="w-6 h-6 p-0 hover:bg-blue-50 rounded-full"
+                              title={t.addSibling}
+                            >
+                              {getRelationshipIcon('sibling')}
+                            </Button>
+                            
+                            <Button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setEditingPerson(selectedPerson);
+                                setRelationshipType(null);
+                                setShowPersonForm(true);
+                              }}
+                              size="sm"
+                              variant="ghost"
+                              className="w-6 h-6 p-0 hover:bg-green-50 rounded-full"
+                              title={t.editPerson}
+                            >
+                              <Edit3 className="w-3 h-3 text-green-600" />
+                            </Button>
+                            
+                            <Button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                deletePerson(selectedPerson);
+                              }}
+                              size="sm"
+                              variant="ghost"
+                              className="w-6 h-6 p-0 hover:bg-red-50 rounded-full"
+                              title={t.deletePerson}
+                            >
+                              <Trash2 className="w-3 h-3 text-red-600" />
+                            </Button>
+                          </div>
+                        )}
                       </div>
                     )}
                     {displayOptions.showSurname && person.lastName && (
@@ -1274,94 +1368,6 @@ function App() {
             </div>
           </div>
 
-          {/* Compact Action Icons */}
-          {selectedPerson && treePeople.find(p => p.id === selectedPerson) && (
-            <div className="absolute -top-8 left-1/2 transform -translate-x-1/2">
-              <div className="flex gap-1 bg-white rounded-lg shadow-lg border p-1">
-                <Button
-                  onClick={() => {
-                    setRelationshipType('spouse');
-                    setEditingPerson(null);
-                    setShowPersonForm(true);
-                  }}
-                  size="sm"
-                  variant="ghost"
-                  className="w-8 h-8 p-0 hover:bg-blue-50"
-                  title={t.addSpouse}
-                >
-                  {getRelationshipIcon('spouse')}
-                </Button>
-                
-                <Button
-                  onClick={() => {
-                    setRelationshipType('child');
-                    setEditingPerson(null);
-                    setShowPersonForm(true);
-                  }}
-                  size="sm"
-                  variant="ghost"
-                  className="w-8 h-8 p-0 hover:bg-blue-50"
-                  title={t.addChild}
-                >
-                  {getRelationshipIcon('child')}
-                </Button>
-                
-                <Button
-                  onClick={() => {
-                    setRelationshipType('parent');
-                    setEditingPerson(null);
-                    setShowPersonForm(true);
-                  }}
-                  size="sm"
-                  variant="ghost"
-                  className="w-8 h-8 p-0 hover:bg-blue-50"
-                  title={t.addParent}
-                >
-                  {getRelationshipIcon('parent')}
-                </Button>
-                
-                <Button
-                  onClick={() => {
-                    setRelationshipType('sibling');
-                    setEditingPerson(null);
-                    setShowPersonForm(true);
-                  }}
-                  size="sm"
-                  variant="ghost"
-                  className="w-8 h-8 p-0 hover:bg-blue-50"
-                  title={t.addSibling}
-                >
-                  {getRelationshipIcon('sibling')}
-                </Button>
-                
-                <div className="w-px bg-gray-300 mx-1"></div>
-                
-                <Button
-                  onClick={() => {
-                    setEditingPerson(selectedPerson);
-                    setRelationshipType(null);
-                    setShowPersonForm(true);
-                  }}
-                  size="sm"
-                  variant="ghost"
-                  className="w-8 h-8 p-0 hover:bg-green-50"
-                  title={t.editPerson}
-                >
-                  <Edit3 className="w-4 h-4 text-green-600" />
-                </Button>
-                
-                <Button
-                  onClick={() => deletePerson(selectedPerson)}
-                  size="sm"
-                  variant="ghost"
-                  className="w-8 h-8 p-0 hover:bg-red-50"
-                  title={t.deletePerson}
-                >
-                  <Trash2 className="w-4 h-4 text-red-600" />
-                </Button>
-              </div>
-            </div>
-          )}
         </div>
 
         {/* Person Form Sidebar */}
