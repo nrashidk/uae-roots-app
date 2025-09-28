@@ -1370,11 +1370,9 @@ function App() {
 
         {/* Person Form Sidebar */}
         {showPersonForm && (
-          <div className="fixed right-0 bg-white shadow-2xl border-l border-gray-200 z-40"
+          <div className="fixed right-0 top-0 bg-white shadow-2xl border-l border-gray-200 z-50 h-screen"
                style={{ 
-                 width: '400px',
-                 top: '64px', // Start below header
-                 bottom: '0'
+                 width: '400px'
                }}>
             <div className="h-full flex flex-col">
               <div className="flex justify-between items-center p-4 border-b border-gray-200">
@@ -1394,7 +1392,7 @@ function App() {
                 </Button>
               </div>
 
-              <div className="flex-1 overflow-y-auto p-4">
+              <div className="flex-1 p-4">
                 <div className="mb-4 p-3 bg-blue-50 rounded-lg">
                   <p className="text-sm text-blue-700 text-center arabic-text">
                     {t.allFieldsOptional}
@@ -1733,7 +1731,7 @@ function PersonForm({ person, onSave, onCancel, relationshipType, anchorPerson }
             key={tab.id}
             type="button"
             onClick={() => setActiveTab(tab.id)}
-            className={`flex-1 px-3 py-2 text-sm font-medium text-center arabic-text ${
+            className={`flex-1 px-2 py-2 text-xs font-medium text-center arabic-text ${
               activeTab === tab.id
                 ? 'border-b-2 border-blue-500 text-blue-600'
                 : 'text-gray-500 hover:text-gray-700'
