@@ -823,8 +823,8 @@ function App() {
       <div className="min-h-screen bg-gradient-to-br from-purple-400 via-purple-500 to-purple-600 flex items-center justify-center p-4">
         <div className="bg-white rounded-2xl shadow-xl p-8 w-full max-w-md">
           <div className="text-center mb-8">
-            <h1 className="text-4xl font-bold text-gray-800 mb-2 arabic-text">
-              {t.welcome}
+            <h1 className="text-4xl font-bold text-gray-800 mb-4 arabic-text text-center">
+              مرحباً بكم في جذور الإمارات
             </h1>
             <div className="w-16 h-1 bg-purple-500 mx-auto rounded"></div>
           </div>
@@ -834,8 +834,8 @@ function App() {
               onClick={handleGoogleAuth}
               className="w-full bg-green-600 hover:bg-green-700 text-white py-3 rounded-lg flex items-center justify-center gap-3"
             >
-              <span className="text-2xl">🟢</span>
-              <span className="arabic-text">{t.continueWithGoogle}</span>
+              <span className="text-2xl">📧</span>
+              <span className="arabic-text">التسجيل عبر Gmail</span>
             </Button>
             
             <Button
@@ -843,7 +843,7 @@ function App() {
               className="w-full bg-black hover:bg-gray-800 text-white py-3 rounded-lg flex items-center justify-center gap-3"
             >
               <span className="text-2xl">🍎</span>
-              <span className="arabic-text">{t.continueWithApple}</span>
+              <span className="arabic-text">التسجيل عبر Apple ID</span>
             </Button>
             
             <Button
@@ -1663,6 +1663,7 @@ function App() {
 
 // Person Form Component
 function PersonForm({ person, onSave, onCancel, relationshipType, anchorPerson }) {
+  const [activeTab, setActiveTab] = useState('personal');
   const [formData, setFormData] = useState({
     firstName: person?.firstName || '',
     lastName: person?.lastName || '',
@@ -1717,12 +1718,38 @@ function PersonForm({ person, onSave, onCancel, relationshipType, anchorPerson }
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
+  const tabs = [
+    { id: 'personal', label: t.personal, icon: '👤' },
+    { id: 'contact', label: t.contact, icon: '📞' },
+    { id: 'biography', label: t.biography, icon: '📝' }
+  ];
+
   return (
-    <form onSubmit={handleSubmit} className="space-y-3">
-      {/* Personal Information */}
-      <div>
-        <h3 className="text-md font-medium text-gray-900 mb-2 arabic-text">{t.personal}</h3>
-        <div className="space-y-3">
+    <form onSubmit={handleSubmit} className="h-full flex flex-col">
+      {/* Tab Navigation */}
+      <div className="flex border-b border-gray-200 mb-4">
+        {tabs.map(tab => (
+          <button
+            key={tab.id}
+            type="button"
+            onClick={() => setActiveTab(tab.id)}
+            className={`flex-1 px-3 py-2 text-sm font-medium text-center arabic-text ${
+              activeTab === tab.id
+                ? 'border-b-2 border-blue-500 text-blue-600'
+                : 'text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            <span className="mr-1">{tab.icon}</span>
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Tab Content */}
+      <div className="flex-1 overflow-y-auto">
+        {activeTab === 'personal' && (
+          <div className="space-y-3">
+            {/* Personal Information */}
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1 arabic-text">
@@ -1817,95 +1844,103 @@ function PersonForm({ person, onSave, onCancel, relationshipType, anchorPerson }
               />
             </div>
           )}
-        </div>
-      </div>
-
-      {/* Contact Information */}
-      <div>
-        <h3 className="text-md font-medium text-gray-900 mb-2 arabic-text">{t.contact}</h3>
-        <div className="space-y-3">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1 arabic-text">
-              {t.phone}
-            </label>
-            <input
-              type="tel"
-              value={formData.phone}
-              onChange={(e) => handleChange('phone', e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-              dir="ltr"
-            />
           </div>
+        )}
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1 arabic-text">
-              {t.email}
-            </label>
-            <input
-              type="email"
-              value={formData.email}
-              onChange={(e) => handleChange('email', e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-              dir="ltr"
-            />
+        {activeTab === 'contact' && (
+          <div className="space-y-3">
+            {/* Contact Information */}
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1 arabic-text">
+                  {t.phone}
+                </label>
+                <input
+                  type="tel"
+                  value={formData.phone}
+                  onChange={(e) => handleChange('phone', e.target.value)}
+                  className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  dir="ltr"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1 arabic-text">
+                  {t.email}
+                </label>
+                <input
+                  type="email"
+                  value={formData.email}
+                  onChange={(e) => handleChange('email', e.target.value)}
+                  className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  dir="ltr"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1 arabic-text">
+                {t.address}
+              </label>
+              <input
+                type="text"
+                value={formData.address}
+                onChange={(e) => handleChange('address', e.target.value)}
+                className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 arabic-text"
+                dir="rtl"
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1 arabic-text">
+                  {t.profession}
+                </label>
+                <input
+                  type="text"
+                  value={formData.profession}
+                  onChange={(e) => handleChange('profession', e.target.value)}
+                  className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 arabic-text"
+                  dir="rtl"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1 arabic-text">
+                  {t.company}
+                </label>
+                <input
+                  type="text"
+                  value={formData.company}
+                  onChange={(e) => handleChange('company', e.target.value)}
+                  className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 arabic-text"
+                  dir="rtl"
+                />
+              </div>
+            </div>
           </div>
+        )}
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1 arabic-text">
-              {t.address}
-            </label>
-            <input
-              type="text"
-              value={formData.address}
-              onChange={(e) => handleChange('address', e.target.value)}
-              className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 arabic-text"
-              dir="rtl"
-            />
+        {activeTab === 'biography' && (
+          <div className="space-y-3">
+            {/* Biography */}
+            <div>
+              <h3 className="text-md font-medium text-gray-900 mb-2 arabic-text">{t.biography}</h3>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1 arabic-text">
+                  {t.bioNotes}
+                </label>
+                <textarea
+                  value={formData.bioNotes}
+                  onChange={(e) => handleChange('bioNotes', e.target.value)}
+                  rows={3}
+                  className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 arabic-text"
+                  dir="rtl"
+                />
+              </div>
+            </div>
           </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1 arabic-text">
-              {t.profession}
-            </label>
-            <input
-              type="text"
-              value={formData.profession}
-              onChange={(e) => handleChange('profession', e.target.value)}
-              className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 arabic-text"
-              dir="rtl"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1 arabic-text">
-              {t.company}
-            </label>
-            <input
-              type="text"
-              value={formData.company}
-              onChange={(e) => handleChange('company', e.target.value)}
-              className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 arabic-text"
-              dir="rtl"
-            />
-          </div>
-        </div>
-      </div>
-
-      {/* Biography */}
-      <div>
-        <h3 className="text-md font-medium text-gray-900 mb-2 arabic-text">{t.biography}</h3>
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1 arabic-text">
-            {t.bioNotes}
-          </label>
-          <textarea
-            value={formData.bioNotes}
-            onChange={(e) => handleChange('bioNotes', e.target.value)}
-            rows={3}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 arabic-text"
-            dir="rtl"
-          />
-        </div>
+        )}
       </div>
 
       {/* Form Actions */}
