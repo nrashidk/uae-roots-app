@@ -1,65 +1,3 @@
-  // --- AUTO-LAYOUT LOGIC ---
-  // Compute generations and assign x/y positions for all people in the current tree
-  function computeTreeLayout(people, relationships) {
-    // Build maps for quick lookup
-    const idToPerson = Object.fromEntries(people.map(p => [p.id, { ...p }]));
-    const childrenMap = {};
-    const parentMap = {};
-    relationships.forEach(r => {
-      if (r.type === REL.PARENT_CHILD) {
-        if (!childrenMap[r.parentId]) childrenMap[r.parentId] = [];
-        childrenMap[r.parentId].push(r.childId);
-        parentMap[r.childId] = r.parentId;
-      }
-    });
-
-    // Find root people (no parents)
-    const roots = people.filter(p => !parentMap[p.id]);
-    // Assign generation levels (BFS)
-    const queue = [];
-    roots.forEach(root => {
-      idToPerson[root.id].generation = 0;
-      queue.push(root.id);
-    });
-    while (queue.length) {
-      const pid = queue.shift();
-      const gen = idToPerson[pid].generation;
-      (childrenMap[pid] || []).forEach(cid => {
-        idToPerson[cid].generation = gen + 1;
-        queue.push(cid);
-      });
-    }
-
-    // Group by generation
-    const genMap = {};
-    Object.values(idToPerson).forEach(p => {
-      if (!genMap[p.generation]) genMap[p.generation] = [];
-      genMap[p.generation].push(p);
-    });
-
-    // Assign x/y positions for each generation (horizontal alignment)
-    const verticalSpacing = 140;
-    const horizontalSpacing = 180;
-    Object.keys(genMap).forEach(g => {
-      const gen = parseInt(g);
-      const row = genMap[gen];
-      row.forEach((p, i) => {
-        p.x = 100 + i * horizontalSpacing;
-        p.y = 100 + gen * verticalSpacing;
-      });
-    });
-
-    // Return new people array with updated positions
-    return people.map(p => ({ ...p, ...idToPerson[p.id] }));
-  }
-
-  // Use auto-layout for current tree
-  const treePeople = computeTreeLayout(
-    people.filter(p => p.treeId === currentTree?.id),
-    relationships.filter(r => r.treeId === currentTree?.id)
-  );
-
-  // --- END AUTO-LAYOUT LOGIC ---
 import { useState, useEffect, useRef } from 'react'
 import { Button } from '@/components/ui/button.jsx'
 import { Heart, Baby, Users, UserPlus, Edit3, Trash2, X, Settings, Download, Home, Share, Calendar, Printer, ZoomIn, ZoomOut, RotateCcw } from 'lucide-react'
@@ -258,6 +196,68 @@ function App() {
   const handleGoogleAuth = () => { setIsAuthenticated(true); setCurrentView('dashboard'); };
   const handleAppleAuth = () => { setIsAuthenticated(true); setCurrentView('dashboard'); };
   const handleUAEMobileAuth = () => { setIsAuthenticated(true); setCurrentView('dashboard'); };
+
+  // --- AUTO-LAYOUT LOGIC ---
+  // Compute generations and assign x/y positions for all people in the current tree
+  const computeTreeLayout = (people, relationships) => {
+    // Build maps for quick lookup
+    const idToPerson = Object.fromEntries(people.map(p => [p.id, { ...p }]));
+    const childrenMap = {};
+    const parentMap = {};
+    relationships.forEach(r => {
+      if (r.type === REL.PARENT_CHILD) {
+        if (!childrenMap[r.parentId]) childrenMap[r.parentId] = [];
+        childrenMap[r.parentId].push(r.childId);
+        parentMap[r.childId] = r.parentId;
+      }
+    });
+
+    // Find root people (no parents)
+    const roots = people.filter(p => !parentMap[p.id]);
+    // Assign generation levels (BFS)
+    const queue = [];
+    roots.forEach(root => {
+      idToPerson[root.id].generation = 0;
+      queue.push(root.id);
+    });
+    while (queue.length) {
+      const pid = queue.shift();
+      const gen = idToPerson[pid].generation;
+      (childrenMap[pid] || []).forEach(cid => {
+        idToPerson[cid].generation = gen + 1;
+        queue.push(cid);
+      });
+    }
+
+    // Group by generation
+    const genMap = {};
+    Object.values(idToPerson).forEach(p => {
+      if (!genMap[p.generation]) genMap[p.generation] = [];
+      genMap[p.generation].push(p);
+    });
+
+    // Assign x/y positions for each generation (horizontal alignment)
+    const verticalSpacing = 140;
+    const horizontalSpacing = 180;
+    Object.keys(genMap).forEach(g => {
+      const gen = parseInt(g);
+      const row = genMap[gen];
+      row.forEach((p, i) => {
+        p.x = 100 + i * horizontalSpacing;
+        p.y = 100 + gen * verticalSpacing;
+      });
+    });
+
+    // Return new people array with updated positions
+    return people.map(p => ({ ...p, ...idToPerson[p.id] }));
+  };
+
+  // Use auto-layout for current tree
+  const treePeople = computeTreeLayout(
+    people.filter(p => p.treeId === currentTree?.id),
+    relationships.filter(r => r.treeId === currentTree?.id)
+  );
+  // --- END AUTO-LAYOUT LOGIC ---
 
   // Tree management
   const createNewTree = () => {
