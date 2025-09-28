@@ -1,3 +1,65 @@
+  // --- AUTO-LAYOUT LOGIC ---
+  // Compute generations and assign x/y positions for all people in the current tree
+  function computeTreeLayout(people, relationships) {
+    // Build maps for quick lookup
+    const idToPerson = Object.fromEntries(people.map(p => [p.id, { ...p }]));
+    const childrenMap = {};
+    const parentMap = {};
+    relationships.forEach(r => {
+      if (r.type === REL.PARENT_CHILD) {
+        if (!childrenMap[r.parentId]) childrenMap[r.parentId] = [];
+        childrenMap[r.parentId].push(r.childId);
+        parentMap[r.childId] = r.parentId;
+      }
+    });
+
+    // Find root people (no parents)
+    const roots = people.filter(p => !parentMap[p.id]);
+    // Assign generation levels (BFS)
+    const queue = [];
+    roots.forEach(root => {
+      idToPerson[root.id].generation = 0;
+      queue.push(root.id);
+    });
+    while (queue.length) {
+      const pid = queue.shift();
+      const gen = idToPerson[pid].generation;
+      (childrenMap[pid] || []).forEach(cid => {
+        idToPerson[cid].generation = gen + 1;
+        queue.push(cid);
+      });
+    }
+
+    // Group by generation
+    const genMap = {};
+    Object.values(idToPerson).forEach(p => {
+      if (!genMap[p.generation]) genMap[p.generation] = [];
+      genMap[p.generation].push(p);
+    });
+
+    // Assign x/y positions for each generation (horizontal alignment)
+    const verticalSpacing = 140;
+    const horizontalSpacing = 180;
+    Object.keys(genMap).forEach(g => {
+      const gen = parseInt(g);
+      const row = genMap[gen];
+      row.forEach((p, i) => {
+        p.x = 100 + i * horizontalSpacing;
+        p.y = 100 + gen * verticalSpacing;
+      });
+    });
+
+    // Return new people array with updated positions
+    return people.map(p => ({ ...p, ...idToPerson[p.id] }));
+  }
+
+  // Use auto-layout for current tree
+  const treePeople = computeTreeLayout(
+    people.filter(p => p.treeId === currentTree?.id),
+    relationships.filter(r => r.treeId === currentTree?.id)
+  );
+
+  // --- END AUTO-LAYOUT LOGIC ---
 import { useState, useEffect, useRef } from 'react'
 import { Button } from '@/components/ui/button.jsx'
 import { Heart, Baby, Users, UserPlus, Edit3, Trash2, X, Settings, Download, Home, Share, Calendar, Printer, ZoomIn, ZoomOut, RotateCcw } from 'lucide-react'
@@ -352,14 +414,10 @@ function App() {
   const addPerson = (personData) => {
     const anchorPerson = selectedPerson ? people.find(p => p.id === selectedPerson) : null;
     
-    // Smart gender defaults for spouse
+    // Enforce spouse gender as female
     let finalPersonData = { ...personData };
-    if (relationshipType === 'spouse' && anchorPerson) {
-      if (anchorPerson.gender === 'male' && !personData.gender) {
-        finalPersonData.gender = 'female';
-      } else if (anchorPerson.gender === 'female' && !personData.gender) {
-        finalPersonData.gender = 'male';
-      }
+    if (relationshipType === 'spouse') {
+      finalPersonData.gender = 'female';
     }
 
     const position = calculatePosition(relationshipType, anchorPerson);
@@ -926,7 +984,101 @@ function App() {
                 transformOrigin: '0 0'
               }}
             >
-              {renderConnectionLines()}
+            {/* Render connectors: spouses (thick), T for children, horizontal for siblings */}
+            <svg className="absolute inset-0 pointer-events-none" style={{ width: '100%', height: '100%' }}>
+              {/* Spouse lines */}
+              {relationships.filter(r => r.type === REL.PARTNER && r.treeId === currentTree?.id).map((r, i) => {
+                const p1 = treePeople.find(p => p.id === r.person1Id);
+                const p2 = treePeople.find(p => p.id === r.person2Id);
+                if (!p1 || !p2) return null;
+                const y = (p1.y + p2.y) / 2 + CARD.h / 2;
+                return (
+                  <line
+                    key={i}
+                    x1={p1.x + stylingOptions.boxWidth}
+                    y1={y}
+                    x2={p2.x}
+                    y2={y}
+                    stroke="#4b5563"
+                    strokeWidth={6}
+                  />
+                );
+              })}
+              {/* T-connector for children */}
+              {relationships.filter(r => r.type === REL.PARENT_CHILD && r.treeId === currentTree?.id).map((r, i) => {
+                const child = treePeople.find(p => p.id === r.childId);
+                const parent = treePeople.find(p => p.id === r.parentId);
+                if (!child || !parent) return null;
+                // Find spouse of parent (if any)
+                const spouseRel = relationships.find(
+                  rel => rel.type === REL.PARTNER &&
+                    (rel.person1Id === r.parentId || rel.person2Id === r.parentId) &&
+                    rel.treeId === currentTree?.id
+                );
+                let spouse = null;
+                if (spouseRel) {
+                  spouse = treePeople.find(p => p.id === (spouseRel.person1Id === r.parentId ? spouseRel.person2Id : spouseRel.person1Id));
+                }
+                // T-connector: vertical from mid between parents to child
+                const parentX = parent.x + stylingOptions.boxWidth / 2;
+                const spouseX = spouse ? spouse.x + stylingOptions.boxWidth / 2 : parentX;
+                const midX = spouse ? (parentX + spouseX) / 2 : parentX;
+                const parentY = parent.y + CARD.h;
+                const childY = child.y;
+                return (
+                  <g key={i}>
+                    {/* Horizontal bar */}
+                    {spouse && (
+                      <line
+                        x1={parentX}
+                        y1={parentY + 10}
+                        x2={spouseX}
+                        y2={parentY + 10}
+                        stroke="#4b5563"
+                        strokeWidth={4}
+                      />
+                    )}
+                    {/* Vertical bar */}
+                    <line
+                      x1={midX}
+                      y1={parentY + 10}
+                      x2={midX}
+                      y2={childY}
+                      stroke="#4b5563"
+                      strokeWidth={4}
+                    />
+                  </g>
+                );
+              })}
+              {/* Sibling horizontal lines */}
+              {Object.values(treePeople.reduce((acc, p) => {
+                // Group siblings by parent
+                const parentRel = relationships.find(r => r.type === REL.PARENT_CHILD && r.childId === p.id && r.treeId === currentTree?.id);
+                if (parentRel) {
+                  const parentId = parentRel.parentId;
+                  if (!acc[parentId]) acc[parentId] = [];
+                  acc[parentId].push(p);
+                }
+                return acc;
+              }, {})).map((siblings, i) => {
+                if (siblings.length < 2) return null;
+                // Draw horizontal line connecting all siblings
+                const y = siblings[0].y;
+                const minX = Math.min(...siblings.map(s => s.x + stylingOptions.boxWidth / 2));
+                const maxX = Math.max(...siblings.map(s => s.x + stylingOptions.boxWidth / 2));
+                return (
+                  <line
+                    key={i}
+                    x1={minX}
+                    y1={y}
+                    x2={maxX}
+                    y2={y}
+                    stroke="#4b5563"
+                    strokeWidth={3}
+                  />
+                );
+              })}
+            </svg>
             </svg>
             
             <div
@@ -953,9 +1105,11 @@ function App() {
                       ? stylingOptions.maleBoxColor 
                       : stylingOptions.femaleBoxColor,
                     fontSize: stylingOptions.textSize,
-                    color: person.isLiving ? stylingOptions.livingTextColor : stylingOptions.deceasedTextColor
+                    color: person.isLiving ? stylingOptions.livingTextColor : stylingOptions.deceasedTextColor,
+                    zIndex: 10
                   }}
                   onClick={() => setSelectedPerson(person.id)}
+                  // Drag-and-drop removed for auto-layout
                 >
                   <div className="text-center h-full flex flex-col justify-center">
                     {displayOptions.showName && (
@@ -1207,8 +1361,23 @@ function App() {
 
         {/* Person Form Modal */}
         {showPersonForm && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-lg shadow-xl w-full max-w-md mx-4 max-h-[90vh] overflow-y-auto">
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-end z-50">
+            <div
+              className="bg-white rounded-lg shadow-xl"
+              style={{
+                width: '420px',
+                height: 'auto',
+                maxHeight: '95vh',
+                position: 'absolute',
+                right: '40px',
+                top: '50%',
+                transform: 'translateY(-50%)',
+                overflowY: 'auto',
+                display: 'flex',
+                flexDirection: 'column',
+                justifyContent: 'center',
+              }}
+            >
               <div className="p-6">
                 <div className="flex justify-between items-center mb-6">
                   <h2 className="text-xl font-semibold text-gray-900 arabic-text">
