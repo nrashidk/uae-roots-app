@@ -1091,7 +1091,7 @@ function App() {
                 className="absolute inset-0 pointer-events-none"
                 style={{ width: "100%", height: "100%" }}
               >
-                {/* Enhanced Spouse/Partner lines with smooth curves */}
+                {/* Straight bold lines connecting husband and spouse */}
                 {relationships
                   .filter(
                     (r) =>
@@ -1102,25 +1102,24 @@ function App() {
                     const p2 = treePeople.find((p) => p.id === r.person2Id);
                     if (!p1 || !p2) return null;
 
+                    // Connect from right edge of left person to left edge of right person
                     const startX = p1.x + stylingOptions.boxWidth;
                     const endX = p2.x;
-                    const y = (p1.y + p2.y) / 2 + CARD.h / 2;
-
-                    // Create smooth curved path
-                    const midX = (startX + endX) / 2;
-                    const curveOffset = 20;
-
-                    const pathData = `M ${startX} ${y} 
-                                 Q ${midX} ${y - curveOffset} ${endX} ${y}`;
+                    
+                    // Use the center Y coordinate of both boxes (should be same level)
+                    const startY = p1.y + CARD.h / 2;
+                    const endY = p2.y + CARD.h / 2;
 
                     return (
-                      <path
+                      <line
                         key={i}
-                        d={pathData}
+                        x1={startX}
+                        y1={startY}
+                        x2={endX}
+                        y2={endY}
                         stroke="#dc2626"
-                        strokeWidth={5}
+                        strokeWidth={6}
                         strokeLinecap="round"
-                        fill="none"
                         style={{
                           filter: "drop-shadow(0px 1px 2px rgba(0,0,0,0.1))",
                         }}
