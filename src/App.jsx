@@ -1106,15 +1106,14 @@ function App() {
                   style={{
                     left: person.x,
                     top: person.y,
-                    width: selectedPerson === person.id ? stylingOptions.boxWidth + 200 : stylingOptions.boxWidth,
+                    width: stylingOptions.boxWidth,
                     height: CARD.h,
                     backgroundColor: person.gender === 'male' 
                       ? stylingOptions.maleBoxColor 
                       : stylingOptions.femaleBoxColor,
                     fontSize: stylingOptions.textSize,
                     color: person.isLiving ? stylingOptions.livingTextColor : stylingOptions.deceasedTextColor,
-                    zIndex: 10,
-                    transition: 'width 0.2s ease-in-out'
+                    zIndex: 10
                   }}
                   onClick={() => setSelectedPerson(person.id)}
                   // Drag-and-drop removed for auto-layout
@@ -1122,85 +1121,9 @@ function App() {
                   <div className="text-center h-full flex flex-col justify-center">
                     {displayOptions.showName && (
                       <div className="w-full">
-                        <div className="font-semibold arabic-text text-center mb-2">
+                        <div className="font-semibold arabic-text text-center">
                           {person.firstName}
                         </div>
-                        {selectedPerson === person.id && (
-                          <div className="flex justify-center gap-1">
-                            <Button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setRelationshipType('spouse');
-                                setEditingPerson(null);
-                                setShowPersonForm(true);
-                              }}
-                              size="sm"
-                              variant="ghost"
-                              className="w-6 h-6 p-0 hover:bg-blue-50 rounded-full"
-                              title={t.addSpouse}
-                            >
-                              {getRelationshipIcon('spouse')}
-                            </Button>
-                            
-                            <Button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setRelationshipType('child');
-                                setEditingPerson(null);
-                                setShowPersonForm(true);
-                              }}
-                              size="sm"
-                              variant="ghost"
-                              className="w-6 h-6 p-0 hover:bg-blue-50 rounded-full"
-                              title={t.addChild}
-                            >
-                              {getRelationshipIcon('child')}
-                            </Button>
-                            
-                            <Button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setRelationshipType('parent');
-                                setEditingPerson(null);
-                                setShowPersonForm(true);
-                              }}
-                              size="sm"
-                              variant="ghost"
-                              className="w-6 h-6 p-0 hover:bg-blue-50 rounded-full"
-                              title={t.addParent}
-                            >
-                              {getRelationshipIcon('parent')}
-                            </Button>
-                            
-                            <Button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setRelationshipType('sibling');
-                                setEditingPerson(null);
-                                setShowPersonForm(true);
-                              }}
-                              size="sm"
-                              variant="ghost"
-                              className="w-6 h-6 p-0 hover:bg-blue-50 rounded-full"
-                              title={t.addSibling}
-                            >
-                              {getRelationshipIcon('sibling')}
-                            </Button>
-                            
-                            <Button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                deletePerson(selectedPerson);
-                              }}
-                              size="sm"
-                              variant="ghost"
-                              className="w-6 h-6 p-0 hover:bg-red-50 rounded-full"
-                              title={t.deletePerson}
-                            >
-                              <Trash2 className="w-3 h-3 text-red-600" />
-                            </Button>
-                          </div>
-                        )}
                       </div>
                     )}
                     {displayOptions.showSurname && person.lastName && (
@@ -1221,6 +1144,92 @@ function App() {
                   </div>
                 </div>
               ))}
+              
+              {/* Action buttons for selected person - positioned below the box */}
+              {selectedPerson && treePeople.find(p => p.id === selectedPerson) && (
+                <div
+                  className="absolute bg-white border border-gray-200 rounded-lg shadow-lg p-2 z-20"
+                  style={{
+                    left: treePeople.find(p => p.id === selectedPerson).x + (stylingOptions.boxWidth / 2) - 80,
+                    top: treePeople.find(p => p.id === selectedPerson).y + CARD.h + 10
+                  }}
+                >
+                  <div className="flex justify-center gap-1">
+                    <Button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setRelationshipType('spouse');
+                        setEditingPerson(null);
+                        setShowPersonForm(true);
+                      }}
+                      size="sm"
+                      variant="ghost"
+                      className="w-8 h-8 p-0 hover:bg-blue-50 rounded-full"
+                      title={t.addSpouse}
+                    >
+                      {getRelationshipIcon('spouse')}
+                    </Button>
+                    
+                    <Button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setRelationshipType('child');
+                        setEditingPerson(null);
+                        setShowPersonForm(true);
+                      }}
+                      size="sm"
+                      variant="ghost"
+                      className="w-8 h-8 p-0 hover:bg-blue-50 rounded-full"
+                      title={t.addChild}
+                    >
+                      {getRelationshipIcon('child')}
+                    </Button>
+                    
+                    <Button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setRelationshipType('parent');
+                        setEditingPerson(null);
+                        setShowPersonForm(true);
+                      }}
+                      size="sm"
+                      variant="ghost"
+                      className="w-8 h-8 p-0 hover:bg-blue-50 rounded-full"
+                      title={t.addParent}
+                    >
+                      {getRelationshipIcon('parent')}
+                    </Button>
+                    
+                    <Button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setRelationshipType('sibling');
+                        setEditingPerson(null);
+                        setShowPersonForm(true);
+                      }}
+                      size="sm"
+                      variant="ghost"
+                      className="w-8 h-8 p-0 hover:bg-blue-50 rounded-full"
+                      title={t.addSibling}
+                    >
+                      {getRelationshipIcon('sibling')}
+                    </Button>
+                    
+                    <Button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        deletePerson(selectedPerson);
+                      }}
+                      size="sm"
+                      variant="ghost"
+                      className="w-8 h-8 p-0 hover:bg-red-50 rounded-full"
+                      title={t.deletePerson}
+                    >
+                      <Trash2 className="w-3 h-3 text-red-600" />
+                    </Button>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Add first person button */}
