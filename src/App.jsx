@@ -1010,7 +1010,7 @@ function App() {
                     strokeWidth={6}
                   />
                 );
-              })}
+              ))
               {/* T-connector for children */}
               {relationships.filter(r => r.type === REL.PARENT_CHILD && r.treeId === currentTree?.id).map((r, i) => {
                 const child = treePeople.find(p => p.id === r.childId);
@@ -1056,7 +1056,7 @@ function App() {
                     />
                   </g>
                 );
-              })}
+              ))
               {/* Sibling horizontal lines */}
               {Object.values(treePeople.reduce((acc, p) => {
                 // Group siblings by parent
@@ -1084,7 +1084,7 @@ function App() {
                     strokeWidth={3}
                   />
                 );
-              })}
+              ))
             </svg>
             </svg>
             
@@ -1096,131 +1096,133 @@ function App() {
               }}
             >
               {treePeople.map(person => (
-                <div
-                  key={person.id}
-                  className={`absolute border-2 rounded-lg p-3 cursor-pointer transition-all duration-200 ${
-                    selectedPerson === person.id 
-                      ? 'border-green-500 shadow-lg' 
-                      : 'border-gray-300 hover:border-gray-400'
-                  }`}
-                  style={{
-                    left: person.x,
-                    top: person.y,
-                    width: selectedPerson === person.id ? stylingOptions.boxWidth + 200 : stylingOptions.boxWidth,
-                    height: CARD.h,
-                    backgroundColor: person.gender === 'male' 
-                      ? stylingOptions.maleBoxColor 
-                      : stylingOptions.femaleBoxColor,
-                    fontSize: stylingOptions.textSize,
-                    color: person.isLiving ? stylingOptions.livingTextColor : stylingOptions.deceasedTextColor,
-                    zIndex: 10,
-                    transition: 'width 0.2s ease-in-out'
-                  }}
-                  onClick={() => setSelectedPerson(person.id)}
-                  // Drag-and-drop removed for auto-layout
-                >
-                  <div className="text-center h-full flex flex-col justify-center">
-                    {displayOptions.showName && (
-                      <div className="w-full">
-                        <div className="font-semibold arabic-text text-center mb-2">
+                <div key={person.id} className="absolute" style={{ left: person.x, top: person.y }}>
+                  {/* Person Box */}
+                  <div
+                    className={`border-2 rounded-lg p-3 cursor-pointer transition-all duration-200 ${
+                      selectedPerson === person.id 
+                        ? 'border-green-500 shadow-lg' 
+                        : 'border-gray-300 hover:border-gray-400'
+                    }`}
+                    style={{
+                      width: stylingOptions.boxWidth,
+                      height: CARD.h,
+                      backgroundColor: person.gender === 'male' 
+                        ? stylingOptions.maleBoxColor 
+                        : stylingOptions.femaleBoxColor,
+                      fontSize: stylingOptions.textSize,
+                      color: person.isLiving ? stylingOptions.livingTextColor : stylingOptions.deceasedTextColor,
+                      zIndex: 10
+                    }}
+                    onClick={() => setSelectedPerson(person.id)}
+                  >
+                    <div className="h-full flex flex-col justify-center items-center text-center">
+                      {displayOptions.showName && (
+                        <div className="font-semibold arabic-text">
                           {person.firstName}
                         </div>
-                        {selectedPerson === person.id && (
-                          <div className="flex justify-center gap-1">
-                            <Button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setRelationshipType('spouse');
-                                setEditingPerson(null);
-                                setShowPersonForm(true);
-                              }}
-                              size="sm"
-                              variant="ghost"
-                              className="w-6 h-6 p-0 hover:bg-blue-50 rounded-full"
-                              title={t.addSpouse}
-                            >
-                              {getRelationshipIcon('spouse')}
-                            </Button>
-                            
-                            <Button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setRelationshipType('child');
-                                setEditingPerson(null);
-                                setShowPersonForm(true);
-                              }}
-                              size="sm"
-                              variant="ghost"
-                              className="w-6 h-6 p-0 hover:bg-blue-50 rounded-full"
-                              title={t.addChild}
-                            >
-                              {getRelationshipIcon('child')}
-                            </Button>
-                            
-                            <Button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setRelationshipType('parent');
-                                setEditingPerson(null);
-                                setShowPersonForm(true);
-                              }}
-                              size="sm"
-                              variant="ghost"
-                              className="w-6 h-6 p-0 hover:bg-blue-50 rounded-full"
-                              title={t.addParent}
-                            >
-                              {getRelationshipIcon('parent')}
-                            </Button>
-                            
-                            <Button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setRelationshipType('sibling');
-                                setEditingPerson(null);
-                                setShowPersonForm(true);
-                              }}
-                              size="sm"
-                              variant="ghost"
-                              className="w-6 h-6 p-0 hover:bg-blue-50 rounded-full"
-                              title={t.addSibling}
-                            >
-                              {getRelationshipIcon('sibling')}
-                            </Button>
-                            
-                            <Button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                deletePerson(selectedPerson);
-                              }}
-                              size="sm"
-                              variant="ghost"
-                              className="w-6 h-6 p-0 hover:bg-red-50 rounded-full"
-                              title={t.deletePerson}
-                            >
-                              <Trash2 className="w-3 h-3 text-red-600" />
-                            </Button>
-                          </div>
-                        )}
-                      </div>
-                    )}
-                    {displayOptions.showSurname && person.lastName && (
-                      <div className="text-sm truncate arabic-text">
-                        {person.lastName}
-                      </div>
-                    )}
-                    {displayOptions.showBirthDate && person.birthDate && (
-                      <div className="text-xs truncate">
-                        {person.birthDate}
-                      </div>
-                    )}
-                    {displayOptions.showProfession && person.profession && (
-                      <div className="text-xs truncate arabic-text">
-                        {person.profession}
-                      </div>
-                    )}
+                      )}
+                      {displayOptions.showSurname && person.lastName && (
+                        <div className="text-sm truncate arabic-text mt-1">
+                          {person.lastName}
+                        </div>
+                      )}
+                      {displayOptions.showBirthDate && person.birthDate && (
+                        <div className="text-xs truncate mt-1">
+                          {person.birthDate}
+                        </div>
+                      )}
+                      {displayOptions.showProfession && person.profession && (
+                        <div className="text-xs truncate arabic-text mt-1">
+                          {person.profession}
+                        </div>
+                      )}
+                    </div>
                   </div>
+                  
+                  {/* Action Icons - Outside the box */}
+                  {selectedPerson === person.id && (
+                    <div 
+                      className="flex justify-center gap-1 mt-2 bg-white rounded-lg shadow-lg p-2 border border-gray-200"
+                      style={{ width: stylingOptions.boxWidth }}
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <Button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setRelationshipType('spouse');
+                          setEditingPerson(null);
+                          setShowPersonForm(true);
+                        }}
+                        size="sm"
+                        variant="ghost"
+                        className="w-6 h-6 p-0 hover:bg-blue-50 rounded-full"
+                        title={t.addSpouse}
+                      >
+                        {getRelationshipIcon('spouse')}
+                      </Button>
+                      
+                      <Button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setRelationshipType('child');
+                          setEditingPerson(null);
+                          setShowPersonForm(true);
+                        }}
+                        size="sm"
+                        variant="ghost"
+                        className="w-6 h-6 p-0 hover:bg-blue-50 rounded-full"
+                        title={t.addChild}
+                      >
+                        {getRelationshipIcon('child')}
+                      </Button>
+                      
+                      <Button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setRelationshipType('parent');
+                          setEditingPerson(null);
+                          setShowPersonForm(true);
+                        }}
+                        size="sm"
+                        variant="ghost"
+                        className="w-6 h-6 p-0 hover:bg-blue-50 rounded-full"
+                        title={t.addParent}
+                      >
+                        {getRelationshipIcon('parent')}
+                      </Button>
+                      
+                      <Button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setRelationshipType('sibling');
+                          setEditingPerson(null);
+                          setShowPersonForm(true);
+                        }}
+                        size="sm"
+                        variant="ghost"
+                        className="w-6 h-6 p-0 hover:bg-blue-50 rounded-full"
+                        title={t.addSibling}
+                      >
+                        {getRelationshipIcon('sibling')}
+                      </Button>
+                      
+                      <Button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          deletePerson(selectedPerson);
+                        }}
+                        size="sm"
+                        variant="ghost"
+                        className="w-6 h-6 p-0 hover:bg-red-50 rounded-full"
+                        title={t.deletePerson}
+                      >
+                        <Trash2 className="w-3 h-3 text-red-600" />
+                      </Button>
+                    </div>
+                  )}
                 </div>
-              ))}
+              ))
             </div>
 
             {/* Add first person button */}
@@ -1430,14 +1432,14 @@ function App() {
                             onChange={(e) => setDisplayOptions(prev => ({
                               ...prev,
                               [key]: e.target.checked
-                            }))}
+                            })}}
                             className="rounded"
                           />
                           <span className="text-sm text-gray-700 arabic-text">
                             {t[key] || key}
                           </span>
                         </label>
-                      ))}
+                      })}}
                     </div>
                   </div>
 
@@ -1453,7 +1455,7 @@ function App() {
                           onChange={(e) => setStylingOptions(prev => ({
                             ...prev,
                             maleBoxColor: e.target.value
-                          }))}
+                          })}}
                           className="w-8 h-8 rounded border"
                         />
                       </div>
@@ -1466,7 +1468,7 @@ function App() {
                           onChange={(e) => setStylingOptions(prev => ({
                             ...prev,
                             femaleBoxColor: e.target.value
-                          }))}
+                          })}}
                           className="w-8 h-8 rounded border"
                         />
                       </div>
@@ -1479,7 +1481,7 @@ function App() {
                           onChange={(e) => setStylingOptions(prev => ({
                             ...prev,
                             backgroundColor: e.target.value
-                          }))}
+                          })}}
                           className="w-8 h-8 rounded border"
                         />
                       </div>
@@ -1494,7 +1496,7 @@ function App() {
                           onChange={(e) => setStylingOptions(prev => ({
                             ...prev,
                             boxWidth: parseInt(e.target.value)
-                          }))}
+                          })}}
                           className="flex-1"
                         />
                         <span className="text-sm text-gray-600">{stylingOptions.boxWidth}px</span>
@@ -1510,7 +1512,7 @@ function App() {
                           onChange={(e) => setStylingOptions(prev => ({
                             ...prev,
                             textSize: parseInt(e.target.value)
-                          }))}
+                          })}}
                           className="flex-1"
                         />
                         <span className="text-sm text-gray-600">{stylingOptions.textSize}px</span>
