@@ -881,7 +881,7 @@ function App() {
 
   // Tree builder view
   if (currentView === 'tree-builder') {
-    const treePeople = people.filter(p => p.treeId === currentTree?.id);
+    // Use computed layout with x,y coordinates for positioning and connections
     
     return (
       <div className="h-screen bg-gray-100 overflow-hidden">
