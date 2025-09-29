@@ -490,7 +490,7 @@ function App() {
     setShowPersonForm(false);
     setRelationshipType(null);
     setEditingPerson(null);
-    setSelectedPerson(newPerson.id);
+    setSelectedPerson(null);
   };
 
   // Update person
