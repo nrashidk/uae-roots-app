@@ -1,36 +1,56 @@
-import { useState, useEffect, useRef } from 'react'
-import { Button } from '@/components/ui/button.jsx'
-import { Heart, Baby, Users, UserPlus, Edit3, Trash2, X, Settings, Download, Home, Share, Calendar, Printer, ZoomIn, ZoomOut, RotateCcw, Mail, Smartphone, User } from 'lucide-react'
-import './App.css'
+import { useState, useEffect, useRef } from "react";
+import { Button } from "@/components/ui/button.jsx";
+import {
+  Heart,
+  Baby,
+  Users,
+  UserPlus,
+  Edit3,
+  Trash2,
+  X,
+  Settings,
+  Download,
+  Home,
+  Share,
+  Calendar,
+  Printer,
+  ZoomIn,
+  ZoomOut,
+  RotateCcw,
+  Mail,
+  Smartphone,
+  User,
+} from "lucide-react";
+import "./App.css";
 
 // UAE Roots Family Tree Application - Enhanced with FamilyEcho Features
 function App() {
   // Card dimensions constants
   const CARD = {
     w: 140,
-    h: 90
+    h: 90,
   };
 
   // Relationship type constants
   const REL = {
-    PARTNER: 'partner',
-    PARENT_CHILD: 'parent-child',
-    SIBLING: 'sibling',
+    PARTNER: "partner",
+    PARENT_CHILD: "parent-child",
+    SIBLING: "sibling",
   };
 
   // State Management
   const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [currentView, setCurrentView] = useState('auth');
+  const [currentView, setCurrentView] = useState("auth");
   const [currentTree, setCurrentTree] = useState(null);
   const [people, setPeople] = useState([]);
   const [relationships, setRelationships] = useState([]);
   const [showPersonForm, setShowPersonForm] = useState(false);
   const [selectedPerson, setSelectedPerson] = useState(null);
   const [editingPerson, setEditingPerson] = useState(null);
-  const [activeTab, setActiveTab] = useState('personal');
+  const [activeTab, setActiveTab] = useState("personal");
   const [showOptions, setShowOptions] = useState(false);
   const [showDownloadModal, setShowDownloadModal] = useState(false);
-  const [selectedDownloadFormat, setSelectedDownloadFormat] = useState('html');
+  const [selectedDownloadFormat, setSelectedDownloadFormat] = useState("html");
 
   // Enhanced Display Options (FamilyEcho-style)
   const [displayOptions, setDisplayOptions] = useState({
@@ -43,7 +63,7 @@ function App() {
     showPhoto: false,
     showAge: false,
     showLifeYears: false,
-    
+
     // Dates and Events
     showBirthDate: false,
     showBirthPlace: false,
@@ -55,7 +75,7 @@ function App() {
     showDeathCause: false,
     showBurialDate: false,
     showBurialPlace: false,
-    
+
     // Contact and Personal Details
     showEmail: false,
     showTelephone: false,
@@ -63,27 +83,27 @@ function App() {
     showProfession: false,
     showCompany: false,
     showInterests: false,
-    showActivities: false
+    showActivities: false,
   });
 
   // Enhanced Styling Options
   const [stylingOptions, setStylingOptions] = useState({
-    backgroundColor: '#f8fafc',
-    maleBoxColor: '#bfdbfe',
-    femaleBoxColor: '#fce7f3',
-    otherBoxColor: '#e6e6fa',
-    livingTextColor: '#000000',
-    deceasedTextColor: '#6b7280',
+    backgroundColor: "#f8fafc",
+    maleBoxColor: "#bfdbfe",
+    femaleBoxColor: "#fce7f3",
+    otherBoxColor: "#e6e6fa",
+    livingTextColor: "#000000",
+    deceasedTextColor: "#6b7280",
     boxWidth: 140,
-    textSize: 14
+    textSize: 14,
   });
 
   // Connection Line Options
   const [connectionOptions, setConnectionOptions] = useState({
-    currentPartners: 'thick',
-    otherPartners: 'medium',
-    parents: 'medium',
-    nonBiological: 'gray'
+    currentPartners: "thick",
+    otherPartners: "medium",
+    parents: "medium",
+    nonBiological: "gray",
   });
 
   // Enhanced Zoom & Pan with smooth controls
@@ -101,110 +121,122 @@ function App() {
 
   // Arabic translations - Complete Arabic interface
   const t = {
-    welcome: 'مرحباً بكم في جذور الإمارات',
-    continueWithGoogle: 'التسجيل عبر البريد الإلكتروني',
-    continueWithApple: 'التسجيل عبر الهوية الرقمية', 
-    uaeMobile: 'التسجيل عبر الهاتف الإماراتي',
-    dashboard: 'لوحة التحكم',
-    myFamilyTrees: 'أشجار عائلتي',
-    familyMembers: 'أفراد العائلة',
-    relationships: 'العلاقات',
-    createNewTree: 'إنشاء شجرة جديدة',
-    noFamilyTrees: 'لا توجد أشجار عائلة بعد',
-    createFirstTree: 'أنشئ شجرة عائلتك الأولى للبدء',
-    addPerson: 'إضافة شخص',
-    startBuilding: 'ابدأ ببناء شجرة عائلتك',
-    addFirstMember: 'أضف أول فرد من العائلة للبدء',
-    personal: 'البيانات الشخصية',
-    contact: 'معلومات التواصل',
-    biography: 'السيرة الذاتية',
-    addFamilyMember: 'إضافة فرد من العائلة',
-    editFamilyMember: 'تعديل فرد من العائلة',
-    allFieldsOptional: 'جميع الحقول اختيارية',
-    firstName: 'الاسم الأول',
-    lastName: 'اسم العائلة',
-    gender: 'الجنس',
-    male: 'ذكر',
-    female: 'أنثى',
-    birthDate: 'تاريخ الميلاد',
-    birthPlace: 'مكان الميلاد',
-    isLiving: 'على قيد الحياة',
-    deathDate: 'تاريخ الوفاة',
-    phone: 'الهاتف',
-    email: 'البريد الإلكتروني',
-    address: 'العنوان',
-    profession: 'المهنة',
-    company: 'الشركة',
-    bioNotes: 'ملاحظات السيرة الذاتية',
-    save: 'حفظ',
-    cancel: 'إلغاء',
-    update: 'تحديث',
-    addSpouse: 'إضافة زوج/زوجة',
-    addParent: 'إضافة والد',
-    addChild: 'إضافة طفل',
-    addSibling: 'إضافة شقيق',
-    options: 'خيارات',
-    displayOptions: 'خيارات العرض',
-    stylingOptions: 'خيارات التصميم',
-    showNames: 'إظهار الأسماء',
-    showSurnames: 'إظهار أسماء العائلة',
-    showBirthDates: 'إظهار تواريخ الميلاد',
-    showBirthPlaces: 'إظهار أماكن الميلاد',
-    showProfessions: 'إظهار المهن',
-    showPhones: 'إظهار الهواتف',
-    showEmails: 'إظهار البريد الإلكتروني',
-    showAddresses: 'إظهار العناوين',
-    maleBoxColor: 'لون صندوق الذكر',
-    femaleBoxColor: 'لون صندوق الأنثى',
-    textSize: 'حجم النص',
-    backgroundColor: 'لون الخلفية',
-    resetView: 'إعادة تعيين العرض',
-    logout: 'تسجيل الخروج',
-    backToDashboard: 'العودة إلى لوحة التحكم',
-    openFamilyTree: 'فتح شجرة العائلة',
-    applyChanges: 'تطبيق التغييرات',
-    familyTreeName: 'شجرة عائلتي',
-    deleteConfirm: 'هل أنت متأكد من حذف هذا الشخص؟',
-    editPerson: 'تعديل',
-    deletePerson: 'حذف',
-    enterFirstName: 'يرجى إدخال الاسم الأول',
-    boxWidth: 'عرض الصندوق',
-    familyStats: 'أفراد العائلة',
-    relationshipStats: 'العلاقات',
-    spouse: 'زوج/زوجة',
-    child: 'طفل', 
-    parent: 'والد',
-    sibling: 'شقيق',
-    print: 'طباعة',
-    share: 'مشاركة',
-    calendar: 'التقويم',
-    download: 'تنزيل',
-    selectDownloadFormat: 'اختر تنسيق التنزيل لهذه العائلة:',
-    readOnlyHTML: 'HTML للقراءة فقط (ملف واحد)',
-    readOnlyHTMLDesc: 'للتصفح من القرص أو الإضافة إلى موقع ويب، مع واجهة تفاعلية للقراءة فقط.',
-    gedcom: 'GEDCOM',
-    gedcomDesc: 'تنسيق قياسي لبيانات الأنساب. لاستيراد البيانات في برامج الأنساب المختلفة.',
-    csv: 'CSV (مفصولة بفواصل)',
-    csvDesc: 'لاستيراد البيانات في جداول البيانات أو قواعد البيانات.',
-    plainText: 'نص عادي',
-    plainTextDesc: 'للعرض في معالجات النصوص مثل المفكرة و Word، أو الإرسال بالبريد الإلكتروني.',
-    downloadBtn: 'تنزيل',
-    done: 'تم'
+    welcome: "مرحباً بكم في جذور الإمارات",
+    continueWithGoogle: "التسجيل عبر البريد الإلكتروني",
+    continueWithApple: "التسجيل عبر الهوية الرقمية",
+    uaeMobile: "التسجيل عبر الهاتف الإماراتي",
+    dashboard: "لوحة التحكم",
+    myFamilyTrees: "أشجار عائلتي",
+    familyMembers: "أفراد العائلة",
+    relationships: "العلاقات",
+    createNewTree: "إنشاء شجرة جديدة",
+    noFamilyTrees: "لا توجد أشجار عائلة بعد",
+    createFirstTree: "أنشئ شجرة عائلتك الأولى للبدء",
+    addPerson: "إضافة شخص",
+    startBuilding: "ابدأ ببناء شجرة عائلتك",
+    addFirstMember: "أضف أول فرد من العائلة للبدء",
+    personal: "البيانات الشخصية",
+    contact: "معلومات التواصل",
+    biography: "السيرة الذاتية",
+    addFamilyMember: "إضافة فرد من العائلة",
+    editFamilyMember: "تعديل فرد من العائلة",
+    allFieldsOptional: "جميع الحقول اختيارية",
+    firstName: "الاسم الأول",
+    lastName: "اسم العائلة",
+    gender: "الجنس",
+    male: "ذكر",
+    female: "أنثى",
+    birthDate: "تاريخ الميلاد",
+    birthPlace: "مكان الميلاد",
+    isLiving: "على قيد الحياة",
+    deathDate: "تاريخ الوفاة",
+    phone: "الهاتف",
+    email: "البريد الإلكتروني",
+    address: "العنوان",
+    profession: "المهنة",
+    company: "الشركة",
+    bioNotes: "ملاحظات السيرة الذاتية",
+    save: "حفظ",
+    cancel: "إلغاء",
+    update: "تحديث",
+    addSpouse: "إضافة زوج/زوجة",
+    addParent: "إضافة والد",
+    addChild: "إضافة طفل",
+    addSibling: "إضافة شقيق",
+    options: "خيارات",
+    displayOptions: "خيارات العرض",
+    stylingOptions: "خيارات التصميم",
+    showNames: "إظهار الأسماء",
+    showSurnames: "إظهار أسماء العائلة",
+    showBirthDates: "إظهار تواريخ الميلاد",
+    showBirthPlaces: "إظهار أماكن الميلاد",
+    showProfessions: "إظهار المهن",
+    showPhones: "إظهار الهواتف",
+    showEmails: "إظهار البريد الإلكتروني",
+    showAddresses: "إظهار العناوين",
+    maleBoxColor: "لون صندوق الذكر",
+    femaleBoxColor: "لون صندوق الأنثى",
+    textSize: "حجم النص",
+    backgroundColor: "لون الخلفية",
+    resetView: "إعادة تعيين العرض",
+    logout: "تسجيل الخروج",
+    backToDashboard: "العودة إلى لوحة التحكم",
+    openFamilyTree: "فتح شجرة العائلة",
+    applyChanges: "تطبيق التغييرات",
+    familyTreeName: "شجرة عائلتي",
+    deleteConfirm: "هل أنت متأكد من حذف هذا الشخص؟",
+    editPerson: "تعديل",
+    deletePerson: "حذف",
+    enterFirstName: "يرجى إدخال الاسم الأول",
+    boxWidth: "عرض الصندوق",
+    familyStats: "أفراد العائلة",
+    relationshipStats: "العلاقات",
+    spouse: "زوج/زوجة",
+    child: "طفل",
+    parent: "والد",
+    sibling: "شقيق",
+    print: "طباعة",
+    share: "مشاركة",
+    calendar: "التقويم",
+    download: "تنزيل",
+    selectDownloadFormat: "اختر تنسيق التنزيل لهذه العائلة:",
+    readOnlyHTML: "HTML للقراءة فقط (ملف واحد)",
+    readOnlyHTMLDesc:
+      "للتصفح من القرص أو الإضافة إلى موقع ويب، مع واجهة تفاعلية للقراءة فقط.",
+    gedcom: "GEDCOM",
+    gedcomDesc:
+      "تنسيق قياسي لبيانات الأنساب. لاستيراد البيانات في برامج الأنساب المختلفة.",
+    csv: "CSV (مفصولة بفواصل)",
+    csvDesc: "لاستيراد البيانات في جداول البيانات أو قواعد البيانات.",
+    plainText: "نص عادي",
+    plainTextDesc:
+      "للعرض في معالجات النصوص مثل المفكرة و Word، أو الإرسال بالبريد الإلكتروني.",
+    downloadBtn: "تنزيل",
+    done: "تم",
   };
 
   // Authentication handlers
-  const handleGoogleAuth = () => { setIsAuthenticated(true); setCurrentView('dashboard'); };
-  const handleAppleAuth = () => { setIsAuthenticated(true); setCurrentView('dashboard'); };
-  const handleUAEMobileAuth = () => { setIsAuthenticated(true); setCurrentView('dashboard'); };
+  const handleGoogleAuth = () => {
+    setIsAuthenticated(true);
+    setCurrentView("dashboard");
+  };
+  const handleAppleAuth = () => {
+    setIsAuthenticated(true);
+    setCurrentView("dashboard");
+  };
+  const handleUAEMobileAuth = () => {
+    setIsAuthenticated(true);
+    setCurrentView("dashboard");
+  };
 
   // --- AUTO-LAYOUT LOGIC ---
   // Compute generations and assign x/y positions for all people in the current tree
   const computeTreeLayout = (people, relationships) => {
     // Build maps for quick lookup
-    const idToPerson = Object.fromEntries(people.map(p => [p.id, { ...p }]));
+    const idToPerson = Object.fromEntries(people.map((p) => [p.id, { ...p }]));
     const childrenMap = {};
     const parentMap = {};
-    relationships.forEach(r => {
+    relationships.forEach((r) => {
       if (r.type === REL.PARENT_CHILD) {
         if (!childrenMap[r.parentId]) childrenMap[r.parentId] = [];
         childrenMap[r.parentId].push(r.childId);
@@ -213,17 +245,17 @@ function App() {
     });
 
     // Find root people (no parents)
-    const roots = people.filter(p => !parentMap[p.id]);
+    const roots = people.filter((p) => !parentMap[p.id]);
     // Assign generation levels (BFS)
     const queue = [];
-    roots.forEach(root => {
+    roots.forEach((root) => {
       idToPerson[root.id].generation = 0;
       queue.push(root.id);
     });
     while (queue.length) {
       const pid = queue.shift();
       const gen = idToPerson[pid].generation;
-      (childrenMap[pid] || []).forEach(cid => {
+      (childrenMap[pid] || []).forEach((cid) => {
         idToPerson[cid].generation = gen + 1;
         queue.push(cid);
       });
@@ -231,7 +263,7 @@ function App() {
 
     // Group by generation
     const genMap = {};
-    Object.values(idToPerson).forEach(p => {
+    Object.values(idToPerson).forEach((p) => {
       if (!genMap[p.generation]) genMap[p.generation] = [];
       genMap[p.generation].push(p);
     });
@@ -239,7 +271,7 @@ function App() {
     // Assign x/y positions for each generation (horizontal alignment)
     const verticalSpacing = 140;
     const horizontalSpacing = 180;
-    Object.keys(genMap).forEach(g => {
+    Object.keys(genMap).forEach((g) => {
       const gen = parseInt(g);
       const row = genMap[gen];
       row.forEach((p, i) => {
@@ -249,38 +281,42 @@ function App() {
     });
 
     // Return new people array with updated positions
-    return people.map(p => ({ ...p, ...idToPerson[p.id] }));
+    return people.map((p) => ({ ...p, ...idToPerson[p.id] }));
   };
 
   // Use auto-layout for current tree
   const treePeople = computeTreeLayout(
-    people.filter(p => p.treeId === currentTree?.id),
-    relationships.filter(r => r.treeId === currentTree?.id)
+    people.filter((p) => p.treeId === currentTree?.id),
+    relationships.filter((r) => r.treeId === currentTree?.id),
   );
   // --- END AUTO-LAYOUT LOGIC ---
 
   // Tree management
   const createNewTree = () => {
-    const newTree = { id: Date.now(), name: 'شجرة عائلتي', createdAt: new Date().toISOString() };
+    const newTree = {
+      id: Date.now(),
+      name: "شجرة عائلتي",
+      createdAt: new Date().toISOString(),
+    };
     setCurrentTree(newTree);
-    setCurrentView('tree-builder');
+    setCurrentView("tree-builder");
   };
 
   // Enhanced auto-center view on a specific person
   const centerOnPerson = (person) => {
     if (!canvasRef.current) return;
-    
+
     const canvas = canvasRef.current;
     const rect = canvas.getBoundingClientRect();
     const viewportCenterX = rect.width / 2;
     const viewportCenterY = rect.height / 2;
-    
+
     const personCenterX = person.x + CARD.w / 2;
     const personCenterY = person.y + CARD.h / 2;
-    
+
     const newOffsetX = viewportCenterX - personCenterX * zoom;
     const newOffsetY = viewportCenterY - personCenterY * zoom;
-    
+
     setPanOffset({ x: newOffsetX, y: newOffsetY });
   };
 
@@ -292,11 +328,11 @@ function App() {
       if (canvas) {
         const rect = canvas.getBoundingClientRect();
         // Account for current zoom and pan offset
-        const centerX = (rect.width / 2 - panOffset.x) / zoom - (CARD.w / 2);
-        const centerY = (rect.height / 2 - panOffset.y) / zoom - (CARD.h / 2);
-        return { 
-          x: centerX, 
-          y: centerY 
+        const centerX = (rect.width / 2 - panOffset.x) / zoom - CARD.w / 2;
+        const centerY = (rect.height / 2 - panOffset.y) / zoom - CARD.h / 2;
+        return {
+          x: centerX,
+          y: centerY,
         };
       }
       return { x: 400, y: 300 };
@@ -308,8 +344,9 @@ function App() {
     const minDistance = 140;
 
     const hasCollision = (x, y, excludeId = null) => {
-      return people.some(person => {
-        if (person.id === excludeId || person.treeId !== currentTree?.id) return false;
+      return people.some((person) => {
+        if (person.id === excludeId || person.treeId !== currentTree?.id)
+          return false;
         const dx = Math.abs(person.x - x);
         const dy = Math.abs(person.y - y);
         return dx < minDistance && dy < minDistance;
@@ -325,12 +362,24 @@ function App() {
       while (hasCollision(x, y, excludeId) && attempts < maxAttempts) {
         const offset = Math.floor(attempts / 4) * 60 + 60;
         const direction = attempts % 4;
-        
+
         switch (direction) {
-          case 0: x = targetX + offset; y = targetY; break;
-          case 1: x = targetX; y = targetY + offset; break;
-          case 2: x = targetX - offset; y = targetY; break;
-          case 3: x = targetX; y = targetY - offset; break;
+          case 0:
+            x = targetX + offset;
+            y = targetY;
+            break;
+          case 1:
+            x = targetX;
+            y = targetY + offset;
+            break;
+          case 2:
+            x = targetX - offset;
+            y = targetY;
+            break;
+          case 3:
+            x = targetX;
+            y = targetY - offset;
+            break;
         }
         attempts++;
       }
@@ -339,88 +388,104 @@ function App() {
     };
 
     switch (relType) {
-      case 'spouse':
-        {
-          const targetX = anchorPerson.x + CARD.w + partnerSpacing;
-          const targetY = anchorPerson.y;
-          return findNonCollidingPosition(targetX, targetY);
-        }
-      
-      case 'child':
-        {
-          const existingChildren = relationships.filter(
-            r => r.type === REL.PARENT_CHILD && r.parentId === anchorPerson.id && r.treeId === currentTree?.id
-          );
-          
-          const partnerRel = relationships.find(
-            r => r.type === REL.PARTNER && (r.person1Id === anchorPerson.id || r.person2Id === anchorPerson.id) && r.treeId === currentTree?.id
-          );
-          
-          let baseX = anchorPerson.x;
-          if (partnerRel) {
-            const partnerId = partnerRel.person1Id === anchorPerson.id ? partnerRel.person2Id : partnerRel.person1Id;
-            const partner = people.find(p => p.id === partnerId);
-            if (partner) {
-              const coupleCenter = (anchorPerson.x + CARD.w/2 + partner.x + CARD.w/2) / 2;
-              baseX = coupleCenter - (existingChildren.length * horizontalSpacing / 2) - CARD.w/2;
-            }
-          } else {
-            baseX = anchorPerson.x - (existingChildren.length * horizontalSpacing / 2);
+      case "spouse": {
+        const targetX = anchorPerson.x + CARD.w + partnerSpacing;
+        const targetY = anchorPerson.y;
+        return findNonCollidingPosition(targetX, targetY);
+      }
+
+      case "child": {
+        const existingChildren = relationships.filter(
+          (r) =>
+            r.type === REL.PARENT_CHILD &&
+            r.parentId === anchorPerson.id &&
+            r.treeId === currentTree?.id,
+        );
+
+        const partnerRel = relationships.find(
+          (r) =>
+            r.type === REL.PARTNER &&
+            (r.person1Id === anchorPerson.id ||
+              r.person2Id === anchorPerson.id) &&
+            r.treeId === currentTree?.id,
+        );
+
+        let baseX = anchorPerson.x;
+        if (partnerRel) {
+          const partnerId =
+            partnerRel.person1Id === anchorPerson.id
+              ? partnerRel.person2Id
+              : partnerRel.person1Id;
+          const partner = people.find((p) => p.id === partnerId);
+          if (partner) {
+            const coupleCenter =
+              (anchorPerson.x + CARD.w / 2 + partner.x + CARD.w / 2) / 2;
+            baseX =
+              coupleCenter -
+              (existingChildren.length * horizontalSpacing) / 2 -
+              CARD.w / 2;
           }
-          
-          const targetX = baseX + (existingChildren.length * horizontalSpacing);
-          const targetY = anchorPerson.y + verticalSpacing;
-          return findNonCollidingPosition(targetX, targetY);
+        } else {
+          baseX =
+            anchorPerson.x - (existingChildren.length * horizontalSpacing) / 2;
         }
-      
-      case 'parent':
-        {
-          const targetX = anchorPerson.x;
-          const targetY = anchorPerson.y - verticalSpacing;
-          return findNonCollidingPosition(targetX, targetY);
-        }
-      
-      case 'sibling':
-        {
-          const allSiblingRelations = relationships.filter(
-            r => r.type === REL.SIBLING && (r.person1Id === anchorPerson.id || r.person2Id === anchorPerson.id) && r.treeId === currentTree?.id
-          );
-          
-          const siblingIds = new Set([anchorPerson.id]);
-          allSiblingRelations.forEach(rel => {
-            siblingIds.add(rel.person1Id);
-            siblingIds.add(rel.person2Id);
-          });
-          
-          const siblings = Array.from(siblingIds)
-            .map(id => people.find(p => p.id === id))
-            .filter(p => p)
-            .sort((a, b) => a.x - b.x);
-          
-          const targetY = anchorPerson.y;
-          const rightmostSibling = siblings[siblings.length - 1];
-          const targetX = rightmostSibling.x + horizontalSpacing;
-          
-          return findNonCollidingPosition(targetX, targetY);
-        }
-      
-      default:
-        {
-          const targetX = anchorPerson.x + horizontalSpacing;
-          const targetY = anchorPerson.y;
-          return findNonCollidingPosition(targetX, targetY);
-        }
+
+        const targetX = baseX + existingChildren.length * horizontalSpacing;
+        const targetY = anchorPerson.y + verticalSpacing;
+        return findNonCollidingPosition(targetX, targetY);
+      }
+
+      case "parent": {
+        const targetX = anchorPerson.x;
+        const targetY = anchorPerson.y - verticalSpacing;
+        return findNonCollidingPosition(targetX, targetY);
+      }
+
+      case "sibling": {
+        const allSiblingRelations = relationships.filter(
+          (r) =>
+            r.type === REL.SIBLING &&
+            (r.person1Id === anchorPerson.id ||
+              r.person2Id === anchorPerson.id) &&
+            r.treeId === currentTree?.id,
+        );
+
+        const siblingIds = new Set([anchorPerson.id]);
+        allSiblingRelations.forEach((rel) => {
+          siblingIds.add(rel.person1Id);
+          siblingIds.add(rel.person2Id);
+        });
+
+        const siblings = Array.from(siblingIds)
+          .map((id) => people.find((p) => p.id === id))
+          .filter((p) => p)
+          .sort((a, b) => a.x - b.x);
+
+        const targetY = anchorPerson.y;
+        const rightmostSibling = siblings[siblings.length - 1];
+        const targetX = rightmostSibling.x + horizontalSpacing;
+
+        return findNonCollidingPosition(targetX, targetY);
+      }
+
+      default: {
+        const targetX = anchorPerson.x + horizontalSpacing;
+        const targetY = anchorPerson.y;
+        return findNonCollidingPosition(targetX, targetY);
+      }
     }
   };
 
   // Enhanced add person with smart gender defaults
   const addPerson = (personData) => {
-    const anchorPerson = selectedPerson ? people.find(p => p.id === selectedPerson) : null;
-    
+    const anchorPerson = selectedPerson
+      ? people.find((p) => p.id === selectedPerson)
+      : null;
+
     // Enforce spouse gender as female
     let finalPersonData = { ...personData };
-    if (relationshipType === 'spouse') {
-      finalPersonData.gender = 'female';
+    if (relationshipType === "spouse") {
+      finalPersonData.gender = "female";
     }
 
     const position = calculatePosition(relationshipType, anchorPerson);
@@ -431,58 +496,63 @@ function App() {
       x: position.x,
       y: position.y,
       treeId: currentTree?.id,
-      isLiving: finalPersonData.isLiving !== false
+      isLiving: finalPersonData.isLiving !== false,
     };
 
-    setPeople(prev => [...prev, newPerson]);
+    setPeople((prev) => [...prev, newPerson]);
 
     // Create relationships
     if (selectedPerson && relationshipType) {
       const newRelationship = { id: Date.now() + 1, treeId: currentTree?.id };
 
       switch (relationshipType) {
-        case 'spouse':
+        case "spouse":
           newRelationship.type = REL.PARTNER;
           newRelationship.person1Id = selectedPerson;
           newRelationship.person2Id = newPerson.id;
           break;
-        case 'child':
+        case "child":
           newRelationship.type = REL.PARENT_CHILD;
           newRelationship.parentId = selectedPerson;
           newRelationship.childId = newPerson.id;
-          
+
           // Add relationship with spouse if exists
           const spouseRel = relationships.find(
-            r => r.type === REL.PARTNER && 
-            (r.person1Id === selectedPerson || r.person2Id === selectedPerson) && 
-            r.treeId === currentTree?.id
+            (r) =>
+              r.type === REL.PARTNER &&
+              (r.person1Id === selectedPerson ||
+                r.person2Id === selectedPerson) &&
+              r.treeId === currentTree?.id,
           );
-          
+
           if (spouseRel) {
-            const spouseId = spouseRel.person1Id === selectedPerson ? spouseRel.person2Id : spouseRel.person1Id;
+            const spouseId =
+              spouseRel.person1Id === selectedPerson
+                ? spouseRel.person2Id
+                : spouseRel.person1Id;
             const spouseChildRelationship = {
               id: Date.now() + 2,
               type: REL.PARENT_CHILD,
               parentId: spouseId,
               childId: newPerson.id,
-              treeId: currentTree?.id
+              treeId: currentTree?.id,
             };
-            setRelationships(prev => [...prev, spouseChildRelationship]);
+            setRelationships((prev) => [...prev, spouseChildRelationship]);
           }
           break;
-        case 'parent':
+        case "parent":
           newRelationship.type = REL.PARENT_CHILD;
           newRelationship.parentId = newPerson.id;
           newRelationship.childId = selectedPerson;
           break;
-        case 'sibling':
+        case "sibling":
           newRelationship.type = REL.SIBLING;
           newRelationship.person1Id = selectedPerson;
           newRelationship.person2Id = newPerson.id;
           break;
       }
 
-      setRelationships(prev => [...prev, newRelationship]);
+      setRelationships((prev) => [...prev, newRelationship]);
     }
 
     // Auto-center on new person
@@ -498,9 +568,9 @@ function App() {
 
   // Update person
   const updatePerson = (personData) => {
-    setPeople(prev => prev.map(p => 
-      p.id === editingPerson ? { ...p, ...personData } : p
-    ));
+    setPeople((prev) =>
+      prev.map((p) => (p.id === editingPerson ? { ...p, ...personData } : p)),
+    );
     setShowPersonForm(false);
     setEditingPerson(null);
   };
@@ -508,13 +578,16 @@ function App() {
   // Delete person
   const deletePerson = (personId) => {
     if (window.confirm(t.deleteConfirm)) {
-      setPeople(prev => prev.filter(p => p.id !== personId));
-      setRelationships(prev => prev.filter(r => 
-        r.person1Id !== personId && 
-        r.person2Id !== personId && 
-        r.parentId !== personId && 
-        r.childId !== personId
-      ));
+      setPeople((prev) => prev.filter((p) => p.id !== personId));
+      setRelationships((prev) =>
+        prev.filter(
+          (r) =>
+            r.person1Id !== personId &&
+            r.person2Id !== personId &&
+            r.parentId !== personId &&
+            r.childId !== personId,
+        ),
+      );
       setSelectedPerson(null);
     }
   };
@@ -522,12 +595,14 @@ function App() {
   // Enhanced pan handling with smooth dragging
   const handleMouseDown = (e) => {
     // Check if clicking on background (not on person boxes or buttons)
-    const isBackground = !e.target.closest('[data-person-box]') && !e.target.closest('[data-action-button]');
+    const isBackground =
+      !e.target.closest("[data-person-box]") &&
+      !e.target.closest("[data-action-button]");
     if (isBackground) {
       setIsDragging(true);
       setDragStart({ x: e.clientX, y: e.clientY });
       setDragStartOffset({ ...panOffset });
-      e.currentTarget.style.cursor = 'grabbing';
+      e.currentTarget.style.cursor = "grabbing";
     }
   };
 
@@ -537,7 +612,7 @@ function App() {
       const deltaY = e.clientY - dragStart.y;
       setPanOffset({
         x: dragStartOffset.x + deltaX,
-        y: dragStartOffset.y + deltaY
+        y: dragStartOffset.y + deltaY,
       });
     }
   };
@@ -545,17 +620,17 @@ function App() {
   const handleMouseUp = (e) => {
     if (isDragging) {
       setIsDragging(false);
-      e.currentTarget.style.cursor = 'grab';
+      e.currentTarget.style.cursor = "grab";
     }
   };
 
   useEffect(() => {
     if (isDragging) {
-      document.addEventListener('mousemove', handleMouseMove);
-      document.addEventListener('mouseup', handleMouseUp);
+      document.addEventListener("mousemove", handleMouseMove);
+      document.addEventListener("mouseup", handleMouseUp);
       return () => {
-        document.removeEventListener('mousemove', handleMouseMove);
-        document.removeEventListener('mouseup', handleMouseUp);
+        document.removeEventListener("mousemove", handleMouseMove);
+        document.removeEventListener("mouseup", handleMouseUp);
       };
     }
   }, [isDragging, dragStart, dragStartOffset]);
@@ -564,12 +639,12 @@ function App() {
   const handleWheel = (e) => {
     e.preventDefault();
     const delta = e.deltaY > 0 ? 0.9 : 1.1;
-    setZoom(prev => Math.max(0.3, Math.min(3, prev * delta)));
+    setZoom((prev) => Math.max(0.3, Math.min(3, prev * delta)));
   };
 
   // Zoom controls
-  const zoomIn = () => setZoom(prev => Math.min(3, prev * 1.2));
-  const zoomOut = () => setZoom(prev => Math.max(0.3, prev / 1.2));
+  const zoomIn = () => setZoom((prev) => Math.min(3, prev * 1.2));
+  const zoomOut = () => setZoom((prev) => Math.max(0.3, prev / 1.2));
   const resetView = () => {
     setZoom(1);
     setPanOffset({ x: 0, y: 0 });
@@ -578,22 +653,22 @@ function App() {
   // Enhanced export functionality
   const handleDownload = (format) => {
     const treeData = {
-      people: people.filter(p => p.treeId === currentTree?.id),
-      relationships: relationships.filter(r => r.treeId === currentTree?.id),
-      tree: currentTree
+      people: people.filter((p) => p.treeId === currentTree?.id),
+      relationships: relationships.filter((r) => r.treeId === currentTree?.id),
+      tree: currentTree,
     };
 
     switch (format) {
-      case 'html':
+      case "html":
         downloadAsHTML(treeData);
         break;
-      case 'gedcom':
+      case "gedcom":
         downloadAsGEDCOM(treeData);
         break;
-      case 'csv':
+      case "csv":
         downloadAsCSV(treeData);
         break;
-      case 'plaintext':
+      case "plaintext":
         downloadAsPlainText(treeData);
         break;
     }
@@ -607,7 +682,7 @@ function App() {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>${currentTree?.name || 'شجرة العائلة'}</title>
+    <title>${currentTree?.name || "شجرة العائلة"}</title>
     <style>
         body { font-family: 'Sakkal Majalla', Arial, sans-serif; direction: rtl; }
         .person { border: 1px solid #ccc; padding: 10px; margin: 5px; display: inline-block; }
@@ -616,89 +691,113 @@ function App() {
     </style>
 </head>
 <body>
-    <h1>${currentTree?.name || 'شجرة العائلة'}</h1>
+    <h1>${currentTree?.name || "شجرة العائلة"}</h1>
     <div>
-        ${treeData.people.map(person => `
+        ${treeData.people
+          .map(
+            (person) => `
             <div class="person ${person.gender}">
-                <strong>${person.firstName} ${person.lastName || ''}</strong>
-                ${person.birthDate ? `<br>تاريخ الميلاد: ${person.birthDate}` : ''}
-                ${person.profession ? `<br>المهنة: ${person.profession}` : ''}
+                <strong>${person.firstName} ${person.lastName || ""}</strong>
+                ${person.birthDate ? `<br>تاريخ الميلاد: ${person.birthDate}` : ""}
+                ${person.profession ? `<br>المهنة: ${person.profession}` : ""}
             </div>
-        `).join('')}
+        `,
+          )
+          .join("")}
     </div>
 </body>
 </html>`;
-    
-    const blob = new Blob([htmlContent], { type: 'text/html;charset=utf-8' });
+
+    const blob = new Blob([htmlContent], { type: "text/html;charset=utf-8" });
     const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
+    const a = document.createElement("a");
     a.href = url;
-    a.download = `${currentTree?.name || 'family-tree'}.html`;
+    a.download = `${currentTree?.name || "family-tree"}.html`;
     a.click();
     URL.revokeObjectURL(url);
   };
 
   const downloadAsGEDCOM = (treeData) => {
-    let gedcom = '0 HEAD\n1 SOUR UAE Roots\n1 GEDC\n2 VERS 5.5\n1 CHAR UTF-8\n';
-    
+    let gedcom = "0 HEAD\n1 SOUR UAE Roots\n1 GEDC\n2 VERS 5.5\n1 CHAR UTF-8\n";
+
     treeData.people.forEach((person, index) => {
       gedcom += `0 @I${index + 1}@ INDI\n`;
-      gedcom += `1 NAME ${person.firstName} /${person.lastName || ''}/\n`;
-      if (person.gender) gedcom += `1 SEX ${person.gender === 'male' ? 'M' : 'F'}\n`;
+      gedcom += `1 NAME ${person.firstName} /${person.lastName || ""}/\n`;
+      if (person.gender)
+        gedcom += `1 SEX ${person.gender === "male" ? "M" : "F"}\n`;
       if (person.birthDate) gedcom += `1 BIRT\n2 DATE ${person.birthDate}\n`;
       if (person.birthPlace) gedcom += `2 PLAC ${person.birthPlace}\n`;
     });
-    
-    gedcom += '0 TRLR\n';
-    
-    const blob = new Blob([gedcom], { type: 'text/plain;charset=utf-8' });
+
+    gedcom += "0 TRLR\n";
+
+    const blob = new Blob([gedcom], { type: "text/plain;charset=utf-8" });
     const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
+    const a = document.createElement("a");
     a.href = url;
-    a.download = `${currentTree?.name || 'family-tree'}.ged`;
+    a.download = `${currentTree?.name || "family-tree"}.ged`;
     a.click();
     URL.revokeObjectURL(url);
   };
 
   const downloadAsCSV = (treeData) => {
-    const headers = ['الاسم الأول', 'اسم العائلة', 'الجنس', 'تاريخ الميلاد', 'مكان الميلاد', 'المهنة', 'الهاتف', 'البريد الإلكتروني'];
+    const headers = [
+      "الاسم الأول",
+      "اسم العائلة",
+      "الجنس",
+      "تاريخ الميلاد",
+      "مكان الميلاد",
+      "المهنة",
+      "الهاتف",
+      "البريد الإلكتروني",
+    ];
     const csvContent = [
-      headers.join(','),
-      ...treeData.people.map(person => [
-        person.firstName || '',
-        person.lastName || '',
-        person.gender === 'male' ? 'ذكر' : person.gender === 'female' ? 'أنثى' : '',
-        person.birthDate || '',
-        person.birthPlace || '',
-        person.profession || '',
-        person.phone || '',
-        person.email || ''
-      ].join(','))
-    ].join('\n');
-    
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8' });
+      headers.join(","),
+      ...treeData.people.map((person) =>
+        [
+          person.firstName || "",
+          person.lastName || "",
+          person.gender === "male"
+            ? "ذكر"
+            : person.gender === "female"
+              ? "أنثى"
+              : "",
+          person.birthDate || "",
+          person.birthPlace || "",
+          person.profession || "",
+          person.phone || "",
+          person.email || "",
+        ].join(","),
+      ),
+    ].join("\n");
+
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8" });
     const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
+    const a = document.createElement("a");
     a.href = url;
-    a.download = `${currentTree?.name || 'family-tree'}.csv`;
+    a.download = `${currentTree?.name || "family-tree"}.csv`;
     a.click();
     URL.revokeObjectURL(url);
   };
 
   const downloadAsPlainText = (treeData) => {
-    const textContent = `${currentTree?.name || 'شجرة العائلة'}\n\n` +
-      treeData.people.map(person => 
-        `${person.firstName} ${person.lastName || ''}\n` +
-        (person.birthDate ? `تاريخ الميلاد: ${person.birthDate}\n` : '') +
-        (person.profession ? `المهنة: ${person.profession}\n` : '') +
-        '\n'
-      ).join('');
-    
-    const blob = new Blob([textContent], { type: 'text/plain;charset=utf-8' });
+    const textContent =
+      `${currentTree?.name || "شجرة العائلة"}\n\n` +
+      treeData.people
+        .map(
+          (person) =>
+            `${person.firstName} ${person.lastName || ""}\n` +
+            (person.birthDate ? `تاريخ الميلاد: ${person.birthDate}\n` : "") +
+            (person.profession ? `المهنة: ${person.profession}\n` : "") +
+            "\n",
+        )
+        .join("");
+
+    const blob = new Blob([textContent], { type: "text/plain;charset=utf-8" });
     const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
+    const a = document.createElement("a");
     a.href = url;
-    a.download = `${currentTree?.name || 'family-tree'}.txt`;
+    a.download = `${currentTree?.name || "family-tree"}.txt`;
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -708,17 +807,17 @@ function App() {
     if (navigator.share) {
       try {
         await navigator.share({
-          title: currentTree?.name || 'شجرة العائلة',
-          text: 'شاهد شجرة عائلتي على جذور الإمارات',
-          url: window.location.href
+          title: currentTree?.name || "شجرة العائلة",
+          text: "شاهد شجرة عائلتي على جذور الإمارات",
+          url: window.location.href,
         });
       } catch (err) {
-        console.log('Error sharing:', err);
+        console.log("Error sharing:", err);
       }
     } else {
       // Fallback: copy to clipboard
       navigator.clipboard.writeText(window.location.href);
-      alert('تم نسخ الرابط إلى الحافظة');
+      alert("تم نسخ الرابط إلى الحافظة");
     }
   };
 
@@ -730,24 +829,29 @@ function App() {
   // Calendar functionality
   const handleCalendar = () => {
     const events = people
-      .filter(p => p.treeId === currentTree?.id && p.birthDate)
-      .map(p => ({
+      .filter((p) => p.treeId === currentTree?.id && p.birthDate)
+      .map((p) => ({
         title: `عيد ميلاد ${p.firstName}`,
-        date: p.birthDate
+        date: p.birthDate,
       }));
-    
+
     // Create calendar data
-    const calendarData = events.map(event => 
-      `BEGIN:VEVENT\nSUMMARY:${event.title}\nDTSTART:${event.date.replace(/-/g, '')}\nEND:VEVENT`
-    ).join('\n');
-    
+    const calendarData = events
+      .map(
+        (event) =>
+          `BEGIN:VEVENT\nSUMMARY:${event.title}\nDTSTART:${event.date.replace(/-/g, "")}\nEND:VEVENT`,
+      )
+      .join("\n");
+
     const icalContent = `BEGIN:VCALENDAR\nVERSION:2.0\nPRODID:UAE Roots\n${calendarData}\nEND:VCALENDAR`;
-    
-    const blob = new Blob([icalContent], { type: 'text/calendar;charset=utf-8' });
+
+    const blob = new Blob([icalContent], {
+      type: "text/calendar;charset=utf-8",
+    });
     const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
+    const a = document.createElement("a");
     a.href = url;
-    a.download = 'family-events.ics';
+    a.download = "family-events.ics";
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -755,15 +859,18 @@ function App() {
   // Get relationship icon
   const getRelationshipIcon = (type) => {
     switch (type) {
-      case 'spouse': return <Heart className="w-4 h-4" />;
-      case 'child': return <Baby className="w-4 h-4" />;
-      case 'parent': return <Users className="w-4 h-4" />;
-      case 'sibling': return <UserPlus className="w-4 h-4" />;
-      default: return <UserPlus className="w-4 h-4" />;
+      case "spouse":
+        return <Heart className="w-4 h-4" />;
+      case "child":
+        return <Baby className="w-4 h-4" />;
+      case "parent":
+        return <Users className="w-4 h-4" />;
+      case "sibling":
+        return <UserPlus className="w-4 h-4" />;
+      default:
+        return <UserPlus className="w-4 h-4" />;
     }
   };
-
-
 
   // Authentication screen
   if (!isAuthenticated) {
@@ -776,7 +883,7 @@ function App() {
             </h1>
             <div className="w-16 h-1 bg-purple-500 mx-auto rounded"></div>
           </div>
-          
+
           <div className="space-y-4">
             <Button
               onClick={handleGoogleAuth}
@@ -785,7 +892,7 @@ function App() {
               <Mail className="w-5 h-5" />
               <span className="arabic-text">{t.continueWithGoogle}</span>
             </Button>
-            
+
             <Button
               onClick={handleAppleAuth}
               className="w-full bg-black hover:bg-gray-800 text-white py-3 rounded-lg flex items-center justify-center gap-3"
@@ -793,7 +900,7 @@ function App() {
               <User className="w-5 h-5" />
               <span className="arabic-text">{t.continueWithApple}</span>
             </Button>
-            
+
             <Button
               onClick={handleUAEMobileAuth}
               className="w-full bg-orange-500 hover:bg-orange-600 text-white py-3 rounded-lg flex items-center justify-center gap-3"
@@ -808,13 +915,15 @@ function App() {
   }
 
   // Dashboard view
-  if (currentView === 'dashboard') {
+  if (currentView === "dashboard") {
     return (
       <div className="min-h-screen bg-gray-50">
         <div className="bg-white shadow-sm border-b">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
             <div className="flex justify-between items-center">
-              <h1 className="text-3xl font-bold text-gray-900 arabic-text">{t.dashboard}</h1>
+              <h1 className="text-3xl font-bold text-gray-900 arabic-text">
+                {t.dashboard}
+              </h1>
               <Button
                 onClick={() => setIsAuthenticated(false)}
                 variant="outline"
@@ -829,18 +938,35 @@ function App() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             <div className="bg-white rounded-lg shadow p-6">
-              <h3 className="text-xl font-bold text-gray-900 mb-4 arabic-text">{t.myFamilyTrees}</h3>
+              <h3 className="text-xl font-bold text-gray-900 mb-4 arabic-text">
+                {t.myFamilyTrees}
+              </h3>
               {currentTree ? (
                 <div className="space-y-3">
                   <div className="border rounded-lg p-4">
-                    <h4 className="font-bold text-lg text-gray-900 arabic-text">{currentTree.name}</h4>
+                    <h4 className="font-bold text-lg text-gray-900 arabic-text">
+                      {currentTree.name}
+                    </h4>
                     <div className="text-base text-gray-500 mt-2 arabic-text">
-                      <span>{people.filter(p => p.treeId === currentTree.id).length} {t.familyStats}</span>
+                      <span>
+                        {
+                          people.filter((p) => p.treeId === currentTree.id)
+                            .length
+                        }{" "}
+                        {t.familyStats}
+                      </span>
                       <span className="mx-2">•</span>
-                      <span>{relationships.filter(r => r.treeId === currentTree.id).length} {t.relationshipStats}</span>
+                      <span>
+                        {
+                          relationships.filter(
+                            (r) => r.treeId === currentTree.id,
+                          ).length
+                        }{" "}
+                        {t.relationshipStats}
+                      </span>
                     </div>
                     <Button
-                      onClick={() => setCurrentView('tree-builder')}
+                      onClick={() => setCurrentView("tree-builder")}
                       className="mt-3 w-full arabic-text"
                     >
                       {t.openFamilyTree}
@@ -849,7 +975,9 @@ function App() {
                 </div>
               ) : (
                 <div className="text-center py-8">
-                  <p className="text-gray-500 mb-4 arabic-text">{t.noFamilyTrees}</p>
+                  <p className="text-gray-500 mb-4 arabic-text">
+                    {t.noFamilyTrees}
+                  </p>
                   <Button onClick={createNewTree} className="arabic-text">
                     {t.createNewTree}
                   </Button>
@@ -858,23 +986,32 @@ function App() {
             </div>
 
             <div className="bg-white rounded-lg shadow p-6">
-              <h3 className="text-xl font-bold text-gray-900 mb-4 arabic-text">{t.familyMembers}</h3>
+              <h3 className="text-xl font-bold text-gray-900 mb-4 arabic-text">
+                {t.familyMembers}
+              </h3>
               <div className="text-3xl font-bold text-blue-600">
-                {people.filter(p => p.treeId === currentTree?.id).length}
+                {people.filter((p) => p.treeId === currentTree?.id).length}
               </div>
             </div>
 
             <div className="bg-white rounded-lg shadow p-6">
-              <h3 className="text-xl font-bold text-gray-900 mb-4 arabic-text">{t.relationships}</h3>
+              <h3 className="text-xl font-bold text-gray-900 mb-4 arabic-text">
+                {t.relationships}
+              </h3>
               <div className="text-3xl font-bold text-green-600">
-                {relationships.filter(r => r.treeId === currentTree?.id).length}
+                {
+                  relationships.filter((r) => r.treeId === currentTree?.id)
+                    .length
+                }
               </div>
             </div>
           </div>
 
           {!currentTree && (
             <div className="mt-8 text-center">
-              <p className="text-gray-600 mb-4 arabic-text">{t.createFirstTree}</p>
+              <p className="text-gray-600 mb-4 arabic-text">
+                {t.createFirstTree}
+              </p>
               <Button onClick={createNewTree} size="lg" className="arabic-text">
                 {t.createNewTree}
               </Button>
@@ -886,18 +1023,16 @@ function App() {
   }
 
   // Tree builder view
-  if (currentView === 'tree-builder') {
+  if (currentView === "tree-builder") {
     // Use computed layout with x,y coordinates for positioning and connections
-    
+
     return (
       <div className="h-screen bg-gray-100 overflow-hidden">
         {/* Header */}
-        <div 
-          className="bg-white shadow-sm border-b px-4 py-3 flex justify-between items-center"
-        >
+        <div className="bg-white shadow-sm border-b px-4 py-3 flex justify-between items-center">
           <div className="flex items-center gap-4">
             <Button
-              onClick={() => setCurrentView('dashboard')}
+              onClick={() => setCurrentView("dashboard")}
               variant="outline"
               size="sm"
               className="arabic-text"
@@ -909,24 +1044,28 @@ function App() {
               {currentTree?.name || t.familyTreeName}
             </h1>
           </div>
-          
+
           <div className="flex items-center gap-2">
             <span className="text-base text-gray-600 arabic-text">
-              {treePeople.length} {t.familyStats} • {relationships.filter(r => r.treeId === currentTree?.id).length} {t.relationshipStats}
+              {treePeople.length} {t.familyStats} •{" "}
+              {relationships.filter((r) => r.treeId === currentTree?.id).length}{" "}
+              {t.relationshipStats}
             </span>
           </div>
         </div>
 
         {/* Canvas */}
-        <div 
+        <div
           className="relative"
-          style={{ 
-            height: 'calc(100vh - 64px)' // Subtract header height
+          style={{
+            height: "calc(100vh - 64px)", // Subtract header height
           }}
           onClick={(e) => {
             // Deselect person when clicking anywhere in the canvas area except on persons
-            const isPersonClick = e.target.closest('[data-person-box]');
-            const isActionButtonClick = e.target.closest('[data-action-button]');
+            const isPersonClick = e.target.closest("[data-person-box]");
+            const isActionButtonClick = e.target.closest(
+              "[data-action-button]",
+            );
             if (!isPersonClick && !isActionButtonClick) {
               setSelectedPerson(null);
             }
@@ -944,178 +1083,224 @@ function App() {
               className="absolute inset-0 pointer-events-none"
               style={{
                 transform: `translate(${panOffset.x}px, ${panOffset.y}px) scale(${zoom})`,
-                transformOrigin: '0 0'
+                transformOrigin: "0 0",
               }}
             >
-            {/* Enhanced family relationship connectors with smooth curves and professional styling */}
-            <svg className="absolute inset-0 pointer-events-none" style={{ width: '100%', height: '100%' }}>
-              {/* Enhanced Spouse/Partner lines with smooth curves */}
-              {relationships.filter(r => r.type === REL.PARTNER && r.treeId === currentTree?.id).map((r, i) => {
-                const p1 = treePeople.find(p => p.id === r.person1Id);
-                const p2 = treePeople.find(p => p.id === r.person2Id);
-                if (!p1 || !p2) return null;
-                
-                const startX = p1.x + stylingOptions.boxWidth;
-                const endX = p2.x;
-                const y = (p1.y + p2.y) / 2 + CARD.h / 2;
-                
-                // Create smooth curved path
-                const midX = (startX + endX) / 2;
-                const curveOffset = 20;
-                
-                const pathData = `M ${startX} ${y} 
+              {/* Enhanced family relationship connectors with smooth curves and professional styling */}
+              <svg
+                className="absolute inset-0 pointer-events-none"
+                style={{ width: "100%", height: "100%" }}
+              >
+                {/* Enhanced Spouse/Partner lines with smooth curves */}
+                {relationships
+                  .filter(
+                    (r) =>
+                      r.type === REL.PARTNER && r.treeId === currentTree?.id,
+                  )
+                  .map((r, i) => {
+                    const p1 = treePeople.find((p) => p.id === r.person1Id);
+                    const p2 = treePeople.find((p) => p.id === r.person2Id);
+                    if (!p1 || !p2) return null;
+
+                    const startX = p1.x + stylingOptions.boxWidth;
+                    const endX = p2.x;
+                    const y = (p1.y + p2.y) / 2 + CARD.h / 2;
+
+                    // Create smooth curved path
+                    const midX = (startX + endX) / 2;
+                    const curveOffset = 20;
+
+                    const pathData = `M ${startX} ${y} 
                                  Q ${midX} ${y - curveOffset} ${endX} ${y}`;
-                
-                return (
-                  <path
-                    key={i}
-                    d={pathData}
-                    stroke="#dc2626"
-                    strokeWidth={5}
-                    strokeLinecap="round"
-                    fill="none"
-                    style={{ filter: 'drop-shadow(0px 1px 2px rgba(0,0,0,0.1))' }}
-                  />
-                );
-              })}
-              {/* Enhanced T-connector for parent-child relationships with smooth curves */}
-              {relationships.filter(r => r.type === REL.PARENT_CHILD && r.treeId === currentTree?.id).map((r, i) => {
-                const child = treePeople.find(p => p.id === r.childId);
-                const parent = treePeople.find(p => p.id === r.parentId);
-                if (!child || !parent) return null;
-                
-                // Find spouse of parent (if any)
-                const spouseRel = relationships.find(
-                  rel => rel.type === REL.PARTNER &&
-                    (rel.person1Id === r.parentId || rel.person2Id === r.parentId) &&
-                    rel.treeId === currentTree?.id
-                );
-                let spouse = null;
-                if (spouseRel) {
-                  spouse = treePeople.find(p => p.id === (spouseRel.person1Id === r.parentId ? spouseRel.person2Id : spouseRel.person1Id));
-                }
-                
-                const parentX = parent.x + stylingOptions.boxWidth / 2;
-                const spouseX = spouse ? spouse.x + stylingOptions.boxWidth / 2 : parentX;
-                const midX = spouse ? (parentX + spouseX) / 2 : parentX;
-                const parentY = parent.y + CARD.h;
-                const childY = child.y;
-                const childX = child.x + stylingOptions.boxWidth / 2;
-                
-                const curveRadius = 15;
-                const strokeColor = "#059669";
-                
-                return (
-                  <g key={i}>
-                    {/* Horizontal connection between parents with curves */}
-                    {spouse && (
+
+                    return (
                       <path
-                        d={`M ${parentX} ${parentY + 15} L ${spouseX} ${parentY + 15}`}
-                        stroke={strokeColor}
-                        strokeWidth={3}
+                        key={i}
+                        d={pathData}
+                        stroke="#dc2626"
+                        strokeWidth={5}
                         strokeLinecap="round"
                         fill="none"
+                        style={{
+                          filter: "drop-shadow(0px 1px 2px rgba(0,0,0,0.1))",
+                        }}
                       />
-                    )}
-                    {/* Smooth curved path from parents to child */}
-                    <path
-                      d={`M ${midX} ${parentY + 15} 
+                    );
+                  })}
+                {/* Enhanced T-connector for parent-child relationships with smooth curves */}
+                {relationships
+                  .filter(
+                    (r) =>
+                      r.type === REL.PARENT_CHILD &&
+                      r.treeId === currentTree?.id,
+                  )
+                  .map((r, i) => {
+                    const child = treePeople.find((p) => p.id === r.childId);
+                    const parent = treePeople.find((p) => p.id === r.parentId);
+                    if (!child || !parent) return null;
+
+                    // Find spouse of parent (if any)
+                    const spouseRel = relationships.find(
+                      (rel) =>
+                        rel.type === REL.PARTNER &&
+                        (rel.person1Id === r.parentId ||
+                          rel.person2Id === r.parentId) &&
+                        rel.treeId === currentTree?.id,
+                    );
+                    let spouse = null;
+                    if (spouseRel) {
+                      spouse = treePeople.find(
+                        (p) =>
+                          p.id ===
+                          (spouseRel.person1Id === r.parentId
+                            ? spouseRel.person2Id
+                            : spouseRel.person1Id),
+                      );
+                    }
+
+                    const parentX = parent.x + stylingOptions.boxWidth / 2;
+                    const spouseX = spouse
+                      ? spouse.x + stylingOptions.boxWidth / 2
+                      : parentX;
+                    const midX = spouse ? (parentX + spouseX) / 2 : parentX;
+                    const parentY = parent.y + CARD.h;
+                    const childY = child.y;
+                    const childX = child.x + stylingOptions.boxWidth / 2;
+
+                    const curveRadius = 15;
+                    const strokeColor = "#059669";
+
+                    return (
+                      <g key={i}>
+                        {/* Horizontal connection between parents with curves */}
+                        {spouse && (
+                          <path
+                            d={`M ${parentX} ${parentY + 15} L ${spouseX} ${parentY + 15}`}
+                            stroke={strokeColor}
+                            strokeWidth={3}
+                            strokeLinecap="round"
+                            fill="none"
+                          />
+                        )}
+                        {/* Smooth curved path from parents to child */}
+                        <path
+                          d={`M ${midX} ${parentY + 15} 
                           L ${midX} ${parentY + 30}
                           Q ${midX} ${parentY + 30 + curveRadius} ${midX + (childX > midX ? curveRadius : -curveRadius)} ${parentY + 30 + curveRadius}
                           L ${childX - (childX > midX ? curveRadius : -curveRadius)} ${parentY + 30 + curveRadius}
                           Q ${childX} ${parentY + 30 + curveRadius} ${childX} ${parentY + 30 + 2 * curveRadius}
                           L ${childX} ${childY}`}
-                      stroke={strokeColor}
-                      strokeWidth={3}
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      fill="none"
-                    />
-                  </g>
-                );
-              })}
-              {/* Enhanced sibling connection lines with smooth curves */}
-              {Object.values(treePeople.reduce((acc, p) => {
-                // Group siblings by parent
-                const parentRel = relationships.find(r => r.type === REL.PARENT_CHILD && r.childId === p.id && r.treeId === currentTree?.id);
-                if (parentRel) {
-                  const parentId = parentRel.parentId;
-                  if (!acc[parentId]) acc[parentId] = [];
-                  acc[parentId].push(p);
-                }
-                return acc;
-              }, {})).map((siblings, i) => {
-                if (siblings.length < 2) return null;
-                
-                const y = siblings[0].y - 20;
-                const minX = Math.min(...siblings.map(s => s.x + stylingOptions.boxWidth / 2));
-                const maxX = Math.max(...siblings.map(s => s.x + stylingOptions.boxWidth / 2));
-                const curveHeight = 10;
-                const strokeColor = "#7c3aed";
-                const dashArray = "5,5";
-                
-                return (
-                  <g key={i}>
-                    {/* Main curved horizontal line connecting siblings */}
-                    <path
-                      d={`M ${minX} ${y} 
-                          Q ${(minX + maxX) / 2} ${y - curveHeight} ${maxX} ${y}`}
-                      stroke={strokeColor}
-                      strokeWidth={2}
-                      strokeLinecap="round"
-                      strokeDasharray={dashArray}
-                      fill="none"
-                    />
-                    {/* Smooth vertical connectors to each sibling */}
-                    {siblings.map((sibling, idx) => {
-                      const siblingX = sibling.x + stylingOptions.boxWidth / 2;
-                      const connectionY = y - (curveHeight * Math.sin((Math.PI * (siblingX - minX)) / (maxX - minX)));
-                      
-                      return (
-                        <path
-                          key={idx}
-                          d={`M ${siblingX} ${connectionY}
-                              Q ${siblingX} ${(connectionY + sibling.y) / 2} ${siblingX} ${sibling.y}`}
                           stroke={strokeColor}
-                          strokeWidth={2}
+                          strokeWidth={3}
                           strokeLinecap="round"
+                          strokeLinejoin="round"
                           fill="none"
                         />
-                      );
-                    })}
-                  </g>
-                );
-              })}
+                      </g>
+                    );
+                  })}
+                {/* Enhanced sibling connection lines with smooth curves */}
+                {Object.values(
+                  treePeople.reduce((acc, p) => {
+                    // Group siblings by parent
+                    const parentRel = relationships.find(
+                      (r) =>
+                        r.type === REL.PARENT_CHILD &&
+                        r.childId === p.id &&
+                        r.treeId === currentTree?.id,
+                    );
+                    if (parentRel) {
+                      const parentId = parentRel.parentId;
+                      if (!acc[parentId]) acc[parentId] = [];
+                      acc[parentId].push(p);
+                    }
+                    return acc;
+                  }, {}),
+                ).map((siblings, i) => {
+                  if (siblings.length < 2) return null;
+
+                  const y = siblings[0].y - 20;
+                  const minX = Math.min(
+                    ...siblings.map((s) => s.x + stylingOptions.boxWidth / 2),
+                  );
+                  const maxX = Math.max(
+                    ...siblings.map((s) => s.x + stylingOptions.boxWidth / 2),
+                  );
+                  const curveHeight = 10;
+                  const strokeColor = "#7c3aed";
+                  const dashArray = "5,5";
+
+                  return (
+                    <g key={i}>
+                      {/* Main curved horizontal line connecting siblings */}
+                      <path
+                        d={`M ${minX} ${y} 
+                          Q ${(minX + maxX) / 2} ${y - curveHeight} ${maxX} ${y}`}
+                        stroke={strokeColor}
+                        strokeWidth={2}
+                        strokeLinecap="round"
+                        strokeDasharray={dashArray}
+                        fill="none"
+                      />
+                      {/* Smooth vertical connectors to each sibling */}
+                      {siblings.map((sibling, idx) => {
+                        const siblingX =
+                          sibling.x + stylingOptions.boxWidth / 2;
+                        const connectionY =
+                          y -
+                          curveHeight *
+                            Math.sin(
+                              (Math.PI * (siblingX - minX)) / (maxX - minX),
+                            );
+
+                        return (
+                          <path
+                            key={idx}
+                            d={`M ${siblingX} ${connectionY}
+                              Q ${siblingX} ${(connectionY + sibling.y) / 2} ${siblingX} ${sibling.y}`}
+                            stroke={strokeColor}
+                            strokeWidth={2}
+                            strokeLinecap="round"
+                            fill="none"
+                          />
+                        );
+                      })}
+                    </g>
+                  );
+                })}
+              </svg>
             </svg>
-            </svg>
-            
+
             <div
               className="absolute inset-0"
               style={{
                 transform: `translate(${panOffset.x}px, ${panOffset.y}px) scale(${zoom})`,
-                transformOrigin: '0 0'
+                transformOrigin: "0 0",
               }}
             >
-              {treePeople.map(person => (
+              {treePeople.map((person) => (
                 <div
                   key={person.id}
                   data-person-box
                   className={`absolute border-2 rounded-lg p-3 cursor-pointer transition-all duration-200 ${
-                    selectedPerson === person.id 
-                      ? 'border-green-500 shadow-lg' 
-                      : 'border-gray-300 hover:border-gray-400'
+                    selectedPerson === person.id
+                      ? "border-green-500 shadow-lg"
+                      : "border-gray-300 hover:border-gray-400"
                   }`}
                   style={{
                     left: person.x,
                     top: person.y,
                     width: stylingOptions.boxWidth,
                     height: CARD.h,
-                    backgroundColor: person.gender === 'male' 
-                      ? stylingOptions.maleBoxColor 
-                      : stylingOptions.femaleBoxColor,
+                    backgroundColor:
+                      person.gender === "male"
+                        ? stylingOptions.maleBoxColor
+                        : stylingOptions.femaleBoxColor,
                     fontSize: stylingOptions.textSize,
-                    color: person.isLiving ? stylingOptions.livingTextColor : stylingOptions.deceasedTextColor,
-                    zIndex: 10
+                    color: person.isLiving
+                      ? stylingOptions.livingTextColor
+                      : stylingOptions.deceasedTextColor,
+                    zIndex: 10,
                   }}
                   onClick={(e) => {
                     e.stopPropagation();
@@ -1135,9 +1320,7 @@ function App() {
                       </div>
                     )}
                     {displayOptions.showBirthDate && person.birthDate && (
-                      <div className="text-sm">
-                        {person.birthDate}
-                      </div>
+                      <div className="text-sm">{person.birthDate}</div>
                     )}
                     {displayOptions.showProfession && person.profession && (
                       <div className="text-sm arabic-text">
@@ -1147,93 +1330,100 @@ function App() {
                   </div>
                 </div>
               ))}
-              
+
               {/* Action buttons for selected person - positioned below the box */}
-              {selectedPerson && treePeople.find(p => p.id === selectedPerson) && (
-                <div
-                  data-action-button
-                  className="absolute bg-white border border-gray-200 rounded-lg shadow-lg p-2 z-20"
-                  style={{
-                    left: treePeople.find(p => p.id === selectedPerson).x + (stylingOptions.boxWidth / 2) - 80,
-                    top: treePeople.find(p => p.id === selectedPerson).y + CARD.h + 10
-                  }}
-                >
-                  <div className="flex justify-center gap-1">
-                    <Button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setRelationshipType('spouse');
-                        setEditingPerson(null);
-                        setShowPersonForm(true);
-                      }}
-                      size="sm"
-                      variant="ghost"
-                      className="w-8 h-8 p-0 hover:bg-blue-50 rounded-full"
-                      title={t.addSpouse}
-                    >
-                      {getRelationshipIcon('spouse')}
-                    </Button>
-                    
-                    <Button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setRelationshipType('child');
-                        setEditingPerson(null);
-                        setShowPersonForm(true);
-                      }}
-                      size="sm"
-                      variant="ghost"
-                      className="w-8 h-8 p-0 hover:bg-blue-50 rounded-full"
-                      title={t.addChild}
-                    >
-                      {getRelationshipIcon('child')}
-                    </Button>
-                    
-                    <Button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setRelationshipType('parent');
-                        setEditingPerson(null);
-                        setShowPersonForm(true);
-                      }}
-                      size="sm"
-                      variant="ghost"
-                      className="w-8 h-8 p-0 hover:bg-blue-50 rounded-full"
-                      title={t.addParent}
-                    >
-                      {getRelationshipIcon('parent')}
-                    </Button>
-                    
-                    <Button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setRelationshipType('sibling');
-                        setEditingPerson(null);
-                        setShowPersonForm(true);
-                      }}
-                      size="sm"
-                      variant="ghost"
-                      className="w-8 h-8 p-0 hover:bg-blue-50 rounded-full"
-                      title={t.addSibling}
-                    >
-                      {getRelationshipIcon('sibling')}
-                    </Button>
-                    
-                    <Button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        deletePerson(selectedPerson);
-                      }}
-                      size="sm"
-                      variant="ghost"
-                      className="w-8 h-8 p-0 hover:bg-red-50 rounded-full"
-                      title={t.deletePerson}
-                    >
-                      <Trash2 className="w-3 h-3 text-red-600" />
-                    </Button>
+              {selectedPerson &&
+                treePeople.find((p) => p.id === selectedPerson) && (
+                  <div
+                    data-action-button
+                    className="absolute bg-white border border-gray-200 rounded-lg shadow-lg p-2 z-20"
+                    style={{
+                      left:
+                        treePeople.find((p) => p.id === selectedPerson).x +
+                        stylingOptions.boxWidth / 2 -
+                        80,
+                      top:
+                        treePeople.find((p) => p.id === selectedPerson).y +
+                        CARD.h +
+                        10,
+                    }}
+                  >
+                    <div className="flex justify-center gap-1">
+                      <Button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setRelationshipType("spouse");
+                          setEditingPerson(null);
+                          setShowPersonForm(true);
+                        }}
+                        size="sm"
+                        variant="ghost"
+                        className="w-8 h-8 p-0 hover:bg-blue-50 rounded-full"
+                        title={t.addSpouse}
+                      >
+                        {getRelationshipIcon("spouse")}
+                      </Button>
+
+                      <Button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setRelationshipType("child");
+                          setEditingPerson(null);
+                          setShowPersonForm(true);
+                        }}
+                        size="sm"
+                        variant="ghost"
+                        className="w-8 h-8 p-0 hover:bg-blue-50 rounded-full"
+                        title={t.addChild}
+                      >
+                        {getRelationshipIcon("child")}
+                      </Button>
+
+                      <Button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setRelationshipType("parent");
+                          setEditingPerson(null);
+                          setShowPersonForm(true);
+                        }}
+                        size="sm"
+                        variant="ghost"
+                        className="w-8 h-8 p-0 hover:bg-blue-50 rounded-full"
+                        title={t.addParent}
+                      >
+                        {getRelationshipIcon("parent")}
+                      </Button>
+
+                      <Button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setRelationshipType("sibling");
+                          setEditingPerson(null);
+                          setShowPersonForm(true);
+                        }}
+                        size="sm"
+                        variant="ghost"
+                        className="w-8 h-8 p-0 hover:bg-blue-50 rounded-full"
+                        title={t.addSibling}
+                      >
+                        {getRelationshipIcon("sibling")}
+                      </Button>
+
+                      <Button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          deletePerson(selectedPerson);
+                        }}
+                        size="sm"
+                        variant="ghost"
+                        className="w-8 h-8 p-0 hover:bg-red-50 rounded-full"
+                        title={t.deletePerson}
+                      >
+                        <Trash2 className="w-3 h-3 text-red-600" />
+                      </Button>
+                    </div>
                   </div>
-                </div>
-              )}
+                )}
             </div>
 
             {/* Add first person button */}
@@ -1264,24 +1454,16 @@ function App() {
           </div>
 
           {/* Floating Controls */}
-          
+
           {/* Zoom Controls */}
           <div className="absolute left-4 top-1/2 transform -translate-y-1/2 flex flex-col gap-2">
-            <Button
-              onClick={zoomIn}
-              size="sm"
-              className="w-10 h-10 p-0"
-            >
+            <Button onClick={zoomIn} size="sm" className="w-10 h-10 p-0">
               <ZoomIn className="w-4 h-4" />
             </Button>
             <div className="bg-white px-3 py-2 rounded text-base font-bold text-center">
               {Math.round(zoom * 100)}%
             </div>
-            <Button
-              onClick={zoomOut}
-              size="sm"
-              className="w-10 h-10 p-0"
-            >
+            <Button onClick={zoomOut} size="sm" className="w-10 h-10 p-0">
               <ZoomOut className="w-4 h-4" />
             </Button>
             <Button
@@ -1311,7 +1493,7 @@ function App() {
                   {t.addPerson}
                 </Button>
               )}
-              
+
               <Button
                 onClick={() => setShowOptions(true)}
                 size="sm"
@@ -1321,7 +1503,7 @@ function App() {
                 <Settings className="w-4 h-4 ml-1" />
                 {t.options}
               </Button>
-              
+
               <Button
                 onClick={handlePrint}
                 size="sm"
@@ -1331,7 +1513,7 @@ function App() {
                 <Printer className="w-4 h-4 ml-1" />
                 {t.print}
               </Button>
-              
+
               <Button
                 onClick={() => setShowDownloadModal(true)}
                 size="sm"
@@ -1341,7 +1523,7 @@ function App() {
                 <Download className="w-4 h-4 ml-1" />
                 {t.download}
               </Button>
-              
+
               <Button
                 onClick={handleShare}
                 size="sm"
@@ -1351,7 +1533,7 @@ function App() {
                 <Share className="w-4 h-4 ml-1" />
                 {t.share}
               </Button>
-              
+
               <Button
                 onClick={handleCalendar}
                 size="sm"
@@ -1363,16 +1545,17 @@ function App() {
               </Button>
             </div>
           </div>
-
         </div>
 
         {/* Person Form Sidebar */}
         {showPersonForm && (
-          <div className="fixed right-4 top-1/2 transform -translate-y-1/2 bg-white shadow-2xl border border-gray-200 rounded-lg z-50"
-               style={{ 
-                 width: '400px',
-                 height: '80vh'
-               }}>
+          <div
+            className="fixed right-4 top-1/2 transform -translate-y-1/2 bg-white shadow-2xl border border-gray-200 rounded-lg z-50"
+            style={{
+              width: "400px",
+              height: "80vh",
+            }}
+          >
             <div className="flex flex-col max-h-full">
               <div className="flex justify-between items-center p-4 border-b border-gray-200">
                 <h2 className="text-xl font-bold text-gray-900 arabic-text">
@@ -1399,7 +1582,11 @@ function App() {
                 </div>
 
                 <PersonForm
-                  person={editingPerson ? treePeople.find(p => p.id === editingPerson) : null}
+                  person={
+                    editingPerson
+                      ? treePeople.find((p) => p.id === editingPerson)
+                      : null
+                  }
                   onSave={editingPerson ? updatePerson : addPerson}
                   onCancel={() => {
                     setShowPersonForm(false);
@@ -1407,7 +1594,11 @@ function App() {
                     setRelationshipType(null);
                   }}
                   relationshipType={relationshipType}
-                  anchorPerson={selectedPerson ? treePeople.find(p => p.id === selectedPerson) : null}
+                  anchorPerson={
+                    selectedPerson
+                      ? treePeople.find((p) => p.id === selectedPerson)
+                      : null
+                  }
                 />
               </div>
             </div>
@@ -1420,7 +1611,9 @@ function App() {
             <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl mx-4 max-h-[90vh] overflow-y-auto">
               <div className="p-6">
                 <div className="flex justify-between items-center mb-6">
-                  <h2 className="text-xl font-semibold text-gray-900 arabic-text">{t.options}</h2>
+                  <h2 className="text-xl font-semibold text-gray-900 arabic-text">
+                    {t.options}
+                  </h2>
                   <Button
                     onClick={() => setShowOptions(false)}
                     variant="ghost"
@@ -1433,17 +1626,21 @@ function App() {
                 <div className="space-y-6">
                   {/* Display Options */}
                   <div>
-                    <h3 className="text-lg font-medium text-gray-900 mb-4 arabic-text">{t.displayOptions}</h3>
+                    <h3 className="text-lg font-medium text-gray-900 mb-4 arabic-text">
+                      {t.displayOptions}
+                    </h3>
                     <div className="grid grid-cols-2 gap-4">
                       {Object.entries(displayOptions).map(([key, value]) => (
                         <label key={key} className="flex items-center gap-2">
                           <input
                             type="checkbox"
                             checked={value}
-                            onChange={(e) => setDisplayOptions(prev => ({
-                              ...prev,
-                              [key]: e.target.checked
-                            }))}
+                            onChange={(e) =>
+                              setDisplayOptions((prev) => ({
+                                ...prev,
+                                [key]: e.target.checked,
+                              }))
+                            }
                             className="rounded"
                           />
                           <span className="text-sm text-gray-700 arabic-text">
@@ -1456,77 +1653,103 @@ function App() {
 
                   {/* Styling Options */}
                   <div>
-                    <h3 className="text-lg font-medium text-gray-900 mb-4 arabic-text">{t.stylingOptions}</h3>
+                    <h3 className="text-lg font-medium text-gray-900 mb-4 arabic-text">
+                      {t.stylingOptions}
+                    </h3>
                     <div className="space-y-4">
                       <div className="flex items-center gap-4">
-                        <label className="text-sm text-gray-700 arabic-text">{t.maleBoxColor}</label>
+                        <label className="text-sm text-gray-700 arabic-text">
+                          {t.maleBoxColor}
+                        </label>
                         <input
                           type="color"
                           value={stylingOptions.maleBoxColor}
-                          onChange={(e) => setStylingOptions(prev => ({
-                            ...prev,
-                            maleBoxColor: e.target.value
-                          }))}
+                          onChange={(e) =>
+                            setStylingOptions((prev) => ({
+                              ...prev,
+                              maleBoxColor: e.target.value,
+                            }))
+                          }
                           className="w-8 h-8 rounded border"
                         />
                       </div>
-                      
+
                       <div className="flex items-center gap-4">
-                        <label className="text-sm text-gray-700 arabic-text">{t.femaleBoxColor}</label>
+                        <label className="text-sm text-gray-700 arabic-text">
+                          {t.femaleBoxColor}
+                        </label>
                         <input
                           type="color"
                           value={stylingOptions.femaleBoxColor}
-                          onChange={(e) => setStylingOptions(prev => ({
-                            ...prev,
-                            femaleBoxColor: e.target.value
-                          }))}
+                          onChange={(e) =>
+                            setStylingOptions((prev) => ({
+                              ...prev,
+                              femaleBoxColor: e.target.value,
+                            }))
+                          }
                           className="w-8 h-8 rounded border"
                         />
                       </div>
-                      
+
                       <div className="flex items-center gap-4">
-                        <label className="text-sm text-gray-700 arabic-text">{t.backgroundColor}</label>
+                        <label className="text-sm text-gray-700 arabic-text">
+                          {t.backgroundColor}
+                        </label>
                         <input
                           type="color"
                           value={stylingOptions.backgroundColor}
-                          onChange={(e) => setStylingOptions(prev => ({
-                            ...prev,
-                            backgroundColor: e.target.value
-                          }))}
+                          onChange={(e) =>
+                            setStylingOptions((prev) => ({
+                              ...prev,
+                              backgroundColor: e.target.value,
+                            }))
+                          }
                           className="w-8 h-8 rounded border"
                         />
                       </div>
-                      
+
                       <div className="flex items-center gap-4">
-                        <label className="text-sm text-gray-700 arabic-text">{t.boxWidth}</label>
+                        <label className="text-sm text-gray-700 arabic-text">
+                          {t.boxWidth}
+                        </label>
                         <input
                           type="range"
                           min="100"
                           max="200"
                           value={stylingOptions.boxWidth}
-                          onChange={(e) => setStylingOptions(prev => ({
-                            ...prev,
-                            boxWidth: parseInt(e.target.value)
-                          }))}
+                          onChange={(e) =>
+                            setStylingOptions((prev) => ({
+                              ...prev,
+                              boxWidth: parseInt(e.target.value),
+                            }))
+                          }
                           className="flex-1"
                         />
-                        <span className="text-sm text-gray-600">{stylingOptions.boxWidth}px</span>
+                        <span className="text-sm text-gray-600">
+                          {stylingOptions.boxWidth}px
+                        </span>
                       </div>
-                      
+
                       <div className="flex items-center gap-4">
-                        <label className="text-sm text-gray-700 arabic-text">{t.textSize}</label>
+                        <label className="text-sm text-gray-700 arabic-text">
+                          {t.textSize}
+                        </label>
                         <input
                           type="range"
                           min="10"
                           max="20"
                           value={stylingOptions.textSize}
-                          onChange={(e) => setStylingOptions(prev => ({
-                            ...prev,
-                            textSize: parseInt(e.target.value)
-                          }))}
+                          onChange={(e) =>
+                            setStylingOptions((prev) => ({
+                              ...prev,
+                              textSize: parseInt(e.target.value),
+                            }))
+                          }
                           className="flex-1"
                         />
-                        <span className="text-sm text-gray-600">{stylingOptions.textSize}px</span>
+                        <span className="text-sm text-gray-600">
+                          {stylingOptions.textSize}px
+                        </span>
                       </div>
                     </div>
                   </div>
@@ -1558,7 +1781,9 @@ function App() {
             <div className="bg-white rounded-lg shadow-xl w-full max-w-md mx-4">
               <div className="p-6">
                 <div className="flex justify-between items-center mb-6">
-                  <h2 className="text-xl font-semibold text-gray-900 arabic-text">{t.download}</h2>
+                  <h2 className="text-xl font-semibold text-gray-900 arabic-text">
+                    {t.download}
+                  </h2>
                   <Button
                     onClick={() => setShowDownloadModal(false)}
                     variant="ghost"
@@ -1568,7 +1793,9 @@ function App() {
                   </Button>
                 </div>
 
-                <p className="text-gray-600 mb-4 arabic-text">{t.selectDownloadFormat}</p>
+                <p className="text-gray-600 mb-4 arabic-text">
+                  {t.selectDownloadFormat}
+                </p>
 
                 <div className="space-y-3">
                   <label className="flex items-start gap-3 p-3 border rounded-lg cursor-pointer hover:bg-gray-50">
@@ -1576,13 +1803,19 @@ function App() {
                       type="radio"
                       name="downloadFormat"
                       value="html"
-                      checked={selectedDownloadFormat === 'html'}
-                      onChange={(e) => setSelectedDownloadFormat(e.target.value)}
+                      checked={selectedDownloadFormat === "html"}
+                      onChange={(e) =>
+                        setSelectedDownloadFormat(e.target.value)
+                      }
                       className="mt-1"
                     />
                     <div>
-                      <div className="font-medium text-gray-900 arabic-text">{t.readOnlyHTML}</div>
-                      <div className="text-sm text-gray-600 arabic-text">{t.readOnlyHTMLDesc}</div>
+                      <div className="font-medium text-gray-900 arabic-text">
+                        {t.readOnlyHTML}
+                      </div>
+                      <div className="text-sm text-gray-600 arabic-text">
+                        {t.readOnlyHTMLDesc}
+                      </div>
                     </div>
                   </label>
 
@@ -1591,13 +1824,19 @@ function App() {
                       type="radio"
                       name="downloadFormat"
                       value="gedcom"
-                      checked={selectedDownloadFormat === 'gedcom'}
-                      onChange={(e) => setSelectedDownloadFormat(e.target.value)}
+                      checked={selectedDownloadFormat === "gedcom"}
+                      onChange={(e) =>
+                        setSelectedDownloadFormat(e.target.value)
+                      }
                       className="mt-1"
                     />
                     <div>
-                      <div className="font-medium text-gray-900 arabic-text">{t.gedcom}</div>
-                      <div className="text-sm text-gray-600 arabic-text">{t.gedcomDesc}</div>
+                      <div className="font-medium text-gray-900 arabic-text">
+                        {t.gedcom}
+                      </div>
+                      <div className="text-sm text-gray-600 arabic-text">
+                        {t.gedcomDesc}
+                      </div>
                     </div>
                   </label>
 
@@ -1606,13 +1845,19 @@ function App() {
                       type="radio"
                       name="downloadFormat"
                       value="csv"
-                      checked={selectedDownloadFormat === 'csv'}
-                      onChange={(e) => setSelectedDownloadFormat(e.target.value)}
+                      checked={selectedDownloadFormat === "csv"}
+                      onChange={(e) =>
+                        setSelectedDownloadFormat(e.target.value)
+                      }
                       className="mt-1"
                     />
                     <div>
-                      <div className="font-medium text-gray-900 arabic-text">{t.csv}</div>
-                      <div className="text-sm text-gray-600 arabic-text">{t.csvDesc}</div>
+                      <div className="font-medium text-gray-900 arabic-text">
+                        {t.csv}
+                      </div>
+                      <div className="text-sm text-gray-600 arabic-text">
+                        {t.csvDesc}
+                      </div>
                     </div>
                   </label>
 
@@ -1621,13 +1866,19 @@ function App() {
                       type="radio"
                       name="downloadFormat"
                       value="plaintext"
-                      checked={selectedDownloadFormat === 'plaintext'}
-                      onChange={(e) => setSelectedDownloadFormat(e.target.value)}
+                      checked={selectedDownloadFormat === "plaintext"}
+                      onChange={(e) =>
+                        setSelectedDownloadFormat(e.target.value)
+                      }
                       className="mt-1"
                     />
                     <div>
-                      <div className="font-medium text-gray-900 arabic-text">{t.plainText}</div>
-                      <div className="text-sm text-gray-600 arabic-text">{t.plainTextDesc}</div>
+                      <div className="font-medium text-gray-900 arabic-text">
+                        {t.plainText}
+                      </div>
+                      <div className="text-sm text-gray-600 arabic-text">
+                        {t.plainTextDesc}
+                      </div>
                     </div>
                   </label>
                 </div>
@@ -1659,82 +1910,92 @@ function App() {
 }
 
 // Person Form Component
-function PersonForm({ person, onSave, onCancel, relationshipType, anchorPerson }) {
-  const [activeTab, setActiveTab] = useState('personal');
+function PersonForm({
+  person,
+  onSave,
+  onCancel,
+  relationshipType,
+  anchorPerson,
+}) {
+  const [activeTab, setActiveTab] = useState("personal");
   const [formData, setFormData] = useState({
-    firstName: person?.firstName || '',
-    lastName: person?.lastName || '',
-    gender: person?.gender || (relationshipType === 'spouse' && anchorPerson ? 
-      (anchorPerson.gender === 'male' ? 'female' : 'male') : ''),
-    birthDate: person?.birthDate || '',
-    birthPlace: person?.birthPlace || '',
+    firstName: person?.firstName || "",
+    lastName: person?.lastName || "",
+    gender:
+      person?.gender ||
+      (relationshipType === "spouse" && anchorPerson
+        ? anchorPerson.gender === "male"
+          ? "female"
+          : "male"
+        : ""),
+    birthDate: person?.birthDate || "",
+    birthPlace: person?.birthPlace || "",
     isLiving: person?.isLiving !== false,
-    deathDate: person?.deathDate || '',
-    phone: person?.phone || '',
-    email: person?.email || '',
-    address: person?.address || '',
-    profession: person?.profession || '',
-    company: person?.company || '',
-    bioNotes: person?.bioNotes || '',
+    deathDate: person?.deathDate || "",
+    phone: person?.phone || "",
+    email: person?.email || "",
+    address: person?.address || "",
+    profession: person?.profession || "",
+    company: person?.company || "",
+    bioNotes: person?.bioNotes || "",
   });
 
   const t = {
-    firstName: 'الاسم الأول',
-    lastName: 'اسم العائلة',
-    gender: 'الجنس',
-    male: 'ذكر',
-    female: 'أنثى',
-    birthDate: 'تاريخ الميلاد',
-    birthPlace: 'مكان الميلاد',
-    isLiving: 'على قيد الحياة',
-    deathDate: 'تاريخ الوفاة',
-    phone: 'الهاتف',
-    email: 'البريد الإلكتروني',
-    address: 'العنوان',
-    profession: 'المهنة',
-    company: 'الشركة',
-    bioNotes: 'ملاحظات السيرة الذاتية',
-    save: 'حفظ',
-    cancel: 'إلغاء',
-    update: 'تحديث',
-    personal: 'البيانات الشخصية',
-    contact: 'معلومات التواصل',
-    biography: 'السيرة الذاتية',
+    firstName: "الاسم الأول",
+    lastName: "اسم العائلة",
+    gender: "الجنس",
+    male: "ذكر",
+    female: "أنثى",
+    birthDate: "تاريخ الميلاد",
+    birthPlace: "مكان الميلاد",
+    isLiving: "على قيد الحياة",
+    deathDate: "تاريخ الوفاة",
+    phone: "الهاتف",
+    email: "البريد الإلكتروني",
+    address: "العنوان",
+    profession: "المهنة",
+    company: "الشركة",
+    bioNotes: "ملاحظات السيرة الذاتية",
+    save: "حفظ",
+    cancel: "إلغاء",
+    update: "تحديث",
+    personal: "البيانات الشخصية",
+    contact: "معلومات التواصل",
+    biography: "السيرة الذاتية",
   };
 
   const handleSubmit = (e) => {
     e.preventDefault();
     if (!formData.firstName.trim()) {
-      alert('يرجى إدخال الاسم الأول');
+      alert("يرجى إدخال الاسم الأول");
       return;
     }
     onSave(formData);
   };
 
   const handleChange = (field, value) => {
-    setFormData(prev => ({ ...prev, [field]: value }));
+    setFormData((prev) => ({ ...prev, [field]: value }));
   };
 
-
   const tabs = [
-    { id: 'personal', label: t.personal, icon: '👤' },
-    { id: 'contact', label: t.contact, icon: '📞' },
-    { id: 'biography', label: t.biography, icon: '📝' }
+    { id: "personal", label: t.personal, icon: "👤" },
+    { id: "contact", label: t.contact, icon: "📞" },
+    { id: "biography", label: t.biography, icon: "📝" },
   ];
 
   return (
     <form onSubmit={handleSubmit} className="h-full flex flex-col">
       {/* Tab Navigation */}
       <div className="flex border-b border-gray-200 mb-4">
-        {tabs.map(tab => (
+        {tabs.map((tab) => (
           <button
             key={tab.id}
             type="button"
             onClick={() => setActiveTab(tab.id)}
             className={`flex-1 px-2 py-2 text-xs font-medium text-center arabic-text ${
               activeTab === tab.id
-                ? 'border-b-2 border-blue-500 text-blue-600'
-                : 'text-gray-500 hover:text-gray-700'
+                ? "border-b-2 border-blue-500 text-blue-600"
+                : "text-gray-500 hover:text-gray-700"
             }`}
           >
             <span className="mr-1">{tab.icon}</span>
@@ -1745,108 +2006,110 @@ function PersonForm({ person, onSave, onCancel, relationshipType, anchorPerson }
 
       {/* Tab Content */}
       <div className="flex-1 overflow-y-auto">
-        {activeTab === 'personal' && (
+        {activeTab === "personal" && (
           <div className="space-y-3">
             {/* Personal Information */}
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-base font-bold text-gray-700 mb-1 arabic-text">
-                {t.firstName}
-              </label>
-              <input
-                type="text"
-                value={formData.firstName}
-                onChange={(e) => handleChange('firstName', e.target.value)}
-                className="w-full px-3 py-2 text-base border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 arabic-text"
-                dir="rtl"
-              />
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-base font-bold text-gray-700 mb-1 arabic-text">
+                  {t.firstName}
+                </label>
+                <input
+                  type="text"
+                  value={formData.firstName}
+                  onChange={(e) => handleChange("firstName", e.target.value)}
+                  className="w-full px-3 py-2 text-base border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 arabic-text"
+                  dir="rtl"
+                />
+              </div>
+
+              <div>
+                <label className="block text-base font-bold text-gray-700 mb-1 arabic-text">
+                  {t.lastName}
+                </label>
+                <input
+                  type="text"
+                  value={formData.lastName}
+                  onChange={(e) => handleChange("lastName", e.target.value)}
+                  className="w-full px-3 py-2 text-base border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 arabic-text"
+                  dir="rtl"
+                />
+              </div>
             </div>
 
             <div>
               <label className="block text-base font-bold text-gray-700 mb-1 arabic-text">
-                {t.lastName}
+                {t.gender}
               </label>
-              <input
-                type="text"
-                value={formData.lastName}
-                onChange={(e) => handleChange('lastName', e.target.value)}
+              <select
+                value={formData.gender}
+                onChange={(e) => handleChange("gender", e.target.value)}
                 className="w-full px-3 py-2 text-base border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 arabic-text"
-                dir="rtl"
-              />
+              >
+                <option value="">اختر الجنس</option>
+                <option value="male">{t.male}</option>
+                <option value="female">{t.female}</option>
+              </select>
             </div>
-          </div>
 
-          <div>
-            <label className="block text-base font-bold text-gray-700 mb-1 arabic-text">
-              {t.gender}
-            </label>
-            <select
-              value={formData.gender}
-              onChange={(e) => handleChange('gender', e.target.value)}
-              className="w-full px-3 py-2 text-base border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 arabic-text"
-            >
-              <option value="">اختر الجنس</option>
-              <option value="male">{t.male}</option>
-              <option value="female">{t.female}</option>
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-base font-bold text-gray-700 mb-1 arabic-text">
-              {t.birthDate}
-            </label>
-            <input
-              type="date"
-              value={formData.birthDate}
-              onChange={(e) => handleChange('birthDate', e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
-
-          <div>
-            <label className="block text-base font-bold text-gray-700 mb-1 arabic-text">
-              {t.birthPlace}
-            </label>
-            <input
-              type="text"
-              value={formData.birthPlace}
-              onChange={(e) => handleChange('birthPlace', e.target.value)}
-              className="w-full px-3 py-2 text-base border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 arabic-text"
-              dir="rtl"
-            />
-          </div>
-
-          <div className="flex items-center gap-2">
-            <input
-              type="checkbox"
-              id="isLiving"
-              checked={formData.isLiving}
-              onChange={(e) => handleChange('isLiving', e.target.checked)}
-              className="rounded"
-            />
-            <label htmlFor="isLiving" className="text-base font-bold text-gray-700 arabic-text">
-              {t.isLiving}
-            </label>
-          </div>
-
-          {!formData.isLiving && (
             <div>
               <label className="block text-base font-bold text-gray-700 mb-1 arabic-text">
-                {t.deathDate}
+                {t.birthDate}
               </label>
               <input
                 type="date"
-                value={formData.deathDate}
-                onChange={(e) => handleChange('deathDate', e.target.value)}
+                value={formData.birthDate}
+                onChange={(e) => handleChange("birthDate", e.target.value)}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
-          )}
 
+            <div>
+              <label className="block text-base font-bold text-gray-700 mb-1 arabic-text">
+                {t.birthPlace}
+              </label>
+              <input
+                type="text"
+                value={formData.birthPlace}
+                onChange={(e) => handleChange("birthPlace", e.target.value)}
+                className="w-full px-3 py-2 text-base border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 arabic-text"
+                dir="rtl"
+              />
+            </div>
+
+            <div className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                id="isLiving"
+                checked={formData.isLiving}
+                onChange={(e) => handleChange("isLiving", e.target.checked)}
+                className="rounded"
+              />
+              <label
+                htmlFor="isLiving"
+                className="text-base font-bold text-gray-700 arabic-text"
+              >
+                {t.isLiving}
+              </label>
+            </div>
+
+            {!formData.isLiving && (
+              <div>
+                <label className="block text-base font-bold text-gray-700 mb-1 arabic-text">
+                  {t.deathDate}
+                </label>
+                <input
+                  type="date"
+                  value={formData.deathDate}
+                  onChange={(e) => handleChange("deathDate", e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+            )}
           </div>
         )}
 
-        {activeTab === 'contact' && (
+        {activeTab === "contact" && (
           <div className="space-y-3">
             {/* Contact Information */}
             <div className="grid grid-cols-2 gap-3">
@@ -1857,7 +2120,7 @@ function PersonForm({ person, onSave, onCancel, relationshipType, anchorPerson }
                 <input
                   type="tel"
                   value={formData.phone}
-                  onChange={(e) => handleChange('phone', e.target.value)}
+                  onChange={(e) => handleChange("phone", e.target.value)}
                   className="w-full px-3 py-2 text-base border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500"
                   dir="ltr"
                 />
@@ -1870,7 +2133,7 @@ function PersonForm({ person, onSave, onCancel, relationshipType, anchorPerson }
                 <input
                   type="email"
                   value={formData.email}
-                  onChange={(e) => handleChange('email', e.target.value)}
+                  onChange={(e) => handleChange("email", e.target.value)}
                   className="w-full px-3 py-2 text-base border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500"
                   dir="ltr"
                 />
@@ -1884,7 +2147,7 @@ function PersonForm({ person, onSave, onCancel, relationshipType, anchorPerson }
               <input
                 type="text"
                 value={formData.address}
-                onChange={(e) => handleChange('address', e.target.value)}
+                onChange={(e) => handleChange("address", e.target.value)}
                 className="w-full px-3 py-2 text-base border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 arabic-text"
                 dir="rtl"
               />
@@ -1898,7 +2161,7 @@ function PersonForm({ person, onSave, onCancel, relationshipType, anchorPerson }
                 <input
                   type="text"
                   value={formData.profession}
-                  onChange={(e) => handleChange('profession', e.target.value)}
+                  onChange={(e) => handleChange("profession", e.target.value)}
                   className="w-full px-3 py-2 text-base border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 arabic-text"
                   dir="rtl"
                 />
@@ -1911,7 +2174,7 @@ function PersonForm({ person, onSave, onCancel, relationshipType, anchorPerson }
                 <input
                   type="text"
                   value={formData.company}
-                  onChange={(e) => handleChange('company', e.target.value)}
+                  onChange={(e) => handleChange("company", e.target.value)}
                   className="w-full px-3 py-2 text-base border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 arabic-text"
                   dir="rtl"
                 />
@@ -1920,18 +2183,20 @@ function PersonForm({ person, onSave, onCancel, relationshipType, anchorPerson }
           </div>
         )}
 
-        {activeTab === 'biography' && (
+        {activeTab === "biography" && (
           <div className="space-y-3">
             {/* Biography */}
             <div>
-              <h3 className="text-lg font-bold text-gray-900 mb-2 arabic-text">{t.biography}</h3>
+              <h3 className="text-lg font-bold text-gray-900 mb-2 arabic-text">
+                {t.biography}
+              </h3>
               <div>
                 <label className="block text-base font-bold text-gray-700 mb-1 arabic-text">
                   {t.bioNotes}
                 </label>
                 <textarea
                   value={formData.bioNotes}
-                  onChange={(e) => handleChange('bioNotes', e.target.value)}
+                  onChange={(e) => handleChange("bioNotes", e.target.value)}
                   rows={3}
                   className="w-full px-3 py-2 text-base border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 arabic-text"
                   dir="rtl"
@@ -1944,10 +2209,7 @@ function PersonForm({ person, onSave, onCancel, relationshipType, anchorPerson }
 
       {/* Form Actions */}
       <div className="flex justify-end gap-2 pt-3 border-t border-gray-200 mt-4">
-        <Button
-          type="submit"
-          className="arabic-text"
-        >
+        <Button type="submit" className="arabic-text">
           {person ? t.update : t.save}
         </Button>
         <Button
