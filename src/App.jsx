@@ -832,26 +832,26 @@ function App() {
           <div className="space-y-4">
             <Button
               onClick={handleGoogleAuth}
-              className="w-full bg-green-600 hover:bg-green-700 text-white py-3 rounded-lg flex items-center gap-3"
+              className="w-full bg-green-600 hover:bg-green-700 text-white py-3 rounded-lg flex items-center justify-center gap-3"
             >
               <Mail className="w-5 h-5" />
-              <span className="arabic-text flex-1 text-center">{t.continueWithGoogle}</span>
+              <span className="arabic-text">{t.continueWithGoogle}</span>
             </Button>
             
             <Button
               onClick={handleAppleAuth}
-              className="w-full bg-black hover:bg-gray-800 text-white py-3 rounded-lg flex items-center gap-3"
+              className="w-full bg-black hover:bg-gray-800 text-white py-3 rounded-lg flex items-center justify-center gap-3"
             >
               <User className="w-5 h-5" />
-              <span className="arabic-text flex-1 text-center">{t.continueWithApple}</span>
+              <span className="arabic-text">{t.continueWithApple}</span>
             </Button>
             
             <Button
               onClick={handleUAEMobileAuth}
-              className="w-full bg-orange-500 hover:bg-orange-600 text-white py-3 rounded-lg flex items-center gap-3"
+              className="w-full bg-orange-500 hover:bg-orange-600 text-white py-3 rounded-lg flex items-center justify-center gap-3"
             >
               <Smartphone className="w-5 h-5" />
-              <span className="arabic-text flex-1 text-center">{t.uaeMobile}</span>
+              <span className="arabic-text">{t.uaeMobile}</span>
             </Button>
           </div>
         </div>
@@ -1372,11 +1372,12 @@ function App() {
 
         {/* Person Form Sidebar */}
         {showPersonForm && (
-          <div className="fixed right-0 top-0 bg-white shadow-2xl border-l border-gray-200 z-50 h-screen"
+          <div className="fixed right-4 top-1/2 transform -translate-y-1/2 bg-white shadow-2xl border border-gray-200 rounded-lg z-50"
                style={{ 
-                 width: '400px'
+                 width: '400px',
+                 height: '80vh'
                }}>
-            <div className="h-full flex flex-col">
+            <div className="flex flex-col max-h-full">
               <div className="flex justify-between items-center p-4 border-b border-gray-200">
                 <h2 className="text-lg font-semibold text-gray-900 arabic-text">
                   {editingPerson ? t.editFamilyMember : t.addFamilyMember}
@@ -1394,7 +1395,7 @@ function App() {
                 </Button>
               </div>
 
-              <div className="flex-1 p-4">
+              <div className="flex-1 overflow-y-auto p-4">
                 <div className="mb-4 p-3 bg-blue-50 rounded-lg">
                   <p className="text-sm text-blue-700 text-center arabic-text">
                     {t.allFieldsOptional}
