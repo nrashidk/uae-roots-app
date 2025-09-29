@@ -261,6 +261,15 @@ function App() {
       });
     }
 
+    // Group spouses together and arrange properly
+    const spouseMap = {};
+    relationships.forEach((r) => {
+      if (r.type === REL.PARTNER) {
+        spouseMap[r.person1Id] = r.person2Id;
+        spouseMap[r.person2Id] = r.person1Id;
+      }
+    });
+
     // Group by generation
     const genMap = {};
     Object.values(idToPerson).forEach((p) => {
@@ -268,15 +277,41 @@ function App() {
       genMap[p.generation].push(p);
     });
 
-    // Assign x/y positions for each generation (horizontal alignment)
+    // Assign x/y positions for each generation with proper spouse positioning
     const verticalSpacing = 140;
     const horizontalSpacing = 180;
+    const spouseSpacing = 20; // Small gap between spouses
+    
     Object.keys(genMap).forEach((g) => {
       const gen = parseInt(g);
       const row = genMap[gen];
-      row.forEach((p, i) => {
-        p.x = 100 + i * horizontalSpacing;
-        p.y = 100 + gen * verticalSpacing;
+      const processedIds = new Set();
+      let currentX = 100;
+
+      row.forEach((person) => {
+        if (processedIds.has(person.id)) return;
+
+        const spouseId = spouseMap[person.id];
+        const spouse = spouseId ? idToPerson[spouseId] : null;
+
+        if (spouse && !processedIds.has(spouseId)) {
+          // Position couple side by side
+          person.x = currentX;
+          person.y = 100 + gen * verticalSpacing;
+          
+          spouse.x = currentX + CARD.w + spouseSpacing;
+          spouse.y = 100 + gen * verticalSpacing;
+          
+          processedIds.add(person.id);
+          processedIds.add(spouseId);
+          currentX += CARD.w * 2 + spouseSpacing + horizontalSpacing;
+        } else if (!processedIds.has(person.id)) {
+          // Single person
+          person.x = currentX;
+          person.y = 100 + gen * verticalSpacing;
+          processedIds.add(person.id);
+          currentX += CARD.w + horizontalSpacing;
+        }
       });
     });
 
