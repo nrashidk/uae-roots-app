@@ -945,8 +945,7 @@ function App() {
       <div className="h-screen bg-gray-100 overflow-hidden">
         {/* Header */}
         <div 
-          className="bg-white shadow-sm border-b px-4 py-3 flex justify-between items-center transition-all duration-300 ease-in-out"
-          style={{ marginRight: showPersonForm ? '400px' : '0' }}
+          className="bg-white shadow-sm border-b px-4 py-3 flex justify-between items-center"
         >
           <div className="flex items-center gap-4">
             <Button
@@ -972,9 +971,8 @@ function App() {
 
         {/* Canvas */}
         <div 
-          className="relative transition-all duration-300 ease-in-out"
+          className="relative"
           style={{ 
-            marginRight: showPersonForm ? '400px' : '0',
             height: 'calc(100vh - 64px)' // Subtract header height
           }}
         >
@@ -1123,12 +1121,12 @@ function App() {
                 >
                   <div className="text-center h-full flex flex-col justify-center">
                     {displayOptions.showName && (
-                      <div className="flex items-center justify-between w-full px-2">
-                        <div className="font-semibold arabic-text flex-1 text-center">
+                      <div className="w-full">
+                        <div className="font-semibold arabic-text text-center mb-2">
                           {person.firstName}
                         </div>
                         {selectedPerson === person.id && (
-                          <div className="flex gap-1 ml-2">
+                          <div className="flex justify-center gap-1">
                             <Button
                               onClick={(e) => {
                                 e.stopPropagation();
@@ -1187,21 +1185,6 @@ function App() {
                               title={t.addSibling}
                             >
                               {getRelationshipIcon('sibling')}
-                            </Button>
-                            
-                            <Button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setEditingPerson(selectedPerson);
-                                setRelationshipType(null);
-                                setShowPersonForm(true);
-                              }}
-                              size="sm"
-                              variant="ghost"
-                              className="w-6 h-6 p-0 hover:bg-green-50 rounded-full"
-                              title={t.editPerson}
-                            >
-                              <Edit3 className="w-3 h-3 text-green-600" />
                             </Button>
                             
                             <Button
