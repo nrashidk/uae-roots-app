@@ -2,6 +2,9 @@ import { useState, useEffect, useRef } from 'react'
 import { Button } from '@/components/ui/button.jsx'
 import { Heart, Baby, Users, UserPlus, Edit3, Trash2, X, Settings, Download, Home, Share, Calendar, Printer, ZoomIn, ZoomOut, RotateCcw } from 'lucide-react'
 import './App.css'
+import gmailIcon from './assets/gmail.png'
+import appleIcon from './assets/apple-id.png'
+import uaeMobileIcon from './assets/uae-mobile.png'
 
 // UAE Roots Family Tree Application - Enhanced with FamilyEcho Features
 function App() {
@@ -102,8 +105,8 @@ function App() {
   // Arabic translations - Complete Arabic interface
   const t = {
     welcome: 'مرحباً بكم في جذور الإمارات',
-    continueWithGoogle: 'التسجيل عبر Google',
-    continueWithApple: 'التسجيل عبر Apple', 
+    continueWithGoogle: 'التسجيل عبر بريد جوجل',
+    continueWithApple: 'التسجيل عبر هوية آبل', 
     uaeMobile: 'التسجيل عبر الهاتف الإماراتي',
     dashboard: 'لوحة التحكم',
     myFamilyTrees: 'أشجار عائلتي',
@@ -834,23 +837,23 @@ function App() {
               onClick={handleGoogleAuth}
               className="w-full bg-green-600 hover:bg-green-700 text-white py-3 rounded-lg flex items-center justify-center gap-3"
             >
-              <span className="text-2xl">📧</span>
-              <span className="arabic-text">التسجيل عبر Gmail</span>
+              <img src={gmailIcon} alt="Gmail" className="w-6 h-6" />
+              <span className="arabic-text">{t.continueWithGoogle}</span>
             </Button>
             
             <Button
               onClick={handleAppleAuth}
               className="w-full bg-black hover:bg-gray-800 text-white py-3 rounded-lg flex items-center justify-center gap-3"
             >
-              <span className="text-2xl">🍎</span>
-              <span className="arabic-text">التسجيل عبر Apple ID</span>
+              <img src={appleIcon} alt="Apple ID" className="w-6 h-6" />
+              <span className="arabic-text">{t.continueWithApple}</span>
             </Button>
             
             <Button
               onClick={handleUAEMobileAuth}
               className="w-full bg-orange-500 hover:bg-orange-600 text-white py-3 rounded-lg flex items-center justify-center gap-3"
             >
-              <span className="text-2xl">🇦🇪</span>
+              <img src={uaeMobileIcon} alt="UAE Mobile" className="w-6 h-6" />
               <span className="arabic-text">{t.uaeMobile}</span>
             </Button>
           </div>
