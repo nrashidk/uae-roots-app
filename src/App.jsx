@@ -1130,26 +1130,24 @@ function App() {
                   }}
                   // Drag-and-drop removed for auto-layout
                 >
-                  <div className="text-center h-full flex flex-col justify-center">
+                  <div className="h-full flex flex-col justify-center items-center text-center">
                     {displayOptions.showName && (
-                      <div className="w-full">
-                        <div className="font-bold arabic-text text-center text-lg">
-                          {person.firstName}
-                        </div>
+                      <div className="font-bold arabic-text text-lg mb-1">
+                        {person.firstName}
                       </div>
                     )}
                     {displayOptions.showSurname && person.lastName && (
-                      <div className="text-base truncate arabic-text text-center">
+                      <div className="text-base arabic-text">
                         {person.lastName}
                       </div>
                     )}
                     {displayOptions.showBirthDate && person.birthDate && (
-                      <div className="text-sm truncate text-center">
+                      <div className="text-sm">
                         {person.birthDate}
                       </div>
                     )}
                     {displayOptions.showProfession && person.profession && (
-                      <div className="text-sm truncate arabic-text text-center">
+                      <div className="text-sm arabic-text">
                         {person.profession}
                       </div>
                     )}
