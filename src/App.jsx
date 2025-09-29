@@ -40,7 +40,7 @@ function App() {
     showNickname: false,
     showTitleSuffix: false,
     showSurname: true,
-    showPhoto: false,
+    showPhoto: true,
     showAge: false,
     showLifeYears: false,
     
@@ -1130,7 +1130,17 @@ function App() {
                   }}
                   // Drag-and-drop removed for auto-layout
                 >
-                  <div className="h-full flex flex-col justify-center items-center text-center">
+                  <div className="h-full flex flex-col justify-center items-center text-center p-1">
+                    {/* Photo thumbnail */}
+                    {displayOptions.showPhoto && person.photo && (
+                      <div className="w-12 h-12 rounded-full overflow-hidden border-2 border-white shadow-sm mb-1">
+                        <img 
+                          src={person.photo} 
+                          alt={`${person.firstName} photo`}
+                          className="w-full h-full object-cover"
+                        />
+                      </div>
+                    )}
                     {displayOptions.showName && (
                       <div className="font-bold arabic-text text-lg mb-1">
                         {person.firstName}
@@ -1682,7 +1692,8 @@ function PersonForm({ person, onSave, onCancel, relationshipType, anchorPerson }
     address: person?.address || '',
     profession: person?.profession || '',
     company: person?.company || '',
-    bioNotes: person?.bioNotes || ''
+    bioNotes: person?.bioNotes || '',
+    photo: person?.photo || null
   });
 
   const t = {
@@ -1706,7 +1717,10 @@ function PersonForm({ person, onSave, onCancel, relationshipType, anchorPerson }
     update: 'تحديث',
     personal: 'البيانات الشخصية',
     contact: 'معلومات التواصل',
-    biography: 'السيرة الذاتية'
+    biography: 'السيرة الذاتية',
+    photo: 'الصورة الشخصية',
+    uploadPhoto: 'رفع صورة',
+    removePhoto: 'إزالة الصورة'
   };
 
   const handleSubmit = (e) => {
@@ -1720,6 +1734,33 @@ function PersonForm({ person, onSave, onCancel, relationshipType, anchorPerson }
 
   const handleChange = (field, value) => {
     setFormData(prev => ({ ...prev, [field]: value }));
+  };
+
+  const handlePhotoUpload = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      // Check file size (max 5MB)
+      if (file.size > 5 * 1024 * 1024) {
+        alert('حجم الصورة كبير جداً. الحد الأقصى 5 ميجابايت');
+        return;
+      }
+      
+      // Check file type
+      if (!file.type.startsWith('image/')) {
+        alert('يرجى اختيار ملف صورة صالح');
+        return;
+      }
+      
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        setFormData(prev => ({ ...prev, photo: event.target.result }));
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const removePhoto = () => {
+    setFormData(prev => ({ ...prev, photo: null }));
   };
 
   const tabs = [
@@ -1848,6 +1889,56 @@ function PersonForm({ person, onSave, onCancel, relationshipType, anchorPerson }
               />
             </div>
           )}
+
+          {/* Photo Upload Section */}
+          <div>
+            <label className="block text-base font-bold text-gray-700 mb-2 arabic-text">
+              {t.photo}
+            </label>
+            {formData.photo ? (
+              <div className="flex items-center gap-4">
+                <div className="w-20 h-20 rounded-lg overflow-hidden border border-gray-300">
+                  <img 
+                    src={formData.photo} 
+                    alt="صورة شخصية" 
+                    className="w-full h-full object-cover"
+                  />
+                </div>
+                <div className="flex flex-col gap-2">
+                  <label className="inline-flex items-center px-3 py-1 bg-blue-500 text-white text-sm rounded-md cursor-pointer hover:bg-blue-600">
+                    <span className="arabic-text">{t.uploadPhoto}</span>
+                    <input 
+                      type="file" 
+                      accept="image/*" 
+                      onChange={handlePhotoUpload}
+                      className="hidden"
+                    />
+                  </label>
+                  <button
+                    type="button"
+                    onClick={removePhoto}
+                    className="px-3 py-1 bg-red-500 text-white text-sm rounded-md hover:bg-red-600 arabic-text"
+                  >
+                    {t.removePhoto}
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
+                <div className="text-4xl text-gray-400 mb-2">📷</div>
+                <label className="inline-flex items-center px-4 py-2 bg-blue-500 text-white rounded-md cursor-pointer hover:bg-blue-600">
+                  <span className="arabic-text">{t.uploadPhoto}</span>
+                  <input 
+                    type="file" 
+                    accept="image/*" 
+                    onChange={handlePhotoUpload}
+                    className="hidden"
+                  />
+                </label>
+                <p className="text-sm text-gray-500 mt-2 arabic-text">PNG, JPG, GIF (حد أقصى 5 ميجابايت)</p>
+              </div>
+            )}
+          </div>
           </div>
         )}
 
