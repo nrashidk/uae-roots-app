@@ -758,6 +758,39 @@ function App() {
     }
   };
 
+  // Determine if a person belongs to external family (married in vs born into main tree)
+  const isPersonFromExternalFamily = (person, child, relationships, treeId) => {
+    // Check if this person is married INTO the family vs born into it
+    const personAsSpouse = relationships.find(r => 
+      r.type === REL.PARTNER && 
+      (r.person1Id === person.id || r.person2Id === person.id) &&
+      r.treeId === treeId
+    );
+    
+    // If person has a spouse relationship, check if their children are with that spouse
+    if (personAsSpouse) {
+      const spouseId = personAsSpouse.person1Id === person.id ? personAsSpouse.person2Id : personAsSpouse.person1Id;
+      
+      // Check if the child also has the spouse as a parent
+      const childHasBothParents = relationships.some(r => 
+        r.type === REL.PARENT_CHILD && 
+        r.childId === child.id && 
+        r.parentId === spouseId &&
+        r.treeId === treeId
+      );
+      
+      // If the person married in and has their own family connections shown, use dotted lines
+      const hasOwnFamilyConnections = relationships.some(r => 
+        (r.type === REL.PARENT_CHILD && r.parentId === person.id) ||
+        (r.type === REL.PARENT_CHILD && r.childId === person.id && r.parentId !== spouseId)
+      );
+      
+      return childHasBothParents && hasOwnFamilyConnections;
+    }
+    
+    return false;
+  };
+
 
   // Authentication screen
   if (!isAuthenticated) {
@@ -978,6 +1011,10 @@ function App() {
                 const parent = treePeople.find(p => p.id === r.parentId);
                 if (!child || !parent) return null;
                 
+                // Determine if this is an external family connection
+                // Check if parent belongs to main tree vs external family
+                const isExternalConnection = isPersonFromExternalFamily(parent, child, relationships, currentTree?.id);
+                
                 // Find spouse of parent (if any)
                 const spouseRel = relationships.find(
                   rel => rel.type === REL.PARTNER &&
@@ -997,6 +1034,8 @@ function App() {
                 const childX = child.x + stylingOptions.boxWidth / 2;
                 
                 const curveRadius = 15;
+                const lineStyle = isExternalConnection ? "8,4" : "none";
+                const strokeColor = isExternalConnection ? "#6b7280" : "#059669";
                 
                 return (
                   <g key={i}>
@@ -1004,9 +1043,10 @@ function App() {
                     {spouse && (
                       <path
                         d={`M ${parentX} ${parentY + 15} L ${spouseX} ${parentY + 15}`}
-                        stroke="#059669"
+                        stroke={strokeColor}
                         strokeWidth={3}
                         strokeLinecap="round"
+                        strokeDasharray={lineStyle}
                         fill="none"
                       />
                     )}
@@ -1018,10 +1058,11 @@ function App() {
                           L ${childX - (childX > midX ? curveRadius : -curveRadius)} ${parentY + 30 + curveRadius}
                           Q ${childX} ${parentY + 30 + curveRadius} ${childX} ${parentY + 30 + 2 * curveRadius}
                           L ${childX} ${childY}`}
-                      stroke="#059669"
+                      stroke={strokeColor}
                       strokeWidth={3}
                       strokeLinecap="round"
                       strokeLinejoin="round"
+                      strokeDasharray={lineStyle}
                       fill="none"
                     />
                   </g>
@@ -1040,10 +1081,17 @@ function App() {
               }, {})).map((siblings, i) => {
                 if (siblings.length < 2) return null;
                 
+                // Check if these siblings belong to external family
+                const parentRel = relationships.find(r => r.type === REL.PARENT_CHILD && r.childId === siblings[0].id && r.treeId === currentTree?.id);
+                const parent = parentRel ? treePeople.find(p => p.id === parentRel.parentId) : null;
+                const isExternalFamily = parent ? isPersonFromExternalFamily(parent, siblings[0], relationships, currentTree?.id) : false;
+                
                 const y = siblings[0].y - 20;
                 const minX = Math.min(...siblings.map(s => s.x + stylingOptions.boxWidth / 2));
                 const maxX = Math.max(...siblings.map(s => s.x + stylingOptions.boxWidth / 2));
                 const curveHeight = 10;
+                const strokeColor = isExternalFamily ? "#6b7280" : "#7c3aed";
+                const dashArray = isExternalFamily ? "8,4" : "5,5";
                 
                 return (
                   <g key={i}>
@@ -1051,10 +1099,10 @@ function App() {
                     <path
                       d={`M ${minX} ${y} 
                           Q ${(minX + maxX) / 2} ${y - curveHeight} ${maxX} ${y}`}
-                      stroke="#7c3aed"
+                      stroke={strokeColor}
                       strokeWidth={2}
                       strokeLinecap="round"
-                      strokeDasharray="5,5"
+                      strokeDasharray={dashArray}
                       fill="none"
                     />
                     {/* Smooth vertical connectors to each sibling */}
@@ -1067,9 +1115,10 @@ function App() {
                           key={idx}
                           d={`M ${siblingX} ${connectionY}
                               Q ${siblingX} ${(connectionY + sibling.y) / 2} ${siblingX} ${sibling.y}`}
-                          stroke="#7c3aed"
+                          stroke={strokeColor}
                           strokeWidth={2}
                           strokeLinecap="round"
+                          strokeDasharray={dashArray}
                           fill="none"
                         />
                       );
