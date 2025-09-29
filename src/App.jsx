@@ -866,7 +866,7 @@ function App() {
         <div className="bg-white shadow-sm border-b">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
             <div className="flex justify-between items-center">
-              <h1 className="text-2xl font-bold text-gray-900 arabic-text">{t.dashboard}</h1>
+              <h1 className="text-3xl font-bold text-gray-900 arabic-text">{t.dashboard}</h1>
               <Button
                 onClick={() => setIsAuthenticated(false)}
                 variant="outline"
@@ -881,12 +881,12 @@ function App() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             <div className="bg-white rounded-lg shadow p-6">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4 arabic-text">{t.myFamilyTrees}</h3>
+              <h3 className="text-xl font-bold text-gray-900 mb-4 arabic-text">{t.myFamilyTrees}</h3>
               {currentTree ? (
                 <div className="space-y-3">
                   <div className="border rounded-lg p-4">
-                    <h4 className="font-medium text-gray-900 arabic-text">{currentTree.name}</h4>
-                    <div className="text-sm text-gray-500 mt-2 arabic-text">
+                    <h4 className="font-bold text-lg text-gray-900 arabic-text">{currentTree.name}</h4>
+                    <div className="text-base text-gray-500 mt-2 arabic-text">
                       <span>{people.filter(p => p.treeId === currentTree.id).length} {t.familyStats}</span>
                       <span className="mx-2">•</span>
                       <span>{relationships.filter(r => r.treeId === currentTree.id).length} {t.relationshipStats}</span>
@@ -910,14 +910,14 @@ function App() {
             </div>
 
             <div className="bg-white rounded-lg shadow p-6">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4 arabic-text">{t.familyMembers}</h3>
+              <h3 className="text-xl font-bold text-gray-900 mb-4 arabic-text">{t.familyMembers}</h3>
               <div className="text-3xl font-bold text-blue-600">
                 {people.filter(p => p.treeId === currentTree?.id).length}
               </div>
             </div>
 
             <div className="bg-white rounded-lg shadow p-6">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4 arabic-text">{t.relationships}</h3>
+              <h3 className="text-xl font-bold text-gray-900 mb-4 arabic-text">{t.relationships}</h3>
               <div className="text-3xl font-bold text-green-600">
                 {relationships.filter(r => r.treeId === currentTree?.id).length}
               </div>
@@ -957,13 +957,13 @@ function App() {
               <Home className="w-4 h-4 ml-2" />
               {t.backToDashboard}
             </Button>
-            <h1 className="text-xl font-semibold text-gray-900 arabic-text">
+            <h1 className="text-2xl font-bold text-gray-900 arabic-text">
               {currentTree?.name || t.familyTreeName}
             </h1>
           </div>
           
           <div className="flex items-center gap-2">
-            <span className="text-sm text-gray-600 arabic-text">
+            <span className="text-base text-gray-600 arabic-text">
               {treePeople.length} {t.familyStats} • {relationships.filter(r => r.treeId === currentTree?.id).length} {t.relationshipStats}
             </span>
           </div>
@@ -974,6 +974,14 @@ function App() {
           className="relative"
           style={{ 
             height: 'calc(100vh - 64px)' // Subtract header height
+          }}
+          onClick={(e) => {
+            // Deselect person when clicking anywhere in the canvas area except on persons
+            const isPersonClick = e.target.closest('[data-person-box]');
+            const isActionButtonClick = e.target.closest('[data-action-button]');
+            if (!isPersonClick && !isActionButtonClick) {
+              setSelectedPerson(null);
+            }
           }}
         >
           <div
@@ -1098,6 +1106,7 @@ function App() {
               {treePeople.map(person => (
                 <div
                   key={person.id}
+                  data-person-box
                   className={`absolute border-2 rounded-lg p-3 cursor-pointer transition-all duration-200 ${
                     selectedPerson === person.id 
                       ? 'border-green-500 shadow-lg' 
@@ -1115,29 +1124,32 @@ function App() {
                     color: person.isLiving ? stylingOptions.livingTextColor : stylingOptions.deceasedTextColor,
                     zIndex: 10
                   }}
-                  onClick={() => setSelectedPerson(person.id)}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setSelectedPerson(person.id);
+                  }}
                   // Drag-and-drop removed for auto-layout
                 >
                   <div className="text-center h-full flex flex-col justify-center">
                     {displayOptions.showName && (
                       <div className="w-full">
-                        <div className="font-semibold arabic-text text-center">
+                        <div className="font-bold arabic-text text-center text-lg">
                           {person.firstName}
                         </div>
                       </div>
                     )}
                     {displayOptions.showSurname && person.lastName && (
-                      <div className="text-sm truncate arabic-text">
+                      <div className="text-base truncate arabic-text text-center">
                         {person.lastName}
                       </div>
                     )}
                     {displayOptions.showBirthDate && person.birthDate && (
-                      <div className="text-xs truncate">
+                      <div className="text-sm truncate text-center">
                         {person.birthDate}
                       </div>
                     )}
                     {displayOptions.showProfession && person.profession && (
-                      <div className="text-xs truncate arabic-text">
+                      <div className="text-sm truncate arabic-text text-center">
                         {person.profession}
                       </div>
                     )}
@@ -1148,6 +1160,7 @@ function App() {
               {/* Action buttons for selected person - positioned below the box */}
               {selectedPerson && treePeople.find(p => p.id === selectedPerson) && (
                 <div
+                  data-action-button
                   className="absolute bg-white border border-gray-200 rounded-lg shadow-lg p-2 z-20"
                   style={{
                     left: treePeople.find(p => p.id === selectedPerson).x + (stylingOptions.boxWidth / 2) - 80,
@@ -1236,7 +1249,7 @@ function App() {
             {treePeople.length === 0 && (
               <div className="absolute inset-0 flex items-center justify-center">
                 <div className="text-center">
-                  <h2 className="text-xl font-semibold text-gray-700 mb-4 arabic-text">
+                  <h2 className="text-2xl font-bold text-gray-700 mb-4 arabic-text">
                     {t.startBuilding}
                   </h2>
                   <p className="text-gray-500 mb-6 arabic-text">
@@ -1270,7 +1283,7 @@ function App() {
             >
               <ZoomIn className="w-4 h-4" />
             </Button>
-            <div className="bg-white px-2 py-1 rounded text-sm font-medium text-center">
+            <div className="bg-white px-3 py-2 rounded text-base font-bold text-center">
               {Math.round(zoom * 100)}%
             </div>
             <Button
@@ -1371,7 +1384,7 @@ function App() {
                }}>
             <div className="flex flex-col max-h-full">
               <div className="flex justify-between items-center p-4 border-b border-gray-200">
-                <h2 className="text-lg font-semibold text-gray-900 arabic-text">
+                <h2 className="text-xl font-bold text-gray-900 arabic-text">
                   {editingPerson ? t.editFamilyMember : t.addFamilyMember}
                 </h2>
                 <Button
@@ -1389,7 +1402,7 @@ function App() {
 
               <div className="flex-1 overflow-y-auto p-4">
                 <div className="mb-4 p-3 bg-blue-50 rounded-lg">
-                  <p className="text-sm text-blue-700 text-center arabic-text">
+                  <p className="text-base text-blue-700 text-center arabic-text font-medium">
                     {t.allFieldsOptional}
                   </p>
                 </div>
@@ -1745,40 +1758,40 @@ function PersonForm({ person, onSave, onCancel, relationshipType, anchorPerson }
             {/* Personal Information */}
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1 arabic-text">
+              <label className="block text-base font-bold text-gray-700 mb-1 arabic-text">
                 {t.firstName}
               </label>
               <input
                 type="text"
                 value={formData.firstName}
                 onChange={(e) => handleChange('firstName', e.target.value)}
-                className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 arabic-text"
+                className="w-full px-3 py-2 text-base border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 arabic-text"
                 dir="rtl"
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1 arabic-text">
+              <label className="block text-base font-bold text-gray-700 mb-1 arabic-text">
                 {t.lastName}
               </label>
               <input
                 type="text"
                 value={formData.lastName}
                 onChange={(e) => handleChange('lastName', e.target.value)}
-                className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 arabic-text"
+                className="w-full px-3 py-2 text-base border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 arabic-text"
                 dir="rtl"
               />
             </div>
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1 arabic-text">
+            <label className="block text-base font-bold text-gray-700 mb-1 arabic-text">
               {t.gender}
             </label>
             <select
               value={formData.gender}
               onChange={(e) => handleChange('gender', e.target.value)}
-              className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 arabic-text"
+              className="w-full px-3 py-2 text-base border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 arabic-text"
             >
               <option value="">اختر الجنس</option>
               <option value="male">{t.male}</option>
@@ -1787,7 +1800,7 @@ function PersonForm({ person, onSave, onCancel, relationshipType, anchorPerson }
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1 arabic-text">
+            <label className="block text-base font-bold text-gray-700 mb-1 arabic-text">
               {t.birthDate}
             </label>
             <input
@@ -1799,14 +1812,14 @@ function PersonForm({ person, onSave, onCancel, relationshipType, anchorPerson }
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1 arabic-text">
+            <label className="block text-base font-bold text-gray-700 mb-1 arabic-text">
               {t.birthPlace}
             </label>
             <input
               type="text"
               value={formData.birthPlace}
               onChange={(e) => handleChange('birthPlace', e.target.value)}
-              className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 arabic-text"
+              className="w-full px-3 py-2 text-base border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 arabic-text"
               dir="rtl"
             />
           </div>
@@ -1819,14 +1832,14 @@ function PersonForm({ person, onSave, onCancel, relationshipType, anchorPerson }
               onChange={(e) => handleChange('isLiving', e.target.checked)}
               className="rounded"
             />
-            <label htmlFor="isLiving" className="text-sm text-gray-700 arabic-text">
+            <label htmlFor="isLiving" className="text-base font-bold text-gray-700 arabic-text">
               {t.isLiving}
             </label>
           </div>
 
           {!formData.isLiving && (
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1 arabic-text">
+              <label className="block text-base font-bold text-gray-700 mb-1 arabic-text">
                 {t.deathDate}
               </label>
               <input
@@ -1845,68 +1858,68 @@ function PersonForm({ person, onSave, onCancel, relationshipType, anchorPerson }
             {/* Contact Information */}
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1 arabic-text">
+                <label className="block text-base font-bold text-gray-700 mb-1 arabic-text">
                   {t.phone}
                 </label>
                 <input
                   type="tel"
                   value={formData.phone}
                   onChange={(e) => handleChange('phone', e.target.value)}
-                  className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  className="w-full px-3 py-2 text-base border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500"
                   dir="ltr"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1 arabic-text">
+                <label className="block text-base font-bold text-gray-700 mb-1 arabic-text">
                   {t.email}
                 </label>
                 <input
                   type="email"
                   value={formData.email}
                   onChange={(e) => handleChange('email', e.target.value)}
-                  className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  className="w-full px-3 py-2 text-base border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500"
                   dir="ltr"
                 />
               </div>
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1 arabic-text">
+              <label className="block text-base font-bold text-gray-700 mb-1 arabic-text">
                 {t.address}
               </label>
               <input
                 type="text"
                 value={formData.address}
                 onChange={(e) => handleChange('address', e.target.value)}
-                className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 arabic-text"
+                className="w-full px-3 py-2 text-base border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 arabic-text"
                 dir="rtl"
               />
             </div>
 
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1 arabic-text">
+                <label className="block text-base font-bold text-gray-700 mb-1 arabic-text">
                   {t.profession}
                 </label>
                 <input
                   type="text"
                   value={formData.profession}
                   onChange={(e) => handleChange('profession', e.target.value)}
-                  className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 arabic-text"
+                  className="w-full px-3 py-2 text-base border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 arabic-text"
                   dir="rtl"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1 arabic-text">
+                <label className="block text-base font-bold text-gray-700 mb-1 arabic-text">
                   {t.company}
                 </label>
                 <input
                   type="text"
                   value={formData.company}
                   onChange={(e) => handleChange('company', e.target.value)}
-                  className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 arabic-text"
+                  className="w-full px-3 py-2 text-base border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 arabic-text"
                   dir="rtl"
                 />
               </div>
@@ -1918,16 +1931,16 @@ function PersonForm({ person, onSave, onCancel, relationshipType, anchorPerson }
           <div className="space-y-3">
             {/* Biography */}
             <div>
-              <h3 className="text-md font-medium text-gray-900 mb-2 arabic-text">{t.biography}</h3>
+              <h3 className="text-lg font-bold text-gray-900 mb-2 arabic-text">{t.biography}</h3>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1 arabic-text">
+                <label className="block text-base font-bold text-gray-700 mb-1 arabic-text">
                   {t.bioNotes}
                 </label>
                 <textarea
                   value={formData.bioNotes}
                   onChange={(e) => handleChange('bioNotes', e.target.value)}
                   rows={3}
-                  className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 arabic-text"
+                  className="w-full px-3 py-2 text-base border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 arabic-text"
                   dir="rtl"
                 />
               </div>
