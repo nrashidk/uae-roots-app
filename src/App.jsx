@@ -40,7 +40,7 @@ function App() {
     showNickname: false,
     showTitleSuffix: false,
     showSurname: true,
-    showPhoto: true,
+    showPhoto: false,
     showAge: false,
     showLifeYears: false,
     
@@ -758,64 +758,6 @@ function App() {
     }
   };
 
-  // Render connection lines
-  const renderConnectionLines = () => {
-    const lines = [];
-    
-    relationships.forEach(rel => {
-      if (rel.treeId !== currentTree?.id) return;
-      
-      if (rel.type === REL.PARTNER) {
-        const person1 = people.find(p => p.id === rel.person1Id);
-        const person2 = people.find(p => p.id === rel.person2Id);
-        
-        if (person1 && person2) {
-          const x1 = person1.x + CARD.w;
-          const y1 = person1.y + CARD.h / 2;
-          const x2 = person2.x;
-          const y2 = person2.y + CARD.h / 2;
-          
-          lines.push(
-            <line
-              key={`partner-${rel.id}`}
-              x1={x1}
-              y1={y1}
-              x2={x2}
-              y2={y2}
-              stroke="#ef4444"
-              strokeWidth="3"
-            />
-          );
-        }
-      }
-      
-      if (rel.type === REL.PARENT_CHILD) {
-        const parent = people.find(p => p.id === rel.parentId);
-        const child = people.find(p => p.id === rel.childId);
-        
-        if (parent && child) {
-          const x1 = parent.x + CARD.w / 2;
-          const y1 = parent.y + CARD.h;
-          const x2 = child.x + CARD.w / 2;
-          const y2 = child.y;
-          
-          lines.push(
-            <line
-              key={`parent-child-${rel.id}`}
-              x1={x1}
-              y1={y1}
-              x2={x2}
-              y2={y2}
-              stroke="#3b82f6"
-              strokeWidth="2"
-            />
-          );
-        }
-      }
-    });
-    
-    return lines;
-  };
 
   // Authentication screen
   if (!isAuthenticated) {
@@ -999,31 +941,43 @@ function App() {
                 transformOrigin: '0 0'
               }}
             >
-            {/* Render connectors: spouses (thick), T for children, horizontal for siblings */}
+            {/* Enhanced family relationship connectors with smooth curves and professional styling */}
             <svg className="absolute inset-0 pointer-events-none" style={{ width: '100%', height: '100%' }}>
-              {/* Spouse lines */}
+              {/* Enhanced Spouse/Partner lines with smooth curves */}
               {relationships.filter(r => r.type === REL.PARTNER && r.treeId === currentTree?.id).map((r, i) => {
                 const p1 = treePeople.find(p => p.id === r.person1Id);
                 const p2 = treePeople.find(p => p.id === r.person2Id);
                 if (!p1 || !p2) return null;
+                
+                const startX = p1.x + stylingOptions.boxWidth;
+                const endX = p2.x;
                 const y = (p1.y + p2.y) / 2 + CARD.h / 2;
+                
+                // Create smooth curved path
+                const midX = (startX + endX) / 2;
+                const curveOffset = 20;
+                
+                const pathData = `M ${startX} ${y} 
+                                 Q ${midX} ${y - curveOffset} ${endX} ${y}`;
+                
                 return (
-                  <line
+                  <path
                     key={i}
-                    x1={p1.x + stylingOptions.boxWidth}
-                    y1={y}
-                    x2={p2.x}
-                    y2={y}
-                    stroke="#4b5563"
-                    strokeWidth={6}
+                    d={pathData}
+                    stroke="#dc2626"
+                    strokeWidth={5}
+                    strokeLinecap="round"
+                    fill="none"
+                    style={{ filter: 'drop-shadow(0px 1px 2px rgba(0,0,0,0.1))' }}
                   />
                 );
               })}
-              {/* T-connector for children */}
+              {/* Enhanced T-connector for parent-child relationships with smooth curves */}
               {relationships.filter(r => r.type === REL.PARENT_CHILD && r.treeId === currentTree?.id).map((r, i) => {
                 const child = treePeople.find(p => p.id === r.childId);
                 const parent = treePeople.find(p => p.id === r.parentId);
                 if (!child || !parent) return null;
+                
                 // Find spouse of parent (if any)
                 const spouseRel = relationships.find(
                   rel => rel.type === REL.PARTNER &&
@@ -1034,38 +988,46 @@ function App() {
                 if (spouseRel) {
                   spouse = treePeople.find(p => p.id === (spouseRel.person1Id === r.parentId ? spouseRel.person2Id : spouseRel.person1Id));
                 }
-                // T-connector: vertical from mid between parents to child
+                
                 const parentX = parent.x + stylingOptions.boxWidth / 2;
                 const spouseX = spouse ? spouse.x + stylingOptions.boxWidth / 2 : parentX;
                 const midX = spouse ? (parentX + spouseX) / 2 : parentX;
                 const parentY = parent.y + CARD.h;
                 const childY = child.y;
+                const childX = child.x + stylingOptions.boxWidth / 2;
+                
+                const curveRadius = 15;
+                
                 return (
                   <g key={i}>
-                    {/* Horizontal bar */}
+                    {/* Horizontal connection between parents with curves */}
                     {spouse && (
-                      <line
-                        x1={parentX}
-                        y1={parentY + 10}
-                        x2={spouseX}
-                        y2={parentY + 10}
-                        stroke="#4b5563"
-                        strokeWidth={4}
+                      <path
+                        d={`M ${parentX} ${parentY + 15} L ${spouseX} ${parentY + 15}`}
+                        stroke="#059669"
+                        strokeWidth={3}
+                        strokeLinecap="round"
+                        fill="none"
                       />
                     )}
-                    {/* Vertical bar */}
-                    <line
-                      x1={midX}
-                      y1={parentY + 10}
-                      x2={midX}
-                      y2={childY}
-                      stroke="#4b5563"
-                      strokeWidth={4}
+                    {/* Smooth curved path from parents to child */}
+                    <path
+                      d={`M ${midX} ${parentY + 15} 
+                          L ${midX} ${parentY + 30}
+                          Q ${midX} ${parentY + 30 + curveRadius} ${midX + (childX > midX ? curveRadius : -curveRadius)} ${parentY + 30 + curveRadius}
+                          L ${childX - (childX > midX ? curveRadius : -curveRadius)} ${parentY + 30 + curveRadius}
+                          Q ${childX} ${parentY + 30 + curveRadius} ${childX} ${parentY + 30 + 2 * curveRadius}
+                          L ${childX} ${childY}`}
+                      stroke="#059669"
+                      strokeWidth={3}
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      fill="none"
                     />
                   </g>
                 );
               })}
-              {/* Sibling horizontal lines */}
+              {/* Enhanced sibling connection lines with smooth curves */}
               {Object.values(treePeople.reduce((acc, p) => {
                 // Group siblings by parent
                 const parentRel = relationships.find(r => r.type === REL.PARENT_CHILD && r.childId === p.id && r.treeId === currentTree?.id);
@@ -1077,20 +1039,42 @@ function App() {
                 return acc;
               }, {})).map((siblings, i) => {
                 if (siblings.length < 2) return null;
-                // Draw horizontal line connecting all siblings
-                const y = siblings[0].y;
+                
+                const y = siblings[0].y - 20;
                 const minX = Math.min(...siblings.map(s => s.x + stylingOptions.boxWidth / 2));
                 const maxX = Math.max(...siblings.map(s => s.x + stylingOptions.boxWidth / 2));
+                const curveHeight = 10;
+                
                 return (
-                  <line
-                    key={i}
-                    x1={minX}
-                    y1={y}
-                    x2={maxX}
-                    y2={y}
-                    stroke="#4b5563"
-                    strokeWidth={3}
-                  />
+                  <g key={i}>
+                    {/* Main curved horizontal line connecting siblings */}
+                    <path
+                      d={`M ${minX} ${y} 
+                          Q ${(minX + maxX) / 2} ${y - curveHeight} ${maxX} ${y}`}
+                      stroke="#7c3aed"
+                      strokeWidth={2}
+                      strokeLinecap="round"
+                      strokeDasharray="5,5"
+                      fill="none"
+                    />
+                    {/* Smooth vertical connectors to each sibling */}
+                    {siblings.map((sibling, idx) => {
+                      const siblingX = sibling.x + stylingOptions.boxWidth / 2;
+                      const connectionY = y - (curveHeight * Math.sin((Math.PI * (siblingX - minX)) / (maxX - minX)));
+                      
+                      return (
+                        <path
+                          key={idx}
+                          d={`M ${siblingX} ${connectionY}
+                              Q ${siblingX} ${(connectionY + sibling.y) / 2} ${siblingX} ${sibling.y}`}
+                          stroke="#7c3aed"
+                          strokeWidth={2}
+                          strokeLinecap="round"
+                          fill="none"
+                        />
+                      );
+                    })}
+                  </g>
                 );
               })}
             </svg>
@@ -1131,16 +1115,6 @@ function App() {
                   // Drag-and-drop removed for auto-layout
                 >
                   <div className="h-full flex flex-col justify-center items-center text-center p-1">
-                    {/* Photo thumbnail */}
-                    {displayOptions.showPhoto && person.photo && (
-                      <div className="w-12 h-12 rounded-full overflow-hidden border-2 border-white shadow-sm mb-1">
-                        <img 
-                          src={person.photo} 
-                          alt={`${person.firstName} photo`}
-                          className="w-full h-full object-cover"
-                        />
-                      </div>
-                    )}
                     {displayOptions.showName && (
                       <div className="font-bold arabic-text text-lg mb-1">
                         {person.firstName}
@@ -1693,7 +1667,6 @@ function PersonForm({ person, onSave, onCancel, relationshipType, anchorPerson }
     profession: person?.profession || '',
     company: person?.company || '',
     bioNotes: person?.bioNotes || '',
-    photo: person?.photo || null
   });
 
   const t = {
@@ -1718,9 +1691,6 @@ function PersonForm({ person, onSave, onCancel, relationshipType, anchorPerson }
     personal: 'البيانات الشخصية',
     contact: 'معلومات التواصل',
     biography: 'السيرة الذاتية',
-    photo: 'الصورة الشخصية',
-    uploadPhoto: 'رفع صورة',
-    removePhoto: 'إزالة الصورة'
   };
 
   const handleSubmit = (e) => {
@@ -1736,32 +1706,6 @@ function PersonForm({ person, onSave, onCancel, relationshipType, anchorPerson }
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
-  const handlePhotoUpload = (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      // Check file size (max 5MB)
-      if (file.size > 5 * 1024 * 1024) {
-        alert('حجم الصورة كبير جداً. الحد الأقصى 5 ميجابايت');
-        return;
-      }
-      
-      // Check file type
-      if (!file.type.startsWith('image/')) {
-        alert('يرجى اختيار ملف صورة صالح');
-        return;
-      }
-      
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        setFormData(prev => ({ ...prev, photo: event.target.result }));
-      };
-      reader.readAsDataURL(file);
-    }
-  };
-
-  const removePhoto = () => {
-    setFormData(prev => ({ ...prev, photo: null }));
-  };
 
   const tabs = [
     { id: 'personal', label: t.personal, icon: '👤' },
@@ -1890,55 +1834,6 @@ function PersonForm({ person, onSave, onCancel, relationshipType, anchorPerson }
             </div>
           )}
 
-          {/* Photo Upload Section */}
-          <div>
-            <label className="block text-base font-bold text-gray-700 mb-2 arabic-text">
-              {t.photo}
-            </label>
-            {formData.photo ? (
-              <div className="flex items-center gap-4">
-                <div className="w-20 h-20 rounded-lg overflow-hidden border border-gray-300">
-                  <img 
-                    src={formData.photo} 
-                    alt="صورة شخصية" 
-                    className="w-full h-full object-cover"
-                  />
-                </div>
-                <div className="flex flex-col gap-2">
-                  <label className="inline-flex items-center px-3 py-1 bg-blue-500 text-white text-sm rounded-md cursor-pointer hover:bg-blue-600">
-                    <span className="arabic-text">{t.uploadPhoto}</span>
-                    <input 
-                      type="file" 
-                      accept="image/*" 
-                      onChange={handlePhotoUpload}
-                      className="hidden"
-                    />
-                  </label>
-                  <button
-                    type="button"
-                    onClick={removePhoto}
-                    className="px-3 py-1 bg-red-500 text-white text-sm rounded-md hover:bg-red-600 arabic-text"
-                  >
-                    {t.removePhoto}
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
-                <div className="text-4xl text-gray-400 mb-2">📷</div>
-                <label className="inline-flex items-center px-4 py-2 bg-blue-500 text-white rounded-md cursor-pointer hover:bg-blue-600">
-                  <span className="arabic-text">{t.uploadPhoto}</span>
-                  <input 
-                    type="file" 
-                    accept="image/*" 
-                    onChange={handlePhotoUpload}
-                    className="hidden"
-                  />
-                </label>
-                <p className="text-sm text-gray-500 mt-2 arabic-text">PNG, JPG, GIF (حد أقصى 5 ميجابايت)</p>
-              </div>
-            )}
-          </div>
           </div>
         )}
 
