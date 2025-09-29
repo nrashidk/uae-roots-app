@@ -42,7 +42,6 @@ function App() {
   const [panOffset, setPanOffset] = useState({ x: 0, y: 0 });
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
-  const [showOptions, setShowOptions] = useState(false);
   const canvasRef = useRef(null);
 
   // Display options
@@ -128,7 +127,6 @@ function App() {
     print: "طباعة",
     share: "مشاركة",
     calendar: "التقويم",
-    allFieldsOptional: "جميع الحقول اختيارية",
   };
 
   // Get current tree people
@@ -155,13 +153,6 @@ function App() {
   // Calculate position for new person
   const calculatePosition = (relType, anchorPerson) => {
     if (!anchorPerson) {
-      const canvas = canvasRef.current;
-      if (canvas) {
-        const rect = canvas.getBoundingClientRect();
-        const centerX = (rect.width / 2 - panOffset.x) / zoom - (CARD_WIDTH / 2);
-        const centerY = (rect.height / 2 - panOffset.y) / zoom - (CARD_HEIGHT / 2);
-        return { x: centerX, y: centerY };
-      }
       return { x: 400, y: 300 };
     }
 
@@ -273,18 +264,6 @@ function App() {
     setZoom(prev => Math.max(0.3, Math.min(3, prev * delta)));
   };
 
-  // Add mouse event listeners
-  useEffect(() => {
-    if (isDragging) {
-      document.addEventListener('mousemove', handleMouseMove);
-      document.addEventListener('mouseup', handleMouseUp);
-      return () => {
-        document.removeEventListener('mousemove', handleMouseMove);
-        document.removeEventListener('mouseup', handleMouseUp);
-      };
-    }
-  }, [isDragging]);
-
   // Zoom controls
   const zoomIn = () => setZoom(prev => Math.min(3, prev * 1.2));
   const zoomOut = () => setZoom(prev => Math.max(0.3, prev / 1.2));
@@ -320,9 +299,9 @@ function App() {
         }
       });
 
-    // Parent-child connections (vertical green lines) 
+    // Parent-child connections (vertical green lines)
     treeRelationships
-      .filter(r => r.type === "child" || r.type === "parent")
+      .filter(r => r.type === "child")
       .forEach((rel, i) => {
         const parent = treePeople.find(p => p.id === rel.parentId);
         const child = treePeople.find(p => p.id === rel.childId);
@@ -682,16 +661,14 @@ function App() {
           )}
         </div>
 
-        {/* Add first person button */}
+        {/* Empty state */}
         {treePeople.length === 0 && (
-          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-            <div className="text-center pointer-events-auto">
+          <div className="absolute inset-0 flex items-center justify-center">
+            <div className="text-center">
               <h2 className="text-2xl font-bold text-gray-700 mb-4 arabic-text">
                 {t.startBuilding}
               </h2>
-              <p className="text-gray-500 mb-6 arabic-text">
-                {t.addFirstMember}
-              </p>
+              <p className="text-gray-500 mb-6 arabic-text">{t.addFirstMember}</p>
               <Button
                 onClick={() => {
                   setRelationshipType(null);
@@ -699,7 +676,6 @@ function App() {
                   setShowPersonForm(true);
                 }}
                 size="lg"
-                className="arabic-text"
               >
                 <UserPlus className="w-5 h-5 ml-2" />
                 {t.addPerson}
@@ -708,12 +684,12 @@ function App() {
           </div>
         )}
 
-        {/* Zoom Controls */}
-        <div className="absolute left-4 top-1/2 transform -translate-y-1/2 flex flex-col gap-2">
+        {/* Zoom controls */}
+        <div className="absolute left-4 top-1/2 -translate-y-1/2 flex flex-col gap-2">
           <Button onClick={zoomIn} size="sm" className="w-10 h-10 p-0">
             <ZoomIn className="w-4 h-4" />
           </Button>
-          <div className="bg-white px-3 py-2 rounded text-base font-bold text-center">
+          <div className="bg-white px-2 py-1 rounded text-sm text-center">
             {Math.round(zoom * 100)}%
           </div>
           <Button onClick={zoomOut} size="sm" className="w-10 h-10 p-0">
@@ -724,29 +700,27 @@ function App() {
           </Button>
         </div>
 
-        {/* Bottom Toolbar */}
-        <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2">
-          <div className="bg-white rounded-lg shadow-lg border flex items-center gap-2 px-4 py-2">
+        {/* Bottom toolbar */}
+        <div className="absolute bottom-4 left-1/2 -translate-x-1/2">
+          <div className="bg-white rounded-lg shadow-lg border flex gap-2 px-4 py-2">
             {treePeople.length > 0 && (
               <Button
                 onClick={() => {
                   setRelationshipType(null);
                   setEditingPerson(null);
+                  setSelectedPerson(null);
                   setShowPersonForm(true);
                 }}
                 size="sm"
-                className="arabic-text"
               >
                 <UserPlus className="w-4 h-4 ml-1" />
                 {t.addPerson}
               </Button>
             )}
-            
             <Button
-              onClick={() => setShowOptions(true)}
+              onClick={() => alert("Options panel coming soon!")}
               size="sm"
               variant="outline"
-              className="arabic-text"
             >
               <Settings className="w-4 h-4 ml-1" />
               {t.options}
@@ -755,7 +729,7 @@ function App() {
         </div>
       </div>
 
-      {/* Person Form */}
+      {/* Person form sidebar */}
       {showPersonForm && (
         <PersonForm
           person={editingPerson ? treePeople.find(p => p.id === editingPerson) : null}
@@ -765,20 +739,7 @@ function App() {
             setEditingPerson(null);
             setRelationshipType(null);
           }}
-          relationshipType={relationshipType}
-          translations={t}
-        />
-      )}
-
-      {/* Options Modal */}
-      {showOptions && (
-        <OptionsModal
-          displayOptions={displayOptions}
-          setDisplayOptions={setDisplayOptions}
-          stylingOptions={stylingOptions}
-          setStylingOptions={setStylingOptions}
-          onClose={() => setShowOptions(false)}
-          translations={t}
+          t={t}
         />
       )}
     </div>
@@ -786,25 +747,24 @@ function App() {
 }
 
 // Person Form Component
-function PersonForm({ person, onSave, onCancel, relationshipType, translations: t }) {
+function PersonForm({ person, onSave, onCancel, t }) {
   const [formData, setFormData] = useState({
     firstName: person?.firstName || "",
     lastName: person?.lastName || "",
-    gender: person?.gender || "male",
+    gender: person?.gender || "",
     birthDate: person?.birthDate || "",
     birthPlace: person?.birthPlace || "",
-    profession: person?.profession || "",
+    isLiving: person?.isLiving !== false,
+    deathDate: person?.deathDate || "",
     phone: person?.phone || "",
     email: person?.email || "",
     address: person?.address || "",
+    profession: person?.profession || "",
     company: person?.company || "",
     bioNotes: person?.bioNotes || "",
-    isLiving: person?.isLiving !== false,
-    deathDate: person?.deathDate || "",
   });
 
-  const handleSubmit = (e) => {
-    e.preventDefault();
+  const handleSubmit = () => {
     if (!formData.firstName.trim()) {
       alert("يرجى إدخال الاسم الأول");
       return;
@@ -813,273 +773,211 @@ function PersonForm({ person, onSave, onCancel, relationshipType, translations: 
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg shadow-xl w-full max-w-md max-h-[90vh] overflow-y-auto">
-        <div className="p-6">
-          <div className="flex justify-between items-center mb-6">
-            <h2 className="text-xl font-bold arabic-text">
-              {person ? t.editFamilyMember : t.addFamilyMember}
-            </h2>
-            <Button onClick={onCancel} variant="ghost" size="sm">
-              <X className="w-4 h-4" />
-            </Button>
-          </div>
+    <div className="fixed right-0 top-0 h-screen w-96 bg-white shadow-2xl z-50 flex flex-col">
+      <div className="p-4 border-b">
+        <div className="flex justify-between items-center">
+          <h2 className="text-xl font-bold arabic-text">
+            {person ? t.editFamilyMember : t.addFamilyMember}
+          </h2>
+          <Button onClick={onCancel} variant="ghost" size="sm">
+            <X className="w-4 h-4" />
+          </Button>
+        </div>
+      </div>
 
-          <div className="mb-4 p-3 bg-blue-50 rounded-lg">
-            <p className="text-blue-700 text-center arabic-text text-sm">
-              {t.allFieldsOptional}
-            </p>
-          </div>
-
-          <form onSubmit={handleSubmit} className="space-y-4">
+      <div className="flex-1 overflow-y-auto p-4">
+        <div className="space-y-4">
+          {/* Name fields */}
+          <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-sm font-medium text-gray-700 arabic-text mb-1">
+              <label className="block text-sm font-medium mb-1 arabic-text">
                 {t.firstName} *
               </label>
               <input
                 type="text"
                 value={formData.firstName}
-                onChange={(e) => setFormData({ ...formData, firstName: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                onChange={(e) => setFormData({...formData, firstName: e.target.value})}
+                className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 dir="rtl"
               />
             </div>
-
             <div>
-              <label className="block text-sm font-medium text-gray-700 arabic-text mb-1">
+              <label className="block text-sm font-medium mb-1 arabic-text">
                 {t.lastName}
               </label>
               <input
                 type="text"
                 value={formData.lastName}
-                onChange={(e) => setFormData({ ...formData, lastName: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                onChange={(e) => setFormData({...formData, lastName: e.target.value})}
+                className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 dir="rtl"
               />
             </div>
+          </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 arabic-text mb-1">
-                {t.gender}
-              </label>
-              <select
-                value={formData.gender}
-                onChange={(e) => setFormData({ ...formData, gender: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="male">{t.male}</option>
-                <option value="female">{t.female}</option>
-              </select>
-            </div>
+          {/* Gender */}
+          <div>
+            <label className="block text-sm font-medium mb-1 arabic-text">
+              {t.gender}
+            </label>
+            <select
+              value={formData.gender}
+              onChange={(e) => setFormData({...formData, gender: e.target.value})}
+              className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="">اختر الجنس</option>
+              <option value="male">{t.male}</option>
+              <option value="female">{t.female}</option>
+            </select>
+          </div>
 
+          {/* Birth info */}
+          <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-sm font-medium text-gray-700 arabic-text mb-1">
+              <label className="block text-sm font-medium mb-1 arabic-text">
                 {t.birthDate}
               </label>
               <input
                 type="date"
                 value={formData.birthDate}
-                onChange={(e) => setFormData({ ...formData, birthDate: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                onChange={(e) => setFormData({...formData, birthDate: e.target.value})}
+                className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
-
             <div>
-              <label className="block text-sm font-medium text-gray-700 arabic-text mb-1">
+              <label className="block text-sm font-medium mb-1 arabic-text">
                 {t.birthPlace}
               </label>
               <input
                 type="text"
                 value={formData.birthPlace}
-                onChange={(e) => setFormData({ ...formData, birthPlace: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                onChange={(e) => setFormData({...formData, birthPlace: e.target.value})}
+                className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 dir="rtl"
               />
             </div>
+          </div>
 
+          {/* Living status */}
+          <div className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              id="isLiving"
+              checked={formData.isLiving}
+              onChange={(e) => setFormData({...formData, isLiving: e.target.checked})}
+              className="rounded"
+            />
+            <label htmlFor="isLiving" className="text-sm font-medium arabic-text">
+              {t.isLiving}
+            </label>
+          </div>
+
+          {/* Death date if not living */}
+          {!formData.isLiving && (
             <div>
-              <label className="block text-sm font-medium text-gray-700 arabic-text mb-1">
-                {t.profession}
+              <label className="block text-sm font-medium mb-1 arabic-text">
+                {t.deathDate}
               </label>
               <input
-                type="text"
-                value={formData.profession}
-                onChange={(e) => setFormData({ ...formData, profession: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                dir="rtl"
+                type="date"
+                value={formData.deathDate}
+                onChange={(e) => setFormData({...formData, deathDate: e.target.value})}
+                className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
+          )}
 
+          {/* Contact info */}
+          <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-sm font-medium text-gray-700 arabic-text mb-1">
+              <label className="block text-sm font-medium mb-1 arabic-text">
                 {t.phone}
               </label>
               <input
                 type="tel"
                 value={formData.phone}
-                onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                onChange={(e) => setFormData({...formData, phone: e.target.value})}
+                className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                dir="ltr"
               />
             </div>
-
             <div>
-              <label className="block text-sm font-medium text-gray-700 arabic-text mb-1">
+              <label className="block text-sm font-medium mb-1 arabic-text">
                 {t.email}
               </label>
               <input
                 type="email"
                 value={formData.email}
-                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                onChange={(e) => setFormData({...formData, email: e.target.value})}
+                className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                dir="ltr"
               />
             </div>
+          </div>
 
+          {/* Address */}
+          <div>
+            <label className="block text-sm font-medium mb-1 arabic-text">
+              {t.address}
+            </label>
+            <input
+              type="text"
+              value={formData.address}
+              onChange={(e) => setFormData({...formData, address: e.target.value})}
+              className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              dir="rtl"
+            />
+          </div>
+
+          {/* Professional info */}
+          <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="flex items-center">
-                <input
-                  type="checkbox"
-                  checked={formData.isLiving}
-                  onChange={(e) => setFormData({ ...formData, isLiving: e.target.checked })}
-                  className="mr-2"
-                />
-                <span className="text-sm text-gray-700 arabic-text">{t.isLiving}</span>
+              <label className="block text-sm font-medium mb-1 arabic-text">
+                {t.profession}
               </label>
+              <input
+                type="text"
+                value={formData.profession}
+                onChange={(e) => setFormData({...formData, profession: e.target.value})}
+                className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                dir="rtl"
+              />
             </div>
-
-            {!formData.isLiving && (
-              <div>
-                <label className="block text-sm font-medium text-gray-700 arabic-text mb-1">
-                  {t.deathDate}
-                </label>
-                <input
-                  type="date"
-                  value={formData.deathDate}
-                  onChange={(e) => setFormData({ ...formData, deathDate: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-            )}
-
-            <div className="flex gap-3 pt-4">
-              <Button type="submit" className="flex-1 arabic-text">
-                {person ? t.update : t.save}
-              </Button>
-              <Button type="button" variant="outline" onClick={onCancel} className="flex-1 arabic-text">
-                {t.cancel}
-              </Button>
+            <div>
+              <label className="block text-sm font-medium mb-1 arabic-text">
+                {t.company}
+              </label>
+              <input
+                type="text"
+                value={formData.company}
+                onChange={(e) => setFormData({...formData, company: e.target.value})}
+                className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                dir="rtl"
+              />
             </div>
-          </form>
+          </div>
+
+          {/* Bio notes */}
+          <div>
+            <label className="block text-sm font-medium mb-1 arabic-text">
+              {t.bioNotes}
+            </label>
+            <textarea
+              value={formData.bioNotes}
+              onChange={(e) => setFormData({...formData, bioNotes: e.target.value})}
+              rows={3}
+              className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              dir="rtl"
+            />
+          </div>
         </div>
-      </div>
-    </div>
-  );
-}
 
-// Options Modal Component
-function OptionsModal({ displayOptions, setDisplayOptions, stylingOptions, setStylingOptions, onClose, translations: t }) {
-  return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-        <div className="p-6">
-          <div className="flex justify-between items-center mb-6">
-            <h2 className="text-xl font-bold arabic-text">{t.options}</h2>
-            <Button onClick={onClose} variant="ghost" size="sm">
-              <X className="w-4 h-4" />
-            </Button>
-          </div>
-
-          <div className="space-y-6">
-            {/* Display Options */}
-            <div>
-              <h3 className="text-lg font-medium mb-4 arabic-text">{t.displayOptions}</h3>
-              <div className="grid grid-cols-2 gap-4">
-                <label className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    checked={displayOptions.showName}
-                    onChange={(e) => setDisplayOptions(prev => ({ ...prev, showName: e.target.checked }))}
-                  />
-                  <span className="text-sm arabic-text">{t.showNames}</span>
-                </label>
-                <label className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    checked={displayOptions.showSurname}
-                    onChange={(e) => setDisplayOptions(prev => ({ ...prev, showSurname: e.target.checked }))}
-                  />
-                  <span className="text-sm arabic-text">{t.showSurnames}</span>
-                </label>
-                <label className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    checked={displayOptions.showBirthDate}
-                    onChange={(e) => setDisplayOptions(prev => ({ ...prev, showBirthDate: e.target.checked }))}
-                  />
-                  <span className="text-sm arabic-text">{t.showBirthDates}</span>
-                </label>
-                <label className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    checked={displayOptions.showProfession}
-                    onChange={(e) => setDisplayOptions(prev => ({ ...prev, showProfession: e.target.checked }))}
-                  />
-                  <span className="text-sm arabic-text">{t.showProfessions}</span>
-                </label>
-              </div>
-            </div>
-
-            {/* Styling Options */}
-            <div>
-              <h3 className="text-lg font-medium mb-4 arabic-text">{t.stylingOptions}</h3>
-              <div className="space-y-4">
-                <div className="flex items-center gap-4">
-                  <label className="text-sm arabic-text">{t.maleBoxColor}</label>
-                  <input
-                    type="color"
-                    value={stylingOptions.maleBoxColor}
-                    onChange={(e) => setStylingOptions(prev => ({ ...prev, maleBoxColor: e.target.value }))}
-                    className="w-8 h-8 rounded border"
-                  />
-                </div>
-                <div className="flex items-center gap-4">
-                  <label className="text-sm arabic-text">{t.femaleBoxColor}</label>
-                  <input
-                    type="color"
-                    value={stylingOptions.femaleBoxColor}
-                    onChange={(e) => setStylingOptions(prev => ({ ...prev, femaleBoxColor: e.target.value }))}
-                    className="w-8 h-8 rounded border"
-                  />
-                </div>
-                <div className="flex items-center gap-4">
-                  <label className="text-sm arabic-text">{t.backgroundColor}</label>
-                  <input
-                    type="color"
-                    value={stylingOptions.backgroundColor}
-                    onChange={(e) => setStylingOptions(prev => ({ ...prev, backgroundColor: e.target.value }))}
-                    className="w-8 h-8 rounded border"
-                  />
-                </div>
-                <div className="flex items-center gap-4">
-                  <label className="text-sm arabic-text">{t.textSize}</label>
-                  <input
-                    type="range"
-                    min="10"
-                    max="20"
-                    value={stylingOptions.textSize}
-                    onChange={(e) => setStylingOptions(prev => ({ ...prev, textSize: parseInt(e.target.value) }))}
-                    className="flex-1"
-                  />
-                  <span className="text-sm">{stylingOptions.textSize}px</span>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div className="flex justify-end pt-6">
-            <Button onClick={onClose} className="arabic-text">
-              {t.applyChanges}
-            </Button>
-          </div>
+        {/* Form actions */}
+        <div className="flex justify-end gap-2 mt-6 pt-4 border-t">
+          <Button onClick={handleSubmit}>{person ? t.update : t.save}</Button>
+          <Button onClick={onCancel} variant="outline">
+            {t.cancel}
+          </Button>
         </div>
       </div>
     </div>
