@@ -1160,13 +1160,18 @@ function App() {
             height: "calc(100vh - 64px)", // Subtract header height
           }}
           onClick={(e) => {
-            // Deselect person when clicking anywhere in the canvas area except on persons
+            // Deselect person and close form when clicking on background
             const isPersonClick = e.target.closest("[data-person-box]");
             const isActionButtonClick = e.target.closest(
               "[data-action-button]",
             );
-            if (!isPersonClick && !isActionButtonClick) {
+            const isFormClick = e.target.closest("[data-person-form]");
+            
+            if (!isPersonClick && !isActionButtonClick && !isFormClick) {
               setSelectedPerson(null);
+              setShowPersonForm(false);
+              setEditingPerson(null);
+              setRelationshipType(null);
             }
           }}
         >
@@ -1607,6 +1612,7 @@ function App() {
         {/* Person Form Sidebar */}
         {showPersonForm && (
           <div
+            data-person-form
             className="fixed right-4 top-1/2 transform -translate-y-1/2 bg-white shadow-2xl border border-gray-200 rounded-lg z-50"
             style={{
               width: "400px",
