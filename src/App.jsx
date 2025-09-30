@@ -1193,8 +1193,9 @@ function App() {
               "[data-action-button]",
             );
             const isFormClick = e.target.closest("[data-person-form]");
+            const isAddPersonButton = e.target.closest("[data-add-person-button]");
             
-            if (!isPersonClick && !isActionButtonClick && !isFormClick) {
+            if (!isPersonClick && !isActionButtonClick && !isFormClick && !isAddPersonButton) {
               setSelectedPerson(null);
               setShowPersonForm(false);
               setEditingPerson(null);
