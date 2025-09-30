@@ -242,6 +242,11 @@ function App() {
     showCompany: "إظهار الشركة",
     showInterests: "إظهار الاهتمامات",
     showActivities: "إظهار الأنشطة",
+    // Lineage view translations
+    familyLineage: "نسب العائلة",
+    theFather: "الأب",
+    theSon: "الابن",
+    theDaughter: "الابنة",
   };
 
   // Authentication handlers
@@ -1073,7 +1078,7 @@ function App() {
 
             <div 
               className="bg-white rounded-lg shadow p-6 cursor-pointer hover:shadow-lg transition-shadow"
-              onClick={() => currentTree && setCurrentView("tree-builder")}
+              onClick={() => currentTree && setCurrentView("lineage")}
             >
               <h3 className="text-xl font-bold text-gray-900 mb-4 arabic-text">
                 {t.familyMembers}
@@ -1109,6 +1114,121 @@ function App() {
               </Button>
             </div>
           )}
+        </div>
+      </div>
+    );
+  }
+
+  // Lineage view - displays family lineage from oldest ancestor down
+  if (currentView === "lineage") {
+    // Build lineage - find oldest ancestor and trace down
+    const buildLineage = () => {
+      const treePeople = people.filter((p) => p.treeId === currentTree?.id);
+      const treeRelationships = relationships.filter((r) => r.treeId === currentTree?.id);
+      
+      if (treePeople.length === 0) return [];
+      
+      // Find people with no parents (oldest ancestors)
+      const oldestAncestors = treePeople.filter(person => {
+        const hasParent = treeRelationships.some(
+          rel => (rel.type === REL.PARENT_CHILD) && rel.childId === person.id
+        );
+        return !hasParent;
+      });
+      
+      if (oldestAncestors.length === 0) return treePeople; // Circular reference or no data
+      
+      // Build lineage from first oldest ancestor
+      const lineage = [];
+      let current = oldestAncestors[0];
+      lineage.push(current);
+      
+      // Trace down through children (prioritize male children for patrilineal line)
+      while (current) {
+        const childRel = treeRelationships.find(
+          rel => rel.type === REL.PARENT_CHILD && rel.parentId === current.id
+        );
+        
+        if (childRel) {
+          const child = treePeople.find(p => p.id === childRel.childId);
+          if (child) {
+            lineage.push(child);
+            current = child;
+          } else {
+            break;
+          }
+        } else {
+          break;
+        }
+      }
+      
+      return lineage;
+    };
+    
+    const lineage = buildLineage();
+    
+    return (
+      <div className="min-h-screen bg-gray-50">
+        {/* Header */}
+        <div className="bg-white shadow-sm">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+            <div className="flex justify-between items-center">
+              <div className="flex items-center gap-4">
+                <Button
+                  onClick={() => setCurrentView("dashboard")}
+                  variant="outline"
+                  size="sm"
+                  className="arabic-text"
+                >
+                  <Home className="w-4 h-4 ml-2" />
+                  {t.backToDashboard}
+                </Button>
+                <h1 className="text-3xl font-bold text-gray-900 arabic-text">
+                  {t.familyLineage}
+                </h1>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Lineage Display */}
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+          <div className="bg-white rounded-lg shadow-lg p-8">
+            {lineage.length === 0 ? (
+              <p className="text-center text-gray-500 arabic-text">
+                لا يوجد أفراد في العائلة
+              </p>
+            ) : (
+              <div className="space-y-6">
+                {lineage.map((person, index) => {
+                  const prefix = index === 0 
+                    ? t.theFather 
+                    : (person.gender === "male" ? t.theSon : t.theDaughter);
+                  
+                  return (
+                    <div 
+                      key={person.id}
+                      className="flex items-center gap-4 p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
+                    >
+                      <div className="text-2xl font-bold text-gray-400 min-w-[40px]">
+                        {index + 1}
+                      </div>
+                      <div className="flex-1">
+                        <div className="text-xl font-bold text-gray-900 arabic-text">
+                          {prefix} {person.firstName} {person.lastName}
+                        </div>
+                        {person.birthDate && (
+                          <div className="text-sm text-gray-500 mt-1 arabic-text">
+                            {person.birthDate}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
         </div>
       </div>
     );
