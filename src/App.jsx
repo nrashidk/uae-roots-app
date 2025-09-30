@@ -201,7 +201,7 @@ function App() {
     downloadBtn: "تنزيل",
     done: "تم",
     // Display options translations (11 working options only)
-    showName: "إظهار الاسم",
+    showName: "إظهار الاسم الأول",
     showSurname: "إظهار اسم العائلة",
     showBirthDate: "إظهار تاريخ الميلاد",
     showBirthPlace: "إظهار مكان الميلاد",
