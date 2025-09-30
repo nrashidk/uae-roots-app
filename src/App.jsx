@@ -1430,9 +1430,10 @@ function App() {
                       <Button
                         onClick={(e) => {
                           e.stopPropagation();
-                          setRelationshipType("spouse");
+                          setShowPersonForm(false);
                           setEditingPerson(null);
-                          setShowPersonForm(true);
+                          setRelationshipType("spouse");
+                          setTimeout(() => setShowPersonForm(true), 0);
                         }}
                         size="sm"
                         variant="ghost"
@@ -1445,9 +1446,10 @@ function App() {
                       <Button
                         onClick={(e) => {
                           e.stopPropagation();
-                          setRelationshipType("child");
+                          setShowPersonForm(false);
                           setEditingPerson(null);
-                          setShowPersonForm(true);
+                          setRelationshipType("child");
+                          setTimeout(() => setShowPersonForm(true), 0);
                         }}
                         size="sm"
                         variant="ghost"
@@ -1460,9 +1462,10 @@ function App() {
                       <Button
                         onClick={(e) => {
                           e.stopPropagation();
-                          setRelationshipType("parent");
+                          setShowPersonForm(false);
                           setEditingPerson(null);
-                          setShowPersonForm(true);
+                          setRelationshipType("parent");
+                          setTimeout(() => setShowPersonForm(true), 0);
                         }}
                         size="sm"
                         variant="ghost"
@@ -1475,9 +1478,10 @@ function App() {
                       <Button
                         onClick={(e) => {
                           e.stopPropagation();
-                          setRelationshipType("sibling");
+                          setShowPersonForm(false);
                           setEditingPerson(null);
-                          setShowPersonForm(true);
+                          setRelationshipType("sibling");
+                          setTimeout(() => setShowPersonForm(true), 0);
                         }}
                         size="sm"
                         variant="ghost"
