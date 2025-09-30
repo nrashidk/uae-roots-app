@@ -1607,21 +1607,6 @@ function App() {
           {/* Bottom Toolbar */}
           <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2">
             <div className="bg-white rounded-lg shadow-lg border flex items-center gap-2 px-4 py-2">
-              {treePeople.length > 0 && (
-                <Button
-                  onClick={() => {
-                    setRelationshipType(null);
-                    setEditingPerson(null);
-                    setShowPersonForm(true);
-                  }}
-                  size="sm"
-                  className="arabic-text"
-                >
-                  <UserPlus className="w-4 h-4 ml-1" />
-                  {t.addPerson}
-                </Button>
-              )}
-
               <Button
                 onClick={() => setShowOptions(true)}
                 size="sm"
