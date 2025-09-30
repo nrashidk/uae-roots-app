@@ -1103,6 +1103,14 @@ function App() {
               </div>
             </div>
           </div>
+
+          {!currentTree && (
+            <div className="mt-8 text-center">
+              <Button onClick={createNewTree} size="lg" className="arabic-text">
+                {t.createNewTree}
+              </Button>
+            </div>
+          )}
         </div>
       </div>
     );
