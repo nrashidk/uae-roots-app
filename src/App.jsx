@@ -1554,14 +1554,11 @@ function App() {
                   // Drag-and-drop removed for auto-layout
                 >
                   <div className="h-full flex flex-col justify-center items-center text-center p-1">
-                    {displayOptions.showName && (
+                    {(displayOptions.showName || (displayOptions.showSurname && person.lastName)) && (
                       <div className="font-bold arabic-text mb-1" style={{ fontSize: `${stylingOptions.textSize * 1.2}px` }}>
-                        {person.firstName}
-                      </div>
-                    )}
-                    {displayOptions.showSurname && person.lastName && (
-                      <div className="arabic-text">
-                        {person.lastName}
+                        {displayOptions.showName && person.firstName}
+                        {displayOptions.showName && displayOptions.showSurname && person.lastName && " "}
+                        {displayOptions.showSurname && person.lastName}
                       </div>
                     )}
                     {displayOptions.showAge && person.birthDate && (
