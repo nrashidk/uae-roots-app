@@ -4,7 +4,7 @@ import {
   Heart,
   Baby,
   Users,
-  UserPlus,َ
+  UserPlus,
   Edit3,
   Trash2,
   X,
@@ -281,7 +281,7 @@ function App() {
     const verticalSpacing = 140;
     const horizontalSpacing = 180;
     const spouseSpacing = 20; // Small gap between spouses
-    
+
     Object.keys(genMap).forEach((g) => {
       const gen = parseInt(g);
       const row = genMap[gen];
@@ -298,10 +298,10 @@ function App() {
           // Position couple side by side
           person.x = currentX;
           person.y = 100 + gen * verticalSpacing;
-          
+
           spouse.x = currentX + CARD.w + spouseSpacing;
           spouse.y = 100 + gen * verticalSpacing;
-          
+
           processedIds.add(person.id);
           processedIds.add(spouseId);
           currentX += CARD.w * 2 + spouseSpacing + horizontalSpacing;
@@ -517,7 +517,7 @@ function App() {
       ? people.find((p) => p.id === selectedPerson)
       : null;
 
-    // Enforce spouse gender as female
+    // Keep spouse gender enforcement (as requested)
     let finalPersonData = { ...personData };
     if (relationshipType === "spouse") {
       finalPersonData.gender = "female";
@@ -1140,7 +1140,7 @@ function App() {
                     // Connect from right edge of left person to left edge of right person
                     const startX = p1.x + stylingOptions.boxWidth;
                     const endX = p2.x;
-                    
+
                     // Use the center Y coordinate of both boxes (should be same level)
                     const startY = p1.y + CARD.h / 2;
                     const endY = p2.y + CARD.h / 2;
