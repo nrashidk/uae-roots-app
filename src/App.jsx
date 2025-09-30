@@ -1841,13 +1841,13 @@ function App() {
 
                 <div className="flex flex-col xl:flex-row gap-10">
                   {/* Display Options - 3+3+3+2 Layout */}
-                  <div className="flex-1 border-r border-gray-200 pr-10">
+                  <div className="border-r border-gray-200 pr-10">
                     <h3 className="text-base font-medium text-gray-900 mb-4 arabic-text">
                       {t.displayOptions}
                     </h3>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-x-10 gap-y-4">
+                    <div className="flex flex-wrap gap-x-12 gap-y-4">
                       {/* Column 1 - 3 options */}
-                      <div className="space-y-4 min-w-[180px]">
+                      <div className="space-y-4 w-[190px]">
                         <label className="flex items-center gap-3 cursor-pointer">
                           <input
                             type="checkbox"
@@ -1899,7 +1899,7 @@ function App() {
                       </div>
 
                       {/* Column 2 - 3 options */}
-                      <div className="space-y-4 min-w-[180px]">
+                      <div className="space-y-4 w-[190px]">
                         <label className="flex items-center gap-3 cursor-pointer">
                           <input
                             type="checkbox"
@@ -1951,7 +1951,7 @@ function App() {
                       </div>
 
                       {/* Column 3 - 3 options */}
-                      <div className="space-y-4 min-w-[180px]">
+                      <div className="space-y-4 w-[190px]">
                         <label className="flex items-center gap-3 cursor-pointer">
                           <input
                             type="checkbox"
@@ -2003,7 +2003,7 @@ function App() {
                       </div>
 
                       {/* Column 4 - 2 options */}
-                      <div className="space-y-4 min-w-[180px]">
+                      <div className="space-y-4 w-[190px]">
                         <label className="flex items-center gap-3 cursor-pointer">
                           <input
                             type="checkbox"
