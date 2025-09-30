@@ -280,7 +280,7 @@ function App() {
     // Assign x/y positions for each generation with proper spouse positioning
     const verticalSpacing = 140;
     const horizontalSpacing = 180;
-    const spouseSpacing = 20; // Small gap between spouses
+    const spouseSpacing = 60; // Gap between spouses for visible connection line
 
     Object.keys(genMap).forEach((g) => {
       const gen = parseInt(g);
@@ -1135,28 +1135,33 @@ function App() {
                   .map((r, i) => {
                     const p1 = treePeople.find((p) => p.id === r.person1Id);
                     const p2 = treePeople.find((p) => p.id === r.person2Id);
+                    
                     if (!p1 || !p2) return null;
 
-                    // Connect from right edge of left person to left edge of right person
-                    const startX = p1.x + stylingOptions.boxWidth;
-                    const endX = p2.x;
+                    // Determine which person is on the left
+                    const leftPerson = p1.x < p2.x ? p1 : p2;
+                    const rightPerson = p1.x < p2.x ? p2 : p1;
 
-                    // Use the center Y coordinate of both boxes (should be same level)
-                    const startY = p1.y + CARD.h / 2;
-                    const endY = p2.y + CARD.h / 2;
+                    // Connect from right edge of left person to left edge of right person
+                    const startX = leftPerson.x + stylingOptions.boxWidth;
+                    const endX = rightPerson.x;
+
+                    // Use the center Y coordinate of both boxes
+                    const startY = leftPerson.y + CARD.h / 2;
+                    const endY = rightPerson.y + CARD.h / 2;
 
                     return (
                       <line
-                        key={i}
+                        key={`spouse-${i}`}
                         x1={startX}
                         y1={startY}
                         x2={endX}
                         y2={endY}
                         stroke="#dc2626"
-                        strokeWidth={6}
+                        strokeWidth={8}
                         strokeLinecap="round"
                         style={{
-                          filter: "drop-shadow(0px 1px 2px rgba(0,0,0,0.1))",
+                          filter: "drop-shadow(0px 2px 4px rgba(220, 38, 38, 0.3))",
                         }}
                       />
                     );
