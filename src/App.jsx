@@ -1600,12 +1600,6 @@ function App() {
                 <Settings className="w-4 h-4 ml-1" />
                 {t.options}
               </Button>
-
-              <span className="text-base text-gray-600 arabic-text px-2">
-                {treePeople.length} {t.familyStats} •{" "}
-                {relationships.filter((r) => r.treeId === currentTree?.id).length}{" "}
-                {t.relationshipStats}
-              </span>
             </div>
           </div>
         </div>
