@@ -1522,7 +1522,7 @@ function App() {
                 <div
                   key={person.id}
                   data-person-box
-                  className={`absolute border-2 rounded-lg p-3 cursor-pointer transition-all duration-200 ${
+                  className={`absolute border-2 rounded-lg p-3 cursor-pointer transition-all duration-200 select-none ${
                     selectedPerson === person.id
                       ? "border-green-500 shadow-lg"
                       : "border-gray-300 hover:border-gray-400"
@@ -1543,6 +1543,7 @@ function App() {
                       ? stylingOptions.livingTextColor
                       : stylingOptions.deceasedTextColor,
                     zIndex: 10,
+                    userSelect: "none",
                   }}
                   onClick={(e) => {
                     e.stopPropagation();
