@@ -118,6 +118,9 @@ function App() {
 
   // Canvas ref for viewport calculations
   const canvasRef = useRef(null);
+  
+  // Canvas dimensions for dynamic centering
+  const [canvasDimensions, setCanvasDimensions] = useState({ width: 1200, height: 800 });
 
   // Arabic translations - Complete Arabic interface
   const t = {
@@ -229,9 +232,23 @@ function App() {
     setCurrentView("dashboard");
   };
 
+  // Measure canvas dimensions for dynamic centering
+  useEffect(() => {
+    const updateDimensions = () => {
+      if (canvasRef.current) {
+        const rect = canvasRef.current.getBoundingClientRect();
+        setCanvasDimensions({ width: rect.width, height: rect.height });
+      }
+    };
+
+    updateDimensions();
+    window.addEventListener('resize', updateDimensions);
+    return () => window.removeEventListener('resize', updateDimensions);
+  }, [currentView]);
+
   // --- AUTO-LAYOUT LOGIC ---
   // Compute generations and assign x/y positions for all people in the current tree
-  const computeTreeLayout = (people, relationships) => {
+  const computeTreeLayout = (people, relationships, viewportWidth = 1200) => {
     // Build maps for quick lookup
     const idToPerson = Object.fromEntries(people.map((p) => [p.id, { ...p }]));
     const childrenMap = {};
@@ -305,8 +322,9 @@ function App() {
         }
       });
       
-      // Center the generation (for typical viewport ~1400px wide)
-      let currentX = 650;
+      // Center the generation dynamically based on viewport width
+      const padding = 50; // Minimum padding from edge
+      let currentX = Math.max(padding, (viewportWidth - totalWidth) / 2);
 
       row.forEach((person) => {
         if (processedIds.has(person.id)) return;
@@ -343,6 +361,7 @@ function App() {
   const treePeople = computeTreeLayout(
     people.filter((p) => p.treeId === currentTree?.id),
     relationships.filter((r) => r.treeId === currentTree?.id),
+    canvasDimensions.width
   );
   // --- END AUTO-LAYOUT LOGIC ---
 
