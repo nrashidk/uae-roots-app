@@ -659,7 +659,21 @@ function App() {
   // Delete person
   const deletePerson = (personId) => {
     if (window.confirm(t.deleteConfirm)) {
-      setPeople((prev) => prev.filter((p) => p.id !== personId));
+      setPeople((prev) => {
+        const updatedPeople = prev.filter((p) => p.id !== personId);
+        
+        // If tree becomes empty after deletion, close the form
+        const remainingInTree = updatedPeople.filter(
+          (p) => p.treeId === currentTree?.id
+        );
+        if (remainingInTree.length === 0) {
+          setShowPersonForm(false);
+          setEditingPerson(null);
+          setRelationshipType(null);
+        }
+        
+        return updatedPeople;
+      });
       setRelationships((prev) =>
         prev.filter(
           (r) =>
