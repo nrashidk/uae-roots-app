@@ -1080,54 +1080,46 @@ function App() {
             </h1>
           </div>
 
-          <div className="flex items-center gap-4">
-            <span className="text-base text-gray-600 arabic-text">
-              {treePeople.length} {t.familyStats} •{" "}
-              {relationships.filter((r) => r.treeId === currentTree?.id).length}{" "}
-              {t.relationshipStats}
-            </span>
-            
-            <div className="flex items-center gap-2">
-              <Button
-                onClick={handlePrint}
-                size="sm"
-                variant="outline"
-                className="arabic-text"
-              >
-                <Printer className="w-4 h-4 ml-1" />
-                {t.print}
-              </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              onClick={handlePrint}
+              size="sm"
+              variant="outline"
+              className="arabic-text"
+            >
+              <Printer className="w-4 h-4 ml-1" />
+              {t.print}
+            </Button>
 
-              <Button
-                onClick={() => setShowDownloadModal(true)}
-                size="sm"
-                variant="outline"
-                className="arabic-text"
-              >
-                <Download className="w-4 h-4 ml-1" />
-                {t.download}
-              </Button>
+            <Button
+              onClick={() => setShowDownloadModal(true)}
+              size="sm"
+              variant="outline"
+              className="arabic-text"
+            >
+              <Download className="w-4 h-4 ml-1" />
+              {t.download}
+            </Button>
 
-              <Button
-                onClick={handleShare}
-                size="sm"
-                variant="outline"
-                className="arabic-text"
-              >
-                <Share className="w-4 h-4 ml-1" />
-                {t.share}
-              </Button>
+            <Button
+              onClick={handleShare}
+              size="sm"
+              variant="outline"
+              className="arabic-text"
+            >
+              <Share className="w-4 h-4 ml-1" />
+              {t.share}
+            </Button>
 
-              <Button
-                onClick={handleCalendar}
-                size="sm"
-                variant="outline"
-                className="arabic-text"
-              >
-                <Calendar className="w-4 h-4 ml-1" />
-                {t.calendar}
-              </Button>
-            </div>
+            <Button
+              onClick={handleCalendar}
+              size="sm"
+              variant="outline"
+              className="arabic-text"
+            >
+              <Calendar className="w-4 h-4 ml-1" />
+              {t.calendar}
+            </Button>
           </div>
         </div>
 
@@ -1589,6 +1581,12 @@ function App() {
                 <Settings className="w-4 h-4 ml-1" />
                 {t.options}
               </Button>
+
+              <span className="text-base text-gray-600 arabic-text px-2">
+                {treePeople.length} {t.familyStats} •{" "}
+                {relationships.filter((r) => r.treeId === currentTree?.id).length}{" "}
+                {t.relationshipStats}
+              </span>
             </div>
           </div>
         </div>
