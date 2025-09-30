@@ -305,8 +305,8 @@ function App() {
         }
       });
       
-      // Center the generation (assuming typical viewport width, adjust for centering)
-      let currentX = 600 - totalWidth / 2;
+      // Center the generation (for typical viewport ~1400px wide)
+      let currentX = 650;
 
       row.forEach((person) => {
         if (processedIds.has(person.id)) return;
