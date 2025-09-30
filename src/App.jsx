@@ -59,16 +59,15 @@ function App() {
     showSurname: true,
     showBirthDate: false,
     showBirthPlace: false,
+    showAge: false,
     showDeathDate: false,
-    showProfession: false,
     
-    // Contact and Additional (6 options - Column 2)
+    // Contact and Work (5 options - Column 2)
+    showProfession: false,
+    showCompany: false,
     showEmail: false,
     showTelephone: false,
     showAddress: false,
-    showCompany: false,
-    showNickname: false,
-    showPhoto: false,
   });
 
   // Enhanced Styling Options
@@ -201,30 +200,18 @@ function App() {
       "للعرض في معالجات النصوص مثل المفكرة و Word، أو الإرسال بالبريد الإلكتروني.",
     downloadBtn: "تنزيل",
     done: "تم",
-    // Display options translations
+    // Display options translations (11 working options only)
     showName: "إظهار الاسم",
     showSurname: "إظهار اسم العائلة",
-    showNickname: "إظهار اللقب",
-    showPhoto: "إظهار الصورة",
-    showAge: "إظهار العمر",
-    showLifeYears: "إظهار سنوات الحياة",
     showBirthDate: "إظهار تاريخ الميلاد",
     showBirthPlace: "إظهار مكان الميلاد",
-    showMarriageDate: "إظهار تاريخ الزواج",
-    showMarriagePlace: "إظهار مكان الزواج",
-    showDivorceDate: "إظهار تاريخ الطلاق",
+    showAge: "إظهار العمر",
     showDeathDate: "إظهار تاريخ الوفاة",
-    showDeathPlace: "إظهار مكان الوفاة",
-    showDeathCause: "إظهار سبب الوفاة",
-    showBurialDate: "إظهار تاريخ الدفن",
-    showBurialPlace: "إظهار مكان الدفن",
+    showProfession: "إظهار المهنة",
+    showCompany: "إظهار الشركة",
     showEmail: "إظهار البريد الإلكتروني",
     showTelephone: "إظهار الهاتف",
     showAddress: "إظهار العنوان",
-    showProfession: "إظهار المهنة",
-    showCompany: "إظهار الشركة",
-    showInterests: "إظهار الاهتمامات",
-    showActivities: "إظهار الأنشطة",
     // Lineage view translations
     familyLineage: "نسب العائلة",
     theFather: "الأب",
@@ -244,6 +231,23 @@ function App() {
   const handleUAEMobileAuth = () => {
     setIsAuthenticated(true);
     setCurrentView("dashboard");
+  };
+
+  // Calculate age from birth date
+  const calculateAge = (birthDate, deathDate = null) => {
+    if (!birthDate) return null;
+    
+    const birth = new Date(birthDate);
+    const today = deathDate ? new Date(deathDate) : new Date();
+    
+    let age = today.getFullYear() - birth.getFullYear();
+    const monthDiff = today.getMonth() - birth.getMonth();
+    
+    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birth.getDate())) {
+      age--;
+    }
+    
+    return age;
   };
 
   // Measure canvas dimensions for dynamic centering
@@ -1560,13 +1564,36 @@ function App() {
                         {person.lastName}
                       </div>
                     )}
+                    {displayOptions.showAge && person.birthDate && (
+                      <div className="text-sm">
+                        {calculateAge(person.birthDate, person.deathDate)} سنة
+                      </div>
+                    )}
                     {displayOptions.showBirthDate && person.birthDate && (
                       <div className="text-sm">{person.birthDate}</div>
+                    )}
+                    {displayOptions.showBirthPlace && person.birthPlace && (
+                      <div className="text-sm arabic-text">{person.birthPlace}</div>
+                    )}
+                    {displayOptions.showDeathDate && person.deathDate && (
+                      <div className="text-sm">{person.deathDate}</div>
                     )}
                     {displayOptions.showProfession && person.profession && (
                       <div className="text-sm arabic-text">
                         {person.profession}
                       </div>
+                    )}
+                    {displayOptions.showCompany && person.company && (
+                      <div className="text-sm arabic-text">{person.company}</div>
+                    )}
+                    {displayOptions.showEmail && person.email && (
+                      <div className="text-sm">{person.email}</div>
+                    )}
+                    {displayOptions.showTelephone && person.phone && (
+                      <div className="text-sm">{person.phone}</div>
+                    )}
+                    {displayOptions.showAddress && person.address && (
+                      <div className="text-sm arabic-text">{person.address}</div>
                     )}
                   </div>
                 </div>
