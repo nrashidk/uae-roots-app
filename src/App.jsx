@@ -1840,208 +1840,252 @@ function App() {
                 </div>
 
                 <div className="flex flex-col xl:flex-row gap-10">
-                  {/* Display Options - 3+3+3+2 Layout */}
-                  <div className="border-r border-gray-200 pr-10">
+                  {/* Display Options - First List (6 options) */}
+                  <div className="min-w-[220px] border-r border-gray-200 pr-10">
                     <h3 className="text-base font-medium text-gray-900 mb-4 arabic-text">
                       {t.displayOptions}
                     </h3>
-                    <div className="flex flex-wrap gap-x-12 gap-y-4">
-                      {/* Column 1 - 3 options */}
-                      <div className="space-y-4 w-[190px]">
-                        <label className="flex items-center gap-3 cursor-pointer">
-                          <input
-                            type="checkbox"
-                            checked={displayOptions.showName}
-                            onChange={(e) =>
-                              setDisplayOptions((prev) => ({
-                                ...prev,
-                                showName: e.target.checked,
-                              }))
-                            }
-                            className="rounded w-4 h-4 flex-shrink-0"
-                          />
-                          <span className="text-sm text-gray-700 arabic-text whitespace-nowrap">
-                            {t.showName}
-                          </span>
-                        </label>
-                        <label className="flex items-center gap-3 cursor-pointer">
-                          <input
-                            type="checkbox"
-                            checked={displayOptions.showSurname}
-                            onChange={(e) =>
-                              setDisplayOptions((prev) => ({
-                                ...prev,
-                                showSurname: e.target.checked,
-                              }))
-                            }
-                            className="rounded w-4 h-4 flex-shrink-0"
-                          />
-                          <span className="text-sm text-gray-700 arabic-text whitespace-nowrap">
-                            {t.showSurname}
-                          </span>
-                        </label>
-                        <label className="flex items-center gap-3 cursor-pointer">
-                          <input
-                            type="checkbox"
-                            checked={displayOptions.showBirthDate}
-                            onChange={(e) =>
-                              setDisplayOptions((prev) => ({
-                                ...prev,
-                                showBirthDate: e.target.checked,
-                              }))
-                            }
-                            className="rounded w-4 h-4 flex-shrink-0"
-                          />
-                          <span className="text-sm text-gray-700 arabic-text whitespace-nowrap">
-                            {t.showBirthDate}
-                          </span>
-                        </label>
-                      </div>
-
-                      {/* Column 2 - 3 options */}
-                      <div className="space-y-4 w-[190px]">
-                        <label className="flex items-center gap-3 cursor-pointer">
-                          <input
-                            type="checkbox"
-                            checked={displayOptions.showBirthPlace}
-                            onChange={(e) =>
-                              setDisplayOptions((prev) => ({
-                                ...prev,
-                                showBirthPlace: e.target.checked,
-                              }))
-                            }
-                            className="rounded w-4 h-4 flex-shrink-0"
-                          />
-                          <span className="text-sm text-gray-700 arabic-text whitespace-nowrap">
-                            {t.showBirthPlace}
-                          </span>
-                        </label>
-                        <label className="flex items-center gap-3 cursor-pointer">
-                          <input
-                            type="checkbox"
-                            checked={displayOptions.showAge}
-                            onChange={(e) =>
-                              setDisplayOptions((prev) => ({
-                                ...prev,
-                                showAge: e.target.checked,
-                              }))
-                            }
-                            className="rounded w-4 h-4 flex-shrink-0"
-                          />
-                          <span className="text-sm text-gray-700 arabic-text whitespace-nowrap">
-                            {t.showAge}
-                          </span>
-                        </label>
-                        <label className="flex items-center gap-3 cursor-pointer">
-                          <input
-                            type="checkbox"
-                            checked={displayOptions.showDeathDate}
-                            onChange={(e) =>
-                              setDisplayOptions((prev) => ({
-                                ...prev,
-                                showDeathDate: e.target.checked,
-                              }))
-                            }
-                            className="rounded w-4 h-4 flex-shrink-0"
-                          />
-                          <span className="text-sm text-gray-700 arabic-text whitespace-nowrap">
-                            {t.showDeathDate}
-                          </span>
-                        </label>
-                      </div>
-
-                      {/* Column 3 - 3 options */}
-                      <div className="space-y-4 w-[190px]">
-                        <label className="flex items-center gap-3 cursor-pointer">
-                          <input
-                            type="checkbox"
-                            checked={displayOptions.showProfession}
-                            onChange={(e) =>
-                              setDisplayOptions((prev) => ({
-                                ...prev,
-                                showProfession: e.target.checked,
-                              }))
-                            }
-                            className="rounded w-4 h-4 flex-shrink-0"
-                          />
-                          <span className="text-sm text-gray-700 arabic-text whitespace-nowrap">
-                            {t.showProfession}
-                          </span>
-                        </label>
-                        <label className="flex items-center gap-3 cursor-pointer">
-                          <input
-                            type="checkbox"
-                            checked={displayOptions.showCompany}
-                            onChange={(e) =>
-                              setDisplayOptions((prev) => ({
-                                ...prev,
-                                showCompany: e.target.checked,
-                              }))
-                            }
-                            className="rounded w-4 h-4 flex-shrink-0"
-                          />
-                          <span className="text-sm text-gray-700 arabic-text whitespace-nowrap">
-                            {t.showCompany}
-                          </span>
-                        </label>
-                        <label className="flex items-center gap-3 cursor-pointer">
-                          <input
-                            type="checkbox"
-                            checked={displayOptions.showEmail}
-                            onChange={(e) =>
-                              setDisplayOptions((prev) => ({
-                                ...prev,
-                                showEmail: e.target.checked,
-                              }))
-                            }
-                            className="rounded w-4 h-4 flex-shrink-0"
-                          />
-                          <span className="text-sm text-gray-700 arabic-text whitespace-nowrap">
-                            {t.showEmail}
-                          </span>
-                        </label>
-                      </div>
-
-                      {/* Column 4 - 2 options */}
-                      <div className="space-y-4 w-[190px]">
-                        <label className="flex items-center gap-3 cursor-pointer">
-                          <input
-                            type="checkbox"
-                            checked={displayOptions.showTelephone}
-                            onChange={(e) =>
-                              setDisplayOptions((prev) => ({
-                                ...prev,
-                                showTelephone: e.target.checked,
-                              }))
-                            }
-                            className="rounded w-4 h-4 flex-shrink-0"
-                          />
-                          <span className="text-sm text-gray-700 arabic-text whitespace-nowrap">
-                            {t.showTelephone}
-                          </span>
-                        </label>
-                        <label className="flex items-center gap-3 cursor-pointer">
-                          <input
-                            type="checkbox"
-                            checked={displayOptions.showAddress}
-                            onChange={(e) =>
-                              setDisplayOptions((prev) => ({
-                                ...prev,
-                                showAddress: e.target.checked,
-                              }))
-                            }
-                            className="rounded w-4 h-4 flex-shrink-0"
-                          />
-                          <span className="text-sm text-gray-700 arabic-text whitespace-nowrap">
-                            {t.showAddress}
-                          </span>
-                        </label>
-                      </div>
+                    <div className="space-y-4">
+                      <label className="flex items-center gap-3 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={displayOptions.showName}
+                          onChange={(e) =>
+                            setDisplayOptions((prev) => ({
+                              ...prev,
+                              showName: e.target.checked,
+                            }))
+                          }
+                          className="rounded w-4 h-4 flex-shrink-0"
+                        />
+                        <span className="text-sm text-gray-700 arabic-text whitespace-nowrap">
+                          {t.showName}
+                        </span>
+                      </label>
+                      <label className="flex items-center gap-3 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={displayOptions.showSurname}
+                          onChange={(e) =>
+                            setDisplayOptions((prev) => ({
+                              ...prev,
+                              showSurname: e.target.checked,
+                            }))
+                          }
+                          className="rounded w-4 h-4 flex-shrink-0"
+                        />
+                        <span className="text-sm text-gray-700 arabic-text whitespace-nowrap">
+                          {t.showSurname}
+                        </span>
+                      </label>
+                      <label className="flex items-center gap-3 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={displayOptions.showBirthDate}
+                          onChange={(e) =>
+                            setDisplayOptions((prev) => ({
+                              ...prev,
+                              showBirthDate: e.target.checked,
+                            }))
+                          }
+                          className="rounded w-4 h-4 flex-shrink-0"
+                        />
+                        <span className="text-sm text-gray-700 arabic-text whitespace-nowrap">
+                          {t.showBirthDate}
+                        </span>
+                      </label>
+                      <label className="flex items-center gap-3 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={displayOptions.showBirthPlace}
+                          onChange={(e) =>
+                            setDisplayOptions((prev) => ({
+                              ...prev,
+                              showBirthPlace: e.target.checked,
+                            }))
+                          }
+                          className="rounded w-4 h-4 flex-shrink-0"
+                        />
+                        <span className="text-sm text-gray-700 arabic-text whitespace-nowrap">
+                          {t.showBirthPlace}
+                        </span>
+                      </label>
+                      <label className="flex items-center gap-3 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={displayOptions.showAge}
+                          onChange={(e) =>
+                            setDisplayOptions((prev) => ({
+                              ...prev,
+                              showAge: e.target.checked,
+                            }))
+                          }
+                          className="rounded w-4 h-4 flex-shrink-0"
+                        />
+                        <span className="text-sm text-gray-700 arabic-text whitespace-nowrap">
+                          {t.showAge}
+                        </span>
+                      </label>
+                      <label className="flex items-center gap-3 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={displayOptions.showDeathDate}
+                          onChange={(e) =>
+                            setDisplayOptions((prev) => ({
+                              ...prev,
+                              showDeathDate: e.target.checked,
+                            }))
+                          }
+                          className="rounded w-4 h-4 flex-shrink-0"
+                        />
+                        <span className="text-sm text-gray-700 arabic-text whitespace-nowrap">
+                          {t.showDeathDate}
+                        </span>
+                      </label>
                     </div>
                   </div>
 
-                  {/* Color Options */}
-                  <div className="min-w-[240px] border-r border-gray-200 pr-8">
+                  {/* Display Options - Second List (5 options) */}
+                  <div className="min-w-[220px] border-r border-gray-200 pr-10">
+                    <h3 className="text-base font-medium text-gray-900 mb-4 arabic-text">
+                      {t.displayOptions}
+                    </h3>
+                    <div className="space-y-4">
+                      <label className="flex items-center gap-3 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={displayOptions.showProfession}
+                          onChange={(e) =>
+                            setDisplayOptions((prev) => ({
+                              ...prev,
+                              showProfession: e.target.checked,
+                            }))
+                          }
+                          className="rounded w-4 h-4 flex-shrink-0"
+                        />
+                        <span className="text-sm text-gray-700 arabic-text whitespace-nowrap">
+                          {t.showProfession}
+                        </span>
+                      </label>
+                      <label className="flex items-center gap-3 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={displayOptions.showCompany}
+                          onChange={(e) =>
+                            setDisplayOptions((prev) => ({
+                              ...prev,
+                              showCompany: e.target.checked,
+                            }))
+                          }
+                          className="rounded w-4 h-4 flex-shrink-0"
+                        />
+                        <span className="text-sm text-gray-700 arabic-text whitespace-nowrap">
+                          {t.showCompany}
+                        </span>
+                      </label>
+                      <label className="flex items-center gap-3 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={displayOptions.showEmail}
+                          onChange={(e) =>
+                            setDisplayOptions((prev) => ({
+                              ...prev,
+                              showEmail: e.target.checked,
+                            }))
+                          }
+                          className="rounded w-4 h-4 flex-shrink-0"
+                        />
+                        <span className="text-sm text-gray-700 arabic-text whitespace-nowrap">
+                          {t.showEmail}
+                        </span>
+                      </label>
+                      <label className="flex items-center gap-3 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={displayOptions.showTelephone}
+                          onChange={(e) =>
+                            setDisplayOptions((prev) => ({
+                              ...prev,
+                              showTelephone: e.target.checked,
+                            }))
+                          }
+                          className="rounded w-4 h-4 flex-shrink-0"
+                        />
+                        <span className="text-sm text-gray-700 arabic-text whitespace-nowrap">
+                          {t.showTelephone}
+                        </span>
+                      </label>
+                      <label className="flex items-center gap-3 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={displayOptions.showAddress}
+                          onChange={(e) =>
+                            setDisplayOptions((prev) => ({
+                              ...prev,
+                              showAddress: e.target.checked,
+                            }))
+                          }
+                          className="rounded w-4 h-4 flex-shrink-0"
+                        />
+                        <span className="text-sm text-gray-700 arabic-text whitespace-nowrap">
+                          {t.showAddress}
+                        </span>
+                      </label>
+                    </div>
+                  </div>
+
+                  {/* Size Sliders and Colors */}
+                  <div className="min-w-[260px]">
+                    <h3 className="text-base font-medium text-gray-900 mb-4 arabic-text">
+                      الأحجام
+                    </h3>
+                    <div className="space-y-4 mb-8">
+                      <div className="flex items-center gap-4">
+                        <label className="text-sm text-gray-700 arabic-text min-w-[90px]">
+                          {t.boxWidth}
+                        </label>
+                        <input
+                          type="range"
+                          min="100"
+                          max="200"
+                          value={stylingOptions.boxWidth}
+                          onChange={(e) =>
+                            setStylingOptions((prev) => ({
+                              ...prev,
+                              boxWidth: parseInt(e.target.value),
+                            }))
+                          }
+                          className="flex-1"
+                        />
+                        <span className="text-sm text-gray-600 min-w-[45px] text-center">
+                          {stylingOptions.boxWidth}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center gap-4">
+                        <label className="text-sm text-gray-700 arabic-text min-w-[90px]">
+                          {t.textSize}
+                        </label>
+                        <input
+                          type="range"
+                          min="10"
+                          max="20"
+                          value={stylingOptions.textSize}
+                          onChange={(e) =>
+                            setStylingOptions((prev) => ({
+                              ...prev,
+                              textSize: parseInt(e.target.value),
+                            }))
+                          }
+                          className="flex-1"
+                        />
+                        <span className="text-sm text-gray-600 min-w-[45px] text-center">
+                          {stylingOptions.textSize}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Color Options Below Sizes */}
                     <h3 className="text-base font-medium text-gray-900 mb-4 arabic-text">
                       الألوان
                     </h3>
@@ -2095,58 +2139,6 @@ function App() {
                           }
                           className="w-12 h-10 rounded border cursor-pointer"
                         />
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Size Sliders */}
-                  <div className="min-w-[260px]">
-                    <h3 className="text-base font-medium text-gray-900 mb-4 arabic-text">
-                      الأحجام
-                    </h3>
-                    <div className="space-y-4">
-                      <div className="flex items-center gap-4">
-                        <label className="text-sm text-gray-700 arabic-text min-w-[90px]">
-                          {t.boxWidth}
-                        </label>
-                        <input
-                          type="range"
-                          min="100"
-                          max="200"
-                          value={stylingOptions.boxWidth}
-                          onChange={(e) =>
-                            setStylingOptions((prev) => ({
-                              ...prev,
-                              boxWidth: parseInt(e.target.value),
-                            }))
-                          }
-                          className="flex-1"
-                        />
-                        <span className="text-sm text-gray-600 min-w-[45px] text-center">
-                          {stylingOptions.boxWidth}
-                        </span>
-                      </div>
-
-                      <div className="flex items-center gap-4">
-                        <label className="text-sm text-gray-700 arabic-text min-w-[90px]">
-                          {t.textSize}
-                        </label>
-                        <input
-                          type="range"
-                          min="10"
-                          max="20"
-                          value={stylingOptions.textSize}
-                          onChange={(e) =>
-                            setStylingOptions((prev) => ({
-                              ...prev,
-                              textSize: parseInt(e.target.value),
-                            }))
-                          }
-                          className="flex-1"
-                        />
-                        <span className="text-sm text-gray-600 min-w-[45px] text-center">
-                          {stylingOptions.textSize}
-                        </span>
                       </div>
                     </div>
                   </div>
