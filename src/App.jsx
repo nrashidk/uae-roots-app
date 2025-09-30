@@ -286,7 +286,27 @@ function App() {
       const gen = parseInt(g);
       const row = genMap[gen];
       const processedIds = new Set();
-      let currentX = 100;
+      
+      // Calculate total width needed for this generation
+      let totalWidth = 0;
+      const tempProcessed = new Set();
+      row.forEach((person) => {
+        if (tempProcessed.has(person.id)) return;
+        const spouseId = spouseMap[person.id];
+        const spouse = spouseId ? idToPerson[spouseId] : null;
+        
+        if (spouse && !tempProcessed.has(spouseId)) {
+          totalWidth += CARD.w * 2 + spouseSpacing + horizontalSpacing;
+          tempProcessed.add(person.id);
+          tempProcessed.add(spouseId);
+        } else if (!tempProcessed.has(person.id)) {
+          totalWidth += CARD.w + horizontalSpacing;
+          tempProcessed.add(person.id);
+        }
+      });
+      
+      // Center the generation (assuming viewport width ~1200px, adjust for centering)
+      let currentX = 400 - totalWidth / 2;
 
       row.forEach((person) => {
         if (processedIds.has(person.id)) return;
