@@ -1555,45 +1555,45 @@ function App() {
                 >
                   <div className="h-full flex flex-col justify-center items-center text-center p-1">
                     {displayOptions.showName && (
-                      <div className="font-bold arabic-text text-lg mb-1">
+                      <div className="font-bold arabic-text mb-1" style={{ fontSize: `${stylingOptions.textSize * 1.2}px` }}>
                         {person.firstName}
                       </div>
                     )}
                     {displayOptions.showSurname && person.lastName && (
-                      <div className="text-base arabic-text">
+                      <div className="arabic-text">
                         {person.lastName}
                       </div>
                     )}
                     {displayOptions.showAge && person.birthDate && (
-                      <div className="text-sm">
+                      <div style={{ fontSize: `${stylingOptions.textSize * 0.9}px` }}>
                         {calculateAge(person.birthDate, person.deathDate)} سنة
                       </div>
                     )}
                     {displayOptions.showBirthDate && person.birthDate && (
-                      <div className="text-sm">{person.birthDate}</div>
+                      <div style={{ fontSize: `${stylingOptions.textSize * 0.9}px` }}>{person.birthDate}</div>
                     )}
                     {displayOptions.showBirthPlace && person.birthPlace && (
-                      <div className="text-sm arabic-text">{person.birthPlace}</div>
+                      <div className="arabic-text" style={{ fontSize: `${stylingOptions.textSize * 0.9}px` }}>{person.birthPlace}</div>
                     )}
                     {displayOptions.showDeathDate && person.deathDate && (
-                      <div className="text-sm">{person.deathDate}</div>
+                      <div style={{ fontSize: `${stylingOptions.textSize * 0.9}px` }}>{person.deathDate}</div>
                     )}
                     {displayOptions.showProfession && person.profession && (
-                      <div className="text-sm arabic-text">
+                      <div className="arabic-text" style={{ fontSize: `${stylingOptions.textSize * 0.9}px` }}>
                         {person.profession}
                       </div>
                     )}
                     {displayOptions.showCompany && person.company && (
-                      <div className="text-sm arabic-text">{person.company}</div>
+                      <div className="arabic-text" style={{ fontSize: `${stylingOptions.textSize * 0.9}px` }}>{person.company}</div>
                     )}
                     {displayOptions.showEmail && person.email && (
-                      <div className="text-sm">{person.email}</div>
+                      <div style={{ fontSize: `${stylingOptions.textSize * 0.9}px` }}>{person.email}</div>
                     )}
                     {displayOptions.showTelephone && person.phone && (
-                      <div className="text-sm">{person.phone}</div>
+                      <div style={{ fontSize: `${stylingOptions.textSize * 0.9}px` }}>{person.phone}</div>
                     )}
                     {displayOptions.showAddress && person.address && (
-                      <div className="text-sm arabic-text">{person.address}</div>
+                      <div className="arabic-text" style={{ fontSize: `${stylingOptions.textSize * 0.9}px` }}>{person.address}</div>
                     )}
                   </div>
                 </div>
@@ -2044,8 +2044,8 @@ function App() {
                       الأحجام
                     </h3>
                     <div className="space-y-4 mb-8">
-                      <div className="flex items-center gap-4">
-                        <label className="text-sm text-gray-700 arabic-text min-w-[90px]">
+                      <div className="flex items-center gap-2">
+                        <label className="text-sm text-gray-700 arabic-text min-w-[110px]">
                           {t.boxWidth}
                         </label>
                         <input
@@ -2059,15 +2059,28 @@ function App() {
                               boxWidth: parseInt(e.target.value),
                             }))
                           }
-                          className="flex-1"
+                          className="w-16"
                         />
-                        <span className="text-sm text-gray-600 min-w-[45px] text-center">
+                        <span className="text-sm text-gray-600 min-w-[30px] text-center">
                           {stylingOptions.boxWidth}
                         </span>
+                        <Button
+                          onClick={() =>
+                            setStylingOptions((prev) => ({
+                              ...prev,
+                              boxWidth: 140,
+                            }))
+                          }
+                          size="sm"
+                          variant="ghost"
+                          className="w-8 h-8 p-0"
+                        >
+                          <RotateCcw className="w-3 h-3" />
+                        </Button>
                       </div>
 
-                      <div className="flex items-center gap-4">
-                        <label className="text-sm text-gray-700 arabic-text min-w-[90px]">
+                      <div className="flex items-center gap-2">
+                        <label className="text-sm text-gray-700 arabic-text min-w-[110px]">
                           {t.textSize}
                         </label>
                         <input
@@ -2081,11 +2094,24 @@ function App() {
                               textSize: parseInt(e.target.value),
                             }))
                           }
-                          className="flex-1"
+                          className="w-16"
                         />
-                        <span className="text-sm text-gray-600 min-w-[45px] text-center">
+                        <span className="text-sm text-gray-600 min-w-[30px] text-center">
                           {stylingOptions.textSize}
                         </span>
+                        <Button
+                          onClick={() =>
+                            setStylingOptions((prev) => ({
+                              ...prev,
+                              textSize: 14,
+                            }))
+                          }
+                          size="sm"
+                          variant="ghost"
+                          className="w-8 h-8 p-0"
+                        >
+                          <RotateCcw className="w-3 h-3" />
+                        </Button>
                       </div>
                     </div>
 
@@ -2094,7 +2120,7 @@ function App() {
                       الألوان
                     </h3>
                     <div className="space-y-4">
-                      <div className="flex items-center gap-4">
+                      <div className="flex items-center gap-2">
                         <label className="text-sm text-gray-700 arabic-text min-w-[110px]">
                           {t.maleBoxColor}
                         </label>
@@ -2109,9 +2135,22 @@ function App() {
                           }
                           className="w-12 h-10 rounded border cursor-pointer"
                         />
+                        <Button
+                          onClick={() =>
+                            setStylingOptions((prev) => ({
+                              ...prev,
+                              maleBoxColor: "#bfdbfe",
+                            }))
+                          }
+                          size="sm"
+                          variant="ghost"
+                          className="w-8 h-8 p-0"
+                        >
+                          <RotateCcw className="w-3 h-3" />
+                        </Button>
                       </div>
 
-                      <div className="flex items-center gap-4">
+                      <div className="flex items-center gap-2">
                         <label className="text-sm text-gray-700 arabic-text min-w-[110px]">
                           {t.femaleBoxColor}
                         </label>
@@ -2126,9 +2165,22 @@ function App() {
                           }
                           className="w-12 h-10 rounded border cursor-pointer"
                         />
+                        <Button
+                          onClick={() =>
+                            setStylingOptions((prev) => ({
+                              ...prev,
+                              femaleBoxColor: "#fce7f3",
+                            }))
+                          }
+                          size="sm"
+                          variant="ghost"
+                          className="w-8 h-8 p-0"
+                        >
+                          <RotateCcw className="w-3 h-3" />
+                        </Button>
                       </div>
 
-                      <div className="flex items-center gap-4">
+                      <div className="flex items-center gap-2">
                         <label className="text-sm text-gray-700 arabic-text min-w-[110px]">
                           {t.backgroundColor}
                         </label>
@@ -2143,6 +2195,19 @@ function App() {
                           }
                           className="w-12 h-10 rounded border cursor-pointer"
                         />
+                        <Button
+                          onClick={() =>
+                            setStylingOptions((prev) => ({
+                              ...prev,
+                              backgroundColor: "#f8fafc",
+                            }))
+                          }
+                          size="sm"
+                          variant="ghost"
+                          className="w-8 h-8 p-0"
+                        >
+                          <RotateCcw className="w-3 h-3" />
+                        </Button>
                       </div>
                     </div>
                   </div>
