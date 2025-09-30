@@ -2071,6 +2071,58 @@ function PersonForm({
     setFormData((prev) => ({ ...prev, [field]: value }));
   };
 
+  // Update form data when person changes
+  useEffect(() => {
+    if (person) {
+      setFormData({
+        firstName: person.firstName || "",
+        lastName: person.lastName || "",
+        gender: person.gender || "",
+        birthDate: person.birthDate || "",
+        birthPlace: person.birthPlace || "",
+        isLiving: person.isLiving !== false,
+        deathDate: person.deathDate || "",
+        phone: person.phone || "",
+        email: person.email || "",
+        address: person.address || "",
+        profession: person.profession || "",
+        biography: person.biography || "",
+      });
+    } else if (relationshipType === "spouse" && anchorPerson) {
+      // Auto-set opposite gender for spouse
+      setFormData({
+        firstName: "",
+        lastName: "",
+        gender: anchorPerson.gender === "male" ? "female" : "male",
+        birthDate: "",
+        birthPlace: "",
+        isLiving: true,
+        deathDate: "",
+        phone: "",
+        email: "",
+        address: "",
+        profession: "",
+        biography: "",
+      });
+    } else {
+      // Reset form for new person
+      setFormData({
+        firstName: "",
+        lastName: "",
+        gender: "",
+        birthDate: "",
+        birthPlace: "",
+        isLiving: true,
+        deathDate: "",
+        phone: "",
+        email: "",
+        address: "",
+        profession: "",
+        biography: "",
+      });
+    }
+  }, [person, relationshipType, anchorPerson]);
+
   const tabs = [
     { id: "personal", label: t.personal, icon: "👤" },
     { id: "contact", label: t.contact, icon: "📞" },
