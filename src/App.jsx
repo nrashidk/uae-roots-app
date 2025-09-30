@@ -1346,6 +1346,9 @@ function App() {
                   onClick={(e) => {
                     e.stopPropagation();
                     setSelectedPerson(person.id);
+                    setEditingPerson(person.id);
+                    setRelationshipType(null);
+                    setShowPersonForm(true);
                   }}
                   // Drag-and-drop removed for auto-layout
                 >
