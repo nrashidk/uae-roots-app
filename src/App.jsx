@@ -1732,9 +1732,13 @@ function App() {
             <Button onClick={zoomIn} size="sm" className="w-10 h-10 p-0">
               <ZoomIn className="w-4 h-4" />
             </Button>
-            <div className="bg-white px-3 py-2 rounded text-base font-bold text-center">
+            <Button
+              size="sm"
+              variant="outline"
+              className="w-10 h-10 p-0 text-base font-bold flex items-center justify-center"
+            >
               {Math.round(zoom * 100)}%
-            </div>
+            </Button>
             <Button onClick={zoomOut} size="sm" className="w-10 h-10 p-0">
               <ZoomOut className="w-4 h-4" />
             </Button>
