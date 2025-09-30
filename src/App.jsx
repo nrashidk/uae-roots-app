@@ -1733,7 +1733,7 @@ function App() {
             <Button
               size="sm"
               variant="outline"
-              className="w-10 h-10 p-0 text-base font-bold flex items-center justify-center"
+              className="w-10 h-10 p-0 text-base font-bold flex items-center justify-center select-none"
             >
               {Math.round(zoom * 100)}%
             </Button>
