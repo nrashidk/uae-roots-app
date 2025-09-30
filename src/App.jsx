@@ -1732,17 +1732,15 @@ function App() {
 
           {/* Bottom Toolbar */}
           <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2">
-            <div className="bg-white rounded-lg shadow-lg border flex items-center gap-2 px-4 py-2">
-              <Button
-                onClick={() => setShowOptions(true)}
-                size="sm"
-                variant="outline"
-                className="arabic-text"
-              >
-                <Settings className="w-4 h-4 ml-1" />
-                {t.options}
-              </Button>
-            </div>
+            <Button
+              onClick={() => setShowOptions(true)}
+              size="sm"
+              variant="outline"
+              className="arabic-text bg-white shadow-lg"
+            >
+              <Settings className="w-4 h-4 ml-1" />
+              {t.options}
+            </Button>
           </div>
         </div>
 
@@ -1808,7 +1806,7 @@ function App() {
         {/* Options Panel - Horizontal at Bottom */}
         {showOptions && (
           <div className="fixed inset-0 bg-black bg-opacity-20 z-40 pointer-events-none">
-            <div className="fixed bottom-0 left-1/2 transform -translate-x-1/2 bg-white shadow-2xl border border-gray-200 rounded-t-lg z-50 pointer-events-auto">
+            <div className="fixed bottom-4 left-1/2 transform -translate-x-1/2 bg-white shadow-2xl border border-gray-200 rounded-lg z-50 pointer-events-auto">
               <div className="px-6 py-4">
                 <div className="flex justify-between items-center mb-4">
                   <h2 className="text-xl font-semibold text-gray-900 arabic-text">
@@ -1958,16 +1956,16 @@ function App() {
                   <div className="flex items-end gap-3">
                     <Button
                       onClick={() => setShowOptions(false)}
+                      className="arabic-text"
+                    >
+                      {t.save}
+                    </Button>
+                    <Button
+                      onClick={() => setShowOptions(false)}
                       variant="outline"
                       className="arabic-text"
                     >
                       {t.cancel}
-                    </Button>
-                    <Button
-                      onClick={() => setShowOptions(false)}
-                      className="arabic-text"
-                    >
-                      {t.save}
                     </Button>
                   </div>
                 </div>
