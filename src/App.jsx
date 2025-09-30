@@ -913,7 +913,7 @@ function App() {
       <div className="min-h-screen bg-gradient-to-br from-purple-400 via-purple-500 to-purple-600 flex items-center justify-center p-4">
         <div className="bg-white rounded-2xl shadow-xl p-8 w-full max-w-md">
           <div className="text-center mb-8">
-            <h1 className="text-4xl font-bold text-gray-800 mb-4 arabic-text text-center">
+            <h1 className="text-4xl font-bold text-gray-800 mb-4 arabic-text" style={{ textAlign: 'center' }}>
               مرحباً بكم في جذور الإمارات
             </h1>
             <div className="w-16 h-1 bg-purple-500 mx-auto rounded"></div>
@@ -1334,7 +1334,9 @@ function App() {
                     backgroundColor:
                       person.gender === "male"
                         ? stylingOptions.maleBoxColor
-                        : stylingOptions.femaleBoxColor,
+                        : person.gender === "female"
+                        ? stylingOptions.femaleBoxColor
+                        : "#e5e7eb",
                     fontSize: stylingOptions.textSize,
                     color: person.isLiving
                       ? stylingOptions.livingTextColor
