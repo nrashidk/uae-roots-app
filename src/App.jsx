@@ -54,36 +54,21 @@ function App() {
 
   // Enhanced Display Options (FamilyEcho-style)
   const [displayOptions, setDisplayOptions] = useState({
-    // Personal Information Display
+    // Personal Information Display (6 options - Column 1)
     showName: true,
-    showMiddleNames: false,
-    showNickname: false,
-    showTitleSuffix: false,
     showSurname: true,
-    showPhoto: false,
-    showAge: false,
-    showLifeYears: false,
-
-    // Dates and Events
     showBirthDate: false,
     showBirthPlace: false,
-    showMarriageDate: false,
-    showMarriagePlace: false,
-    showDivorceDate: false,
     showDeathDate: false,
-    showDeathPlace: false,
-    showDeathCause: false,
-    showBurialDate: false,
-    showBurialPlace: false,
-
-    // Contact and Personal Details
+    showProfession: false,
+    
+    // Contact and Additional (6 options - Column 2)
     showEmail: false,
     showTelephone: false,
     showAddress: false,
-    showProfession: false,
     showCompany: false,
-    showInterests: false,
-    showActivities: false,
+    showNickname: false,
+    showPhoto: false,
   });
 
   // Enhanced Styling Options
@@ -218,10 +203,8 @@ function App() {
     done: "تم",
     // Display options translations
     showName: "إظهار الاسم",
-    showMiddleNames: "إظهار الاسم الأوسط",
-    showNickname: "إظهار اللقب",
-    showTitleSuffix: "إظهار اللقب/اللاحقة",
     showSurname: "إظهار اسم العائلة",
+    showNickname: "إظهار اللقب",
     showPhoto: "إظهار الصورة",
     showAge: "إظهار العمر",
     showLifeYears: "إظهار سنوات الحياة",
@@ -1814,7 +1797,7 @@ function App() {
         {/* Options Panel - Horizontal at Bottom */}
         {showOptions && (
           <div className="fixed inset-0 bg-black bg-opacity-20 z-40 pointer-events-none">
-            <div className="fixed bottom-4 left-1/2 transform -translate-x-1/2 bg-white shadow-2xl border border-gray-200 rounded-lg z-50 pointer-events-auto">
+            <div className="fixed bottom-4 left-1/2 transform -translate-x-1/2 bg-white shadow-2xl border border-gray-200 rounded-lg z-50 pointer-events-auto max-w-[95vw] overflow-auto max-h-[80vh]">
               <div className="px-6 py-4">
                 <div className="flex justify-between items-center mb-4">
                   <h2 className="text-xl font-semibold text-gray-900 arabic-text">
@@ -1829,13 +1812,13 @@ function App() {
                   </Button>
                 </div>
 
-                <div className="flex gap-8">
+                <div className="flex flex-col lg:flex-row gap-8">
                   {/* Display Options */}
                   <div>
                     <h3 className="text-base font-medium text-gray-900 mb-3 arabic-text">
                       {t.displayOptions}
                     </h3>
-                    <div className="grid grid-cols-3 gap-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       {Object.entries(displayOptions).map(([key, value]) => (
                         <label key={key} className="flex items-center gap-2">
                           <input
@@ -1858,7 +1841,7 @@ function App() {
                   </div>
 
                   {/* Styling Options */}
-                  <div>
+                  <div className="min-w-[280px]">
                     <h3 className="text-base font-medium text-gray-900 mb-3 arabic-text">
                       {t.stylingOptions}
                     </h3>
