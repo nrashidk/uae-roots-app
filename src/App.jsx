@@ -1545,8 +1545,8 @@ function App() {
 
             {/* Add first person button */}
             {treePeople.length === 0 && (
-              <div className="absolute inset-0 flex items-center justify-center">
-                <div className="text-center">
+              <div className="absolute inset-0 flex items-center justify-center z-30 pointer-events-none">
+                <div className="text-center pointer-events-auto">
                   <h2 className="text-2xl font-bold text-gray-700 mb-4 arabic-text">
                     {t.startBuilding}
                   </h2>
