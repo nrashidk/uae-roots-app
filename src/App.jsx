@@ -248,7 +248,7 @@ function App() {
 
   // --- AUTO-LAYOUT LOGIC ---
   // Compute generations and assign x/y positions for all people in the current tree
-  const computeTreeLayout = (people, relationships, viewportWidth = 1200) => {
+  const computeTreeLayout = (people, relationships, viewportWidth = 1200, viewportHeight = 800) => {
     // Build maps for quick lookup
     const idToPerson = Object.fromEntries(people.map((p) => [p.id, { ...p }]));
     const childrenMap = {};
@@ -299,6 +299,12 @@ function App() {
     const horizontalSpacing = 180;
     const spouseSpacing = 60; // Gap between spouses for visible connection line
 
+    // Calculate total tree height and starting Y position for vertical centering
+    const totalGenerations = Object.keys(genMap).length;
+    const totalTreeHeight = totalGenerations * verticalSpacing;
+    const verticalPadding = 50; // Minimum padding from top/bottom
+    const startY = Math.max(verticalPadding, (viewportHeight - totalTreeHeight) / 2);
+
     Object.keys(genMap).forEach((g) => {
       const gen = parseInt(g);
       const row = genMap[gen];
@@ -335,10 +341,10 @@ function App() {
         if (spouse && !processedIds.has(spouseId)) {
           // Position couple side by side
           person.x = currentX;
-          person.y = 100 + gen * verticalSpacing;
+          person.y = startY + gen * verticalSpacing;
 
           spouse.x = currentX + CARD.w + spouseSpacing;
-          spouse.y = 100 + gen * verticalSpacing;
+          spouse.y = startY + gen * verticalSpacing;
 
           processedIds.add(person.id);
           processedIds.add(spouseId);
@@ -346,7 +352,7 @@ function App() {
         } else if (!processedIds.has(person.id)) {
           // Single person
           person.x = currentX;
-          person.y = 100 + gen * verticalSpacing;
+          person.y = startY + gen * verticalSpacing;
           processedIds.add(person.id);
           currentX += CARD.w + horizontalSpacing;
         }
@@ -361,7 +367,8 @@ function App() {
   const treePeople = computeTreeLayout(
     people.filter((p) => p.treeId === currentTree?.id),
     relationships.filter((r) => r.treeId === currentTree?.id),
-    canvasDimensions.width
+    canvasDimensions.width,
+    canvasDimensions.height
   );
   // --- END AUTO-LAYOUT LOGIC ---
 
