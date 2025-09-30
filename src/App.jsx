@@ -1668,12 +1668,12 @@ function App() {
           </div>
         )}
 
-        {/* Options Modal */}
+        {/* Options Panel - Horizontal at Bottom */}
         {showOptions && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl mx-4 max-h-[90vh] overflow-y-auto">
-              <div className="p-6">
-                <div className="flex justify-between items-center mb-6">
+          <div className="fixed inset-0 bg-black bg-opacity-20 z-40 pointer-events-none">
+            <div className="fixed bottom-0 left-0 right-0 bg-white shadow-2xl border-t border-gray-200 z-50 pointer-events-auto">
+              <div className="max-w-7xl mx-auto px-6 py-4">
+                <div className="flex justify-between items-center mb-4">
                   <h2 className="text-xl font-semibold text-gray-900 arabic-text">
                     {t.options}
                   </h2>
@@ -1686,13 +1686,13 @@ function App() {
                   </Button>
                 </div>
 
-                <div className="space-y-6">
+                <div className="flex gap-8">
                   {/* Display Options */}
-                  <div>
-                    <h3 className="text-lg font-medium text-gray-900 mb-4 arabic-text">
+                  <div className="flex-1">
+                    <h3 className="text-base font-medium text-gray-900 mb-3 arabic-text">
                       {t.displayOptions}
                     </h3>
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-3 gap-3">
                       {Object.entries(displayOptions).map(([key, value]) => (
                         <label key={key} className="flex items-center gap-2">
                           <input
@@ -1715,13 +1715,13 @@ function App() {
                   </div>
 
                   {/* Styling Options */}
-                  <div>
-                    <h3 className="text-lg font-medium text-gray-900 mb-4 arabic-text">
+                  <div className="w-80">
+                    <h3 className="text-base font-medium text-gray-900 mb-3 arabic-text">
                       {t.stylingOptions}
                     </h3>
-                    <div className="space-y-4">
-                      <div className="flex items-center gap-4">
-                        <label className="text-sm text-gray-700 arabic-text">
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="flex items-center gap-2">
+                        <label className="text-sm text-gray-700 arabic-text whitespace-nowrap">
                           {t.maleBoxColor}
                         </label>
                         <input
@@ -1737,8 +1737,8 @@ function App() {
                         />
                       </div>
 
-                      <div className="flex items-center gap-4">
-                        <label className="text-sm text-gray-700 arabic-text">
+                      <div className="flex items-center gap-2">
+                        <label className="text-sm text-gray-700 arabic-text whitespace-nowrap">
                           {t.femaleBoxColor}
                         </label>
                         <input
@@ -1754,8 +1754,8 @@ function App() {
                         />
                       </div>
 
-                      <div className="flex items-center gap-4">
-                        <label className="text-sm text-gray-700 arabic-text">
+                      <div className="flex items-center gap-2">
+                        <label className="text-sm text-gray-700 arabic-text whitespace-nowrap">
                           {t.backgroundColor}
                         </label>
                         <input
@@ -1771,9 +1771,9 @@ function App() {
                         />
                       </div>
 
-                      <div className="flex items-center gap-4">
-                        <label className="text-sm text-gray-700 arabic-text">
-                          {t.boxWidth}
+                      <div className="flex items-center gap-2">
+                        <label className="text-sm text-gray-700 arabic-text whitespace-nowrap">
+                          {t.boxWidth}: {stylingOptions.boxWidth}
                         </label>
                         <input
                           type="range"
@@ -1788,14 +1788,11 @@ function App() {
                           }
                           className="flex-1"
                         />
-                        <span className="text-sm text-gray-600">
-                          {stylingOptions.boxWidth}px
-                        </span>
                       </div>
 
-                      <div className="flex items-center gap-4">
-                        <label className="text-sm text-gray-700 arabic-text">
-                          {t.textSize}
+                      <div className="flex items-center gap-2 col-span-2">
+                        <label className="text-sm text-gray-700 arabic-text whitespace-nowrap">
+                          {t.textSize}: {stylingOptions.textSize}
                         </label>
                         <input
                           type="range"
@@ -1810,28 +1807,26 @@ function App() {
                           }
                           className="flex-1"
                         />
-                        <span className="text-sm text-gray-600">
-                          {stylingOptions.textSize}px
-                        </span>
                       </div>
                     </div>
                   </div>
-                </div>
 
-                <div className="flex justify-end gap-3 mt-6">
-                  <Button
-                    onClick={() => setShowOptions(false)}
-                    variant="outline"
-                    className="arabic-text"
-                  >
-                    {t.cancel}
-                  </Button>
-                  <Button
-                    onClick={() => setShowOptions(false)}
-                    className="arabic-text"
-                  >
-                    {t.applyChanges}
-                  </Button>
+                  {/* Action Buttons */}
+                  <div className="flex items-end gap-3">
+                    <Button
+                      onClick={() => setShowOptions(false)}
+                      variant="outline"
+                      className="arabic-text"
+                    >
+                      {t.cancel}
+                    </Button>
+                    <Button
+                      onClick={() => setShowOptions(false)}
+                      className="arabic-text"
+                    >
+                      {t.save}
+                    </Button>
+                  </div>
                 </div>
               </div>
             </div>
