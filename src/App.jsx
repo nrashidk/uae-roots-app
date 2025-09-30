@@ -216,6 +216,32 @@ function App() {
       "للعرض في معالجات النصوص مثل المفكرة و Word، أو الإرسال بالبريد الإلكتروني.",
     downloadBtn: "تنزيل",
     done: "تم",
+    // Display options translations
+    showName: "إظهار الاسم",
+    showMiddleNames: "إظهار الاسم الأوسط",
+    showNickname: "إظهار اللقب",
+    showTitleSuffix: "إظهار اللقب/اللاحقة",
+    showSurname: "إظهار اسم العائلة",
+    showPhoto: "إظهار الصورة",
+    showAge: "إظهار العمر",
+    showLifeYears: "إظهار سنوات الحياة",
+    showBirthDate: "إظهار تاريخ الميلاد",
+    showBirthPlace: "إظهار مكان الميلاد",
+    showMarriageDate: "إظهار تاريخ الزواج",
+    showMarriagePlace: "إظهار مكان الزواج",
+    showDivorceDate: "إظهار تاريخ الطلاق",
+    showDeathDate: "إظهار تاريخ الوفاة",
+    showDeathPlace: "إظهار مكان الوفاة",
+    showDeathCause: "إظهار سبب الوفاة",
+    showBurialDate: "إظهار تاريخ الدفن",
+    showBurialPlace: "إظهار مكان الدفن",
+    showEmail: "إظهار البريد الإلكتروني",
+    showTelephone: "إظهار الهاتف",
+    showAddress: "إظهار العنوان",
+    showProfession: "إظهار المهنة",
+    showCompany: "إظهار الشركة",
+    showInterests: "إظهار الاهتمامات",
+    showActivities: "إظهار الأنشطة",
   };
 
   // Authentication handlers
@@ -1671,8 +1697,8 @@ function App() {
         {/* Options Panel - Horizontal at Bottom */}
         {showOptions && (
           <div className="fixed inset-0 bg-black bg-opacity-20 z-40 pointer-events-none">
-            <div className="fixed bottom-0 left-0 right-0 bg-white shadow-2xl border-t border-gray-200 z-50 pointer-events-auto">
-              <div className="max-w-7xl mx-auto px-6 py-4">
+            <div className="fixed bottom-0 left-1/2 transform -translate-x-1/2 bg-white shadow-2xl border border-gray-200 rounded-t-lg z-50 pointer-events-auto">
+              <div className="px-6 py-4">
                 <div className="flex justify-between items-center mb-4">
                   <h2 className="text-xl font-semibold text-gray-900 arabic-text">
                     {t.options}
@@ -1688,7 +1714,7 @@ function App() {
 
                 <div className="flex gap-8">
                   {/* Display Options */}
-                  <div className="flex-1">
+                  <div>
                     <h3 className="text-base font-medium text-gray-900 mb-3 arabic-text">
                       {t.displayOptions}
                     </h3>
@@ -1706,7 +1732,7 @@ function App() {
                             }
                             className="rounded"
                           />
-                          <span className="text-sm text-gray-700 arabic-text">
+                          <span className="text-sm text-gray-700 arabic-text whitespace-nowrap">
                             {t[key] || key}
                           </span>
                         </label>
@@ -1715,13 +1741,13 @@ function App() {
                   </div>
 
                   {/* Styling Options */}
-                  <div className="w-80">
+                  <div>
                     <h3 className="text-base font-medium text-gray-900 mb-3 arabic-text">
                       {t.stylingOptions}
                     </h3>
-                    <div className="grid grid-cols-2 gap-3">
-                      <div className="flex items-center gap-2">
-                        <label className="text-sm text-gray-700 arabic-text whitespace-nowrap">
+                    <div className="space-y-3">
+                      <div className="flex items-center gap-3">
+                        <label className="text-sm text-gray-700 arabic-text whitespace-nowrap min-w-[120px]">
                           {t.maleBoxColor}
                         </label>
                         <input
@@ -1733,12 +1759,12 @@ function App() {
                               maleBoxColor: e.target.value,
                             }))
                           }
-                          className="w-8 h-8 rounded border"
+                          className="w-10 h-8 rounded border"
                         />
                       </div>
 
-                      <div className="flex items-center gap-2">
-                        <label className="text-sm text-gray-700 arabic-text whitespace-nowrap">
+                      <div className="flex items-center gap-3">
+                        <label className="text-sm text-gray-700 arabic-text whitespace-nowrap min-w-[120px]">
                           {t.femaleBoxColor}
                         </label>
                         <input
@@ -1750,12 +1776,12 @@ function App() {
                               femaleBoxColor: e.target.value,
                             }))
                           }
-                          className="w-8 h-8 rounded border"
+                          className="w-10 h-8 rounded border"
                         />
                       </div>
 
-                      <div className="flex items-center gap-2">
-                        <label className="text-sm text-gray-700 arabic-text whitespace-nowrap">
+                      <div className="flex items-center gap-3">
+                        <label className="text-sm text-gray-700 arabic-text whitespace-nowrap min-w-[120px]">
                           {t.backgroundColor}
                         </label>
                         <input
@@ -1767,13 +1793,13 @@ function App() {
                               backgroundColor: e.target.value,
                             }))
                           }
-                          className="w-8 h-8 rounded border"
+                          className="w-10 h-8 rounded border"
                         />
                       </div>
 
-                      <div className="flex items-center gap-2">
-                        <label className="text-sm text-gray-700 arabic-text whitespace-nowrap">
-                          {t.boxWidth}: {stylingOptions.boxWidth}
+                      <div className="flex items-center gap-3">
+                        <label className="text-sm text-gray-700 arabic-text whitespace-nowrap min-w-[120px]">
+                          {t.boxWidth}
                         </label>
                         <input
                           type="range"
@@ -1786,13 +1812,16 @@ function App() {
                               boxWidth: parseInt(e.target.value),
                             }))
                           }
-                          className="flex-1"
+                          className="w-32"
                         />
+                        <span className="text-sm text-gray-600 min-w-[40px]">
+                          {stylingOptions.boxWidth}
+                        </span>
                       </div>
 
-                      <div className="flex items-center gap-2 col-span-2">
-                        <label className="text-sm text-gray-700 arabic-text whitespace-nowrap">
-                          {t.textSize}: {stylingOptions.textSize}
+                      <div className="flex items-center gap-3">
+                        <label className="text-sm text-gray-700 arabic-text whitespace-nowrap min-w-[120px]">
+                          {t.textSize}
                         </label>
                         <input
                           type="range"
@@ -1805,8 +1834,11 @@ function App() {
                               textSize: parseInt(e.target.value),
                             }))
                           }
-                          className="flex-1"
+                          className="w-32"
                         />
+                        <span className="text-sm text-gray-600 min-w-[40px]">
+                          {stylingOptions.textSize}
+                        </span>
                       </div>
                     </div>
                   </div>
