@@ -1845,9 +1845,9 @@ function App() {
                     <h3 className="text-base font-medium text-gray-900 mb-4 arabic-text">
                       {t.displayOptions}
                     </h3>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-x-8 gap-y-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-x-10 gap-y-4">
                       {/* Column 1 - 3 options */}
-                      <div className="space-y-4">
+                      <div className="space-y-4 min-w-[180px]">
                         <label className="flex items-center gap-3 cursor-pointer">
                           <input
                             type="checkbox"
@@ -1858,9 +1858,9 @@ function App() {
                                 showName: e.target.checked,
                               }))
                             }
-                            className="rounded w-4 h-4"
+                            className="rounded w-4 h-4 flex-shrink-0"
                           />
-                          <span className="text-sm text-gray-700 arabic-text">
+                          <span className="text-sm text-gray-700 arabic-text whitespace-nowrap">
                             {t.showName}
                           </span>
                         </label>
@@ -1874,9 +1874,9 @@ function App() {
                                 showSurname: e.target.checked,
                               }))
                             }
-                            className="rounded w-4 h-4"
+                            className="rounded w-4 h-4 flex-shrink-0"
                           />
-                          <span className="text-sm text-gray-700 arabic-text">
+                          <span className="text-sm text-gray-700 arabic-text whitespace-nowrap">
                             {t.showSurname}
                           </span>
                         </label>
@@ -1890,16 +1890,16 @@ function App() {
                                 showBirthDate: e.target.checked,
                               }))
                             }
-                            className="rounded w-4 h-4"
+                            className="rounded w-4 h-4 flex-shrink-0"
                           />
-                          <span className="text-sm text-gray-700 arabic-text">
+                          <span className="text-sm text-gray-700 arabic-text whitespace-nowrap">
                             {t.showBirthDate}
                           </span>
                         </label>
                       </div>
 
                       {/* Column 2 - 3 options */}
-                      <div className="space-y-4">
+                      <div className="space-y-4 min-w-[180px]">
                         <label className="flex items-center gap-3 cursor-pointer">
                           <input
                             type="checkbox"
@@ -1910,9 +1910,9 @@ function App() {
                                 showBirthPlace: e.target.checked,
                               }))
                             }
-                            className="rounded w-4 h-4"
+                            className="rounded w-4 h-4 flex-shrink-0"
                           />
-                          <span className="text-sm text-gray-700 arabic-text">
+                          <span className="text-sm text-gray-700 arabic-text whitespace-nowrap">
                             {t.showBirthPlace}
                           </span>
                         </label>
@@ -1926,9 +1926,9 @@ function App() {
                                 showAge: e.target.checked,
                               }))
                             }
-                            className="rounded w-4 h-4"
+                            className="rounded w-4 h-4 flex-shrink-0"
                           />
-                          <span className="text-sm text-gray-700 arabic-text">
+                          <span className="text-sm text-gray-700 arabic-text whitespace-nowrap">
                             {t.showAge}
                           </span>
                         </label>
@@ -1942,16 +1942,16 @@ function App() {
                                 showDeathDate: e.target.checked,
                               }))
                             }
-                            className="rounded w-4 h-4"
+                            className="rounded w-4 h-4 flex-shrink-0"
                           />
-                          <span className="text-sm text-gray-700 arabic-text">
+                          <span className="text-sm text-gray-700 arabic-text whitespace-nowrap">
                             {t.showDeathDate}
                           </span>
                         </label>
                       </div>
 
                       {/* Column 3 - 3 options */}
-                      <div className="space-y-4">
+                      <div className="space-y-4 min-w-[180px]">
                         <label className="flex items-center gap-3 cursor-pointer">
                           <input
                             type="checkbox"
@@ -1962,9 +1962,9 @@ function App() {
                                 showProfession: e.target.checked,
                               }))
                             }
-                            className="rounded w-4 h-4"
+                            className="rounded w-4 h-4 flex-shrink-0"
                           />
-                          <span className="text-sm text-gray-700 arabic-text">
+                          <span className="text-sm text-gray-700 arabic-text whitespace-nowrap">
                             {t.showProfession}
                           </span>
                         </label>
@@ -1978,9 +1978,9 @@ function App() {
                                 showCompany: e.target.checked,
                               }))
                             }
-                            className="rounded w-4 h-4"
+                            className="rounded w-4 h-4 flex-shrink-0"
                           />
-                          <span className="text-sm text-gray-700 arabic-text">
+                          <span className="text-sm text-gray-700 arabic-text whitespace-nowrap">
                             {t.showCompany}
                           </span>
                         </label>
@@ -1994,16 +1994,16 @@ function App() {
                                 showEmail: e.target.checked,
                               }))
                             }
-                            className="rounded w-4 h-4"
+                            className="rounded w-4 h-4 flex-shrink-0"
                           />
-                          <span className="text-sm text-gray-700 arabic-text">
+                          <span className="text-sm text-gray-700 arabic-text whitespace-nowrap">
                             {t.showEmail}
                           </span>
                         </label>
                       </div>
 
                       {/* Column 4 - 2 options */}
-                      <div className="space-y-4">
+                      <div className="space-y-4 min-w-[180px]">
                         <label className="flex items-center gap-3 cursor-pointer">
                           <input
                             type="checkbox"
@@ -2014,9 +2014,9 @@ function App() {
                                 showTelephone: e.target.checked,
                               }))
                             }
-                            className="rounded w-4 h-4"
+                            className="rounded w-4 h-4 flex-shrink-0"
                           />
-                          <span className="text-sm text-gray-700 arabic-text">
+                          <span className="text-sm text-gray-700 arabic-text whitespace-nowrap">
                             {t.showTelephone}
                           </span>
                         </label>
@@ -2030,9 +2030,9 @@ function App() {
                                 showAddress: e.target.checked,
                               }))
                             }
-                            className="rounded w-4 h-4"
+                            className="rounded w-4 h-4 flex-shrink-0"
                           />
-                          <span className="text-sm text-gray-700 arabic-text">
+                          <span className="text-sm text-gray-700 arabic-text whitespace-nowrap">
                             {t.showAddress}
                           </span>
                         </label>
