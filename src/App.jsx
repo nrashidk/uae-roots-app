@@ -1032,55 +1032,22 @@ function App() {
 
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            <div className="bg-white rounded-lg shadow p-6">
+            <div 
+              className="bg-white rounded-lg shadow p-6 cursor-pointer hover:shadow-lg transition-shadow"
+              onClick={() => currentTree && setCurrentView("tree-builder")}
+            >
               <h3 className="text-xl font-bold text-gray-900 mb-4 arabic-text">
                 {t.myFamilyTrees}
               </h3>
-              {currentTree ? (
-                <div className="space-y-3">
-                  <div className="border rounded-lg p-4">
-                    <h4 className="font-bold text-lg text-gray-900 arabic-text">
-                      {currentTree.name}
-                    </h4>
-                    <div className="text-base text-gray-500 mt-2 arabic-text">
-                      <span>
-                        {
-                          people.filter((p) => p.treeId === currentTree.id)
-                            .length
-                        }{" "}
-                        {t.familyStats}
-                      </span>
-                      <span className="mx-2">•</span>
-                      <span>
-                        {
-                          relationships.filter(
-                            (r) => r.treeId === currentTree.id,
-                          ).length
-                        }{" "}
-                        {t.relationshipStats}
-                      </span>
-                    </div>
-                    <Button
-                      onClick={() => setCurrentView("tree-builder")}
-                      className="mt-3 w-full arabic-text"
-                    >
-                      {t.openFamilyTree}
-                    </Button>
-                  </div>
-                </div>
-              ) : (
-                <div className="text-center py-8">
-                  <p className="text-gray-500 mb-4 arabic-text">
-                    {t.noFamilyTrees}
-                  </p>
-                  <Button onClick={createNewTree} className="arabic-text">
-                    {t.createNewTree}
-                  </Button>
-                </div>
-              )}
+              <div className="text-3xl font-bold text-purple-600">
+                {currentTree ? 1 : 0}
+              </div>
             </div>
 
-            <div className="bg-white rounded-lg shadow p-6">
+            <div 
+              className="bg-white rounded-lg shadow p-6 cursor-pointer hover:shadow-lg transition-shadow"
+              onClick={() => currentTree && setCurrentView("tree-builder")}
+            >
               <h3 className="text-xl font-bold text-gray-900 mb-4 arabic-text">
                 {t.familyMembers}
               </h3>
@@ -1089,7 +1056,10 @@ function App() {
               </div>
             </div>
 
-            <div className="bg-white rounded-lg shadow p-6">
+            <div 
+              className="bg-white rounded-lg shadow p-6 cursor-pointer hover:shadow-lg transition-shadow"
+              onClick={() => currentTree && setCurrentView("tree-builder")}
+            >
               <h3 className="text-xl font-bold text-gray-900 mb-4 arabic-text">
                 {t.relationships}
               </h3>
