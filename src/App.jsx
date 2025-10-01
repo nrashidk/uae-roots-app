@@ -1315,200 +1315,274 @@ function App() {
             onMouseUp={handleMouseUp}
             onWheel={handleWheel}
           >
+            {/* Family relationship connectors */}
             <svg
-              className="absolute inset-0 pointer-events-none"
+              className="absolute inset-0 pointer-events-none w-full h-full"
               style={{
                 transform: `translate(${panOffset.x}px, ${panOffset.y}px) scale(${zoom})`,
                 transformOrigin: "0 0",
               }}
             >
-              {/* Enhanced family relationship connectors with smooth curves and professional styling */}
-              <svg
-                className="absolute inset-0 pointer-events-none"
-                style={{ width: "100%", height: "100%" }}
-              >
-                {/* Straight bold lines connecting husband and spouse */}
-                {relationships
-                  .filter(
-                    (r) =>
-                      r.type === REL.PARTNER && r.treeId === currentTree?.id,
-                  )
-                  .map((r, i) => {
-                    const p1 = treePeople.find((p) => p.id === r.person1Id);
-                    const p2 = treePeople.find((p) => p.id === r.person2Id);
-                    
-                    if (!p1 || !p2) return null;
+              {/* Define gradients for enhanced visual effects */}
+              <defs>
+                <linearGradient id="spouseGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                  <stop offset="0%" stopColor="#dc2626" stopOpacity="0.8" />
+                  <stop offset="50%" stopColor="#dc2626" stopOpacity="1" />
+                  <stop offset="100%" stopColor="#dc2626" stopOpacity="0.8" />
+                </linearGradient>
+                <linearGradient id="parentChildGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+                  <stop offset="0%" stopColor="#059669" stopOpacity="1" />
+                  <stop offset="100%" stopColor="#059669" stopOpacity="0.7" />
+                </linearGradient>
+              </defs>
 
-                    // Determine which person is on the left
-                    const leftPerson = p1.x < p2.x ? p1 : p2;
-                    const rightPerson = p1.x < p2.x ? p2 : p1;
+              {/* Spouse connection lines (horizontal thick lines) */}
+              {relationships
+                .filter(
+                  (r) =>
+                    r.type === REL.PARTNER && r.treeId === currentTree?.id,
+                )
+                .map((r, i) => {
+                  const p1 = treePeople.find((p) => p.id === r.person1Id);
+                  const p2 = treePeople.find((p) => p.id === r.person2Id);
+                  
+                  if (!p1 || !p2) return null;
 
-                    // Connect from right edge of left person to left edge of right person
-                    const startX = leftPerson.x + stylingOptions.boxWidth;
-                    const endX = rightPerson.x;
+                  // Determine which person is on the left
+                  const leftPerson = p1.x < p2.x ? p1 : p2;
+                  const rightPerson = p1.x < p2.x ? p2 : p1;
 
-                    // Use the center Y coordinate of both boxes
-                    const startY = leftPerson.y + CARD.h / 2;
-                    const endY = rightPerson.y + CARD.h / 2;
+                  // Connect from right edge of left person to left edge of right person
+                  const startX = leftPerson.x + stylingOptions.boxWidth;
+                  const endX = rightPerson.x;
 
-                    return (
-                      <line
-                        key={`spouse-${i}`}
-                        x1={startX}
-                        y1={startY}
-                        x2={endX}
-                        y2={endY}
-                        stroke="#dc2626"
-                        strokeWidth={8}
-                        strokeLinecap="round"
-                        style={{
-                          filter: "drop-shadow(0px 2px 4px rgba(220, 38, 38, 0.3))",
-                        }}
-                      />
-                    );
-                  })}
-                {/* Enhanced T-connector for parent-child relationships with smooth curves */}
-                {relationships
-                  .filter(
-                    (r) =>
-                      r.type === REL.PARENT_CHILD &&
-                      r.treeId === currentTree?.id,
-                  )
-                  .map((r, i) => {
-                    const child = treePeople.find((p) => p.id === r.childId);
-                    const parent = treePeople.find((p) => p.id === r.parentId);
-                    if (!child || !parent) return null;
-
-                    // Find spouse of parent (if any)
-                    const spouseRel = relationships.find(
-                      (rel) =>
-                        rel.type === REL.PARTNER &&
-                        (rel.person1Id === r.parentId ||
-                          rel.person2Id === r.parentId) &&
-                        rel.treeId === currentTree?.id,
-                    );
-                    let spouse = null;
-                    if (spouseRel) {
-                      spouse = treePeople.find(
-                        (p) =>
-                          p.id ===
-                          (spouseRel.person1Id === r.parentId
-                            ? spouseRel.person2Id
-                            : spouseRel.person1Id),
-                      );
-                    }
-
-                    const parentX = parent.x + stylingOptions.boxWidth / 2;
-                    const spouseX = spouse
-                      ? spouse.x + stylingOptions.boxWidth / 2
-                      : parentX;
-                    const midX = spouse ? (parentX + spouseX) / 2 : parentX;
-                    const parentY = parent.y + CARD.h;
-                    const childY = child.y;
-                    const childX = child.x + stylingOptions.boxWidth / 2;
-
-                    const curveRadius = 15;
-                    const strokeColor = "#059669";
-
-                    return (
-                      <g key={i}>
-                        {/* Horizontal connection between parents with curves */}
-                        {spouse && (
-                          <path
-                            d={`M ${parentX} ${parentY + 15} L ${spouseX} ${parentY + 15}`}
-                            stroke={strokeColor}
-                            strokeWidth={3}
-                            strokeLinecap="round"
-                            fill="none"
-                          />
-                        )}
-                        {/* Smooth curved path from parents to child */}
-                        <path
-                          d={`M ${midX} ${parentY + 15} 
-                          L ${midX} ${parentY + 30}
-                          Q ${midX} ${parentY + 30 + curveRadius} ${midX + (childX > midX ? curveRadius : -curveRadius)} ${parentY + 30 + curveRadius}
-                          L ${childX - (childX > midX ? curveRadius : -curveRadius)} ${parentY + 30 + curveRadius}
-                          Q ${childX} ${parentY + 30 + curveRadius} ${childX} ${parentY + 30 + 2 * curveRadius}
-                          L ${childX} ${childY}`}
-                          stroke={strokeColor}
-                          strokeWidth={3}
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          fill="none"
-                        />
-                      </g>
-                    );
-                  })}
-                {/* Enhanced sibling connection lines with smooth curves */}
-                {Object.values(
-                  treePeople.reduce((acc, p) => {
-                    // Group siblings by parent
-                    const parentRel = relationships.find(
-                      (r) =>
-                        r.type === REL.PARENT_CHILD &&
-                        r.childId === p.id &&
-                        r.treeId === currentTree?.id,
-                    );
-                    if (parentRel) {
-                      const parentId = parentRel.parentId;
-                      if (!acc[parentId]) acc[parentId] = [];
-                      acc[parentId].push(p);
-                    }
-                    return acc;
-                  }, {}),
-                ).map((siblings, i) => {
-                  if (siblings.length < 2) return null;
-
-                  const y = siblings[0].y - 20;
-                  const minX = Math.min(
-                    ...siblings.map((s) => s.x + stylingOptions.boxWidth / 2),
-                  );
-                  const maxX = Math.max(
-                    ...siblings.map((s) => s.x + stylingOptions.boxWidth / 2),
-                  );
-                  const curveHeight = 10;
-                  const strokeColor = "#7c3aed";
-                  const dashArray = "5,5";
+                  // Use the center Y coordinate of both boxes
+                  const y = leftPerson.y + CARD.h / 2;
 
                   return (
-                    <g key={i}>
-                      {/* Main curved horizontal line connecting siblings */}
-                      <path
-                        d={`M ${minX} ${y} 
-                          Q ${(minX + maxX) / 2} ${y - curveHeight} ${maxX} ${y}`}
-                        stroke={strokeColor}
-                        strokeWidth={2}
+                    <g key={`spouse-${i}`}>
+                      {/* Main thick connection line */}
+                      <line
+                        x1={startX}
+                        y1={y}
+                        x2={endX}
+                        y2={y}
+                        stroke="url(#spouseGradient)"
+                        strokeWidth="6"
                         strokeLinecap="round"
-                        strokeDasharray={dashArray}
-                        fill="none"
                       />
-                      {/* Smooth vertical connectors to each sibling */}
-                      {siblings.map((sibling, idx) => {
-                        const siblingX =
-                          sibling.x + stylingOptions.boxWidth / 2;
-                        const connectionY =
-                          y -
-                          curveHeight *
-                            Math.sin(
-                              (Math.PI * (siblingX - minX)) / (maxX - minX),
-                            );
+                      {/* Double line effect for emphasis */}
+                      <line
+                        x1={startX + 2}
+                        y1={y - 3}
+                        x2={endX - 2}
+                        y2={y - 3}
+                        stroke="#dc2626"
+                        strokeWidth="1"
+                        opacity="0.3"
+                      />
+                      <line
+                        x1={startX + 2}
+                        y1={y + 3}
+                        x2={endX - 2}
+                        y2={y + 3}
+                        stroke="#dc2626"
+                        strokeWidth="1"
+                        opacity="0.3"
+                      />
+                    </g>
+                  );
+                })}
 
+              {/* Parent-Child T-connector lines */}
+              {relationships
+                .filter(
+                  (r) =>
+                    r.type === REL.PARENT_CHILD &&
+                    r.treeId === currentTree?.id,
+                )
+                .map((r, i) => {
+                  const child = treePeople.find((p) => p.id === r.childId);
+                  const parent = treePeople.find((p) => p.id === r.parentId);
+                  if (!child || !parent) return null;
+
+                  // Find spouse of parent (if any)
+                  const spouseRel = relationships.find(
+                    (rel) =>
+                      rel.type === REL.PARTNER &&
+                      (rel.person1Id === r.parentId ||
+                        rel.person2Id === r.parentId) &&
+                      rel.treeId === currentTree?.id,
+                  );
+                  
+                  let spouse = null;
+                  if (spouseRel) {
+                    spouse = treePeople.find(
+                      (p) =>
+                        p.id ===
+                        (spouseRel.person1Id === r.parentId
+                          ? spouseRel.person2Id
+                          : spouseRel.person1Id),
+                    );
+                  }
+
+                  // Calculate connection points
+                  const parentX = parent.x + stylingOptions.boxWidth / 2;
+                  const parentY = parent.y + CARD.h;
+                  
+                  const childX = child.x + stylingOptions.boxWidth / 2;
+                  const childY = child.y;
+                  
+                  // If there's a spouse, calculate the midpoint between them
+                  let connectionX = parentX;
+                  if (spouse) {
+                    const spouseX = spouse.x + stylingOptions.boxWidth / 2;
+                    connectionX = (parentX + spouseX) / 2;
+                  }
+                  
+                  // T-connector drop-down distance
+                  const dropY = parentY + 20;
+
+                  return (
+                    <g key={`parent-child-${i}`}>
+                      {/* Vertical line from parent(s) down */}
+                      <line
+                        x1={connectionX}
+                        y1={parentY}
+                        x2={connectionX}
+                        y2={dropY}
+                        stroke="#059669"
+                        strokeWidth="3"
+                        strokeLinecap="round"
+                      />
+                      
+                      {/* Horizontal line at T-junction if child is offset */}
+                      {Math.abs(connectionX - childX) > 1 && (
+                        <line
+                          x1={connectionX}
+                          y1={dropY}
+                          x2={childX}
+                          y2={dropY}
+                          stroke="#059669"
+                          strokeWidth="3"
+                          strokeLinecap="round"
+                        />
+                      )}
+                      
+                      {/* Vertical line down to child */}
+                      <line
+                        x1={childX}
+                        y1={dropY}
+                        x2={childX}
+                        y2={childY}
+                        stroke="#059669"
+                        strokeWidth="3"
+                        strokeLinecap="round"
+                      />
+                      
+                      {/* Connection dots for visual enhancement */}
+                      <circle
+                        cx={connectionX}
+                        cy={parentY}
+                        r="3"
+                        fill="#059669"
+                        opacity="0.8"
+                      />
+                      <circle
+                        cx={childX}
+                        cy={childY}
+                        r="3"
+                        fill="#059669"
+                        opacity="0.8"
+                      />
+                    </g>
+                  );
+                })}
+
+              {/* Sibling connection lines */}
+              {(() => {
+                // Group siblings by their parent
+                const siblingGroups = {};
+                
+                relationships
+                  .filter(r => r.type === REL.PARENT_CHILD && r.treeId === currentTree?.id)
+                  .forEach(r => {
+                    if (!siblingGroups[r.parentId]) {
+                      siblingGroups[r.parentId] = [];
+                    }
+                    const child = treePeople.find(p => p.id === r.childId);
+                    if (child) {
+                      siblingGroups[r.parentId].push(child);
+                    }
+                  });
+
+                // Also handle explicit sibling relationships
+                relationships
+                  .filter(r => r.type === REL.SIBLING && r.treeId === currentTree?.id)
+                  .forEach(r => {
+                    const p1 = treePeople.find(p => p.id === r.person1Id);
+                    const p2 = treePeople.find(p => p.id === r.person2Id);
+                    
+                    if (p1 && p2) {
+                      // Create a unique group for these siblings if they don't have a parent
+                      const groupKey = `sibling-group-${Math.min(r.person1Id, r.person2Id)}`;
+                      if (!siblingGroups[groupKey]) {
+                        siblingGroups[groupKey] = [];
+                      }
+                      if (!siblingGroups[groupKey].find(s => s.id === p1.id)) {
+                        siblingGroups[groupKey].push(p1);
+                      }
+                      if (!siblingGroups[groupKey].find(s => s.id === p2.id)) {
+                        siblingGroups[groupKey].push(p2);
+                      }
+                    }
+                  });
+
+                return Object.entries(siblingGroups).map(([parentId, siblings]) => {
+                  if (siblings.length < 2) return null;
+                  
+                  // Sort siblings by x position
+                  siblings.sort((a, b) => a.x - b.x);
+                  
+                  const leftmostX = siblings[0].x + stylingOptions.boxWidth / 2;
+                  const rightmostX = siblings[siblings.length - 1].x + stylingOptions.boxWidth / 2;
+                  const y = siblings[0].y - 10;
+
+                  return (
+                    <g key={`sibling-group-${parentId}`}>
+                      {/* Horizontal connecting line above siblings */}
+                      <line
+                        x1={leftmostX}
+                        y1={y}
+                        x2={rightmostX}
+                        y2={y}
+                        stroke="#7c3aed"
+                        strokeWidth="2"
+                        strokeDasharray="5,3"
+                        strokeLinecap="round"
+                        opacity="0.6"
+                      />
+                      
+                      {/* Small vertical connectors to each sibling */}
+                      {siblings.map((sibling, idx) => {
+                        const siblingX = sibling.x + stylingOptions.boxWidth / 2;
                         return (
-                          <path
-                            key={idx}
-                            d={`M ${siblingX} ${connectionY}
-                              Q ${siblingX} ${(connectionY + sibling.y) / 2} ${siblingX} ${sibling.y}`}
-                            stroke={strokeColor}
-                            strokeWidth={2}
-                            strokeLinecap="round"
-                            fill="none"
+                          <line
+                            key={`sibling-connector-${idx}`}
+                            x1={siblingX}
+                            y1={y}
+                            x2={siblingX}
+                            y2={sibling.y}
+                            stroke="#7c3aed"
+                            strokeWidth="1"
+                            opacity="0.4"
                           />
                         );
                       })}
                     </g>
                   );
-                })}
-              </svg>
+                });
+              })()}
             </svg>
 
             <div
