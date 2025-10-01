@@ -47,7 +47,8 @@ src/
 ✅ Run command: `npm run preview`
 
 ## Recent Changes
-- **2025-10-01**: Action button and spouse gender improvements:
+- **2025-10-01**: Tree deletion and action button improvements:
+  - Fixed: Tree automatically deleted when last member is removed (dashboard now shows 0 trees)
   - Centered action buttons below person boxes using dynamic width calculation
   - Added marriage restrictions following Islamic customs:
     - Females with male spouses cannot add additional spouses
