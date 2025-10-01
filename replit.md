@@ -47,12 +47,7 @@ src/
 ✅ Run command: `npm run preview`
 
 ## Recent Changes
-- **2025-10-01**: Fixed family tree rendering issues:
-  - Unified transform container for SVG, person boxes, and action buttons
-  - Fixed initial person centering to use canvas dimensions only
-  - Added view reset when entering tree builder (zoom=1, panOffset={0,0})
-  - Enhanced connection lines with gradients and visual improvements
-  - Added CSS improvements for SVG overflow, z-index layering, and print styles
+- **2025-10-01**: Restored App.jsx and App.css to original GitHub version (commit a7df18d) - reverted unsuccessful rendering fixes
 - **2025-09-28**: Fixed auto-layout logic placement in App.jsx that was causing render issues
 - **2025-09-28**: Configured Vite server settings for Replit compatibility
 - **2025-09-28**: Set up development workflow and deployment configuration
