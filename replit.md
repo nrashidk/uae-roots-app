@@ -49,7 +49,9 @@ src/
 ## Recent Changes
 - **2025-10-01**: Action button and spouse gender improvements:
   - Centered action buttons below person boxes using dynamic width calculation
-  - Added marriage restriction: females with male spouses cannot add additional spouses
+  - Added marriage restrictions following Islamic customs:
+    - Females with male spouses cannot add additional spouses
+    - Living males can only have up to 4 living spouses
   - Button container automatically adjusts width based on visible buttons (4 or 5)
   - Auto-set spouse gender: male→female spouse, female→male spouse (follows religious custom)
   - Fixed addPerson() to respect form-provided gender values
