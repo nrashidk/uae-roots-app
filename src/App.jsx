@@ -264,6 +264,14 @@ function App() {
     return () => window.removeEventListener('resize', updateDimensions);
   }, [currentView]);
 
+  // Reset view when entering tree builder
+  useEffect(() => {
+    if (currentView === "tree-builder") {
+      setZoom(1);
+      setPanOffset({ x: 0, y: 0 });
+    }
+  }, [currentView]);
+
   // --- AUTO-LAYOUT LOGIC ---
   // Compute generations and assign x/y positions for all people in the current tree
   const computeTreeLayout = (people, relationships, viewportWidth = 1200, viewportHeight = 800) => {
