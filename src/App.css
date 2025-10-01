@@ -399,3 +399,39 @@ body {
   background: #e5e7eb;
   color: #374151;
 }
+
+/* Ensure SVG renders properly */
+svg {
+  overflow: visible;
+}
+
+/* Ensure person boxes are above lines */
+[data-person-box] {
+  position: relative;
+  z-index: 10;
+}
+
+/* Action buttons should be above everything */
+[data-action-button] {
+  position: relative;
+  z-index: 20;
+}
+
+/* Smooth transitions for zoom and pan */
+.tree-canvas {
+  transition: transform 0.1s ease-out;
+}
+
+/* Print styles to hide controls when printing */
+@media print {
+  [data-action-button],
+  [data-person-form],
+  .zoom-controls,
+  .toolbar {
+    display: none !important;
+  }
+  
+  .tree-canvas {
+    transform: scale(1) !important;
+  }
+}
