@@ -1617,11 +1617,26 @@ function App() {
                     )?.gender === "male"
                   );
                   
+                  // Check if living male already has 4 living spouses
+                  const isLivingMale = selectedPersonData.gender === "male" && selectedPersonData.isLiving !== false;
+                  const livingSpousesCount = isLivingMale ? relationships.filter(r => {
+                    if (r.type !== REL.PARTNER || r.treeId !== currentTree?.id) return false;
+                    if (r.person1Id !== selectedPerson && r.person2Id !== selectedPerson) return false;
+                    
+                    const spouseId = r.person1Id === selectedPerson ? r.person2Id : r.person1Id;
+                    const spouse = people.find(p => p.id === spouseId);
+                    return spouse && spouse.isLiving !== false;
+                  }).length : 0;
+                  const hasMaxSpouses = isLivingMale && livingSpousesCount >= 4;
+                  
+                  // Hide spouse button if female has male spouse OR if living male has 4 living spouses
+                  const hideSpouseButton = hasMaleSpouse || hasMaxSpouses;
+                  
                   // Calculate button container width based on visible buttons
                   const buttonWidth = 32; // w-8 = 32px
                   const gap = 4; // gap-1 = 4px
                   const padding = 8; // p-2 = 8px on each side
-                  const numButtons = hasMaleSpouse ? 4 : 5; // Hide spouse button if female has male spouse
+                  const numButtons = hideSpouseButton ? 4 : 5; // Hide spouse button based on restrictions
                   const containerWidth = (buttonWidth * numButtons) + (gap * (numButtons - 1)) + (padding * 2);
                   
                   return (
@@ -1634,7 +1649,7 @@ function App() {
                       }}
                     >
                       <div className="flex justify-center gap-1">
-                        {!hasMaleSpouse && (
+                        {!hideSpouseButton && (
                           <Button
                             onClick={(e) => {
                               e.stopPropagation();
