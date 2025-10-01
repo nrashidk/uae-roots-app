@@ -581,10 +581,14 @@ function App() {
       ? people.find((p) => p.id === selectedPerson)
       : null;
 
-    // Keep spouse gender enforcement (as requested)
+    // Auto-set spouse gender to opposite of anchor person (if not already set by form)
     let finalPersonData = { ...personData };
-    if (relationshipType === "spouse") {
-      finalPersonData.gender = "female";
+    if (relationshipType === "spouse" && anchorPerson && !personData.gender) {
+      if (anchorPerson.gender === "male") {
+        finalPersonData.gender = "female";
+      } else if (anchorPerson.gender === "female") {
+        finalPersonData.gender = "male";
+      }
     }
 
     const position = calculatePosition(relationshipType, anchorPerson);
