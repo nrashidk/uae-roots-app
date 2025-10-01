@@ -47,6 +47,10 @@ src/
 ✅ Run command: `npm run preview`
 
 ## Recent Changes
+- **2025-10-01**: Action button improvements:
+  - Centered action buttons below person boxes using dynamic width calculation
+  - Added marriage restriction: females with male spouses cannot add additional spouses
+  - Button container automatically adjusts width based on visible buttons (4 or 5)
 - **2025-10-01**: Restored App.jsx and App.css to original GitHub version (commit a7df18d) - reverted unsuccessful rendering fixes
 - **2025-09-28**: Fixed auto-layout logic placement in App.jsx that was causing render issues
 - **2025-09-28**: Configured Vite server settings for Replit compatibility
