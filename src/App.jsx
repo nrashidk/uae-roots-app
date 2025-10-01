@@ -421,20 +421,20 @@ function App() {
 
   // Enhanced positioning algorithm with better collision detection
   const calculatePosition = (relType, anchorPerson) => {
-    // For the first person, center them in the viewport accounting for zoom and pan
+    // For the first person, center them in world coordinates using canvas dimensions only
     if (!anchorPerson) {
       const canvas = canvasRef.current;
       if (canvas) {
         const rect = canvas.getBoundingClientRect();
-        // Account for current zoom and pan offset
-        const centerX = (rect.width / 2 - panOffset.x) / zoom - CARD.w / 2;
-        const centerY = (rect.height / 2 - panOffset.y) / zoom - CARD.h / 2;
+        // Use canvas dimensions directly without pan/zoom coupling
+        const centerX = rect.width / 2 - CARD.w / 2;
+        const centerY = rect.height / 2 - CARD.h / 2;
         return {
           x: centerX,
           y: centerY,
         };
       }
-      return { x: 400, y: 300 };
+      return { x: 600, y: 400 }; // Fallback to reasonable center position
     }
 
     const horizontalSpacing = 200;
