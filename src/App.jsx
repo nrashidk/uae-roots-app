@@ -684,7 +684,7 @@ function App() {
       setPeople((prev) => {
         const updatedPeople = prev.filter((p) => p.id !== personId);
         
-        // If tree becomes empty after deletion, close the form
+        // If tree becomes empty after deletion, reset tree and go to dashboard
         const remainingInTree = updatedPeople.filter(
           (p) => p.treeId === currentTree?.id
         );
@@ -692,6 +692,8 @@ function App() {
           setShowPersonForm(false);
           setEditingPerson(null);
           setRelationshipType(null);
+          setCurrentTree(null);
+          setCurrentView("dashboard");
         }
         
         return updatedPeople;
