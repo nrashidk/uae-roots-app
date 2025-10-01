@@ -1315,28 +1315,35 @@ function App() {
             onMouseUp={handleMouseUp}
             onWheel={handleWheel}
           >
-            {/* Family relationship connectors */}
-            <svg
-              className="absolute inset-0 pointer-events-none w-full h-full"
+            {/* Unified transformed container for SVG, person boxes, and action buttons */}
+            <div
+              className="absolute inset-0"
               style={{
                 transform: `translate(${panOffset.x}px, ${panOffset.y}px) scale(${zoom})`,
                 transformOrigin: "0 0",
               }}
             >
-              {/* Define gradients for enhanced visual effects */}
-              <defs>
-                <linearGradient id="spouseGradient" x1="0%" y1="0%" x2="100%" y2="0%">
-                  <stop offset="0%" stopColor="#dc2626" stopOpacity="0.8" />
-                  <stop offset="50%" stopColor="#dc2626" stopOpacity="1" />
-                  <stop offset="100%" stopColor="#dc2626" stopOpacity="0.8" />
-                </linearGradient>
-                <linearGradient id="parentChildGradient" x1="0%" y1="0%" x2="0%" y2="100%">
-                  <stop offset="0%" stopColor="#059669" stopOpacity="1" />
-                  <stop offset="100%" stopColor="#059669" stopOpacity="0.7" />
-                </linearGradient>
-              </defs>
+              {/* Family relationship connectors */}
+              <svg
+                className="absolute inset-0 pointer-events-none w-full h-full"
+                style={{
+                  overflow: "visible",
+                }}
+              >
+                {/* Define gradients for enhanced visual effects */}
+                <defs>
+                  <linearGradient id="spouseGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                    <stop offset="0%" stopColor="#dc2626" stopOpacity="0.8" />
+                    <stop offset="50%" stopColor="#dc2626" stopOpacity="1" />
+                    <stop offset="100%" stopColor="#dc2626" stopOpacity="0.8" />
+                  </linearGradient>
+                  <linearGradient id="parentChildGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+                    <stop offset="0%" stopColor="#059669" stopOpacity="1" />
+                    <stop offset="100%" stopColor="#059669" stopOpacity="0.7" />
+                  </linearGradient>
+                </defs>
 
-              {/* Spouse connection lines (horizontal thick lines) */}
+                {/* Spouse connection lines (horizontal thick lines) */}
               {relationships
                 .filter(
                   (r) =>
@@ -1583,15 +1590,9 @@ function App() {
                   );
                 });
               })()}
-            </svg>
+              </svg>
 
-            <div
-              className="absolute inset-0"
-              style={{
-                transform: `translate(${panOffset.x}px, ${panOffset.y}px) scale(${zoom})`,
-                transformOrigin: "0 0",
-              }}
-            >
+              {/* Person boxes */}
               {treePeople.map((person) => (
                 <div
                   key={person.id}
@@ -1769,6 +1770,7 @@ function App() {
                   </div>
                 )}
             </div>
+            {/* End of unified transformed container */}
 
             {/* Add first person button */}
             {treePeople.length === 0 && (
