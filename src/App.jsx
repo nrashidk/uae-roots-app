@@ -1599,37 +1599,54 @@ function App() {
 
               {/* Action buttons for selected person - positioned below the box */}
               {selectedPerson &&
-                treePeople.find((p) => p.id === selectedPerson) && (
-                  <div
-                    data-action-button
-                    className="absolute bg-white border border-gray-200 rounded-lg shadow-lg p-2 z-20"
-                    style={{
-                      left:
-                        treePeople.find((p) => p.id === selectedPerson).x +
-                        stylingOptions.boxWidth / 2 -
-                        80,
-                      top:
-                        treePeople.find((p) => p.id === selectedPerson).y +
-                        CARD.h +
-                        10,
-                    }}
-                  >
-                    <div className="flex justify-center gap-1">
-                      <Button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setShowPersonForm(false);
-                          setEditingPerson(null);
-                          setRelationshipType("spouse");
-                          setTimeout(() => setShowPersonForm(true), 0);
-                        }}
-                        size="sm"
-                        variant="ghost"
-                        className="w-8 h-8 p-0 hover:bg-blue-50 rounded-full"
-                        title={t.addSpouse}
-                      >
-                        {getRelationshipIcon("spouse")}
-                      </Button>
+                treePeople.find((p) => p.id === selectedPerson) && (() => {
+                  const selectedPersonData = treePeople.find((p) => p.id === selectedPerson);
+                  
+                  // Check if selected person is female and already has a male spouse
+                  const isFemale = selectedPersonData.gender === "female";
+                  const hasMaleSpouse = isFemale && relationships.some(r => 
+                    r.type === REL.PARTNER && 
+                    r.treeId === currentTree?.id &&
+                    (r.person1Id === selectedPerson || r.person2Id === selectedPerson) &&
+                    people.find(p => 
+                      p.id === (r.person1Id === selectedPerson ? r.person2Id : r.person1Id)
+                    )?.gender === "male"
+                  );
+                  
+                  // Calculate button container width based on visible buttons
+                  const buttonWidth = 32; // w-8 = 32px
+                  const gap = 4; // gap-1 = 4px
+                  const padding = 8; // p-2 = 8px on each side
+                  const numButtons = hasMaleSpouse ? 4 : 5; // Hide spouse button if female has male spouse
+                  const containerWidth = (buttonWidth * numButtons) + (gap * (numButtons - 1)) + (padding * 2);
+                  
+                  return (
+                    <div
+                      data-action-button
+                      className="absolute bg-white border border-gray-200 rounded-lg shadow-lg p-2 z-20"
+                      style={{
+                        left: selectedPersonData.x + (stylingOptions.boxWidth / 2) - (containerWidth / 2),
+                        top: selectedPersonData.y + CARD.h + 10,
+                      }}
+                    >
+                      <div className="flex justify-center gap-1">
+                        {!hasMaleSpouse && (
+                          <Button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setShowPersonForm(false);
+                              setEditingPerson(null);
+                              setRelationshipType("spouse");
+                              setTimeout(() => setShowPersonForm(true), 0);
+                            }}
+                            size="sm"
+                            variant="ghost"
+                            className="w-8 h-8 p-0 hover:bg-blue-50 rounded-full"
+                            title={t.addSpouse}
+                          >
+                            {getRelationshipIcon("spouse")}
+                          </Button>
+                        )}
 
                       <Button
                         onClick={(e) => {
@@ -1693,7 +1710,8 @@ function App() {
                       </Button>
                     </div>
                   </div>
-                )}
+                  );
+                })()}
             </div>
 
             {/* Add first person button */}
