@@ -48,10 +48,10 @@ src/
 
 ## Recent Changes
 - **2025-10-02**: Cursor visibility fix:
-  - Completely hidden mouse cursor on tree canvas using CSS !important rules
-  - Applied cursor:none to .tree-canvas and all child elements (.tree-canvas *)
-  - Removed cursor-pointer from person boxes
-  - Cursor remains visible on authentication and dashboard views
+  - Hidden mouse cursor on tree canvas background using CSS !important rules
+  - Applied cursor:none to .tree-canvas and all child elements
+  - Restored cursor visibility on buttons and interactive elements (buttons, inputs, etc.)
+  - Cursor remains visible on authentication, dashboard, and all interactive controls
 - **2025-10-01**: Tree deletion and action button improvements:
   - Fixed: Tree automatically deleted when last member is removed (dashboard now shows 0 trees)
   - Centered action buttons below person boxes using dynamic width calculation
