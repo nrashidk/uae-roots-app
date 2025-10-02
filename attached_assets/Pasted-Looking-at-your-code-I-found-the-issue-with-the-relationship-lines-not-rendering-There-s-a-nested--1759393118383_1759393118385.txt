@@ -1,0 +1,190 @@
+Looking at your code, I found the issue with the relationship lines not rendering. There's a nested SVG structure that's causing problems - you have an outer <svg> tag with transforms, and then another <svg> tag inside it for the relationship lines. This nested structure prevents the lines from rendering correctly.
+Here's the fix - replace the SVG section in your tree-builder view (around line 900-1100) with this corrected version:
+jsx<svg
+  className="absolute inset-0 pointer-events-none"
+  style={{
+    width: "100%",
+    height: "100%",
+    transform: `translate(${panOffset.x}px, ${panOffset.y}px) scale(${zoom})`,
+    transformOrigin: "0 0",
+  }}
+>
+  {/* Partner relationships - straight bold lines */}
+  {relationships
+    .filter(
+      (r) =>
+        r.type === REL.PARTNER && r.treeId === currentTree?.id,
+    )
+    .map((r, i) => {
+      const p1 = treePeople.find((p) => p.id === r.person1Id);
+      const p2 = treePeople.find((p) => p.id === r.person2Id);
+      
+      if (!p1 || !p2) return null;
+
+      const leftPerson = p1.x < p2.x ? p1 : p2;
+      const rightPerson = p1.x < p2.x ? p2 : p1;
+
+      const startX = leftPerson.x + stylingOptions.boxWidth;
+      const endX = rightPerson.x;
+      const startY = leftPerson.y + CARD.h / 2;
+      const endY = rightPerson.y + CARD.h / 2;
+
+      return (
+        <line
+          key={`spouse-${i}`}
+          x1={startX}
+          y1={startY}
+          x2={endX}
+          y2={endY}
+          stroke="#dc2626"
+          strokeWidth={8}
+          strokeLinecap="round"
+          style={{
+            filter: "drop-shadow(0px 2px 4px rgba(220, 38, 38, 0.3))",
+          }}
+        />
+      );
+    })}
+
+  {/* Parent-child relationships - T-connectors */}
+  {relationships
+    .filter(
+      (r) =>
+        r.type === REL.PARENT_CHILD &&
+        r.treeId === currentTree?.id,
+    )
+    .map((r, i) => {
+      const child = treePeople.find((p) => p.id === r.childId);
+      const parent = treePeople.find((p) => p.id === r.parentId);
+      if (!child || !parent) return null;
+
+      const spouseRel = relationships.find(
+        (rel) =>
+          rel.type === REL.PARTNER &&
+          (rel.person1Id === r.parentId ||
+            rel.person2Id === r.parentId) &&
+          rel.treeId === currentTree?.id,
+      );
+      let spouse = null;
+      if (spouseRel) {
+        spouse = treePeople.find(
+          (p) =>
+            p.id ===
+            (spouseRel.person1Id === r.parentId
+              ? spouseRel.person2Id
+              : spouseRel.person1Id),
+        );
+      }
+
+      const parentX = parent.x + stylingOptions.boxWidth / 2;
+      const spouseX = spouse
+        ? spouse.x + stylingOptions.boxWidth / 2
+        : parentX;
+      const midX = spouse ? (parentX + spouseX) / 2 : parentX;
+      const parentY = parent.y + CARD.h;
+      const childY = child.y;
+      const childX = child.x + stylingOptions.boxWidth / 2;
+
+      const curveRadius = 15;
+      const strokeColor = "#059669";
+
+      return (
+        <g key={`parent-child-${i}`}>
+          {spouse && (
+            <path
+              d={`M ${parentX} ${parentY + 15} L ${spouseX} ${parentY + 15}`}
+              stroke={strokeColor}
+              strokeWidth={3}
+              strokeLinecap="round"
+              fill="none"
+            />
+          )}
+          <path
+            d={`M ${midX} ${parentY + 15} 
+            L ${midX} ${parentY + 30}
+            Q ${midX} ${parentY + 30 + curveRadius} ${midX + (childX > midX ? curveRadius : -curveRadius)} ${parentY + 30 + curveRadius}
+            L ${childX - (childX > midX ? curveRadius : -curveRadius)} ${parentY + 30 + curveRadius}
+            Q ${childX} ${parentY + 30 + curveRadius} ${childX} ${parentY + 30 + 2 * curveRadius}
+            L ${childX} ${childY}`}
+            stroke={strokeColor}
+            strokeWidth={3}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            fill="none"
+          />
+        </g>
+      );
+    })}
+
+  {/* Sibling connections */}
+  {Object.values(
+    treePeople.reduce((acc, p) => {
+      const parentRel = relationships.find(
+        (r) =>
+          r.type === REL.PARENT_CHILD &&
+          r.childId === p.id &&
+          r.treeId === currentTree?.id,
+      );
+      if (parentRel) {
+        const parentId = parentRel.parentId;
+        if (!acc[parentId]) acc[parentId] = [];
+        acc[parentId].push(p);
+      }
+      return acc;
+    }, {}),
+  ).map((siblings, i) => {
+    if (siblings.length < 2) return null;
+
+    const y = siblings[0].y - 20;
+    const minX = Math.min(
+      ...siblings.map((s) => s.x + stylingOptions.boxWidth / 2),
+    );
+    const maxX = Math.max(
+      ...siblings.map((s) => s.x + stylingOptions.boxWidth / 2),
+    );
+    const curveHeight = 10;
+    const strokeColor = "#7c3aed";
+    const dashArray = "5,5";
+
+    return (
+      <g key={`siblings-${i}`}>
+        <path
+          d={`M ${minX} ${y} 
+            Q ${(minX + maxX) / 2} ${y - curveHeight} ${maxX} ${y}`}
+          stroke={strokeColor}
+          strokeWidth={2}
+          strokeLinecap="round"
+          strokeDasharray={dashArray}
+          fill="none"
+        />
+        {siblings.map((sibling, idx) => {
+          const siblingX =
+            sibling.x + stylingOptions.boxWidth / 2;
+          const connectionY =
+            y -
+            curveHeight *
+              Math.sin(
+                (Math.PI * (siblingX - minX)) / (maxX - minX),
+              );
+
+          return (
+            <path
+              key={`sibling-line-${idx}`}
+              d={`M ${siblingX} ${connectionY}
+                Q ${siblingX} ${(connectionY + sibling.y) / 2} ${siblingX} ${sibling.y}`}
+              stroke={strokeColor}
+              strokeWidth={2}
+              strokeLinecap="round"
+              fill="none"
+            />
+          );
+        })}
+      </g>
+    );
+  })}
+</svg>
+Key changes:
+
+Removed the nested SVG structure - there was an outer SVG with transforms and an inner SVG trying to render lines, which caused the rendering failure
+Added unique keys to all relationship rendering groups (e.g., spouse-${i}, parent-child-${i}, siblings-${i}) to help React track elements properly
+Simplified the structure - now all paths are direct children of the main SVG with the transform applied
