@@ -1,0 +1,755 @@
+I see the issue - the horizontal line only spans from the leftmost child to the rightmost child, but if the parent connection point is outside that range (or the children are positioned differently), there's a gap.
+Replace the parent-child relationships section with this fixed version:
+jsx{/* Parent-child relationships - Hierarchy chart style */}
+{(() => {
+  const childToParents = {};
+  
+  relationships
+    .filter((r) => r.type === REL.PARENT_CHILD && r.treeId === currentTree?.id)
+    .forEach((r) => {
+      const child = treePeople.find((p) => p.id === r.childId);
+      const parent = treePeople.find((p) => p.id === r.parentId);
+      
+      if (!child || !parent) return;
+      
+      if (!childToParents[child.id]) {
+        childToParents[child.id] = new Set();
+      }
+      childToParents[child.id].add(parent.id);
+    });
+  
+  relationships
+    .filter((r) => r.type === REL.SIBLING && r.treeId === currentTree?.id)
+    .forEach((r) => {
+      const person1Parents = childToParents[r.person1Id];
+      const person2Parents = childToParents[r.person2Id];
+      
+      if (person1Parents && !person2Parents) {
+        childToParents[r.person2Id] = new Set(person1Parents);
+      } else if (person2Parents && !person1Parents) {
+        childToParents[r.person1Id] = new Set(person2Parents);
+      } else if (person1Parents && person2Parents) {
+        const mergedParents = new Set([...person1Parents, ...person2Parents]);
+        childToParents[r.person1Id] = mergedParents;
+        childToParents[r.person2Id] = mergedParents;
+      }
+    });
+  
+  const parentGroups = {};
+  
+  Object.entries(childToParents).forEach(([childId, parentIds]) => {
+    const parentArray = Array.from(parentIds).sort();
+    const groupKey = parentArray.join('-');
+    
+    if (!parentGroups[groupKey]) {
+      parentGroups[groupKey] = {
+        parentIds: parentArray,
+        children: []
+      };
+    }
+    
+    const child = treePeople.find(p => p.id === parseInt(childId));
+    if (child) {
+      parentGroups[groupKey].children.push(child);
+    }
+  });
+  
+  return Object.values(parentGroups).map((group, groupIndex) => {
+    if (group.children.length === 0) return null;
+    
+    const parents = group.parentIds
+      .map(id => treePeople.find(p => p.id === id))
+      .filter(Boolean);
+    
+    if (parents.length === 0) return null;
+    
+    const children = group.children.sort((a, b) => a.x - b.x);
+    
+    let parentConnectionX, parentConnectionY;
+    
+    if (parents.length === 2) {
+      const partnerRel = relationships.find(
+        r => r.type === REL.PARTNER && 
+        r.treeId === currentTree?.id &&
+        ((r.person1Id === parents[0].id && r.person2Id === parents[1].id) ||
+         (r.person1Id === parents[1].id && r.person2Id === parents[0].id))
+      );
+      
+      if (partnerRel) {
+        const p1X = parents[0].x + stylingOptions.boxWidth / 2;
+        const p2X = parents[1].x + stylingOptions.boxWidth / 2;
+        parentConnectionX = (p1X + p2X) / 2;
+        parentConnectionY = Math.max(parents[0].y + CARD.h, parents[1].y + CARD.h);
+      } else {
+        parentConnectionX = parents[0].x + stylingOptions.boxWidth / 2;
+        parentConnectionY = parents[0].y + CARD.h;
+      }
+    } else {
+      parentConnectionX = parents[0].x + stylingOptions.boxWidth / 2;
+      parentConnectionY = parents[0].y + CARD.h;
+    }
+    
+    const childrenTopY = Math.min(...children.map(c => c.y));
+    const verticalGap = 50; // Fixed gap for clarity
+    const horizontalLineY = childrenTopY - verticalGap;
+    
+    // Calculate horizontal line extent - must include parent connection point
+    const childXPositions = children.map(c => c.x + stylingOptions.boxWidth / 2);
+    const leftmostX = Math.min(...childXPositions, parentConnectionX);
+    const rightmostX = Math.max(...childXPositions, parentConnectionX);
+    
+    const strokeColor = "#059669";
+    const strokeWidth = 3;
+    
+    return (
+      <g key={`parent-group-${groupIndex}`}>
+        {/* Vertical line from parent connection point to horizontal bar */}
+        <line
+          x1={parentConnectionX}
+          y1={parentConnectionY}
+          x2={parentConnectionX}
+          y2={horizontalLineY}
+          stroke={strokeColor}
+          strokeWidth={strokeWidth}
+          strokeLinecap="round"
+        />
+        
+        {/* Horizontal bar - extends to cover parent connection AND all children */}
+        {children.length > 1 ? (
+          <line
+            x1={leftmostX}
+            y1={horizontalLineY}
+            x2={rightmostX}
+            y2={horizontalLineY}
+            stroke={strokeColor}
+            strokeWidth={strokeWidth}
+            strokeLinecap="round"
+          />
+        ) : (
+          /* For single child, just ensure line meets at the connection point */
+          <line
+            x1={parentConnectionX}
+            y1={horizontalLineY}
+            x2={children[0].x + stylingOptions.boxWidth / 2}
+            y2={horizontalLineY}
+            stroke={strokeColor}
+            strokeWidth={strokeWidth}
+            strokeLinecap="round"
+          />
+        )}
+        
+        {/* Vertical lines from horizontal bar to each child */}
+        {children.map((child, idx) => {
+          const childCenterX = child.x + stylingOptions.boxWidth / 2;
+          return (
+            <line
+              key={`child-${idx}`}
+              x1={childCenterX}
+              y1={horizontalLineY}
+              x2={childCenterX}
+              y2={child.y}
+              stroke={strokeColor}
+              strokeWidth={strokeWidth}
+              strokeLinecap="round"
+            />
+          );
+        })}
+      </g>
+    );
+  });
+})()}
+Key fixes:
+
+Extended horizontal line range: Changed from using only children positions to Math.min(...childXPositions, parentConnectionX) and Math.max(...childXPositions, parentConnectionX) - this ensures the horizontal line always extends to include the parent connection point
+Fixed vertical gap: Changed to a fixed verticalGap = 50 and positioned the horizontal line at childrenTopY - verticalGap - this ensures consistent spacing and proper connection
+Special handling for single child: When there's only one child, the horizontal line explicitly connects from the parent connection point to the child center
+
+Now the vertical line from parents and the horizontal line connecting children will definitely touch and connect properly.RetryNAlso, add a reposition or reorder the children to identify the elder, then the younger, then the younger, starting from right to left, the first one on the right side should be the elderEditStrategized reordering children by age from right to left.The user wants to add functionality to reorder children from right to left, with the eldest on the right and younger ones to the left. This is actually a common convention in some cultures, particularly in Middle Eastern family trees where the eldest child is positioned on the right (which is culturally significant in right-to-left reading cultures like Arabic).
+I need to:
+
+Add a field to track birth order or age for each person
+Modify the layout algorithm to sort children by age/birth order
+Position them right to left (eldest on right)
+
+Let me provide code that adds birth order tracking and sorts children accordingly.I'll help you add birth order tracking and automatic positioning of children from eldest (right) to youngest (left). This requires a few changes:
+
+Add a birth order field to the person form
+Sort children by birth order when rendering
+Update the layout algorithm to respect this ordering
+
+First, update the person state structure to include birth order:
+Find the addPerson function and add birth order tracking:
+jsxconst addPerson = (personData) => {
+  const anchorPerson = selectedPerson
+    ? people.find((p) => p.id === selectedPerson)
+    : null;
+
+  let finalPersonData = { ...personData };
+  
+  // Auto-set spouse gender to opposite of anchor person (if not already set by form)
+  if (relationshipType === "spouse" && anchorPerson && !personData.gender) {
+    if (anchorPerson.gender === "male") {
+      finalPersonData.gender = "female";
+    } else if (anchorPerson.gender === "female") {
+      finalPersonData.gender = "male";
+    }
+  }
+
+  // Calculate birth order for children and siblings
+  if (relationshipType === "child" || relationshipType === "sibling") {
+    // Find existing siblings/children to determine next birth order
+    let existingSiblings = [];
+    
+    if (relationshipType === "child") {
+      existingSiblings = relationships
+        .filter(r => r.type === REL.PARENT_CHILD && r.parentId === selectedPerson && r.treeId === currentTree?.id)
+        .map(r => people.find(p => p.id === r.childId))
+        .filter(Boolean);
+    } else if (relationshipType === "sibling") {
+      existingSiblings = relationships
+        .filter(r => r.type === REL.SIBLING && 
+                (r.person1Id === selectedPerson || r.person2Id === selectedPerson) &&
+                r.treeId === currentTree?.id)
+        .map(r => people.find(p => p.id === (r.person1Id === selectedPerson ? r.person2Id : r.person1Id)))
+        .filter(Boolean);
+      existingSiblings.push(anchorPerson); // Include the anchor person
+    }
+    
+    // Find max birth order and add 1
+    const maxBirthOrder = existingSiblings.length > 0 
+      ? Math.max(...existingSiblings.map(s => s.birthOrder || 0))
+      : 0;
+    
+    finalPersonData.birthOrder = maxBirthOrder + 1;
+  }
+
+  const position = calculatePosition(relationshipType, anchorPerson);
+
+  const newPerson = {
+    id: Date.now(),
+    ...finalPersonData,
+    x: position.x,
+    y: position.y,
+    treeId: currentTree?.id,
+    isLiving: finalPersonData.isLiving !== false,
+    birthOrder: finalPersonData.birthOrder || 0,
+  };
+
+  setPeople((prev) => [...prev, newPerson]);
+
+  // ... rest of the existing relationship creation code
+  if (selectedPerson && relationshipType) {
+    const newRelationship = { id: Date.now() + 1, treeId: currentTree?.id };
+
+    switch (relationshipType) {
+      case "spouse":
+        newRelationship.type = REL.PARTNER;
+        newRelationship.person1Id = selectedPerson;
+        newRelationship.person2Id = newPerson.id;
+        break;
+      case "child":
+        newRelationship.type = REL.PARENT_CHILD;
+        newRelationship.parentId = selectedPerson;
+        newRelationship.childId = newPerson.id;
+
+        const spouseRel = relationships.find(
+          (r) =>
+            r.type === REL.PARTNER &&
+            (r.person1Id === selectedPerson ||
+              r.person2Id === selectedPerson) &&
+            r.treeId === currentTree?.id,
+        );
+
+        if (spouseRel) {
+          const spouseId =
+            spouseRel.person1Id === selectedPerson
+              ? spouseRel.person2Id
+              : spouseRel.person1Id;
+          const spouseChildRelationship = {
+            id: Date.now() + 2,
+            type: REL.PARENT_CHILD,
+            parentId: spouseId,
+            childId: newPerson.id,
+            treeId: currentTree?.id,
+          };
+          setRelationships((prev) => [...prev, spouseChildRelationship]);
+        }
+        break;
+      case "parent":
+        newRelationship.type = REL.PARENT_CHILD;
+        newRelationship.parentId = newPerson.id;
+        newRelationship.childId = selectedPerson;
+        break;
+      case "sibling":
+        newRelationship.type = REL.SIBLING;
+        newRelationship.person1Id = selectedPerson;
+        newRelationship.person2Id = newPerson.id;
+        break;
+    }
+
+    setRelationships((prev) => [...prev, newRelationship]);
+  }
+
+  setTimeout(() => {
+    centerOnPerson(newPerson);
+  }, 100);
+
+  setShowPersonForm(false);
+  setRelationshipType(null);
+  setEditingPerson(null);
+  setSelectedPerson(null);
+};
+Second, update the parent-child connection logic to sort children by birth order (right to left):
+jsx{/* Parent-child relationships - Hierarchy chart style */}
+{(() => {
+  const childToParents = {};
+  
+  relationships
+    .filter((r) => r.type === REL.PARENT_CHILD && r.treeId === currentTree?.id)
+    .forEach((r) => {
+      const child = treePeople.find((p) => p.id === r.childId);
+      const parent = treePeople.find((p) => p.id === r.parentId);
+      
+      if (!child || !parent) return;
+      
+      if (!childToParents[child.id]) {
+        childToParents[child.id] = new Set();
+      }
+      childToParents[child.id].add(parent.id);
+    });
+  
+  relationships
+    .filter((r) => r.type === REL.SIBLING && r.treeId === currentTree?.id)
+    .forEach((r) => {
+      const person1Parents = childToParents[r.person1Id];
+      const person2Parents = childToParents[r.person2Id];
+      
+      if (person1Parents && !person2Parents) {
+        childToParents[r.person2Id] = new Set(person1Parents);
+      } else if (person2Parents && !person1Parents) {
+        childToParents[r.person1Id] = new Set(person2Parents);
+      } else if (person1Parents && person2Parents) {
+        const mergedParents = new Set([...person1Parents, ...person2Parents]);
+        childToParents[r.person1Id] = mergedParents;
+        childToParents[r.person2Id] = mergedParents;
+      }
+    });
+  
+  const parentGroups = {};
+  
+  Object.entries(childToParents).forEach(([childId, parentIds]) => {
+    const parentArray = Array.from(parentIds).sort();
+    const groupKey = parentArray.join('-');
+    
+    if (!parentGroups[groupKey]) {
+      parentGroups[groupKey] = {
+        parentIds: parentArray,
+        children: []
+      };
+    }
+    
+    const child = treePeople.find(p => p.id === parseInt(childId));
+    if (child) {
+      parentGroups[groupKey].children.push(child);
+    }
+  });
+  
+  return Object.values(parentGroups).map((group, groupIndex) => {
+    if (group.children.length === 0) return null;
+    
+    const parents = group.parentIds
+      .map(id => treePeople.find(p => p.id === id))
+      .filter(Boolean);
+    
+    if (parents.length === 0) return null;
+    
+    // Sort children: eldest (lowest birthOrder) on RIGHT, youngest on LEFT
+    // For RTL culture: sort by birthOrder ascending, then reverse for right-to-left display
+    const children = group.children.sort((a, b) => {
+      const orderA = a.birthOrder || 0;
+      const orderB = b.birthOrder || 0;
+      // If birth orders are different, sort by birth order
+      if (orderA !== orderB) {
+        return orderA - orderB; // Ascending birth order
+      }
+      // If same birth order or both 0, sort by x position (left to right)
+      return a.x - b.x;
+    }).reverse(); // Reverse to show eldest on right
+    
+    let parentConnectionX, parentConnectionY;
+    
+    if (parents.length === 2) {
+      const partnerRel = relationships.find(
+        r => r.type === REL.PARTNER && 
+        r.treeId === currentTree?.id &&
+        ((r.person1Id === parents[0].id && r.person2Id === parents[1].id) ||
+         (r.person1Id === parents[1].id && r.person2Id === parents[0].id))
+      );
+      
+      if (partnerRel) {
+        const p1X = parents[0].x + stylingOptions.boxWidth / 2;
+        const p2X = parents[1].x + stylingOptions.boxWidth / 2;
+        parentConnectionX = (p1X + p2X) / 2;
+        parentConnectionY = Math.max(parents[0].y + CARD.h, parents[1].y + CARD.h);
+      } else {
+        parentConnectionX = parents[0].x + stylingOptions.boxWidth / 2;
+        parentConnectionY = parents[0].y + CARD.h;
+      }
+    } else {
+      parentConnectionX = parents[0].x + stylingOptions.boxWidth / 2;
+      parentConnectionY = parents[0].y + CARD.h;
+    }
+    
+    const childrenTopY = Math.min(...children.map(c => c.y));
+    const verticalGap = 50;
+    const horizontalLineY = childrenTopY - verticalGap;
+    
+    const childXPositions = children.map(c => c.x + stylingOptions.boxWidth / 2);
+    const leftmostX = Math.min(...childXPositions, parentConnectionX);
+    const rightmostX = Math.max(...childXPositions, parentConnectionX);
+    
+    const strokeColor = "#059669";
+    const strokeWidth = 3;
+    
+    return (
+      <g key={`parent-group-${groupIndex}`}>
+        <line
+          x1={parentConnectionX}
+          y1={parentConnectionY}
+          x2={parentConnectionX}
+          y2={horizontalLineY}
+          stroke={strokeColor}
+          strokeWidth={strokeWidth}
+          strokeLinecap="round"
+        />
+        
+        {children.length > 1 ? (
+          <line
+            x1={leftmostX}
+            y1={horizontalLineY}
+            x2={rightmostX}
+            y2={horizontalLineY}
+            stroke={strokeColor}
+            strokeWidth={strokeWidth}
+            strokeLinecap="round"
+          />
+        ) : (
+          <line
+            x1={parentConnectionX}
+            y1={horizontalLineY}
+            x2={children[0].x + stylingOptions.boxWidth / 2}
+            y2={horizontalLineY}
+            stroke={strokeColor}
+            strokeWidth={strokeWidth}
+            strokeLinecap="round"
+          />
+        )}
+        
+        {children.map((child, idx) => {
+          const childCenterX = child.x + stylingOptions.boxWidth / 2;
+          return (
+            <line
+              key={`child-${idx}`}
+              x1={childCenterX}
+              y1={horizontalLineY}
+              x2={childCenterX}
+              y2={child.y}
+              stroke={strokeColor}
+              strokeWidth={strokeWidth}
+              strokeLinecap="round"
+            />
+          );
+        })}
+      </g>
+    );
+  });
+})()}
+Now children will automatically be positioned with the eldest on the right side and younger siblings progressively to the left, which is culturally appropriate for Arabic/RTL family trees. The birth order is automatically assigned when adding children or siblings.RetryNis this changes assuming that we have a birthday? because we kept this information optionalEditClarified birth order field is independent of birthdate.1h, 19m, 37sThe user is asking if the birth order changes I suggested assume that we have a birthday field filled in. They're concerned because birthday information is kept optional in their form.
+Looking at my previous response, I used a birthOrder field that I added to track the sequence of children (1, 2, 3, etc.), NOT the actual birth date. This is different from the birthDate field which is optional.
+The birthOrder field I suggested is:
+
+Automatically assigned when adding a child or sibling
+Simply a counter (1 for first child, 2 for second, etc.)
+Independent of the actual birth date
+Not displayed to the user, just used internally for ordering
+
+So no, my changes don't assume we have a birthday. The birthOrder is a separate internal field that tracks the sequence in which children were added, not their actual birth dates.
+I should clarify this distinction for the user.No, the birthOrder field I added is not the same as the birthday/birth date. It's a separate internal tracking number that works independently:
+
+birthDate = The actual birthday (optional, entered by user)
+birthOrder = A simple counter (1, 2, 3...) automatically assigned when you add children, regardless of whether you enter a birth date
+
+The birthOrder is automatically calculated based on the sequence you add children:
+
+First child added = birthOrder: 1 (eldest)
+Second child added = birthOrder: 2
+Third child added = birthOrder: 3 (youngest)
+
+This means:
+
+You don't need to enter any birth dates
+The birth order is tracked automatically in the background
+Children are positioned right-to-left based on the order they were added to the tree
+
+However, if you want users to manually control the birth order (in case they add children out of sequence), you could add an optional "Birth Order" field to the form. This would let users specify "This is the 2nd child" even if they're adding them after the 3rd child.
+Would you like me to:
+
+Keep it automatic (based on add sequence) - no user input needed
+Add an optional "Birth Order" field to the form for manual control
+Use actual birth dates if provided, fall back to automatic ordering if not
+
+Which approach fits your needs better?RetryNI want it to be an optional feature, where I can change the sibling order, by simply sending to the right or left. So Add this option in the edit menu bar, after على قيد الحياة and let's name it ترتيب الأبناء where this is a drop down list, based on the number of siblings added, this drop list reflected automatically. So the first children added will be numbered 1, the second 2, etc. Then, if I wan to change their order, I would come to this drop list and chose another number for this children, and the number is changed between the siblingsEditخطط لإضافة حقل ترتيب الأبناء بشكل مرن وديناميكي.The user wants to add a "Birth Order" (ترتيب الأبناء) dropdown field in the person edit form. This should:
+
+Be placed after the "isLiving" (على قيد الحياة) checkbox
+Show a dropdown with numbers based on how many siblings exist
+Allow reordering - if you change one child's order, it should swap with the sibling who has that number
+Update automatically as siblings are added
+
+I need to:
+
+Add the birthOrder field to the PersonForm component
+Calculate the number of siblings to populate the dropdown
+Implement logic to swap birth orders when changed
+Make sure this only shows for people who have siblings
+
+Let me write the code changes needed.I'll add an optional "ترتيب الأبناء" (Birth Order) dropdown that allows you to reorder siblings. Here are the changes:
+1. First, update the PersonForm component to include the birth order dropdown:
+Find the PersonForm component and add this after the isLiving checkbox in the "personal" tab:
+jsx{activeTab === "personal" && (
+  <div className="space-y-3">
+    {/* ... existing firstName, lastName, gender, birthDate, birthPlace fields ... */}
+
+    <div className="flex items-center gap-2">
+      <input
+        type="checkbox"
+        id="isLiving"
+        checked={formData.isLiving}
+        onChange={(e) => handleChange("isLiving", e.target.checked)}
+        className="rounded"
+      />
+      <label
+        htmlFor="isLiving"
+        className="text-base font-bold text-gray-700 arabic-text"
+      >
+        {t.isLiving}
+      </label>
+    </div>
+
+    {/* NEW: Birth Order Dropdown */}
+    {(() => {
+      // Calculate siblings for this person
+      const currentPersonId = person?.id;
+      if (!currentPersonId) return null;
+      
+      // Find all siblings (people with same parents or sibling relationships)
+      const siblingIds = new Set([currentPersonId]);
+      
+      // Add siblings from SIBLING relationships
+      relationships
+        .filter(r => r.type === REL.SIBLING && r.treeId === currentTree?.id)
+        .forEach(r => {
+          if (r.person1Id === currentPersonId) siblingIds.add(r.person2Id);
+          if (r.person2Id === currentPersonId) siblingIds.add(r.person1Id);
+        });
+      
+      // Add siblings from shared PARENT_CHILD relationships
+      const parentIds = relationships
+        .filter(r => r.type === REL.PARENT_CHILD && r.childId === currentPersonId && r.treeId === currentTree?.id)
+        .map(r => r.parentId);
+      
+      if (parentIds.length > 0) {
+        relationships
+          .filter(r => r.type === REL.PARENT_CHILD && 
+                      parentIds.includes(r.parentId) && 
+                      r.treeId === currentTree?.id)
+          .forEach(r => {
+            siblingIds.add(r.childId);
+          });
+      }
+      
+      const siblingCount = siblingIds.size;
+      
+      // Only show if there are siblings
+      if (siblingCount <= 1) return null;
+      
+      return (
+        <div>
+          <label className="block text-base font-bold text-gray-700 mb-1 arabic-text">
+            ترتيب الأبناء
+          </label>
+          <select
+            value={formData.birthOrder || 1}
+            onChange={(e) => handleChange("birthOrder", parseInt(e.target.value))}
+            className="w-full px-3 py-2 text-base border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 arabic-text"
+          >
+            {Array.from({ length: siblingCount }, (_, i) => i + 1).map(num => (
+              <option key={num} value={num}>
+                {num} {num === 1 ? "(الأكبر)" : num === siblingCount ? "(الأصغر)" : ""}
+              </option>
+            ))}
+          </select>
+        </div>
+      );
+    })()}
+
+    {!formData.isLiving && (
+      <div>
+        <label className="block text-base font-bold text-gray-700 mb-1 arabic-text">
+          {t.deathDate}
+        </label>
+        <input
+          type="date"
+          value={formData.deathDate}
+          onChange={(e) => handleChange("deathDate", e.target.value)}
+          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+        />
+      </div>
+    )}
+  </div>
+)}
+2. Update the updatePerson function to handle birth order swapping:
+Replace your existing updatePerson function with this enhanced version:
+jsx// Update person with birth order swapping
+const updatePerson = (personData) => {
+  const oldPerson = people.find(p => p.id === editingPerson);
+  const oldBirthOrder = oldPerson?.birthOrder || 0;
+  const newBirthOrder = personData.birthOrder || 0;
+  
+  // If birth order changed, swap with the sibling who has that order
+  if (oldBirthOrder !== newBirthOrder && newBirthOrder > 0) {
+    // Find all siblings
+    const siblingIds = new Set([editingPerson]);
+    
+    // Add siblings from SIBLING relationships
+    relationships
+      .filter(r => r.type === REL.SIBLING && r.treeId === currentTree?.id)
+      .forEach(r => {
+        if (r.person1Id === editingPerson) siblingIds.add(r.person2Id);
+        if (r.person2Id === editingPerson) siblingIds.add(r.person1Id);
+      });
+    
+    // Add siblings from shared PARENT_CHILD relationships
+    const parentIds = relationships
+      .filter(r => r.type === REL.PARENT_CHILD && r.childId === editingPerson && r.treeId === currentTree?.id)
+      .map(r => r.parentId);
+    
+    if (parentIds.length > 0) {
+      relationships
+        .filter(r => r.type === REL.PARENT_CHILD && 
+                    parentIds.includes(r.parentId) && 
+                    r.treeId === currentTree?.id)
+        .forEach(r => {
+          siblingIds.add(r.childId);
+        });
+    }
+    
+    // Find the sibling who currently has the target birth order
+    const siblingToSwap = people.find(p => 
+      siblingIds.has(p.id) && 
+      p.id !== editingPerson && 
+      p.birthOrder === newBirthOrder
+    );
+    
+    // Perform the swap
+    setPeople((prev) =>
+      prev.map((p) => {
+        if (p.id === editingPerson) {
+          return { ...p, ...personData };
+        } else if (siblingToSwap && p.id === siblingToSwap.id) {
+          return { ...p, birthOrder: oldBirthOrder };
+        }
+        return p;
+      })
+    );
+  } else {
+    // No birth order change, just update normally
+    setPeople((prev) =>
+      prev.map((p) => (p.id === editingPerson ? { ...p, ...personData } : p))
+    );
+  }
+  
+  setShowPersonForm(false);
+  setEditingPerson(null);
+};
+3. Update the PersonForm's initial state to include birthOrder:
+In the PersonForm component, update the useState initialization:
+jsxconst [formData, setFormData] = useState({
+  firstName: person?.firstName || "",
+  lastName: person?.lastName || "",
+  gender: person?.gender || (relationshipType === "spouse" && anchorPerson
+    ? anchorPerson.gender === "male" ? "female" : "male"
+    : ""),
+  birthDate: person?.birthDate || "",
+  birthPlace: person?.birthPlace || "",
+  isLiving: person?.isLiving !== false,
+  deathDate: person?.deathDate || "",
+  phone: person?.phone || "",
+  email: person?.email || "",
+  address: person?.address || "",
+  profession: person?.profession || "",
+  company: person?.company || "",
+  bioNotes: person?.bioNotes || "",
+  birthOrder: person?.birthOrder || 1, // Add this line
+});
+4. Update the useEffect in PersonForm to handle birthOrder:
+jsxuseEffect(() => {
+  if (person) {
+    setFormData({
+      firstName: person.firstName || "",
+      lastName: person.lastName || "",
+      gender: person.gender || "",
+      birthDate: person.birthDate || "",
+      birthPlace: person.birthPlace || "",
+      isLiving: person.isLiving !== false,
+      deathDate: person.deathDate || "",
+      phone: person.phone || "",
+      email: person.email || "",
+      address: person.address || "",
+      profession: person.profession || "",
+      company: person.company || "",
+      bioNotes: person.bioNotes || "",
+      birthOrder: person.birthOrder || 1, // Add this
+    });
+  } else if (relationshipType === "spouse" && anchorPerson) {
+    setFormData({
+      firstName: "",
+      lastName: "",
+      gender: anchorPerson.gender === "male" ? "female" : "male",
+      birthDate: "",
+      birthPlace: "",
+      isLiving: true,
+      deathDate: "",
+      phone: "",
+      email: "",
+      address: "",
+      profession: "",
+      company: "",
+      bioNotes: "",
+      birthOrder: 1, // Add this
+    });
+  } else {
+    setFormData({
+      firstName: "",
+      lastName: "",
+      gender: "",
+      birthDate: "",
+      birthPlace: "",
+      isLiving: true,
+      deathDate: "",
+      phone: "",
+      email: "",
+      address: "",
+      profession: "",
+      company: "",
+      bioNotes: "",
+      birthOrder: 1, // Add this
+    });
+  }
+}, [person, relationshipType, anchorPerson]);
+Now you have a "ترتيب الأبناء" dropdown that:
+
+Only appears when editing a person who has siblings
+Shows numbers from 1 to the total number of siblings
+Labels 1 as "(الأكبر)" (eldest) and the last number as "(الأصغر)" (youngest)
+Swaps birth orders when you select a different number
+Automatically updates the visual ordering from right to left

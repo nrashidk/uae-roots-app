@@ -591,6 +591,35 @@ function App() {
       }
     }
 
+    // Calculate birth order for children and siblings
+    if (relationshipType === "child" || relationshipType === "sibling") {
+      let existingSiblings = [];
+      
+      if (relationshipType === "child") {
+        // Find existing children of the same parent
+        existingSiblings = relationships
+          .filter(r => r.type === REL.PARENT_CHILD && r.parentId === selectedPerson && r.treeId === currentTree?.id)
+          .map(r => people.find(p => p.id === r.childId))
+          .filter(Boolean);
+      } else if (relationshipType === "sibling") {
+        // Find existing siblings
+        existingSiblings = relationships
+          .filter(r => r.type === REL.SIBLING && 
+                  (r.person1Id === selectedPerson || r.person2Id === selectedPerson) &&
+                  r.treeId === currentTree?.id)
+          .map(r => people.find(p => p.id === (r.person1Id === selectedPerson ? r.person2Id : r.person1Id)))
+          .filter(Boolean);
+        existingSiblings.push(anchorPerson); // Include the anchor person
+      }
+      
+      // Find max birth order and add 1
+      const maxBirthOrder = existingSiblings.length > 0 
+        ? Math.max(...existingSiblings.map(s => s.birthOrder || 0))
+        : 0;
+      
+      finalPersonData.birthOrder = maxBirthOrder + 1;
+    }
+
     const position = calculatePosition(relationshipType, anchorPerson);
 
     const newPerson = {
@@ -600,6 +629,7 @@ function App() {
       y: position.y,
       treeId: currentTree?.id,
       isLiving: finalPersonData.isLiving !== false,
+      birthOrder: finalPersonData.birthOrder || 0,
     };
 
     setPeople((prev) => [...prev, newPerson]);
@@ -1440,8 +1470,14 @@ function App() {
                     
                     if (parents.length === 0) return null;
                     
-                    // Sort children left to right
-                    const children = group.children.sort((a, b) => a.x - b.x);
+                    // Sort children by birth order (descending) so eldest is on right
+                    // If no birth order, fall back to position
+                    const children = group.children.sort((a, b) => {
+                      if (a.birthOrder && b.birthOrder) {
+                        return b.birthOrder - a.birthOrder; // Descending: eldest (higher) on right
+                      }
+                      return a.x - b.x; // Fallback to position
+                    });
                     
                     // Calculate connection point on parents
                     let parentConnectionX, parentConnectionY;
@@ -1474,7 +1510,13 @@ function App() {
                     
                     // Calculate where children are
                     const childrenTopY = Math.min(...children.map(c => c.y));
-                    const horizontalLineY = parentConnectionY + (childrenTopY - parentConnectionY) / 2;
+                    const verticalGap = 50; // Fixed gap for clarity
+                    const horizontalLineY = childrenTopY - verticalGap;
+                    
+                    // Calculate horizontal line extent - must include parent connection point
+                    const childXPositions = children.map(c => c.x + stylingOptions.boxWidth / 2);
+                    const leftmostX = Math.min(...childXPositions, parentConnectionX);
+                    const rightmostX = Math.max(...childXPositions, parentConnectionX);
                     
                     const strokeColor = "#059669";
                     const strokeWidth = 3;
@@ -1492,12 +1534,23 @@ function App() {
                           strokeLinecap="round"
                         />
                         
-                        {/* Horizontal bar connecting to all children (if more than one) */}
-                        {children.length > 1 && (
+                        {/* Horizontal bar - extends to cover parent connection AND all children */}
+                        {children.length > 1 ? (
                           <line
-                            x1={children[0].x + stylingOptions.boxWidth / 2}
+                            x1={leftmostX}
                             y1={horizontalLineY}
-                            x2={children[children.length - 1].x + stylingOptions.boxWidth / 2}
+                            x2={rightmostX}
+                            y2={horizontalLineY}
+                            stroke={strokeColor}
+                            strokeWidth={strokeWidth}
+                            strokeLinecap="round"
+                          />
+                        ) : (
+                          /* For single child, just ensure line meets at the connection point */
+                          <line
+                            x1={parentConnectionX}
+                            y1={horizontalLineY}
+                            x2={children[0].x + stylingOptions.boxWidth / 2}
                             y2={horizontalLineY}
                             stroke={strokeColor}
                             strokeWidth={strokeWidth}
