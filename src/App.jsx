@@ -327,37 +327,53 @@ function App() {
       const gen = parseInt(g);
       const row = genMap[gen];
       
-      // Group children by their parents for proper birth order sorting
-      const childGroups = {};
+      // Group children by their parent sets for proper birth order sorting
+      // Build a map of child -> all their parents
+      const childToParents = {};
+      row.forEach(person => {
+        const parents = new Set();
+        relationships.forEach(r => {
+          if (r.type === REL.PARENT_CHILD && r.childId === person.id) {
+            parents.add(r.parentId);
+          }
+        });
+        if (parents.size > 0) {
+          childToParents[person.id] = parents;
+        }
+      });
+      
+      // Group children who share the same parent set
+      const parentSetGroups = {};
       const orphans = []; // People with no parents in this generation
       
       row.forEach(person => {
-        const parentId = parentMap[person.id];
-        if (parentId) {
-          if (!childGroups[parentId]) {
-            childGroups[parentId] = [];
+        if (childToParents[person.id]) {
+          // Create a key from sorted parent IDs
+          const parentKey = Array.from(childToParents[person.id]).sort().join('-');
+          if (!parentSetGroups[parentKey]) {
+            parentSetGroups[parentKey] = [];
           }
-          childGroups[parentId].push(person);
+          parentSetGroups[parentKey].push(person);
         } else {
           orphans.push(person);
         }
       });
       
-      // Sort each child group by birth order (descending: eldest=1 processed last for rightmost position)
-      Object.keys(childGroups).forEach(parentId => {
-        childGroups[parentId].sort((a, b) => {
+      // Sort each child group by birth order (ascending then reverse for right-to-left)
+      Object.keys(parentSetGroups).forEach(parentKey => {
+        parentSetGroups[parentKey].sort((a, b) => {
           if (a.birthOrder && b.birthOrder) {
-            return a.birthOrder - b.birthOrder; // Ascending: eldest (1) first, will be positioned left, then we reverse
+            return a.birthOrder - b.birthOrder; // Ascending: eldest (1) first
           }
           return 0;
         });
         // Reverse so eldest is processed last (rightmost position)
-        childGroups[parentId].reverse();
+        parentSetGroups[parentKey].reverse();
       });
       
       // Rebuild row with sorted groups
       const sortedRow = [...orphans];
-      Object.values(childGroups).forEach(group => {
+      Object.values(parentSetGroups).forEach(group => {
         sortedRow.push(...group);
       });
       
@@ -631,10 +647,41 @@ function App() {
       let existingSiblings = [];
       
       if (relationshipType === "child") {
-        // Find existing children of the same parent
-        existingSiblings = relationships
-          .filter(r => r.type === REL.PARENT_CHILD && r.parentId === selectedPerson && r.treeId === currentTree?.id)
-          .map(r => people.find(p => p.id === r.childId))
+        // Find all children who share the SAME parent set (full siblings only)
+        const parentIds = [selectedPerson];
+        
+        // Check if selected parent has a spouse
+        const spouseRel = relationships.find(
+          (r) =>
+            r.type === REL.PARTNER &&
+            (r.person1Id === selectedPerson || r.person2Id === selectedPerson) &&
+            r.treeId === currentTree?.id,
+        );
+        
+        if (spouseRel) {
+          const spouseId = spouseRel.person1Id === selectedPerson 
+            ? spouseRel.person2Id 
+            : spouseRel.person1Id;
+          parentIds.push(spouseId);
+        }
+        
+        // Get all children and build parent sets for each
+        const allChildren = relationships
+          .filter(r => r.type === REL.PARENT_CHILD && r.treeId === currentTree?.id)
+          .reduce((acc, r) => {
+            if (!acc[r.childId]) acc[r.childId] = new Set();
+            acc[r.childId].add(r.parentId);
+            return acc;
+          }, {});
+        
+        // Find children who have exactly the same parent set (full siblings)
+        const targetParentSet = parentIds.sort().join('-');
+        existingSiblings = Object.entries(allChildren)
+          .filter(([childId, childParents]) => {
+            const childParentSet = Array.from(childParents).sort().join('-');
+            return childParentSet === targetParentSet;
+          })
+          .map(([childId]) => people.find(p => p.id === parseInt(childId)))
           .filter(Boolean);
       } else if (relationshipType === "sibling") {
         // Find existing siblings
