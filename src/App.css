@@ -129,19 +129,10 @@ body {
   overflow: hidden;
 }
 
-.tree-canvas * {
+/* Only hide cursor on SVG elements and person boxes, not on buttons */
+.tree-canvas svg,
+.tree-canvas [data-person-box] {
   cursor: none !important;
-}
-
-/* Show cursor on buttons and interactive elements */
-.tree-canvas button,
-.tree-canvas button *,
-.tree-canvas [role="button"],
-.tree-canvas a,
-.tree-canvas input,
-.tree-canvas select,
-.tree-canvas textarea {
-  cursor: pointer !important;
 }
 
 /* Floating Controls */
