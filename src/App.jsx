@@ -1324,17 +1324,14 @@ function App() {
             <svg
               className="absolute inset-0 pointer-events-none"
               style={{
+                width: "100%",
+                height: "100%",
                 transform: `translate(${panOffset.x}px, ${panOffset.y}px) scale(${zoom})`,
                 transformOrigin: "0 0",
               }}
             >
-              {/* Enhanced family relationship connectors with smooth curves and professional styling */}
-              <svg
-                className="absolute inset-0 pointer-events-none"
-                style={{ width: "100%", height: "100%" }}
-              >
-                {/* Straight bold lines connecting husband and spouse */}
-                {relationships
+              {/* Partner relationships - straight bold lines */}
+              {relationships
                   .filter(
                     (r) =>
                       r.type === REL.PARTNER && r.treeId === currentTree?.id,
@@ -1417,7 +1414,7 @@ function App() {
                     const strokeColor = "#059669";
 
                     return (
-                      <g key={i}>
+                      <g key={`parent-child-${i}`}>
                         {/* Horizontal connection between parents with curves */}
                         {spouse && (
                           <path
@@ -1477,7 +1474,7 @@ function App() {
                   const dashArray = "5,5";
 
                   return (
-                    <g key={i}>
+                    <g key={`siblings-${i}`}>
                       {/* Main curved horizontal line connecting siblings */}
                       <path
                         d={`M ${minX} ${y} 
@@ -1501,7 +1498,7 @@ function App() {
 
                         return (
                           <path
-                            key={idx}
+                            key={`sibling-line-${idx}`}
                             d={`M ${siblingX} ${connectionY}
                               Q ${siblingX} ${(connectionY + sibling.y) / 2} ${siblingX} ${sibling.y}`}
                             stroke={strokeColor}
@@ -1514,7 +1511,6 @@ function App() {
                     </g>
                   );
                 })}
-              </svg>
             </svg>
 
             <div
