@@ -326,12 +326,47 @@ function App() {
     Object.keys(genMap).forEach((g) => {
       const gen = parseInt(g);
       const row = genMap[gen];
+      
+      // Group children by their parents for proper birth order sorting
+      const childGroups = {};
+      const orphans = []; // People with no parents in this generation
+      
+      row.forEach(person => {
+        const parentId = parentMap[person.id];
+        if (parentId) {
+          if (!childGroups[parentId]) {
+            childGroups[parentId] = [];
+          }
+          childGroups[parentId].push(person);
+        } else {
+          orphans.push(person);
+        }
+      });
+      
+      // Sort each child group by birth order (descending: eldest=1 processed last for rightmost position)
+      Object.keys(childGroups).forEach(parentId => {
+        childGroups[parentId].sort((a, b) => {
+          if (a.birthOrder && b.birthOrder) {
+            return a.birthOrder - b.birthOrder; // Ascending: eldest (1) first, will be positioned left, then we reverse
+          }
+          return 0;
+        });
+        // Reverse so eldest is processed last (rightmost position)
+        childGroups[parentId].reverse();
+      });
+      
+      // Rebuild row with sorted groups
+      const sortedRow = [...orphans];
+      Object.values(childGroups).forEach(group => {
+        sortedRow.push(...group);
+      });
+      
       const processedIds = new Set();
       
       // Calculate total width needed for this generation
       let totalWidth = 0;
       const tempProcessed = new Set();
-      row.forEach((person) => {
+      sortedRow.forEach((person) => {
         if (tempProcessed.has(person.id)) return;
         const spouseId = spouseMap[person.id];
         const spouse = spouseId ? idToPerson[spouseId] : null;
@@ -350,7 +385,7 @@ function App() {
       const padding = 50; // Minimum padding from edge
       let currentX = Math.max(padding, (viewportWidth - totalWidth) / 2);
 
-      row.forEach((person) => {
+      sortedRow.forEach((person) => {
         if (processedIds.has(person.id)) return;
 
         const spouseId = spouseMap[person.id];
@@ -1510,8 +1545,8 @@ function App() {
                     
                     // Calculate where children are
                     const childrenTopY = Math.min(...children.map(c => c.y));
-                    const verticalGap = 50; // Fixed gap for clarity
-                    const horizontalLineY = childrenTopY - verticalGap;
+                    // Place horizontal line midway between parent bottom and children top
+                    const horizontalLineY = parentConnectionY + (childrenTopY - parentConnectionY) / 2;
                     
                     // Calculate horizontal line extent - must include parent connection point
                     const childXPositions = children.map(c => c.x + stylingOptions.boxWidth / 2);
