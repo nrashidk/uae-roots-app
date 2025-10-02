@@ -1372,111 +1372,146 @@ function App() {
                   })}
                 {/* Parent-child relationships - Hierarchy chart style */}
                 {(() => {
-                  // Group children by their parent pairs
-                  const parentPairs = {};
+                  // Build a comprehensive map of parent-child relationships
+                  const childToParents = {};
                   
+                  // First pass: collect all direct parent-child relationships
                   relationships
                     .filter((r) => r.type === REL.PARENT_CHILD && r.treeId === currentTree?.id)
                     .forEach((r) => {
-                      const parent = treePeople.find((p) => p.id === r.parentId);
-                      if (!parent) return;
-                      
-                      // Find if this parent has a spouse
-                      const spouseRel = relationships.find(
-                        (rel) =>
-                          rel.type === REL.PARTNER &&
-                          (rel.person1Id === r.parentId || rel.person2Id === r.parentId) &&
-                          rel.treeId === currentTree?.id
-                      );
-                      
-                      let pairKey;
-                      if (spouseRel) {
-                        // Use sorted IDs to ensure same key regardless of order
-                        const ids = [spouseRel.person1Id, spouseRel.person2Id].sort();
-                        pairKey = `${ids[0]}-${ids[1]}`;
-                      } else {
-                        pairKey = `single-${r.parentId}`;
-                      }
-                      
-                      if (!parentPairs[pairKey]) {
-                        parentPairs[pairKey] = {
-                          parents: spouseRel 
-                            ? [
-                                treePeople.find(p => p.id === spouseRel.person1Id),
-                                treePeople.find(p => p.id === spouseRel.person2Id)
-                              ].filter(Boolean)
-                            : [parent],
-                          children: []
-                        };
-                      }
-                      
                       const child = treePeople.find((p) => p.id === r.childId);
-                      if (child && !parentPairs[pairKey].children.find(c => c.id === child.id)) {
-                        parentPairs[pairKey].children.push(child);
+                      const parent = treePeople.find((p) => p.id === r.parentId);
+                      
+                      if (!child || !parent) return;
+                      
+                      if (!childToParents[child.id]) {
+                        childToParents[child.id] = new Set();
+                      }
+                      childToParents[child.id].add(parent.id);
+                    });
+                  
+                  // Second pass: extend parents to siblings
+                  // If person A and B are siblings, and A has parents, then B should have the same parents
+                  relationships
+                    .filter((r) => r.type === REL.SIBLING && r.treeId === currentTree?.id)
+                    .forEach((r) => {
+                      const person1Parents = childToParents[r.person1Id];
+                      const person2Parents = childToParents[r.person2Id];
+                      
+                      if (person1Parents && !person2Parents) {
+                        childToParents[r.person2Id] = new Set(person1Parents);
+                      } else if (person2Parents && !person1Parents) {
+                        childToParents[r.person1Id] = new Set(person2Parents);
+                      } else if (person1Parents && person2Parents) {
+                        // Merge parent sets for both siblings
+                        const mergedParents = new Set([...person1Parents, ...person2Parents]);
+                        childToParents[r.person1Id] = mergedParents;
+                        childToParents[r.person2Id] = mergedParents;
                       }
                     });
                   
-                  return Object.values(parentPairs).map((pair, pairIndex) => {
-                    if (pair.children.length === 0) return null;
+                  // Group children by their parent sets
+                  const parentGroups = {};
+                  
+                  Object.entries(childToParents).forEach(([childId, parentIds]) => {
+                    const parentArray = Array.from(parentIds).sort();
+                    const groupKey = parentArray.join('-');
                     
-                    const parents = pair.parents;
-                    const children = pair.children.sort((a, b) => a.x - b.x);
-                    
-                    // Calculate midpoint between parents
-                    let parentMidX, parentBottomY;
-                    if (parents.length === 2) {
-                      const parent1X = parents[0].x + stylingOptions.boxWidth / 2;
-                      const parent2X = parents[1].x + stylingOptions.boxWidth / 2;
-                      parentMidX = (parent1X + parent2X) / 2;
-                      parentBottomY = Math.max(parents[0].y + CARD.h, parents[1].y + CARD.h);
-                    } else {
-                      parentMidX = parents[0].x + stylingOptions.boxWidth / 2;
-                      parentBottomY = parents[0].y + CARD.h;
+                    if (!parentGroups[groupKey]) {
+                      parentGroups[groupKey] = {
+                        parentIds: parentArray,
+                        children: []
+                      };
                     }
                     
-                    // Calculate horizontal line position for children
-                    const childrenTopY = Math.min(...children.map(c => c.y));
-                    const horizontalLineY = parentBottomY + (childrenTopY - parentBottomY) / 2;
+                    const child = treePeople.find(p => p.id === parseInt(childId));
+                    if (child) {
+                      parentGroups[groupKey].children.push(child);
+                    }
+                  });
+                  
+                  // Render connections for each parent group
+                  return Object.values(parentGroups).map((group, groupIndex) => {
+                    if (group.children.length === 0) return null;
                     
-                    // Calculate horizontal line extent
-                    const leftmostChildX = children[0].x + stylingOptions.boxWidth / 2;
-                    const rightmostChildX = children[children.length - 1].x + stylingOptions.boxWidth / 2;
+                    const parents = group.parentIds
+                      .map(id => treePeople.find(p => p.id === id))
+                      .filter(Boolean);
+                    
+                    if (parents.length === 0) return null;
+                    
+                    // Sort children left to right
+                    const children = group.children.sort((a, b) => a.x - b.x);
+                    
+                    // Calculate connection point on parents
+                    let parentConnectionX, parentConnectionY;
+                    
+                    if (parents.length === 2) {
+                      // Find if these parents are connected as partners
+                      const partnerRel = relationships.find(
+                        r => r.type === REL.PARTNER && 
+                        r.treeId === currentTree?.id &&
+                        ((r.person1Id === parents[0].id && r.person2Id === parents[1].id) ||
+                         (r.person1Id === parents[1].id && r.person2Id === parents[0].id))
+                      );
+                      
+                      if (partnerRel) {
+                        // Connect from middle of the partner line
+                        const p1X = parents[0].x + stylingOptions.boxWidth / 2;
+                        const p2X = parents[1].x + stylingOptions.boxWidth / 2;
+                        parentConnectionX = (p1X + p2X) / 2;
+                        parentConnectionY = Math.max(parents[0].y + CARD.h, parents[1].y + CARD.h);
+                      } else {
+                        // Parents not connected, use first parent
+                        parentConnectionX = parents[0].x + stylingOptions.boxWidth / 2;
+                        parentConnectionY = parents[0].y + CARD.h;
+                      }
+                    } else {
+                      // Single parent
+                      parentConnectionX = parents[0].x + stylingOptions.boxWidth / 2;
+                      parentConnectionY = parents[0].y + CARD.h;
+                    }
+                    
+                    // Calculate where children are
+                    const childrenTopY = Math.min(...children.map(c => c.y));
+                    const verticalGap = 40; // Space for the horizontal bar
+                    const horizontalLineY = childrenTopY - verticalGap;
                     
                     const strokeColor = "#059669";
                     const strokeWidth = 3;
                     
                     return (
-                      <g key={`parent-pair-${pairIndex}`}>
-                        {/* Vertical line from parents down to horizontal line */}
+                      <g key={`parent-group-${groupIndex}`}>
+                        {/* Vertical line from parent connection point to horizontal bar */}
                         <line
-                          x1={parentMidX}
-                          y1={parentBottomY}
-                          x2={parentMidX}
+                          x1={parentConnectionX}
+                          y1={parentConnectionY}
+                          x2={parentConnectionX}
                           y2={horizontalLineY}
                           stroke={strokeColor}
                           strokeWidth={strokeWidth}
                           strokeLinecap="round"
                         />
                         
-                        {/* Horizontal line connecting all children */}
-                        {children.length > 1 ? (
+                        {/* Horizontal bar connecting to all children (if more than one) */}
+                        {children.length > 1 && (
                           <line
-                            x1={leftmostChildX}
+                            x1={children[0].x + stylingOptions.boxWidth / 2}
                             y1={horizontalLineY}
-                            x2={rightmostChildX}
+                            x2={children[children.length - 1].x + stylingOptions.boxWidth / 2}
                             y2={horizontalLineY}
                             stroke={strokeColor}
                             strokeWidth={strokeWidth}
                             strokeLinecap="round"
                           />
-                        ) : null}
+                        )}
                         
-                        {/* Vertical lines from horizontal line down to each child */}
-                        {children.map((child, childIndex) => {
+                        {/* Vertical lines from horizontal bar to each child */}
+                        {children.map((child, idx) => {
                           const childCenterX = child.x + stylingOptions.boxWidth / 2;
                           return (
                             <line
-                              key={`child-line-${childIndex}`}
+                              key={`child-${idx}`}
                               x1={childCenterX}
                               y1={horizontalLineY}
                               x2={childCenterX}
