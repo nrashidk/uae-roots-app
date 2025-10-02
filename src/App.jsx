@@ -722,7 +722,6 @@ function App() {
       setIsDragging(true);
       setDragStart({ x: e.clientX, y: e.clientY });
       setDragStartOffset({ ...panOffset });
-      e.currentTarget.style.cursor = "grabbing";
     }
   };
 
@@ -740,7 +739,6 @@ function App() {
   const handleMouseUp = (e) => {
     if (isDragging) {
       setIsDragging(false);
-      e.currentTarget.style.cursor = "grab";
     }
   };
 
@@ -1315,8 +1313,8 @@ function App() {
         >
           <div
             ref={canvasRef}
-            className="w-full h-full cursor-grab active:cursor-grabbing overflow-hidden"
-            style={{ backgroundColor: stylingOptions.backgroundColor }}
+            className="w-full h-full overflow-hidden"
+            style={{ backgroundColor: stylingOptions.backgroundColor, cursor: 'none' }}
             onMouseDown={handleMouseDown}
             onMouseUp={handleMouseUp}
             onWheel={handleWheel}
