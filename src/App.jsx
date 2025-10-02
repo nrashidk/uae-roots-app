@@ -1361,11 +1361,11 @@ function App() {
                         y1={startY}
                         x2={endX}
                         y2={endY}
-                        stroke="#dc2626"
-                        strokeWidth={8}
+                        stroke="black"
+                        strokeWidth={4}
                         strokeLinecap="round"
                         style={{
-                          filter: "drop-shadow(0px 2px 4px rgba(220, 38, 38, 0.3))",
+                          filter: "drop-shadow(0px 2px 4px rgba(0, 0, 0, 0.3))",
                         }}
                       />
                     );
