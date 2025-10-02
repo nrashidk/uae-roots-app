@@ -1474,8 +1474,7 @@ function App() {
                     
                     // Calculate where children are
                     const childrenTopY = Math.min(...children.map(c => c.y));
-                    const verticalGap = 40; // Space for the horizontal bar
-                    const horizontalLineY = childrenTopY - verticalGap;
+                    const horizontalLineY = parentConnectionY + (childrenTopY - parentConnectionY) / 2;
                     
                     const strokeColor = "#059669";
                     const strokeWidth = 3;
@@ -1526,75 +1525,73 @@ function App() {
                     );
                   });
                 })()}
-                {/* Enhanced sibling connection lines with smooth curves */}
-                {Object.values(
-                  treePeople.reduce((acc, p) => {
-                    // Group siblings by parent
-                    const parentRel = relationships.find(
-                      (r) =>
-                        r.type === REL.PARENT_CHILD &&
-                        r.childId === p.id &&
-                        r.treeId === currentTree?.id,
+                {/* Sibling connections - ONLY for siblings WITHOUT shared parents */}
+                {(() => {
+                  // Find which children have parents (already connected via hierarchy)
+                  const childrenWithParents = new Set();
+                  relationships
+                    .filter((r) => r.type === REL.PARENT_CHILD && r.treeId === currentTree?.id)
+                    .forEach((r) => {
+                      childrenWithParents.add(r.childId);
+                    });
+                  
+                  // Group siblings without parents
+                  const siblingsWithoutParents = {};
+                  relationships
+                    .filter((r) => r.type === REL.SIBLING && r.treeId === currentTree?.id)
+                    .forEach((r) => {
+                      // Only show sibling line if NEITHER sibling has parents
+                      if (!childrenWithParents.has(r.person1Id) && !childrenWithParents.has(r.person2Id)) {
+                        const key = [r.person1Id, r.person2Id].sort().join('-');
+                        if (!siblingsWithoutParents[key]) {
+                          siblingsWithoutParents[key] = [r.person1Id, r.person2Id];
+                        }
+                      }
+                    });
+                  
+                  return Object.values(siblingsWithoutParents).map((siblingIds, i) => {
+                    const siblings = siblingIds
+                      .map(id => treePeople.find(p => p.id === id))
+                      .filter(Boolean)
+                      .sort((a, b) => a.x - b.x);
+                    
+                    if (siblings.length < 2) return null;
+
+                    const y = siblings[0].y - 20;
+                    const minX = Math.min(...siblings.map((s) => s.x + stylingOptions.boxWidth / 2));
+                    const maxX = Math.max(...siblings.map((s) => s.x + stylingOptions.boxWidth / 2));
+                    const curveHeight = 10;
+                    const strokeColor = "#7c3aed";
+                    const dashArray = "5,5";
+
+                    return (
+                      <g key={`siblings-orphan-${i}`}>
+                        <path
+                          d={`M ${minX} ${y} Q ${(minX + maxX) / 2} ${y - curveHeight} ${maxX} ${y}`}
+                          stroke={strokeColor}
+                          strokeWidth={1}
+                          strokeLinecap="round"
+                          strokeDasharray={dashArray}
+                          fill="none"
+                        />
+                        {siblings.map((sibling, idx) => {
+                          const siblingX = sibling.x + stylingOptions.boxWidth / 2;
+                          const connectionY = y - curveHeight * Math.sin((Math.PI * (siblingX - minX)) / (maxX - minX));
+                          return (
+                            <path
+                              key={`sibling-line-${idx}`}
+                              d={`M ${siblingX} ${connectionY} Q ${siblingX} ${(connectionY + sibling.y) / 2} ${siblingX} ${sibling.y}`}
+                              stroke={strokeColor}
+                              strokeWidth={1}
+                              strokeLinecap="round"
+                              fill="none"
+                            />
+                          );
+                        })}
+                      </g>
                     );
-                    if (parentRel) {
-                      const parentId = parentRel.parentId;
-                      if (!acc[parentId]) acc[parentId] = [];
-                      acc[parentId].push(p);
-                    }
-                    return acc;
-                  }, {}),
-                ).map((siblings, i) => {
-                  if (siblings.length < 2) return null;
-
-                  const y = siblings[0].y - 20;
-                  const minX = Math.min(
-                    ...siblings.map((s) => s.x + stylingOptions.boxWidth / 2),
-                  );
-                  const maxX = Math.max(
-                    ...siblings.map((s) => s.x + stylingOptions.boxWidth / 2),
-                  );
-                  const curveHeight = 10;
-                  const strokeColor = "#7c3aed";
-                  const dashArray = "5,5";
-
-                  return (
-                    <g key={`siblings-${i}`}>
-                      {/* Main curved horizontal line connecting siblings */}
-                      <path
-                        d={`M ${minX} ${y} 
-                          Q ${(minX + maxX) / 2} ${y - curveHeight} ${maxX} ${y}`}
-                        stroke={strokeColor}
-                        strokeWidth={2}
-                        strokeLinecap="round"
-                        strokeDasharray={dashArray}
-                        fill="none"
-                      />
-                      {/* Smooth vertical connectors to each sibling */}
-                      {siblings.map((sibling, idx) => {
-                        const siblingX =
-                          sibling.x + stylingOptions.boxWidth / 2;
-                        const connectionY =
-                          y -
-                          curveHeight *
-                            Math.sin(
-                              (Math.PI * (siblingX - minX)) / (maxX - minX),
-                            );
-
-                        return (
-                          <path
-                            key={`sibling-line-${idx}`}
-                            d={`M ${siblingX} ${connectionY}
-                              Q ${siblingX} ${(connectionY + sibling.y) / 2} ${siblingX} ${sibling.y}`}
-                            stroke={strokeColor}
-                            strokeWidth={2}
-                            strokeLinecap="round"
-                            fill="none"
-                          />
-                        );
-                      })}
-                    </g>
-                  );
-                })}
+                  });
+                })()}
             </svg>
 
             <div
