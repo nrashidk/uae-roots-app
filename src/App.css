@@ -124,13 +124,13 @@ body {
   background: 
     radial-gradient(circle at 1px 1px, rgba(0,0,0,0.1) 1px, transparent 0);
   background-size: 20px 20px;
-  cursor: grab;
+  cursor: none !important;
   position: relative;
   overflow: hidden;
 }
 
-.tree-canvas:active {
-  cursor: grabbing;
+.tree-canvas * {
+  cursor: none !important;
 }
 
 /* Floating Controls */
