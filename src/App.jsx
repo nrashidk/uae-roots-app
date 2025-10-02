@@ -1313,8 +1313,8 @@ function App() {
         >
           <div
             ref={canvasRef}
-            className="w-full h-full overflow-hidden"
-            style={{ backgroundColor: stylingOptions.backgroundColor, cursor: 'none' }}
+            className="tree-canvas w-full h-full overflow-hidden"
+            style={{ backgroundColor: stylingOptions.backgroundColor }}
             onMouseDown={handleMouseDown}
             onMouseUp={handleMouseUp}
             onWheel={handleWheel}
