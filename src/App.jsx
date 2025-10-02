@@ -722,6 +722,7 @@ function App() {
       setIsDragging(true);
       setDragStart({ x: e.clientX, y: e.clientY });
       setDragStartOffset({ ...panOffset });
+      e.currentTarget.style.cursor = "grabbing";
     }
   };
 
@@ -739,6 +740,7 @@ function App() {
   const handleMouseUp = (e) => {
     if (isDragging) {
       setIsDragging(false);
+      e.currentTarget.style.cursor = "grab";
     }
   };
 
@@ -1313,7 +1315,7 @@ function App() {
         >
           <div
             ref={canvasRef}
-            className="tree-canvas w-full h-full overflow-hidden"
+            className="w-full h-full cursor-grab active:cursor-grabbing overflow-hidden"
             style={{ backgroundColor: stylingOptions.backgroundColor }}
             onMouseDown={handleMouseDown}
             onMouseUp={handleMouseUp}
@@ -1526,7 +1528,7 @@ function App() {
                 <div
                   key={person.id}
                   data-person-box
-                  className={`absolute border-2 rounded-lg p-3 transition-all duration-200 select-none ${
+                  className={`absolute border-2 rounded-lg p-3 cursor-pointer transition-all duration-200 select-none ${
                     selectedPerson === person.id
                       ? "border-green-500 shadow-lg"
                       : "border-gray-300 hover:border-gray-400"

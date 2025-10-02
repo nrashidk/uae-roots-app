@@ -124,15 +124,13 @@ body {
   background: 
     radial-gradient(circle at 1px 1px, rgba(0,0,0,0.1) 1px, transparent 0);
   background-size: 20px 20px;
-  cursor: none !important;
+  cursor: grab;
   position: relative;
   overflow: hidden;
 }
 
-/* Only hide cursor on SVG elements and person boxes, not on buttons */
-.tree-canvas svg,
-.tree-canvas [data-person-box] {
-  cursor: none !important;
+.tree-canvas:active {
+  cursor: grabbing;
 }
 
 /* Floating Controls */
