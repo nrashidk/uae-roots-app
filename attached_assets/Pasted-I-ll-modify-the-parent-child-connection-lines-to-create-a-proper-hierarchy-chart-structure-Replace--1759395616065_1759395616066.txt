@@ -1,0 +1,141 @@
+I'll modify the parent-child connection lines to create a proper hierarchy chart structure. Replace the parent-child relationships section in the SVG with this:
+jsx{/* Parent-child relationships - Hierarchy chart style */}
+{(() => {
+  // Group children by their parent pairs
+  const parentPairs = {};
+  
+  relationships
+    .filter((r) => r.type === REL.PARENT_CHILD && r.treeId === currentTree?.id)
+    .forEach((r) => {
+      const parent = treePeople.find((p) => p.id === r.parentId);
+      if (!parent) return;
+      
+      // Find if this parent has a spouse
+      const spouseRel = relationships.find(
+        (rel) =>
+          rel.type === REL.PARTNER &&
+          (rel.person1Id === r.parentId || rel.person2Id === r.parentId) &&
+          rel.treeId === currentTree?.id
+      );
+      
+      let pairKey;
+      if (spouseRel) {
+        // Use sorted IDs to ensure same key regardless of order
+        const ids = [spouseRel.person1Id, spouseRel.person2Id].sort();
+        pairKey = `${ids[0]}-${ids[1]}`;
+      } else {
+        pairKey = `single-${r.parentId}`;
+      }
+      
+      if (!parentPairs[pairKey]) {
+        parentPairs[pairKey] = {
+          parents: spouseRel 
+            ? [
+                treePeople.find(p => p.id === spouseRel.person1Id),
+                treePeople.find(p => p.id === spouseRel.person2Id)
+              ].filter(Boolean)
+            : [parent],
+          children: []
+        };
+      }
+      
+      const child = treePeople.find((p) => p.id === r.childId);
+      if (child && !parentPairs[pairKey].children.find(c => c.id === child.id)) {
+        parentPairs[pairKey].children.push(child);
+      }
+    });
+  
+  return Object.values(parentPairs).map((pair, pairIndex) => {
+    if (pair.children.length === 0) return null;
+    
+    const parents = pair.parents;
+    const children = pair.children.sort((a, b) => a.x - b.x);
+    
+    // Calculate midpoint between parents
+    let parentMidX, parentBottomY;
+    if (parents.length === 2) {
+      const parent1X = parents[0].x + stylingOptions.boxWidth / 2;
+      const parent2X = parents[1].x + stylingOptions.boxWidth / 2;
+      parentMidX = (parent1X + parent2X) / 2;
+      parentBottomY = Math.max(parents[0].y + CARD.h, parents[1].y + CARD.h);
+    } else {
+      parentMidX = parents[0].x + stylingOptions.boxWidth / 2;
+      parentBottomY = parents[0].y + CARD.h;
+    }
+    
+    // Calculate horizontal line position for children
+    const childrenTopY = Math.min(...children.map(c => c.y));
+    const horizontalLineY = parentBottomY + (childrenTopY - parentBottomY) / 2;
+    
+    // Calculate horizontal line extent
+    const leftmostChildX = children[0].x + stylingOptions.boxWidth / 2;
+    const rightmostChildX = children[children.length - 1].x + stylingOptions.boxWidth / 2;
+    
+    const strokeColor = "#059669";
+    const strokeWidth = 3;
+    
+    return (
+      <g key={`parent-pair-${pairIndex}`}>
+        {/* Vertical line from parents down to horizontal line */}
+        <line
+          x1={parentMidX}
+          y1={parentBottomY}
+          x2={parentMidX}
+          y2={horizontalLineY}
+          stroke={strokeColor}
+          strokeWidth={strokeWidth}
+          strokeLinecap="round"
+        />
+        
+        {/* Horizontal line connecting all children */}
+        {children.length > 1 ? (
+          <line
+            x1={leftmostChildX}
+            y1={horizontalLineY}
+            x2={rightmostChildX}
+            y2={horizontalLineY}
+            stroke={strokeColor}
+            strokeWidth={strokeWidth}
+            strokeLinecap="round"
+          />
+        ) : null}
+        
+        {/* Vertical lines from horizontal line down to each child */}
+        {children.map((child, childIndex) => {
+          const childCenterX = child.x + stylingOptions.boxWidth / 2;
+          return (
+            <line
+              key={`child-line-${childIndex}`}
+              x1={childCenterX}
+              y1={horizontalLineY}
+              x2={childCenterX}
+              y2={child.y}
+              stroke={strokeColor}
+              strokeWidth={strokeWidth}
+              strokeLinecap="round"
+            />
+          );
+        })}
+      </g>
+    );
+  });
+})()}
+What this does:
+
+Groups children by parent pairs - if parents are married/partnered, their children are grouped together
+Draws from couple's midpoint - the vertical line comes down from the middle of the thick line connecting the parents
+Hierarchy chart structure:
+
+Single child: straight line from parents down to child
+Multiple children:
+
+Vertical line from parents to a horizontal bar
+Horizontal bar spanning all children
+Individual vertical lines dropping from the bar to each child box
+
+
+
+
+Handles single parents - if there's no spouse, the line starts from the single parent's center
+
+This creates the classic organizational/hierarchy chart look for parent-child relationships that you described.

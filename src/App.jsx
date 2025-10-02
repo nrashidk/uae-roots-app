@@ -1370,78 +1370,127 @@ function App() {
                       />
                     );
                   })}
-                {/* Enhanced T-connector for parent-child relationships with smooth curves */}
-                {relationships
-                  .filter(
-                    (r) =>
-                      r.type === REL.PARENT_CHILD &&
-                      r.treeId === currentTree?.id,
-                  )
-                  .map((r, i) => {
-                    const child = treePeople.find((p) => p.id === r.childId);
-                    const parent = treePeople.find((p) => p.id === r.parentId);
-                    if (!child || !parent) return null;
-
-                    // Find spouse of parent (if any)
-                    const spouseRel = relationships.find(
-                      (rel) =>
-                        rel.type === REL.PARTNER &&
-                        (rel.person1Id === r.parentId ||
-                          rel.person2Id === r.parentId) &&
-                        rel.treeId === currentTree?.id,
-                    );
-                    let spouse = null;
-                    if (spouseRel) {
-                      spouse = treePeople.find(
-                        (p) =>
-                          p.id ===
-                          (spouseRel.person1Id === r.parentId
-                            ? spouseRel.person2Id
-                            : spouseRel.person1Id),
+                {/* Parent-child relationships - Hierarchy chart style */}
+                {(() => {
+                  // Group children by their parent pairs
+                  const parentPairs = {};
+                  
+                  relationships
+                    .filter((r) => r.type === REL.PARENT_CHILD && r.treeId === currentTree?.id)
+                    .forEach((r) => {
+                      const parent = treePeople.find((p) => p.id === r.parentId);
+                      if (!parent) return;
+                      
+                      // Find if this parent has a spouse
+                      const spouseRel = relationships.find(
+                        (rel) =>
+                          rel.type === REL.PARTNER &&
+                          (rel.person1Id === r.parentId || rel.person2Id === r.parentId) &&
+                          rel.treeId === currentTree?.id
                       );
+                      
+                      let pairKey;
+                      if (spouseRel) {
+                        // Use sorted IDs to ensure same key regardless of order
+                        const ids = [spouseRel.person1Id, spouseRel.person2Id].sort();
+                        pairKey = `${ids[0]}-${ids[1]}`;
+                      } else {
+                        pairKey = `single-${r.parentId}`;
+                      }
+                      
+                      if (!parentPairs[pairKey]) {
+                        parentPairs[pairKey] = {
+                          parents: spouseRel 
+                            ? [
+                                treePeople.find(p => p.id === spouseRel.person1Id),
+                                treePeople.find(p => p.id === spouseRel.person2Id)
+                              ].filter(Boolean)
+                            : [parent],
+                          children: []
+                        };
+                      }
+                      
+                      const child = treePeople.find((p) => p.id === r.childId);
+                      if (child && !parentPairs[pairKey].children.find(c => c.id === child.id)) {
+                        parentPairs[pairKey].children.push(child);
+                      }
+                    });
+                  
+                  return Object.values(parentPairs).map((pair, pairIndex) => {
+                    if (pair.children.length === 0) return null;
+                    
+                    const parents = pair.parents;
+                    const children = pair.children.sort((a, b) => a.x - b.x);
+                    
+                    // Calculate midpoint between parents
+                    let parentMidX, parentBottomY;
+                    if (parents.length === 2) {
+                      const parent1X = parents[0].x + stylingOptions.boxWidth / 2;
+                      const parent2X = parents[1].x + stylingOptions.boxWidth / 2;
+                      parentMidX = (parent1X + parent2X) / 2;
+                      parentBottomY = Math.max(parents[0].y + CARD.h, parents[1].y + CARD.h);
+                    } else {
+                      parentMidX = parents[0].x + stylingOptions.boxWidth / 2;
+                      parentBottomY = parents[0].y + CARD.h;
                     }
-
-                    const parentX = parent.x + stylingOptions.boxWidth / 2;
-                    const spouseX = spouse
-                      ? spouse.x + stylingOptions.boxWidth / 2
-                      : parentX;
-                    const midX = spouse ? (parentX + spouseX) / 2 : parentX;
-                    const parentY = parent.y + CARD.h;
-                    const childY = child.y;
-                    const childX = child.x + stylingOptions.boxWidth / 2;
-
-                    const curveRadius = 15;
+                    
+                    // Calculate horizontal line position for children
+                    const childrenTopY = Math.min(...children.map(c => c.y));
+                    const horizontalLineY = parentBottomY + (childrenTopY - parentBottomY) / 2;
+                    
+                    // Calculate horizontal line extent
+                    const leftmostChildX = children[0].x + stylingOptions.boxWidth / 2;
+                    const rightmostChildX = children[children.length - 1].x + stylingOptions.boxWidth / 2;
+                    
                     const strokeColor = "#059669";
-
+                    const strokeWidth = 3;
+                    
                     return (
-                      <g key={`parent-child-${i}`}>
-                        {/* Horizontal connection between parents with curves */}
-                        {spouse && (
-                          <path
-                            d={`M ${parentX} ${parentY + 15} L ${spouseX} ${parentY + 15}`}
-                            stroke={strokeColor}
-                            strokeWidth={3}
-                            strokeLinecap="round"
-                            fill="none"
-                          />
-                        )}
-                        {/* Smooth curved path from parents to child */}
-                        <path
-                          d={`M ${midX} ${parentY + 15} 
-                          L ${midX} ${parentY + 30}
-                          Q ${midX} ${parentY + 30 + curveRadius} ${midX + (childX > midX ? curveRadius : -curveRadius)} ${parentY + 30 + curveRadius}
-                          L ${childX - (childX > midX ? curveRadius : -curveRadius)} ${parentY + 30 + curveRadius}
-                          Q ${childX} ${parentY + 30 + curveRadius} ${childX} ${parentY + 30 + 2 * curveRadius}
-                          L ${childX} ${childY}`}
+                      <g key={`parent-pair-${pairIndex}`}>
+                        {/* Vertical line from parents down to horizontal line */}
+                        <line
+                          x1={parentMidX}
+                          y1={parentBottomY}
+                          x2={parentMidX}
+                          y2={horizontalLineY}
                           stroke={strokeColor}
-                          strokeWidth={3}
+                          strokeWidth={strokeWidth}
                           strokeLinecap="round"
-                          strokeLinejoin="round"
-                          fill="none"
                         />
+                        
+                        {/* Horizontal line connecting all children */}
+                        {children.length > 1 ? (
+                          <line
+                            x1={leftmostChildX}
+                            y1={horizontalLineY}
+                            x2={rightmostChildX}
+                            y2={horizontalLineY}
+                            stroke={strokeColor}
+                            strokeWidth={strokeWidth}
+                            strokeLinecap="round"
+                          />
+                        ) : null}
+                        
+                        {/* Vertical lines from horizontal line down to each child */}
+                        {children.map((child, childIndex) => {
+                          const childCenterX = child.x + stylingOptions.boxWidth / 2;
+                          return (
+                            <line
+                              key={`child-line-${childIndex}`}
+                              x1={childCenterX}
+                              y1={horizontalLineY}
+                              x2={childCenterX}
+                              y2={child.y}
+                              stroke={strokeColor}
+                              strokeWidth={strokeWidth}
+                              strokeLinecap="round"
+                            />
+                          );
+                        })}
                       </g>
                     );
-                  })}
+                  });
+                })()}
                 {/* Enhanced sibling connection lines with smooth curves */}
                 {Object.values(
                   treePeople.reduce((acc, p) => {
