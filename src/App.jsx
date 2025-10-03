@@ -467,8 +467,17 @@ function App() {
     const personCenterX = person.x + CARD.w / 2;
     const personCenterY = person.y + CARD.h / 2;
 
-    const newOffsetX = viewportCenterX - personCenterX * zoom;
-    const newOffsetY = viewportCenterY - personCenterY * zoom;
+    let newOffsetX = viewportCenterX - personCenterX * zoom;
+    let newOffsetY = viewportCenterY - personCenterY * zoom;
+
+    // Apply pan constraints
+    const minY = -200;
+    const maxY = 1000;
+    const minX = -5000;
+    const maxX = 5000;
+    
+    newOffsetY = Math.max(minY, Math.min(maxY, newOffsetY));
+    newOffsetX = Math.max(minX, Math.min(maxX, newOffsetX));
 
     setPanOffset({ x: newOffsetX, y: newOffsetY });
   };
@@ -1050,9 +1059,24 @@ function App() {
     if (isDragging) {
       const deltaX = e.clientX - dragStart.x;
       const deltaY = e.clientY - dragStart.y;
+      
+      // Calculate new pan offset with constraints
+      let newX = dragStartOffset.x + deltaX;
+      let newY = dragStartOffset.y + deltaY;
+      
+      // Prevent tree from going up into the menu bar
+      // Menu bar is ~64px, so minimum Y offset should be around -200 to keep tree visible
+      const minY = -200;
+      const maxY = 1000; // Allow panning down
+      const minX = -5000; // Allow wide panning horizontally
+      const maxX = 5000;
+      
+      newY = Math.max(minY, Math.min(maxY, newY));
+      newX = Math.max(minX, Math.min(maxX, newX));
+      
       setPanOffset({
-        x: dragStartOffset.x + deltaX,
-        y: dragStartOffset.y + deltaY,
+        x: newX,
+        y: newY,
       });
     }
   };
@@ -2595,10 +2619,11 @@ function App() {
             )}
           </div>
 
-          {/* Floating Controls */}
+          {/* Zoom Controls - moved outside canvas to remain fixed */}
+        </div>
 
-          {/* Zoom Controls */}
-          <div className="absolute left-4 top-1/2 transform -translate-y-1/2 flex flex-col gap-2">
+        {/* Zoom Controls - Fixed position, won't move with pan/zoom */}
+        <div className="fixed left-4 top-1/2 transform -translate-y-1/2 flex flex-col gap-2 z-40">
             <Button onClick={zoomIn} size="sm" className="w-10 h-10 p-0">
               <ZoomIn className="w-4 h-4" />
             </Button>
@@ -2622,18 +2647,17 @@ function App() {
             </Button>
           </div>
 
-          {/* Bottom Toolbar */}
-          <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2">
-            <Button
-              onClick={() => setShowOptions(true)}
-              size="sm"
-              variant="outline"
-              className="arabic-text bg-white shadow-lg"
-            >
-              <Settings className="w-4 h-4 ml-1" />
-              {t.options}
-            </Button>
-          </div>
+        {/* Bottom Toolbar - Fixed position, won't move with pan/zoom */}
+        <div className="fixed bottom-4 left-1/2 transform -translate-x-1/2 z-40">
+          <Button
+            onClick={() => setShowOptions(true)}
+            size="sm"
+            variant="outline"
+            className="arabic-text bg-white shadow-lg"
+          >
+            <Settings className="w-4 h-4 ml-1" />
+            {t.options}
+          </Button>
         </div>
 
         {/* Person Form Sidebar */}

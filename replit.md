@@ -47,6 +47,12 @@ src/
 ✅ Run command: `npm run preview`
 
 ## Recent Changes
+- **2025-10-03**: Tree builder view improvements:
+  - Fixed zoom/pan controls to remain fixed on screen (won't move when tree is panned or zoomed)
+  - Moved zoom buttons (ZoomIn/ZoomOut/Reset) and bottom toolbar outside canvas with fixed positioning
+  - Added pan constraints to prevent tree from going up into top menu bar
+  - Pan limits: Y-axis constrained to -200 minimum (prevents overlap with header)
+  - Zoom controls now have z-index 40 to stay above tree content
 - **2025-10-03**: Family Members view redesigned with two-column grid layout:
   - Family members displayed in two-column responsive grid (one column on mobile, two on larger screens)
   - Each member in individual white container box with rounded corners and shadow
