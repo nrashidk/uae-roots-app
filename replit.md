@@ -59,11 +59,16 @@ src/
   - Clicking count navigates to new "relationships-detail" view page
   - Detail page displays **only male parent profiles** in card grid with:
     * Full genealogical name: firstName + parent's firstName + family name
+    * Brothers count (عدد الأخوة) - counts male siblings
+    * Sisters count (عدد الأخوات) - counts female siblings
     * Wife count (عدد الزوجات)
     * Children count (عدد الأبناء)
-    * Example: "الاسم: راشد عبيد آل علي", "عدد الزوجات: 2", "عدد الأبناء: 14"
+    * Display order: Brothers → Sisters → Wives → Children
+    * Color coding: Green (brothers), Pink (sisters), Purple (wives), Blue (children)
+    * Example: "الاسم: راشد عبيد آل علي", "عدد الأخوة: 3", "عدد الأخوات: 2", "عدد الزوجات: 2", "عدد الأبناء: 14"
   - **Gender restriction:** Only shows husbands - females excluded since they're already counted as wives
   - Family name inherited from oldest ancestor in paternal line
+  - Sibling counting uses bidirectional SIBLING relationships
   - Back to dashboard button for easy navigation
 - **2025-10-03**: Family member organization by husband's lineage:
   - Reorganized Family Members display to show families by husband's lineage first
