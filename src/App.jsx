@@ -222,18 +222,36 @@ function App() {
     theDaughter: "الابنة",
   };
 
-  // Authentication handlers
+  // Authentication handlers - auto-create first tree on registration
   const handleGoogleAuth = () => {
     setIsAuthenticated(true);
-    setCurrentView("dashboard");
+    const newTree = {
+      id: Date.now(),
+      name: "شجرة عائلتي",
+      createdAt: new Date().toISOString(),
+    };
+    setCurrentTree(newTree);
+    setCurrentView("tree-builder");
   };
   const handleAppleAuth = () => {
     setIsAuthenticated(true);
-    setCurrentView("dashboard");
+    const newTree = {
+      id: Date.now(),
+      name: "شجرة عائلتي",
+      createdAt: new Date().toISOString(),
+    };
+    setCurrentTree(newTree);
+    setCurrentView("tree-builder");
   };
   const handleUAEMobileAuth = () => {
     setIsAuthenticated(true);
-    setCurrentView("dashboard");
+    const newTree = {
+      id: Date.now(),
+      name: "شجرة عائلتي",
+      createdAt: new Date().toISOString(),
+    };
+    setCurrentTree(newTree);
+    setCurrentView("tree-builder");
   };
 
   // Calculate age from birth date
