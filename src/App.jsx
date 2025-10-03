@@ -856,7 +856,7 @@ function App() {
       .sort((a, b) => (b.birthOrder || 0) - (a.birthOrder || 0)); // Sort by birth order descending
   };
 
-  // Move person left (swap with next higher birth order sibling - older)
+  // Move person left (swap with ADJACENT higher birth order sibling - older)
   const moveBirthOrderLeft = (personId) => {
     const person = people.find(p => p.id === personId);
     if (!person) return;
@@ -866,9 +866,13 @@ function App() {
     
     const currentBirthOrder = person.birthOrder || 0;
     
-    // Find the sibling with next higher birth order (the one to the left visually)
+    // Find the CLOSEST sibling with next higher birth order (immediately to the left)
     // Higher birth order = older = positioned more to the left
-    const targetSibling = siblings.find(s => (s.birthOrder || 0) > currentBirthOrder);
+    const candidateSiblings = siblings
+      .filter(s => (s.birthOrder || 0) > currentBirthOrder)
+      .sort((a, b) => (a.birthOrder || 0) - (b.birthOrder || 0)); // Sort ascending to get the smallest higher value
+    
+    const targetSibling = candidateSiblings[0]; // Get the one with smallest birthOrder > current
     if (!targetSibling) return; // Already leftmost (highest birth order)
     
     // Swap birth orders
@@ -879,7 +883,7 @@ function App() {
     }));
   };
 
-  // Move person right (swap with next lower birth order sibling - younger)
+  // Move person right (swap with ADJACENT lower birth order sibling - younger)
   const moveBirthOrderRight = (personId) => {
     const person = people.find(p => p.id === personId);
     if (!person) return;
@@ -889,9 +893,13 @@ function App() {
     
     const currentBirthOrder = person.birthOrder || 0;
     
-    // Find the sibling with next lower birth order (the one to the right visually)
+    // Find the CLOSEST sibling with next lower birth order (immediately to the right)
     // Lower birth order = younger = positioned more to the right
-    const targetSibling = siblings.find(s => (s.birthOrder || 0) < currentBirthOrder);
+    const candidateSiblings = siblings
+      .filter(s => (s.birthOrder || 0) < currentBirthOrder)
+      .sort((a, b) => (b.birthOrder || 0) - (a.birthOrder || 0)); // Sort descending to get the largest lower value
+    
+    const targetSibling = candidateSiblings[0]; // Get the one with largest birthOrder < current
     if (!targetSibling) return; // Already rightmost (lowest birth order)
     
     // Swap birth orders
