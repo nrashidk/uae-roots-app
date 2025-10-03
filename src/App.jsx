@@ -1727,6 +1727,26 @@ function App() {
         // Only show male parents (husbands) - females are already counted as wives
         if (parent.gender !== 'male') return;
         
+        // Count siblings (brothers and sisters)
+        const siblingRels = treeRelationships.filter(
+          r => r.type === REL.SIBLING && (r.person1Id === parentId || r.person2Id === parentId)
+        );
+        
+        let brothersCount = 0;
+        let sistersCount = 0;
+        
+        siblingRels.forEach(rel => {
+          const siblingId = rel.person1Id === parentId ? rel.person2Id : rel.person1Id;
+          const sibling = treePeople.find(p => p.id === siblingId);
+          if (sibling) {
+            if (sibling.gender === 'male') {
+              brothersCount++;
+            } else if (sibling.gender === 'female') {
+              sistersCount++;
+            }
+          }
+        });
+        
         // Count spouses (partners)
         const spouseCount = treeRelationships.filter(
           r => r.type === REL.PARTNER && (r.person1Id === parentId || r.person2Id === parentId)
@@ -1798,6 +1818,8 @@ function App() {
         profiles.push({
           id: parentId,
           fullName: fullName.trim(),
+          brothersCount,
+          sistersCount,
           spouseCount,
           childrenCount,
         });
@@ -1849,6 +1871,14 @@ function App() {
                     الاسم: {profile.fullName}
                   </div>
                   <div className="space-y-2">
+                    <div className="text-base text-gray-700 arabic-text flex justify-between">
+                      <span>عدد الأخوة:</span>
+                      <span className="font-semibold text-green-600">{profile.brothersCount}</span>
+                    </div>
+                    <div className="text-base text-gray-700 arabic-text flex justify-between">
+                      <span>عدد الأخوات:</span>
+                      <span className="font-semibold text-pink-600">{profile.sistersCount}</span>
+                    </div>
                     <div className="text-base text-gray-700 arabic-text flex justify-between">
                       <span>عدد الزوجات:</span>
                       <span className="font-semibold text-purple-600">{profile.spouseCount}</span>
