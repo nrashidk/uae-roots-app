@@ -144,7 +144,7 @@ function App() {
     email: "البريد الإلكتروني",
     address: "العنوان",
     profession: "المهنة",
-    company: "الشركة",
+    company: "جهة العمل",
     bioNotes: "ملاحظات السيرة الذاتية",
     save: "حفظ",
     cancel: "إلغاء",
@@ -211,7 +211,7 @@ function App() {
     showAge: "إظهار العمر",
     showDeathDate: "إظهار تاريخ الوفاة",
     showProfession: "إظهار المهنة",
-    showCompany: "إظهار الشركة",
+    showCompany: "إظهار جهة العمل",
     showEmail: "إظهار البريد الإلكتروني",
     showTelephone: "إظهار الهاتف",
     showAddress: "إظهار العنوان",
@@ -2764,9 +2764,9 @@ function App() {
         {/* Options Panel - Semi-transparent overlay for live preview */}
         {showOptions && (
           <div className="fixed inset-0 z-40 pointer-events-none">
-            <div className="fixed bottom-4 left-1/2 transform -translate-x-1/2 bg-white bg-opacity-95 backdrop-blur-sm shadow-2xl border border-gray-300 rounded-lg z-50 pointer-events-auto max-w-[96vw] overflow-auto max-h-[85vh]">
-              <div className="px-8 py-5">
-                <div className="flex justify-between items-center mb-6">
+            <div className="fixed bottom-4 left-1/2 transform -translate-x-1/2 bg-white bg-opacity-95 backdrop-blur-sm shadow-2xl border border-gray-300 rounded-lg z-50 pointer-events-auto w-[90vw] max-w-[1200px] overflow-auto max-h-[60vh]">
+              <div className="px-6 py-4">
+                <div className="flex justify-between items-center mb-4">
                   <h2 className="text-xl font-semibold text-gray-900 arabic-text">
                     {t.options}
                   </h2>
@@ -2779,10 +2779,10 @@ function App() {
                   </Button>
                 </div>
 
-                <div className="flex flex-col xl:flex-row gap-10">
-                  {/* Display Options - First List (6 options) */}
-                  <div className="min-w-[220px] border-r border-gray-200 pr-10">
-                    <h3 className="text-base font-medium text-gray-900 mb-4 arabic-text">
+                <div className="grid grid-cols-4 gap-6">
+                  {/* Column 1: Display Options - First List (6 options) */}
+                  <div>
+                    <h3 className="text-base font-medium text-gray-900 mb-3 arabic-text">
                       {t.displayOptions}
                     </h3>
                     <div className="space-y-4">
@@ -2885,9 +2885,9 @@ function App() {
                     </div>
                   </div>
 
-                  {/* Display Options - Second List (5 options) */}
-                  <div className="min-w-[220px] border-r border-gray-200 pr-10">
-                    <h3 className="text-base font-medium text-gray-900 mb-4 arabic-text">
+                  {/* Column 2: Display Options - Second List (5 options) */}
+                  <div>
+                    <h3 className="text-base font-medium text-gray-900 mb-3 arabic-text">
                       {t.displayOptions}
                     </h3>
                     <div className="space-y-4">
@@ -2974,85 +2974,9 @@ function App() {
                     </div>
                   </div>
 
-                  {/* Size Sliders and Colors */}
-                  <div className="min-w-[260px]">
-                    <h3 className="text-base font-medium text-gray-900 mb-4 arabic-text">
-                      الأحجام
-                    </h3>
-                    <div className="space-y-4 mb-8">
-                      <div className="flex items-center gap-2">
-                        <label className="text-sm text-gray-700 arabic-text min-w-[110px]">
-                          {t.boxWidth}
-                        </label>
-                        <input
-                          type="range"
-                          min="100"
-                          max="200"
-                          value={stylingOptions.boxWidth}
-                          onChange={(e) =>
-                            setStylingOptions((prev) => ({
-                              ...prev,
-                              boxWidth: parseInt(e.target.value),
-                            }))
-                          }
-                          className="w-16"
-                        />
-                        <span className="text-sm text-gray-600 min-w-[30px] text-center">
-                          {stylingOptions.boxWidth}
-                        </span>
-                        <Button
-                          onClick={() =>
-                            setStylingOptions((prev) => ({
-                              ...prev,
-                              boxWidth: 140,
-                            }))
-                          }
-                          size="sm"
-                          variant="ghost"
-                          className="w-8 h-8 p-0"
-                        >
-                          <RotateCcw className="w-3 h-3" />
-                        </Button>
-                      </div>
-
-                      <div className="flex items-center gap-2">
-                        <label className="text-sm text-gray-700 arabic-text min-w-[110px]">
-                          {t.textSize}
-                        </label>
-                        <input
-                          type="range"
-                          min="10"
-                          max="20"
-                          value={stylingOptions.textSize}
-                          onChange={(e) =>
-                            setStylingOptions((prev) => ({
-                              ...prev,
-                              textSize: parseInt(e.target.value),
-                            }))
-                          }
-                          className="w-16"
-                        />
-                        <span className="text-sm text-gray-600 min-w-[30px] text-center">
-                          {stylingOptions.textSize}
-                        </span>
-                        <Button
-                          onClick={() =>
-                            setStylingOptions((prev) => ({
-                              ...prev,
-                              textSize: 14,
-                            }))
-                          }
-                          size="sm"
-                          variant="ghost"
-                          className="w-8 h-8 p-0"
-                        >
-                          <RotateCcw className="w-3 h-3" />
-                        </Button>
-                      </div>
-                    </div>
-
-                    {/* Color Options Below Sizes */}
-                    <h3 className="text-base font-medium text-gray-900 mb-4 arabic-text">
+                  {/* Column 3: Colors */}
+                  <div>
+                    <h3 className="text-base font-medium text-gray-900 mb-3 arabic-text">
                       الألوان
                     </h3>
                     <div className="space-y-4">
@@ -3148,22 +3072,100 @@ function App() {
                     </div>
                   </div>
 
-                  {/* Action Buttons */}
-                  <div className="flex items-end gap-3 ml-auto">
-                    <Button
-                      onClick={() => setShowOptions(false)}
-                      className="arabic-text"
-                    >
-                      {t.save}
-                    </Button>
-                    <Button
-                      onClick={() => setShowOptions(false)}
-                      variant="outline"
-                      className="arabic-text"
-                    >
-                      {t.cancel}
-                    </Button>
+                  {/* Column 4: Sliders */}
+                  <div>
+                    <h3 className="text-base font-medium text-gray-900 mb-3 arabic-text">
+                      الأحجام
+                    </h3>
+                    <div className="space-y-4">
+                      <div className="flex items-center gap-2">
+                        <label className="text-sm text-gray-700 arabic-text min-w-[80px]">
+                          {t.boxWidth}
+                        </label>
+                        <input
+                          type="range"
+                          min="100"
+                          max="200"
+                          value={stylingOptions.boxWidth}
+                          onChange={(e) =>
+                            setStylingOptions((prev) => ({
+                              ...prev,
+                              boxWidth: parseInt(e.target.value),
+                            }))
+                          }
+                          className="flex-1"
+                        />
+                        <span className="text-sm text-gray-600 min-w-[30px] text-center">
+                          {stylingOptions.boxWidth}
+                        </span>
+                        <Button
+                          onClick={() =>
+                            setStylingOptions((prev) => ({
+                              ...prev,
+                              boxWidth: 140,
+                            }))
+                          }
+                          size="sm"
+                          variant="ghost"
+                          className="w-8 h-8 p-0"
+                        >
+                          <RotateCcw className="w-3 h-3" />
+                        </Button>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <label className="text-sm text-gray-700 arabic-text min-w-[80px]">
+                          {t.textSize}
+                        </label>
+                        <input
+                          type="range"
+                          min="10"
+                          max="20"
+                          value={stylingOptions.textSize}
+                          onChange={(e) =>
+                            setStylingOptions((prev) => ({
+                              ...prev,
+                              textSize: parseInt(e.target.value),
+                            }))
+                          }
+                          className="flex-1"
+                        />
+                        <span className="text-sm text-gray-600 min-w-[30px] text-center">
+                          {stylingOptions.textSize}
+                        </span>
+                        <Button
+                          onClick={() =>
+                            setStylingOptions((prev) => ({
+                              ...prev,
+                              textSize: 14,
+                            }))
+                          }
+                          size="sm"
+                          variant="ghost"
+                          className="w-8 h-8 p-0"
+                        >
+                          <RotateCcw className="w-3 h-3" />
+                        </Button>
+                      </div>
+                    </div>
                   </div>
+                </div>
+
+                {/* Action Buttons - Below the grid */}
+                <div className="flex justify-end gap-3 mt-6 pt-4 border-t border-gray-200">
+                  <Button
+                    onClick={() => setShowOptions(false)}
+                    className="arabic-text"
+                  >
+                    {t.save}
+                  </Button>
+                  <Button
+                    onClick={() => setShowOptions(false)}
+                    variant="outline"
+                    className="arabic-text"
+                  >
+                    {t.cancel}
+                  </Button>
                 </div>
               </div>
             </div>
@@ -3424,7 +3426,7 @@ function PersonForm({
     email: "البريد الإلكتروني",
     address: "العنوان",
     profession: "المهنة",
-    company: "الشركة",
+    company: "جهة العمل",
     bioNotes: "ملاحظات السيرة الذاتية",
     save: "حفظ",
     cancel: "إلغاء",
@@ -3454,10 +3456,10 @@ function PersonForm({
   };
 
   const handleChange = (field, value) => {
-    // Phone number validation: limit to 7 digits only
+    // Phone number validation: limit to 10 digits only
     if (field === "phone") {
       const digitsOnly = value.replace(/\D/g, "");
-      if (digitsOnly.length <= 7) {
+      if (digitsOnly.length <= 10) {
         setFormData((prev) => ({ ...prev, [field]: digitsOnly }));
       }
       return;
@@ -3469,6 +3471,12 @@ function PersonForm({
       if (englishEmailPattern.test(value)) {
         setFormData((prev) => ({ ...prev, [field]: value }));
       }
+      return;
+    }
+    
+    // Clear death date when isLiving is set to true
+    if (field === "isLiving" && value === true) {
+      setFormData((prev) => ({ ...prev, isLiving: true, deathDate: "" }));
       return;
     }
     
@@ -3490,7 +3498,8 @@ function PersonForm({
         email: person.email || "",
         address: person.address || "",
         profession: person.profession || "",
-        biography: person.biography || "",
+        company: person.company || "",
+        bioNotes: person.bioNotes || "",
       });
     } else if (relationshipType === "spouse" && anchorPerson) {
       // Auto-set opposite gender for spouse
@@ -3506,7 +3515,8 @@ function PersonForm({
         email: "",
         address: "",
         profession: "",
-        biography: "",
+        company: "",
+        bioNotes: "",
       });
     } else {
       // Reset form for new person
@@ -3522,7 +3532,8 @@ function PersonForm({
         email: "",
         address: "",
         profession: "",
-        biography: "",
+        company: "",
+        bioNotes: "",
       });
     }
   }, [person, relationshipType, anchorPerson]);
@@ -3755,21 +3766,13 @@ function PersonForm({
           <div className="space-y-3">
             {/* Biography */}
             <div>
-              <h3 className="text-lg font-bold text-gray-900 mb-2 arabic-text">
-                {t.biography}
-              </h3>
-              <div>
-                <label className="block text-base font-bold text-gray-700 mb-1 arabic-text">
-                  {t.bioNotes}
-                </label>
-                <textarea
-                  value={formData.bioNotes}
-                  onChange={(e) => handleChange("bioNotes", e.target.value)}
-                  rows={3}
-                  className="w-full px-3 py-2 text-base border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 arabic-text"
-                  dir="rtl"
-                />
-              </div>
+              <textarea
+                value={formData.bioNotes}
+                onChange={(e) => handleChange("bioNotes", e.target.value)}
+                rows={5}
+                className="w-full px-3 py-2 text-base border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 arabic-text"
+                dir="rtl"
+              />
             </div>
           </div>
         )}
