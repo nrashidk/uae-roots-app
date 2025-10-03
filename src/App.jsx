@@ -2797,7 +2797,7 @@ function App() {
                   </Button>
                 </div>
 
-                <div className="grid grid-cols-4 gap-2">
+                <div className="grid grid-cols-4 gap-1">
                   {/* Column 1: Display Options - First List (6 options) */}
                   <div>
                     <h3 className="text-base font-medium text-gray-900 mb-3 arabic-text">
@@ -3091,7 +3091,7 @@ function App() {
                   </div>
 
                   {/* Column 4: Sliders */}
-                  <div className="pr-6">
+                  <div>
                     <h3 className="text-base font-medium text-gray-900 mb-3 arabic-text">
                       الأحجام
                     </h3>
