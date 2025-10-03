@@ -47,6 +47,13 @@ src/
 ✅ Run command: `npm run preview`
 
 ## Recent Changes
+- **2025-10-03**: Breastfeeding sibling support (Islamic custom):
+  - Added checkbox "أخ/أخت من الرضاعة" when adding siblings
+  - isBreastfeeding flag stored at relationship level (not person level)
+  - Person boxes with breastfeeding siblings show light green border (border-4 border-green-400)
+  - Relationships detail page shows separate counts for breastfeeding siblings
+  - Display: "أخوة من الرضاعة" (breastfeeding brothers), "أخوات من الرضاعة" (breastfeeding sisters)
+  - Counts only shown when > 0, separated by green border from biological siblings
 - **2025-10-03**: Tree builder view improvements:
   - Fixed zoom/pan controls to remain fixed on screen (won't move when tree is panned or zoomed)
   - Moved zoom buttons (ZoomIn/ZoomOut/Reset) and bottom toolbar outside canvas with fixed positioning
