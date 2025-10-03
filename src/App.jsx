@@ -3766,6 +3766,9 @@ function PersonForm({
           <div className="space-y-3">
             {/* Biography */}
             <div>
+              <h3 className="text-lg font-bold text-gray-900 mb-2 arabic-text">
+                {t.biography}
+              </h3>
               <textarea
                 value={formData.bioNotes}
                 onChange={(e) => handleChange("bioNotes", e.target.value)}
