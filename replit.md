@@ -47,6 +47,14 @@ src/
 ✅ Run command: `npm run preview`
 
 ## Recent Changes
+- **2025-10-03**: Parent re-linking feature and UI improvements:
+  - Renamed reorder arrow buttons from "الأكبر/الأصغر" to "أكبر/أصغر" (removed definite article)
+  - Added "Manage Parents" feature allowing children to be linked to spouses added after child creation
+  - New context-aware button appears only when child has parent with unlinked spouse
+  - Dialog shows current parents and available spouses to link
+  - Comprehensive validation: max 2 parents, ensures parents are actually partners
+  - Automatic birth order recalculation when child's parent set changes
+  - Birth order assigns child to new parent set's sibling sequence
 - **2025-10-01**: Tree deletion and action button improvements:
   - Fixed: Tree automatically deleted when last member is removed (dashboard now shows 0 trees)
   - Centered action buttons below person boxes using dynamic width calculation
