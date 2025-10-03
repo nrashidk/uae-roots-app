@@ -1511,9 +1511,18 @@ function App() {
             ) : (
               <div className="space-y-6">
                 {lineage.map((person, index) => {
-                  const prefix = index === 0 
-                    ? t.theFather 
-                    : (person.gender === "male" ? t.theSon : t.theDaughter);
+                  // Build genealogical chain using the lineage array
+                  // The lineage array already contains the correct paternal line in order
+                  const buildGenealogicalName = () => {
+                    const names = [];
+                    
+                    // Collect first names from current person back to oldest ancestor
+                    for (let i = index; i >= 0; i--) {
+                      names.push(lineage[i].firstName);
+                    }
+                    
+                    return names.join(' ');
+                  };
                   
                   return (
                     <div 
@@ -1525,7 +1534,7 @@ function App() {
                       </div>
                       <div className="flex-1">
                         <div className="text-xl font-bold text-gray-900 arabic-text">
-                          {prefix} {person.firstName} {person.lastName}
+                          {buildGenealogicalName()}
                         </div>
                         {person.birthDate && (
                           <div className="text-sm text-gray-500 mt-1 arabic-text">
