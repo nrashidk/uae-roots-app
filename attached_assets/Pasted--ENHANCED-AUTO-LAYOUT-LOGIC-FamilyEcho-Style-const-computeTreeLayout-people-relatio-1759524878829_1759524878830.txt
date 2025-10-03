@@ -1,0 +1,216 @@
+// --- ENHANCED AUTO-LAYOUT LOGIC (FamilyEcho Style) ---
+const computeTreeLayout = (people, relationships, viewportWidth = 1200, viewportHeight = 800) => {
+  if (people.length === 0) return people;
+
+  // Build maps for quick lookup
+  const idToPerson = Object.fromEntries(people.map((p) => [p.id, { ...p }]));
+  const childrenMap = {};
+  const parentMap = {};
+  const spouseMap = {};
+
+  // Build relationship maps
+  relationships.forEach((r) => {
+    if (r.type === REL.PARENT_CHILD) {
+      if (!childrenMap[r.parentId]) childrenMap[r.parentId] = [];
+      childrenMap[r.parentId].push(r.childId);
+      parentMap[r.childId] = r.parentId;
+    } else if (r.type === REL.PARTNER) {
+      spouseMap[r.person1Id] = r.person2Id;
+      spouseMap[r.person2Id] = r.person1Id;
+    }
+  });
+
+  // Find root people (no parents) - prioritize couples
+  const roots = people.filter((p) => !parentMap[p.id]);
+  
+  // Assign generation levels (BFS from roots)
+  const queue = [];
+  roots.forEach((root) => {
+    idToPerson[root.id].generation = 0;
+    queue.push(root.id);
+  });
+
+  while (queue.length) {
+    const pid = queue.shift();
+    const gen = idToPerson[pid].generation;
+    (childrenMap[pid] || []).forEach((cid) => {
+      idToPerson[cid].generation = gen + 1;
+      queue.push(cid);
+    });
+  }
+
+  // Group by generation
+  const genMap = {};
+  Object.values(idToPerson).forEach((p) => {
+    if (!genMap[p.generation]) genMap[p.generation] = [];
+    genMap[p.generation].push(p);
+  });
+
+  // Sort generations and calculate dimensions
+  const generations = Object.keys(genMap).map(Number).sort((a, b) => a - b);
+  const verticalSpacing = 180;
+  const horizontalSpacing = 200;
+  const spouseSpacing = 60;
+
+  // Calculate total tree height and starting position for vertical centering
+  const totalGenerations = generations.length;
+  const totalTreeHeight = totalGenerations * verticalSpacing;
+  const startY = Math.max(50, (viewportHeight - totalTreeHeight) / 2);
+
+  // Process each generation from oldest to youngest
+  generations.forEach((genNum) => {
+    const generationPeople = genMap[genNum];
+    const processedIds = new Set();
+
+    // First pass: Process couples together
+    generationPeople.forEach((person) => {
+      if (processedIds.has(person.id)) return;
+
+      const spouseId = spouseMap[person.id];
+      const spouse = spouseId ? idToPerson[spouseId] : null;
+
+      if (spouse && !processedIds.has(spouseId) && spouse.generation === genNum) {
+        // Process couple
+        processedIds.add(person.id);
+        processedIds.add(spouseId);
+        
+        // Position couple side by side
+        person.x = 0; // Temporary - will be set later
+        person.y = startY + genNum * verticalSpacing;
+        spouse.x = 0; // Temporary
+        spouse.y = startY + genNum * verticalSpacing;
+      } else if (!processedIds.has(person.id)) {
+        // Process single person
+        processedIds.add(person.id);
+        person.x = 0; // Temporary
+        person.y = startY + genNum * verticalSpacing;
+      }
+    });
+  });
+
+  // Second pass: Position nodes horizontally with proper family grouping
+  generations.forEach((genNum) => {
+    const generationPeople = genMap[genNum];
+    let currentX = 100; // Start with some padding
+
+    // Group people by their children (family units)
+    const familyUnits = [];
+    const processedIds = new Set();
+
+    generationPeople.forEach((person) => {
+      if (processedIds.has(person.id)) return;
+
+      const spouseId = spouseMap[person.id];
+      const spouse = spouseId ? idToPerson[spouseId] : null;
+      const children = childrenMap[person.id] || [];
+
+      // Create family unit
+      const family = {
+        people: [person],
+        children: [],
+        width: 0
+      };
+
+      // Add spouse if exists
+      if (spouse && !processedIds.has(spouseId)) {
+        family.people.push(spouse);
+        processedIds.add(spouseId);
+        
+        // Combine children from both spouses
+        const spouseChildren = childrenMap[spouseId] || [];
+        const allChildren = [...new Set([...children, ...spouseChildren])];
+        family.children = allChildren.map(childId => idToPerson[childId]).filter(Boolean);
+      } else {
+        family.children = children.map(childId => idToPerson[childId]).filter(Boolean);
+      }
+
+      processedIds.add(person.id);
+      familyUnits.push(family);
+    });
+
+    // Position family units horizontally
+    familyUnits.forEach((family) => {
+      // Calculate family width
+      let familyWidth = 0;
+      
+      if (family.people.length === 2) {
+        // Couple: two people + spacing
+        familyWidth = stylingOptions.boxWidth * 2 + spouseSpacing;
+      } else {
+        // Single person
+        familyWidth = stylingOptions.boxWidth;
+      }
+
+      // Add spacing for children if any
+      if (family.children.length > 0) {
+        const childrenWidth = family.children.length * (stylingOptions.boxWidth + horizontalSpacing);
+        familyWidth = Math.max(familyWidth, childrenWidth);
+      }
+
+      // Position people in this family
+      if (family.people.length === 2) {
+        // Position couple
+        const [person1, person2] = family.people;
+        person1.x = currentX;
+        person2.x = currentX + stylingOptions.boxWidth + spouseSpacing;
+        
+        // Center children under couple if they exist
+        if (family.children.length > 0) {
+          const coupleCenterX = (person1.x + person2.x + stylingOptions.boxWidth) / 2;
+          const childrenTotalWidth = family.children.length * stylingOptions.boxWidth + 
+                                   (family.children.length - 1) * horizontalSpacing;
+          const childrenStartX = coupleCenterX - childrenTotalWidth / 2;
+          
+          // Position children in the next generation
+          family.children.forEach((child, index) => {
+            child.x = childrenStartX + index * (stylingOptions.boxWidth + horizontalSpacing);
+            child.y = startY + (child.generation || genNum + 1) * verticalSpacing;
+          });
+        }
+      } else {
+        // Single person
+        const person = family.people[0];
+        person.x = currentX;
+        
+        // Center children under single parent if they exist
+        if (family.children.length > 0) {
+          const parentCenterX = person.x + stylingOptions.boxWidth / 2;
+          const childrenTotalWidth = family.children.length * stylingOptions.boxWidth + 
+                                   (family.children.length - 1) * horizontalSpacing;
+          const childrenStartX = parentCenterX - childrenTotalWidth / 2;
+          
+          // Position children in the next generation
+          family.children.forEach((child, index) => {
+            child.x = childrenStartX + index * (stylingOptions.boxWidth + horizontalSpacing);
+            child.y = startY + (child.generation || genNum + 1) * verticalSpacing;
+          });
+        }
+      }
+
+      currentX += familyWidth + horizontalSpacing;
+    });
+
+    // Handle people not in family units (shouldn't happen, but just in case)
+    generationPeople.forEach((person) => {
+      if (person.x === 0) { // Not positioned yet
+        person.x = currentX;
+        currentX += stylingOptions.boxWidth + horizontalSpacing;
+      }
+    });
+  });
+
+  // Third pass: Center the entire tree horizontally
+  const allXPositions = Object.values(idToPerson).map(p => p.x);
+  const minX = Math.min(...allXPositions);
+  const maxX = Math.max(...allXPositions);
+  const treeWidth = maxX - minX;
+  const horizontalOffset = (viewportWidth - treeWidth) / 2 - minX;
+
+  // Apply horizontal centering
+  Object.values(idToPerson).forEach((person) => {
+    person.x += horizontalOffset;
+  });
+
+  // Return updated people array
+  return people.map((p) => ({ ...p, ...idToPerson[p.id] }));
+};

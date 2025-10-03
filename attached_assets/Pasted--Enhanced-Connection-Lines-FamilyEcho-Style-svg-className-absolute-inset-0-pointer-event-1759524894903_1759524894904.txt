@@ -1,0 +1,185 @@
+{/* Enhanced Connection Lines - FamilyEcho Style */}
+<svg className="absolute inset-0 pointer-events-none" style={{ width: "100%", height: "100%" }}>
+  
+  {/* 1. PARTNER RELATIONSHIPS - Clean straight lines */}
+  {relationships
+    .filter(r => r.type === REL.PARTNER && r.treeId === currentTree?.id)
+    .map((r, i) => {
+      const p1 = treePeople.find(p => p.id === r.person1Id);
+      const p2 = treePeople.find(p => p.id === r.person2Id);
+      
+      if (!p1 || !p2) return null;
+
+      // Determine left and right partners
+      const leftPerson = p1.x < p2.x ? p1 : p2;
+      const rightPerson = p1.x < p2.x ? p2 : p1;
+
+      // Connect from right edge of left person to left edge of right person
+      const startX = leftPerson.x + stylingOptions.boxWidth;
+      const startY = leftPerson.y + CARD.h / 2;
+      const endX = rightPerson.x;
+      const endY = rightPerson.y + CARD.h / 2;
+
+      return (
+        <line
+          key={`partner-${i}`}
+          x1={startX}
+          y1={startY}
+          x2={endX}
+          y2={endY}
+          stroke="#dc2626"
+          strokeWidth={3}
+          strokeLinecap="round"
+        />
+      );
+    })}
+
+  {/* 2. PARENT-CHILD RELATIONSHIPS - Hierarchical tree structure */}
+  {(() => {
+    const connections = [];
+    
+    relationships
+      .filter(r => r.type === REL.PARENT_CHILD && r.treeId === currentTree?.id)
+      .forEach(r => {
+        const parent = treePeople.find(p => p.id === r.parentId);
+        const child = treePeople.find(p => p.id === r.childId);
+        
+        if (!parent || !child) return;
+
+        // Find all children with the same parent set
+        const childParents = relationships
+          .filter(rel => rel.type === REL.PARENT_CHILD && rel.childId === child.id)
+          .map(rel => rel.parentId)
+          .sort();
+          
+        const siblingChildren = treePeople.filter(p => 
+          relationships
+            .filter(rel => rel.type === REL.PARENT_CHILD && rel.childId === p.id)
+            .map(rel => rel.parentId)
+            .sort()
+            .join('-') === childParents.join('-')
+        );
+
+        // Only draw connection once per parent-child group
+        if (parent.id === Math.min(...childParents)) {
+          const parents = childParents.map(id => treePeople.find(p => p.id === id)).filter(Boolean);
+          const children = siblingChildren.sort((a, b) => a.x - b.x);
+
+          if (parents.length > 0 && children.length > 0) {
+            // Calculate parent connection point (center of all parents)
+            const parentCenters = parents.map(p => ({
+              x: p.x + stylingOptions.boxWidth / 2,
+              y: p.y + CARD.h
+            }));
+            
+            const avgParentX = parentCenters.reduce((sum, p) => sum + p.x, 0) / parentCenters.length;
+            const maxParentY = Math.max(...parentCenters.map(p => p.y));
+
+            // Calculate children connection points
+            const childCenters = children.map(child => ({
+              x: child.x + stylingOptions.boxWidth / 2,
+              y: child.y
+            }));
+
+            const minChildX = Math.min(...childCenters.map(c => c.x));
+            const maxChildX = Math.max(...childCenters.map(c => c.x));
+            const minChildY = Math.min(...childCenters.map(c => c.y));
+
+            // Position horizontal line 30px above the top child
+            const horizontalLineY = minChildY - 30;
+
+            connections.push(
+              <g key={`parent-group-${r.id}`}>
+                {/* Vertical line from parent to horizontal bar */}
+                <line
+                  x1={avgParentX}
+                  y1={maxParentY}
+                  x2={avgParentX}
+                  y2={horizontalLineY}
+                  stroke="#059669"
+                  strokeWidth={2}
+                  strokeLinecap="round"
+                />
+
+                {/* Horizontal bar spanning all children */}
+                <line
+                  x1={minChildX}
+                  y1={horizontalLineY}
+                  x2={maxChildX}
+                  y2={horizontalLineY}
+                  stroke="#059669"
+                  strokeWidth={2}
+                  strokeLinecap="round"
+                />
+
+                {/* Vertical lines from horizontal bar to each child */}
+                {childCenters.map((childCenter, idx) => (
+                  <line
+                    key={`child-line-${child.id}-${idx}`}
+                    x1={childCenter.x}
+                    y1={horizontalLineY}
+                    x2={childCenter.x}
+                    y2={childCenter.y}
+                    stroke="#059669"
+                    strokeWidth={2}
+                    strokeLinecap="round"
+                  />
+                ))}
+              </g>
+            );
+          }
+        }
+      });
+
+    return connections;
+  })()}
+
+  {/* 3. SIBLING CONNECTIONS - Curved lines for siblings without shared parents */}
+  {(() => {
+    const siblingPairs = [];
+    const processedPairs = new Set();
+
+    relationships
+      .filter(r => r.type === REL.SIBLING && r.treeId === currentTree?.id)
+      .forEach(r => {
+        const key = [r.person1Id, r.person2Id].sort().join('-');
+        if (processedPairs.has(key)) return;
+        
+        const p1 = treePeople.find(p => p.id === r.person1Id);
+        const p2 = treePeople.find(p => p.id === r.person2Id);
+        
+        if (p1 && p2) {
+          // Check if neither has parents in this tree (orphaned siblings)
+          const p1HasParents = relationships.some(rel => 
+            rel.type === REL.PARENT_CHILD && rel.childId === p1.id && rel.treeId === currentTree?.id
+          );
+          const p2HasParents = relationships.some(rel => 
+            rel.type === REL.PARENT_CHILD && rel.childId === p2.id && rel.treeId === currentTree?.id
+          );
+          
+          if (!p1HasParents && !p2HasParents) {
+            siblingPairs.push([p1, p2]);
+            processedPairs.add(key);
+          }
+        }
+      });
+
+    return siblingPairs.map(([p1, p2], i) => {
+      const siblings = [p1, p2].sort((a, b) => a.x - b.x);
+      const y = siblings[0].y - 20;
+      const minX = Math.min(...siblings.map(s => s.x + stylingOptions.boxWidth / 2));
+      const maxX = Math.max(...siblings.map(s => s.x + stylingOptions.boxWidth / 2));
+      
+      return (
+        <path
+          key={`sibling-${i}`}
+          d={`M ${minX} ${y} Q ${(minX + maxX) / 2} ${y - 15} ${maxX} ${y}`}
+          stroke="#7c3aed"
+          strokeWidth={1.5}
+          strokeDasharray="4,2"
+          fill="none"
+        />
+      );
+    });
+  })()}
+</svg>
