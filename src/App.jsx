@@ -1511,21 +1511,43 @@ function App() {
             ) : (
               <div className="space-y-6">
                 {lineage.map((person, index) => {
-                  // Build genealogical chain using the lineage array
-                  // The lineage array already contains the correct paternal line in order
+                  // Build genealogical chain by tracing up through parent relationships
+                  // This dynamically updates when ancestors are added
                   const buildGenealogicalName = () => {
                     const names = [];
+                    const visited = new Set(); // Prevent infinite loops
                     
-                    // Collect first names from current person back to oldest ancestor
-                    for (let i = index; i >= 0; i--) {
-                      names.push(lineage[i].firstName);
-                    }
+                    // Start with current person and trace up to oldest ancestor
+                    let currentPerson = person;
                     
-                    // Add family name at the end (inherited from oldest ancestor)
-                    // In Arab/Islamic culture, family name is passed down through paternal line
-                    const oldestAncestor = lineage[0];
-                    if (oldestAncestor.lastName) {
-                      names.push(oldestAncestor.lastName);
+                    while (currentPerson && !visited.has(currentPerson.id)) {
+                      visited.add(currentPerson.id);
+                      names.push(currentPerson.firstName);
+                      
+                      // Find parent (father) - prioritize male parent for paternal line
+                      const parentRels = relationships.filter(
+                        r => r.type === REL.PARENT_CHILD && 
+                             r.childId === currentPerson.id && 
+                             r.treeId === currentTree?.id
+                      );
+                      
+                      if (parentRels.length === 0) {
+                        // No parents found - this is the oldest ancestor
+                        // Add family name from this person
+                        if (currentPerson.lastName) {
+                          names.push(currentPerson.lastName);
+                        }
+                        break;
+                      }
+                      
+                      // Get all parents
+                      const parents = parentRels
+                        .map(rel => people.find(p => p.id === rel.parentId))
+                        .filter(Boolean);
+                      
+                      // Prefer male parent for paternal lineage
+                      const father = parents.find(p => p.gender === 'male');
+                      currentPerson = father || parents[0]; // Fall back to first parent if no male
                     }
                     
                     return names.join(' ');
