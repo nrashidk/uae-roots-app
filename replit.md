@@ -47,12 +47,18 @@ src/
 ✅ Run command: `npm run preview`
 
 ## Recent Changes
+- **2025-10-03**: Family member organization by husband's lineage:
+  - Reorganized Family Members display to show families by husband's lineage first
+  - Display order: husband's ancestors → husband → descendants → wife's ancestors → wife
+  - Example order: عبيد (grandfather) → راشد (father) → ناصر (husband) → محمد (son) → هند (wife)
+  - Children appear under husband's paternal lineage per Islamic tradition
+  - Processes all partnerships to organize families by male lineage
+  - Duplicate prevention ensures each person appears only once
 - **2025-10-03**: Genealogical chain display and parent re-linking:
   - Implemented dynamic genealogical name chains in Family Members view
   - Names trace up through paternal lineage: "محمد ناصر راشد عبيد آل علي"
   - Family name (lastName) inherited from oldest ancestor
   - All family members displayed (not just one lineage path)
-  - Sorted by generation level with males first for patrilineal display
   - Names automatically update when ancestors are added later
   - Renamed reorder arrow buttons from "الأكبر/الأصغر" to "أكبر/أصغر" (removed definite article)
   - Added "Manage Parents" feature allowing children to be linked to spouses added after child creation
