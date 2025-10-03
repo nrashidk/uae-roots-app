@@ -20,6 +20,8 @@ import {
   Mail,
   Smartphone,
   User,
+  ArrowLeft,
+  ArrowRight,
 } from "lucide-react";
 import "./App.css";
 
@@ -821,6 +823,83 @@ function App() {
       );
       setSelectedPerson(null);
     }
+  };
+
+  // Get siblings with same parent set for reordering
+  const getSiblingsWithSameParents = (personId) => {
+    // Build parent set for this person
+    const personParents = new Set();
+    relationships
+      .filter(r => r.type === REL.PARENT_CHILD && r.childId === personId && r.treeId === currentTree?.id)
+      .forEach(r => personParents.add(r.parentId));
+    
+    if (personParents.size === 0) return []; // No parents, no siblings
+    
+    const parentKey = Array.from(personParents).sort().join('-');
+    
+    // Find all people with the same parent set
+    const allChildren = relationships
+      .filter(r => r.type === REL.PARENT_CHILD && r.treeId === currentTree?.id)
+      .reduce((acc, r) => {
+        if (!acc[r.childId]) acc[r.childId] = new Set();
+        acc[r.childId].add(r.parentId);
+        return acc;
+      }, {});
+    
+    return Object.entries(allChildren)
+      .filter(([childId, childParents]) => {
+        const childParentKey = Array.from(childParents).sort().join('-');
+        return childParentKey === parentKey;
+      })
+      .map(([childId]) => people.find(p => p.id === parseInt(childId)))
+      .filter(Boolean)
+      .sort((a, b) => (b.birthOrder || 0) - (a.birthOrder || 0)); // Sort by birth order descending
+  };
+
+  // Move person left (swap with next higher birth order sibling - older)
+  const moveBirthOrderLeft = (personId) => {
+    const person = people.find(p => p.id === personId);
+    if (!person) return;
+    
+    const siblings = getSiblingsWithSameParents(personId);
+    if (siblings.length < 2) return; // Need at least 2 siblings to reorder
+    
+    const currentBirthOrder = person.birthOrder || 0;
+    
+    // Find the sibling with next higher birth order (the one to the left visually)
+    // Higher birth order = older = positioned more to the left
+    const targetSibling = siblings.find(s => (s.birthOrder || 0) > currentBirthOrder);
+    if (!targetSibling) return; // Already leftmost (highest birth order)
+    
+    // Swap birth orders
+    setPeople(prev => prev.map(p => {
+      if (p.id === personId) return { ...p, birthOrder: targetSibling.birthOrder || 0 };
+      if (p.id === targetSibling.id) return { ...p, birthOrder: currentBirthOrder };
+      return p;
+    }));
+  };
+
+  // Move person right (swap with next lower birth order sibling - younger)
+  const moveBirthOrderRight = (personId) => {
+    const person = people.find(p => p.id === personId);
+    if (!person) return;
+    
+    const siblings = getSiblingsWithSameParents(personId);
+    if (siblings.length < 2) return; // Need at least 2 siblings to reorder
+    
+    const currentBirthOrder = person.birthOrder || 0;
+    
+    // Find the sibling with next lower birth order (the one to the right visually)
+    // Lower birth order = younger = positioned more to the right
+    const targetSibling = siblings.find(s => (s.birthOrder || 0) < currentBirthOrder);
+    if (!targetSibling) return; // Already rightmost (lowest birth order)
+    
+    // Swap birth orders
+    setPeople(prev => prev.map(p => {
+      if (p.id === personId) return { ...p, birthOrder: targetSibling.birthOrder || 0 };
+      if (p.id === targetSibling.id) return { ...p, birthOrder: currentBirthOrder };
+      return p;
+    }));
   };
 
   // Enhanced pan handling with smooth dragging
@@ -1846,11 +1925,21 @@ function App() {
                   // Hide spouse button if female has male spouse OR if living male has 4 living spouses
                   const hideSpouseButton = hasMaleSpouse || hasMaxSpouses;
                   
+                  // Check if person has siblings for reordering
+                  const siblings = getSiblingsWithSameParents(selectedPerson);
+                  const canReorder = siblings.length > 1;
+                  const person = people.find(p => p.id === selectedPerson);
+                  const currentBirthOrder = person?.birthOrder || 0;
+                  const canMoveLeft = canReorder && siblings.some(s => (s.birthOrder || 0) > currentBirthOrder);
+                  const canMoveRight = canReorder && siblings.some(s => (s.birthOrder || 0) < currentBirthOrder);
+                  
                   // Calculate button container width based on visible buttons
                   const buttonWidth = 32; // w-8 = 32px
                   const gap = 4; // gap-1 = 4px
                   const padding = 8; // p-2 = 8px on each side
-                  const numButtons = hideSpouseButton ? 4 : 5; // Hide spouse button based on restrictions
+                  let numButtons = hideSpouseButton ? 4 : 5; // Base buttons
+                  if (canMoveLeft) numButtons++;
+                  if (canMoveRight) numButtons++;
                   const containerWidth = (buttonWidth * numButtons) + (gap * (numButtons - 1)) + (padding * 2);
                   
                   return (
@@ -1928,6 +2017,36 @@ function App() {
                       >
                         {getRelationshipIcon("sibling")}
                       </Button>
+
+                      {canMoveRight && (
+                        <Button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            moveBirthOrderRight(selectedPerson);
+                          }}
+                          size="sm"
+                          variant="ghost"
+                          className="w-8 h-8 p-0 hover:bg-purple-50 rounded-full"
+                          title="Move Right (Younger)"
+                        >
+                          <ArrowRight className="w-3 h-3 text-purple-600" />
+                        </Button>
+                      )}
+
+                      {canMoveLeft && (
+                        <Button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            moveBirthOrderLeft(selectedPerson);
+                          }}
+                          size="sm"
+                          variant="ghost"
+                          className="w-8 h-8 p-0 hover:bg-purple-50 rounded-full"
+                          title="Move Left (Older)"
+                        >
+                          <ArrowLeft className="w-3 h-3 text-purple-600" />
+                        </Button>
+                      )}
 
                       <Button
                         onClick={(e) => {
