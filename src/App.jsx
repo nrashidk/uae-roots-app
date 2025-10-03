@@ -3440,10 +3440,38 @@ function PersonForm({
       alert("يرجى إدخال الاسم الأول");
       return;
     }
+    
+    // Validate email format if provided
+    if (formData.email && formData.email.trim()) {
+      const emailPattern = /^[a-zA-Z0-9._-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+      if (!emailPattern.test(formData.email)) {
+        alert("يرجى إدخال بريد إلكتروني صحيح بالإنجليزية (مثل: test@test.com)");
+        return;
+      }
+    }
+    
     onSave(formData);
   };
 
   const handleChange = (field, value) => {
+    // Phone number validation: limit to 7 digits only
+    if (field === "phone") {
+      const digitsOnly = value.replace(/\D/g, "");
+      if (digitsOnly.length <= 7) {
+        setFormData((prev) => ({ ...prev, [field]: digitsOnly }));
+      }
+      return;
+    }
+    
+    // Email validation: ensure English characters only with @ and .
+    if (field === "email") {
+      const englishEmailPattern = /^[a-zA-Z0-9@._-]*$/;
+      if (englishEmailPattern.test(value)) {
+        setFormData((prev) => ({ ...prev, [field]: value }));
+      }
+      return;
+    }
+    
     setFormData((prev) => ({ ...prev, [field]: value }));
   };
 
