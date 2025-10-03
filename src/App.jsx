@@ -1429,52 +1429,147 @@ function App() {
     );
   }
 
-  // Lineage view - displays all family members with their genealogical names
+  // Lineage view - displays family members organized by husband's lineage first, then wife's ancestors
   if (currentView === "lineage") {
-    // Build lineage - get all people sorted by generation level
+    // Build lineage - organize by family groups (husband's lineage + wife's ancestors)
     const buildLineage = () => {
       const treePeople = people.filter((p) => p.treeId === currentTree?.id);
       const treeRelationships = relationships.filter((r) => r.treeId === currentTree?.id);
       
       if (treePeople.length === 0) return [];
       
-      // Calculate generation level for each person (0 = oldest ancestor)
-      const calculateGenerationLevel = (personId, visited = new Set()) => {
-        if (visited.has(personId)) return 0; // Prevent infinite loops
-        visited.add(personId);
+      const result = [];
+      const addedPeople = new Set();
+      
+      // Helper: Get all ancestors going up
+      const getAncestors = (personId) => {
+        const ancestors = [];
+        const visited = new Set();
         
-        const parentRels = treeRelationships.filter(
-          rel => rel.type === REL.PARENT_CHILD && rel.childId === personId
-        );
+        const traceUp = (id) => {
+          if (visited.has(id)) return;
+          visited.add(id);
+          
+          const parentRels = treeRelationships.filter(
+            rel => rel.type === REL.PARENT_CHILD && rel.childId === id
+          );
+          
+          // Find male parent (father) for paternal line
+          let parentId = null;
+          const maleParent = parentRels.find(rel => {
+            const parent = treePeople.find(p => p.id === rel.parentId);
+            return parent?.gender === 'male';
+          });
+          
+          if (maleParent) {
+            parentId = maleParent.parentId;
+          } else if (parentRels.length > 0) {
+            parentId = parentRels[0].parentId;
+          }
+          
+          if (parentId) {
+            traceUp(parentId);
+            const parent = treePeople.find(p => p.id === parentId);
+            if (parent) ancestors.push(parent);
+          }
+        };
         
-        if (parentRels.length === 0) return 0; // No parents = oldest generation
-        
-        // Get max generation of parents + 1
-        const parentGenerations = parentRels.map(rel => {
-          return calculateGenerationLevel(rel.parentId, new Set(visited)) + 1;
-        });
-        
-        return Math.max(...parentGenerations);
+        traceUp(personId);
+        return ancestors;
       };
       
-      // Add generation level to each person and sort
-      const peopleWithGenerations = treePeople.map(person => ({
-        ...person,
-        generationLevel: calculateGenerationLevel(person.id)
-      }));
+      // Helper: Get all descendants going down
+      const getDescendants = (personId) => {
+        const descendants = [];
+        const visited = new Set();
+        
+        const traceDown = (id) => {
+          if (visited.has(id)) return;
+          visited.add(id);
+          
+          const childRels = treeRelationships.filter(
+            rel => rel.type === REL.PARENT_CHILD && rel.parentId === id
+          );
+          
+          childRels.forEach(rel => {
+            const child = treePeople.find(p => p.id === rel.childId);
+            if (child) {
+              descendants.push(child);
+              traceDown(child.id);
+            }
+          });
+        };
+        
+        traceDown(personId);
+        return descendants;
+      };
       
-      // Sort by generation level (oldest first), then by gender (males first for patrilineal display)
-      peopleWithGenerations.sort((a, b) => {
-        if (a.generationLevel !== b.generationLevel) {
-          return a.generationLevel - b.generationLevel;
+      // Find all partnerships
+      const partnerships = treeRelationships.filter(r => r.type === REL.PARTNER);
+      
+      // Process each partnership: husband's lineage first, then wife's ancestors
+      partnerships.forEach(partnership => {
+        const person1 = treePeople.find(p => p.id === partnership.person1Id);
+        const person2 = treePeople.find(p => p.id === partnership.person2Id);
+        
+        if (!person1 || !person2) return;
+        
+        // Identify husband (male) and wife (female)
+        const husband = person1.gender === 'male' ? person1 : person2;
+        const wife = person1.gender === 'male' ? person2 : person1;
+        
+        // Skip if both already processed
+        if (addedPeople.has(husband.id) && addedPeople.has(wife.id)) return;
+        
+        // Process husband's full lineage
+        const husbandAncestors = getAncestors(husband.id);
+        husbandAncestors.forEach(ancestor => {
+          if (!addedPeople.has(ancestor.id)) {
+            result.push(ancestor);
+            addedPeople.add(ancestor.id);
+          }
+        });
+        
+        // Add husband
+        if (!addedPeople.has(husband.id)) {
+          result.push(husband);
+          addedPeople.add(husband.id);
         }
-        // Within same generation, males first
-        if (a.gender === 'male' && b.gender !== 'male') return -1;
-        if (a.gender !== 'male' && b.gender === 'male') return 1;
-        return 0;
+        
+        // Add husband's descendants
+        const husbandDescendants = getDescendants(husband.id);
+        husbandDescendants.forEach(descendant => {
+          if (!addedPeople.has(descendant.id)) {
+            result.push(descendant);
+            addedPeople.add(descendant.id);
+          }
+        });
+        
+        // Process wife's ancestors and add wife
+        const wifeAncestors = getAncestors(wife.id);
+        wifeAncestors.forEach(ancestor => {
+          if (!addedPeople.has(ancestor.id)) {
+            result.push(ancestor);
+            addedPeople.add(ancestor.id);
+          }
+        });
+        
+        // Add wife
+        if (!addedPeople.has(wife.id)) {
+          result.push(wife);
+          addedPeople.add(wife.id);
+        }
       });
       
-      return peopleWithGenerations;
+      // Add any remaining people not in partnerships
+      treePeople.forEach(person => {
+        if (!addedPeople.has(person.id)) {
+          result.push(person);
+          addedPeople.add(person.id);
+        }
+      });
+      
+      return result;
     };
     
     const lineage = buildLineage();
