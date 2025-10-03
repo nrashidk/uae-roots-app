@@ -2322,13 +2322,24 @@ function App() {
                 transformOrigin: "0 0",
               }}
             >
-              {treePeople.map((person) => (
+              {treePeople.map((person) => {
+                // Check if this person has any breastfeeding sibling relationships
+                const isBreastfeedingSibling = relationships.some(
+                  r => r.type === REL.SIBLING && 
+                       r.isBreastfeeding === true &&
+                       (r.person1Id === person.id || r.person2Id === person.id) &&
+                       r.treeId === currentTree?.id
+                );
+                
+                return (
                 <div
                   key={person.id}
                   data-person-box
                   className={`absolute border-2 rounded-lg p-3 cursor-pointer transition-all duration-200 select-none ${
                     selectedPerson === person.id
                       ? "border-green-500 shadow-lg"
+                      : isBreastfeedingSibling
+                      ? "border-green-400 border-4 hover:border-green-500"
                       : "border-gray-300 hover:border-gray-400"
                   }`}
                   style={{
@@ -2399,7 +2410,8 @@ function App() {
                     )}
                   </div>
                 </div>
-              ))}
+                );
+              })}
 
               {/* Action buttons for selected person - positioned below the box */}
               {selectedPerson &&
