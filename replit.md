@@ -47,6 +47,13 @@ src/
 ✅ Run command: `npm run preview`
 
 ## Recent Changes
+- **2025-10-03**: Dashboard Relationships card redesigned:
+  - Now displays parent profiles instead of just relationship count
+  - Shows full genealogical name: firstName + parent's firstName + family name
+  - Displays wife count (عدد الزوجات) and children count (عدد الأبناء)
+  - Example: "الاسم: راشد عبيد آل علي", "عدد الزوجات: 2", "عدد الأبناء: 14"
+  - Family name inherited from oldest ancestor in paternal line
+  - Scrollable list for multiple parents with border separators
 - **2025-10-03**: Family member organization by husband's lineage:
   - Reorganized Family Members display to show families by husband's lineage first
   - Display order: husband's ancestors → husband → descendants → wife's ancestors → wife
