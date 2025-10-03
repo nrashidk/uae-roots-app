@@ -989,6 +989,44 @@ function App() {
       treeId: currentTree?.id
     };
     
+    // Recalculate birth order for the child in their new parent set
+    // The new parent set now includes both the original parent and the new parent
+    const newParentIds = [...currentParentIds, newParentId].sort();
+    
+    // Find all children with the same parent set (will be siblings after this operation)
+    const updatedRelationships = [...relationships, newRelationship];
+    
+    // Build map of children to their parent sets
+    const childrenParentMap = updatedRelationships
+      .filter(r => r.type === REL.PARENT_CHILD && r.treeId === currentTree?.id)
+      .reduce((acc, r) => {
+        if (!acc[r.childId]) acc[r.childId] = [];
+        acc[r.childId].push(r.parentId);
+        return acc;
+      }, {});
+    
+    // Find siblings with the same parent set
+    const targetParentSet = newParentIds.join('-');
+    const siblings = Object.entries(childrenParentMap)
+      .filter(([cId, parentIds]) => {
+        const parentSet = parentIds.sort().join('-');
+        return parentSet === targetParentSet;
+      })
+      .map(([cId]) => people.find(p => p.id === parseInt(cId)))
+      .filter(Boolean)
+      .filter(p => p.id !== childId); // Exclude the child being linked
+    
+    // Calculate new birth order (max of siblings + 1)
+    const maxBirthOrder = siblings.length > 0 
+      ? Math.max(...siblings.map(s => s.birthOrder || 0))
+      : 0;
+    const newBirthOrder = maxBirthOrder + 1;
+    
+    // Update the child's birth order
+    setPeople(prev => prev.map(p => 
+      p.id === childId ? { ...p, birthOrder: newBirthOrder } : p
+    ));
+    
     setRelationships(prev => [...prev, newRelationship]);
     setShowManageParentsDialog(false);
   };
