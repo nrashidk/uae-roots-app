@@ -1402,18 +1402,138 @@ function App() {
             </div>
 
             <div 
-              className="bg-white rounded-lg shadow p-6 cursor-pointer hover:shadow-lg transition-shadow"
-              onClick={() => currentTree && setCurrentView("tree-builder")}
+              className="bg-white rounded-lg shadow p-6 hover:shadow-lg transition-shadow overflow-y-auto max-h-96"
             >
               <h3 className="text-xl font-bold text-gray-900 mb-4 arabic-text">
                 {t.relationships}
               </h3>
-              <div className="text-3xl font-bold text-green-600">
-                {
-                  relationships.filter((r) => r.treeId === currentTree?.id)
-                    .length
+              {(() => {
+                // Helper: Get parent profiles with full genealogical names
+                const getParentProfiles = () => {
+                  if (!currentTree) return [];
+                  
+                  const treePeople = people.filter((p) => p.treeId === currentTree?.id);
+                  const treeRelationships = relationships.filter((r) => r.treeId === currentTree?.id);
+                  
+                  // Find all parents (people who have children)
+                  const parentIds = new Set();
+                  treeRelationships
+                    .filter(r => r.type === REL.PARENT_CHILD)
+                    .forEach(r => parentIds.add(r.parentId));
+                  
+                  const profiles = [];
+                  
+                  parentIds.forEach(parentId => {
+                    const parent = treePeople.find(p => p.id === parentId);
+                    if (!parent) return;
+                    
+                    // Count spouses (partners)
+                    const spouseCount = treeRelationships.filter(
+                      r => r.type === REL.PARTNER && (r.person1Id === parentId || r.person2Id === parentId)
+                    ).length;
+                    
+                    // Count children
+                    const childrenCount = treeRelationships.filter(
+                      r => r.type === REL.PARENT_CHILD && r.parentId === parentId
+                    ).length;
+                    
+                    // Build full genealogical name: firstName + parent's firstName + family name
+                    let fullName = parent.firstName || "";
+                    
+                    // Get parent's name (for genealogical chain)
+                    const parentRels = treeRelationships.filter(
+                      rel => rel.type === REL.PARENT_CHILD && rel.childId === parentId
+                    );
+                    
+                    // Find male parent (father) for paternal line
+                    const maleParentRel = parentRels.find(rel => {
+                      const p = treePeople.find(person => person.id === rel.parentId);
+                      return p?.gender === 'male';
+                    });
+                    
+                    const parentRel = maleParentRel || parentRels[0];
+                    
+                    if (parentRel) {
+                      const parentPerson = treePeople.find(p => p.id === parentRel.parentId);
+                      if (parentPerson?.firstName) {
+                        fullName += " " + parentPerson.firstName;
+                      }
+                    }
+                    
+                    // Add family name (lastName) - get from oldest ancestor or self
+                    const getOldestAncestor = (personId) => {
+                      let current = personId;
+                      let visited = new Set();
+                      
+                      while (true) {
+                        if (visited.has(current)) break;
+                        visited.add(current);
+                        
+                        const parentRels = treeRelationships.filter(
+                          rel => rel.type === REL.PARENT_CHILD && rel.childId === current
+                        );
+                        
+                        const maleParent = parentRels.find(rel => {
+                          const p = treePeople.find(person => person.id === rel.parentId);
+                          return p?.gender === 'male';
+                        });
+                        
+                        const nextParentRel = maleParent || parentRels[0];
+                        
+                        if (!nextParentRel) break;
+                        current = nextParentRel.parentId;
+                      }
+                      
+                      return current;
+                    };
+                    
+                    const oldestAncestorId = getOldestAncestor(parentId);
+                    const oldestAncestor = treePeople.find(p => p.id === oldestAncestorId);
+                    const familyName = oldestAncestor?.lastName || parent.lastName || "";
+                    
+                    if (familyName) {
+                      fullName += " " + familyName;
+                    }
+                    
+                    profiles.push({
+                      id: parentId,
+                      fullName: fullName.trim(),
+                      spouseCount,
+                      childrenCount,
+                    });
+                  });
+                  
+                  return profiles;
+                };
+                
+                const parentProfiles = getParentProfiles();
+                
+                if (parentProfiles.length === 0) {
+                  return (
+                    <div className="text-gray-500 text-sm arabic-text">
+                      لا توجد علاقات بعد
+                    </div>
+                  );
                 }
-              </div>
+                
+                return (
+                  <div className="space-y-4">
+                    {parentProfiles.map(profile => (
+                      <div key={profile.id} className="border-b pb-3 last:border-b-0">
+                        <div className="text-sm font-semibold text-gray-900 arabic-text mb-1">
+                          الاسم: {profile.fullName}
+                        </div>
+                        <div className="text-sm text-gray-600 arabic-text">
+                          عدد الزوجات: {profile.spouseCount}
+                        </div>
+                        <div className="text-sm text-gray-600 arabic-text">
+                          عدد الأبناء: {profile.childrenCount}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                );
+              })()}
             </div>
           </div>
 
