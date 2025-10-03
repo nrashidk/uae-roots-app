@@ -1629,9 +1629,8 @@ function App() {
               </p>
             </div>
           ) : (
-            <div className="bg-white rounded-lg shadow-md p-6">
-              <div className="space-y-4">
-                {lineage.map((person, index) => {
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {lineage.map((person, index) => {
                   // Build genealogical chain by tracing up through parent relationships
                   // This dynamically updates when ancestors are added
                   const buildGenealogicalName = () => {
@@ -1677,25 +1676,26 @@ function App() {
                   return (
                     <div 
                       key={person.id}
-                      className="flex items-center gap-3 pb-4 border-b last:border-b-0"
+                      className="bg-white rounded-lg shadow-md p-6"
                     >
-                      <div className="text-xl font-semibold text-gray-400">
-                        {index + 1}
-                      </div>
-                      <div className="flex-1">
-                        <div className="text-lg text-gray-900 arabic-text">
-                          {buildGenealogicalName()}
+                      <div className="flex items-center gap-3">
+                        <div className="text-xl font-semibold text-gray-400">
+                          {index + 1}
                         </div>
-                        {person.birthDate && (
-                          <div className="text-sm text-gray-600 arabic-text mt-1">
-                            {person.birthDate}
+                        <div className="flex-1">
+                          <div className="text-lg text-gray-900 arabic-text">
+                            {buildGenealogicalName()}
                           </div>
-                        )}
+                          {person.birthDate && (
+                            <div className="text-sm text-gray-600 arabic-text mt-1">
+                              {person.birthDate}
+                            </div>
+                          )}
+                        </div>
                       </div>
                     </div>
                   );
                 })}
-              </div>
             </div>
           )}
         </div>

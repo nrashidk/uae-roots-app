@@ -47,13 +47,12 @@ src/
 ✅ Run command: `npm run preview`
 
 ## Recent Changes
-- **2025-10-03**: Family Members view redesigned with single container box:
-  - All family members displayed inside one big white container box
-  - Container styled with rounded corners, shadow, and padding (matches Relationships style)
+- **2025-10-03**: Family Members view redesigned with two-column grid layout:
+  - Family members displayed in two-column responsive grid (one column on mobile, two on larger screens)
+  - Each member in individual white container box with rounded corners and shadow
   - Font changed from bold to regular text-lg (matching relationship headers)
   - Kept identification numbers and genealogical chain names
-  - Members separated with border lines for clarity
-  - Clean vertical list layout inside single container
+  - Clean grid layout for better space utilization and viewing multiple family members
 - **2025-10-03**: Dashboard Relationships card with detail page:
   - Dashboard shows count of male parents (husbands who have wives and children)
   - Clicking count navigates to new "relationships-detail" view page
