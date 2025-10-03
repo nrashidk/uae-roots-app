@@ -1629,71 +1629,73 @@ function App() {
               </p>
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {lineage.map((person, index) => {
-                // Build genealogical chain by tracing up through parent relationships
-                // This dynamically updates when ancestors are added
-                const buildGenealogicalName = () => {
-                  const names = [];
-                  const visited = new Set(); // Prevent infinite loops
-                  
-                  // Start with current person and trace up to oldest ancestor
-                  let currentPerson = person;
-                  
-                  while (currentPerson && !visited.has(currentPerson.id)) {
-                    visited.add(currentPerson.id);
-                    names.push(currentPerson.firstName);
+            <div className="bg-white rounded-lg shadow-md p-6">
+              <div className="space-y-4">
+                {lineage.map((person, index) => {
+                  // Build genealogical chain by tracing up through parent relationships
+                  // This dynamically updates when ancestors are added
+                  const buildGenealogicalName = () => {
+                    const names = [];
+                    const visited = new Set(); // Prevent infinite loops
                     
-                    // Find parent (father) - prioritize male parent for paternal line
-                    const parentRels = relationships.filter(
-                      r => r.type === REL.PARENT_CHILD && 
-                           r.childId === currentPerson.id && 
-                           r.treeId === currentTree?.id
-                    );
+                    // Start with current person and trace up to oldest ancestor
+                    let currentPerson = person;
                     
-                    if (parentRels.length === 0) {
-                      // No parents found - this is the oldest ancestor
-                      // Add family name from this person
-                      if (currentPerson.lastName) {
-                        names.push(currentPerson.lastName);
+                    while (currentPerson && !visited.has(currentPerson.id)) {
+                      visited.add(currentPerson.id);
+                      names.push(currentPerson.firstName);
+                      
+                      // Find parent (father) - prioritize male parent for paternal line
+                      const parentRels = relationships.filter(
+                        r => r.type === REL.PARENT_CHILD && 
+                             r.childId === currentPerson.id && 
+                             r.treeId === currentTree?.id
+                      );
+                      
+                      if (parentRels.length === 0) {
+                        // No parents found - this is the oldest ancestor
+                        // Add family name from this person
+                        if (currentPerson.lastName) {
+                          names.push(currentPerson.lastName);
+                        }
+                        break;
                       }
-                      break;
+                      
+                      // Get all parents
+                      const parents = parentRels
+                        .map(rel => people.find(p => p.id === rel.parentId))
+                        .filter(Boolean);
+                      
+                      // Prefer male parent for paternal lineage
+                      const father = parents.find(p => p.gender === 'male');
+                      currentPerson = father || parents[0]; // Fall back to first parent if no male
                     }
                     
-                    // Get all parents
-                    const parents = parentRels
-                      .map(rel => people.find(p => p.id === rel.parentId))
-                      .filter(Boolean);
-                    
-                    // Prefer male parent for paternal lineage
-                    const father = parents.find(p => p.gender === 'male');
-                    currentPerson = father || parents[0]; // Fall back to first parent if no male
-                  }
+                    return names.join(' ');
+                  };
                   
-                  return names.join(' ');
-                };
-                
-                return (
-                  <div 
-                    key={person.id}
-                    className="bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow"
-                  >
-                    <div className="flex items-center gap-3 mb-4 border-b pb-3">
+                  return (
+                    <div 
+                      key={person.id}
+                      className="flex items-center gap-3 pb-4 border-b last:border-b-0"
+                    >
                       <div className="text-xl font-semibold text-gray-400">
                         {index + 1}
                       </div>
-                      <div className="text-lg text-gray-900 arabic-text">
-                        {buildGenealogicalName()}
+                      <div className="flex-1">
+                        <div className="text-lg text-gray-900 arabic-text">
+                          {buildGenealogicalName()}
+                        </div>
+                        {person.birthDate && (
+                          <div className="text-sm text-gray-600 arabic-text mt-1">
+                            {person.birthDate}
+                          </div>
+                        )}
                       </div>
                     </div>
-                    {person.birthDate && (
-                      <div className="text-sm text-gray-600 arabic-text">
-                        تاريخ الميلاد: {person.birthDate}
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
+                  );
+                })}
+              </div>
             </div>
           )}
         </div>
