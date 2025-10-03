@@ -776,6 +776,7 @@ function App() {
           newRelationship.type = REL.SIBLING;
           newRelationship.person1Id = selectedPerson;
           newRelationship.person2Id = newPerson.id;
+          newRelationship.isBreastfeeding = personData.isBreastfeeding || false;
           break;
       }
 
@@ -3365,6 +3366,7 @@ function PersonForm({
     profession: person?.profession || "",
     company: person?.company || "",
     bioNotes: person?.bioNotes || "",
+    isBreastfeeding: false, // For sibling relationships only
   });
 
   const t = {
@@ -3571,6 +3573,24 @@ function PersonForm({
                 {t.isLiving}
               </label>
             </div>
+
+            {relationshipType === "sibling" && (
+              <div className="flex items-center gap-2 p-3 bg-green-50 rounded-md">
+                <input
+                  type="checkbox"
+                  id="isBreastfeeding"
+                  checked={formData.isBreastfeeding || false}
+                  onChange={(e) => handleChange("isBreastfeeding", e.target.checked)}
+                  className="rounded"
+                />
+                <label
+                  htmlFor="isBreastfeeding"
+                  className="text-base font-bold text-gray-700 arabic-text"
+                >
+                  أخ/أخت من الرضاعة
+                </label>
+              </div>
+            )}
 
             {!formData.isLiving && (
               <div>
