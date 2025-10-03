@@ -90,3 +90,13 @@ src/
 
 ## Current Status
 The application is fully functional and ready for development and deployment. The authentication screen loads correctly with Arabic text and all three login options are visible.
+
+## Database Setup (Ready for Future Use)
+✅ **PostgreSQL Database Configured:**
+- Database provisioned and environment variables set
+- Drizzle ORM installed and configured
+- Database schema designed (trees, people, relationships tables)
+- Tables created successfully in database
+- **Decision:** Continue using in-memory state during development until website is 100% complete
+- **Reason:** Faster feature development, easier testing, migrate to database in one step when ready
+- **Migration Strategy:** When website is complete, add Express backend and migrate data to PostgreSQL in single deployment
