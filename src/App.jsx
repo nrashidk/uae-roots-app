@@ -1415,13 +1415,22 @@ function App() {
                   const treePeople = people.filter((p) => p.treeId === currentTree?.id);
                   const treeRelationships = relationships.filter((r) => r.treeId === currentTree?.id);
                   
-                  // Count unique parents (people who have children)
+                  // Count unique male parents (husbands who have children)
                   const parentIds = new Set();
                   treeRelationships
                     .filter(r => r.type === REL.PARENT_CHILD)
                     .forEach(r => parentIds.add(r.parentId));
                   
-                  return parentIds.size;
+                  // Filter to only count males
+                  let maleParentCount = 0;
+                  parentIds.forEach(parentId => {
+                    const parent = treePeople.find(p => p.id === parentId);
+                    if (parent && parent.gender === 'male') {
+                      maleParentCount++;
+                    }
+                  });
+                  
+                  return maleParentCount;
                 })()}
               </div>
             </div>
@@ -1709,6 +1718,9 @@ function App() {
       parentIds.forEach(parentId => {
         const parent = treePeople.find(p => p.id === parentId);
         if (!parent) return;
+        
+        // Only show male parents (husbands) - females are already counted as wives
+        if (parent.gender !== 'male') return;
         
         // Count spouses (partners)
         const spouseCount = treeRelationships.filter(
