@@ -48,13 +48,14 @@ src/
 
 ## Recent Changes
 - **2025-10-03**: Dashboard Relationships card with detail page:
-  - Dashboard shows count of parents (people who have wives and children)
+  - Dashboard shows count of male parents (husbands who have wives and children)
   - Clicking count navigates to new "relationships-detail" view page
-  - Detail page displays parent profiles in card grid with:
+  - Detail page displays **only male parent profiles** in card grid with:
     * Full genealogical name: firstName + parent's firstName + family name
     * Wife count (عدد الزوجات)
     * Children count (عدد الأبناء)
     * Example: "الاسم: راشد عبيد آل علي", "عدد الزوجات: 2", "عدد الأبناء: 14"
+  - **Gender restriction:** Only shows husbands - females excluded since they're already counted as wives
   - Family name inherited from oldest ancestor in paternal line
   - Back to dashboard button for easy navigation
 - **2025-10-03**: Family member organization by husband's lineage:
