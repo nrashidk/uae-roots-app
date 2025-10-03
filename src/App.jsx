@@ -3073,7 +3073,7 @@ function App() {
                   </div>
 
                   {/* Column 4: Sliders */}
-                  <div>
+                  <div className="pr-6">
                     <h3 className="text-base font-medium text-gray-900 mb-3 arabic-text">
                       الأحجام
                     </h3>
