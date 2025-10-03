@@ -3609,7 +3609,7 @@ function PersonForm({
               />
               <label
                 htmlFor="isLiving"
-                className="text-base font-bold text-gray-700 arabic-text"
+                className="text-lg font-bold text-gray-700 arabic-text"
               >
                 {t.isLiving}
               </label>
@@ -3626,7 +3626,7 @@ function PersonForm({
                 />
                 <label
                   htmlFor="isBreastfeeding"
-                  className="text-base font-bold text-gray-700 arabic-text"
+                  className="text-lg font-bold text-gray-700 arabic-text"
                 >
                   أخ/أخت من الرضاعة
                 </label>
