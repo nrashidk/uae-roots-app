@@ -3616,7 +3616,7 @@ function PersonForm({
             </div>
 
             {relationshipType === "sibling" && (
-              <div className="flex items-center gap-2 p-3 bg-green-50 rounded-md">
+              <div className="flex items-center gap-2">
                 <input
                   type="checkbox"
                   id="isBreastfeeding"
