@@ -1521,6 +1521,13 @@ function App() {
                       names.push(lineage[i].firstName);
                     }
                     
+                    // Add family name at the end (inherited from oldest ancestor)
+                    // In Arab/Islamic culture, family name is passed down through paternal line
+                    const oldestAncestor = lineage[0];
+                    if (oldestAncestor.lastName) {
+                      names.push(oldestAncestor.lastName);
+                    }
+                    
                     return names.join(' ');
                   };
                   
