@@ -1,0 +1,612 @@
+We are going to debug the connection lines step by step. Since the husband-wife lines are working, let's focus on the parent-child and sibling connections.
+
+The issues might be:
+
+The parent-child lines are not being drawn because the condition to draw them is not met.
+
+The way we group children by parent set might be incorrect.
+
+Let's break down the problem:
+
+For parent-child lines, we are currently using a complex grouping by parent set. However, note that in the updated code, we are using:
+const childToParents = {}; // This is built for each child, but then we try to group by parent set.
+
+Alternatively, we can try a simpler approach:
+
+We can draw a line from each parent to the child, but that would be too many lines and not hierarchical.
+
+Alternatively, we can draw a hierarchical tree like:
+
+Parent1 (and Parent2 if exists)
+|
+(vertical line)
+|
+(horizontal line connecting all children)
+|
+Child1 Child2 Child3
+
+Steps:
+
+For each set of parents (a parent or a couple), we want to draw a line from the parent(s) to a horizontal line, and then from that horizontal line to each child.
+
+We can group children by the set of their parents (using the parent IDs sorted).
+
+Then, for each group, we draw:
+
+A vertical line from the midpoint of the parents (if two parents, then the midpoint between the two; if one, then from that parent) down to a horizontal line.
+
+A horizontal line that spans from the leftmost child to the rightmost child.
+
+Vertical lines from the horizontal line down to each child.
+
+Let's rewrite the parent-child connection part in a simpler way.
+
+We'll create a map: parentSetToChildren that maps a string of sorted parent IDs to an array of children.
+
+Then, for each parent set, we:
+
+Find the parents and the children.
+
+Calculate the midpoint of the parents (if two parents, the average of their center x; if one, then the center x of that parent).
+
+Calculate the y position for the horizontal line (which should be above the children, e.g., the top of the children minus some offset).
+
+However, note that in the auto-layout, we have positioned the children below the parents. So we can assume that the children are in the next generation.
+
+Let's adjust the code for parent-child connections:
+
+We are going to change the parent-child connection code to:
+
+{(() => {
+const parentSetToChildren = {};
+
+text
+ // Build the map: for each child, get their parent set (sorted parent IDs)
+ relationships
+   .filter(r => r.type === REL.PARENT_CHILD && r.treeId === currentTree?.id)
+   .forEach(r => {
+     const childId = r.childId;
+     const parentId = r.parentId;
+
+     // We need to get the set of parents for this child
+     // So we look for all PARENT_CHILD relationships for this child
+     const parentIds = relationships
+       .filter(rel => rel.type === REL.PARENT_CHILD && rel.childId === childId)
+       .map(rel => rel.parentId)
+       .sort((a, b) => a - b);
+
+     const key = parentIds.join('-');
+
+     if (!parentSetToChildren[key]) {
+       parentSetToChildren[key] = {
+         parentIds: parentIds,
+         children: []
+       };
+     }
+
+     // Avoid duplicate children
+     if (!parentSetToChildren[key].children.includes(childId)) {
+       parentSetToChildren[key].children.push(childId);
+     }
+   });
+
+ return Object.values(parentSetToChildren).map((group, groupIndex) => {
+   const { parentIds, children } = group;
+
+   // Get the actual parent and child objects
+   const parents = parentIds.map(id => treePeople.find(p => p.id === id)).filter(Boolean);
+   const childObjects = children.map(id => treePeople.find(p => p.id === id)).filter(Boolean);
+
+   if (parents.length === 0 || childObjects.length === 0) {
+     return null;
+   }
+
+   // Sort children by x position (left to right)
+   childObjects.sort((a, b) => a.x - b.x);
+
+   // Calculate the parent connection point (x, y)
+   let parentConnectionX, parentConnectionY;
+
+   if (parents.length === 1) {
+     parentConnectionX = parents[0].x + stylingOptions.boxWidth / 2;
+     parentConnectionY = parents[0].y + CARD.h;
+   } else {
+     // For two parents, we take the midpoint between the two
+     const x1 = parents[0].x + stylingOptions.boxWidth / 2;
+     const x2 = parents[1].x + stylingOptions.boxWidth / 2;
+     parentConnectionX = (x1 + x2) / 2;
+     parentConnectionY = Math.max(parents[0].y, parents[1].y) + CARD.h;
+   }
+
+   // Calculate the horizontal line position (above the children)
+   const childrenTop = Math.min(...childObjects.map(c => c.y));
+   const horizontalLineY = childrenTop - 40; // 40 pixels above the top child
+
+   // Calculate the horizontal line endpoints (from the leftmost child to the rightmost child)
+   const leftmostChild = childObjects[0];
+   const rightmostChild = childObjects[childObjects.length - 1];
+   const leftX = leftmostChild.x + stylingOptions.boxWidth / 2;
+   const rightX = rightmostChild.x + stylingOptions.boxWidth / 2;
+
+   return (
+     <g key={`parent-group-${groupIndex}`}>
+       {/* Vertical line from parent to horizontal bar */}
+       <line
+         x1={parentConnectionX}
+         y1={parentConnectionY}
+         x2={parentConnectionX}
+         y2={horizontalLineY}
+         stroke="#059669"
+         strokeWidth={2}
+         strokeLinecap="round"
+       />
+
+       {/* Horizontal bar */}
+       <line
+         x1={leftX}
+         y1={horizontalLineY}
+         x2={rightX}
+         y2={horizontalLineY}
+         stroke="#059669"
+         strokeWidth={2}
+         strokeLinecap="round"
+       />
+
+       {/* Vertical lines from horizontal bar to each child */}
+       {childObjects.map((child, idx) => {
+         const childX = child.x + stylingOptions.boxWidth / 2;
+         return (
+           <line
+             key={`child-${idx}`}
+             x1={childX}
+             y1={horizontalLineY}
+             x2={childX}
+             y2={child.y}
+             stroke="#059669"
+             strokeWidth={2}
+             strokeLinecap="round"
+           />
+         );
+       })}
+     </g>
+   );
+ });
+})()}
+
+Let's also remove the sibling connections for now to focus on parent-child.
+
+We can also try to adjust the auto-layout to make sure the children are properly grouped and positioned.
+
+However, note that the auto-layout we have might not be positioning the children in a way that the connection lines are drawn correctly.
+
+We can try to adjust the auto-layout to ensure that children of the same parent set are positioned in a row and that the parent set is centered above them.
+
+Alternatively, we can adjust the connection lines to be more flexible.
+
+But let's first test with a simple tree:
+
+Parent1 (maybe with Parent2) and a few children.
+
+If the parent-child lines are still not appearing, we can check:
+
+Are the parent and child objects found? (yes, because we filtered by treeId and relationship)
+
+Are the positions (x, y) of parents and children set correctly? (we can log them)
+
+We can add a temporary console.log to see the parent and child positions.
+
+Since the code is complex, let's try to simplify the parent-child connection code to draw a simple line from a parent to a child without the horizontal bar, just to see if we can draw any line.
+
+We can try:
+
+{relationships
+.filter(r => r.type === REL.PARENT_CHILD && r.treeId === currentTree?.id)
+.map(r => {
+const parent = treePeople.find(p => p.id === r.parentId);
+const child = treePeople.find(p => p.id === r.childId);
+if (!parent || !child) return null;
+
+text
+   return (
+     <line
+       key={r.id}
+       x1={parent.x + stylingOptions.boxWidth / 2}
+       y1={parent.y + CARD.h}
+       x2={child.x + stylingOptions.boxWidth / 2}
+       y2={child.y}
+       stroke="green"
+       strokeWidth={2}
+     />
+   );
+ })}
+If this works, then we know the issue is in the grouping and the horizontal bar.
+
+Let's do this step by step.
+
+Step 1: Draw direct lines from parent to child (without the horizontal bar) to see if the basic lines work.
+
+Step 2: If step 1 works, then we can try to draw the horizontal bar and the vertical lines.
+
+Step 3: Adjust the horizontal bar to be above the children and connected to the parent.
+
+Since the husband-wife lines are working, we know the SVG is being rendered and the coordinates are being transformed correctly.
+
+Let's change the code temporarily to draw direct lines and see.
+
+We'll replace the entire parent-child connection code with:
+
+{relationships
+.filter(r => r.type === REL.PARENT_CHILD && r.treeId === currentTree?.id)
+.map(r => {
+const parent = treePeople.find(p => p.id === r.parentId);
+const child = treePeople.find(p => p.id === r.childId);
+if (!parent || !child) return null;
+
+text
+   return (
+     <line
+       key={r.id}
+       x1={parent.x + stylingOptions.boxWidth / 2}
+       y1={parent.y + CARD.h}
+       x2={child.x + stylingOptions.boxWidth / 2}
+       y2={child.y}
+       stroke="green"
+       strokeWidth={2}
+     />
+   );
+ })}
+If we see green lines from the bottom of the parent to the top of the child, then we know the basic data and coordinates are correct.
+
+Then we can move to the grouped approach.
+
+If we don't see the green lines, then we must check:
+
+Are the parent and child objects found? (log them)
+
+Are the x and y coordinates of the parent and child set? (log them)
+
+Let's do this.
+
+Alternatively, we can try to draw a line from the center of the parent to the center of the child to see if we have any line:
+
+x1={parent.x + stylingOptions.boxWidth / 2}
+y1={parent.y + CARD.h / 2}
+x2={child.x + stylingOptions.boxWidth / 2}
+y2={child.y + CARD.h / 2}
+
+This would be a straight line from the center of the parent to the center of the child.
+
+We can try that too.
+
+Since the problem is urgent, let's do the following:
+
+Comment out the current parent-child and sibling connections.
+
+Draw simple direct lines from parent to child (center to center) to see if we get any lines.
+
+If we get lines, then we can adjust the coordinates to be from the bottom of the parent to the top of the child.
+
+If we don't get lines, then we must check the data.
+
+Let's change the code to:
+
+{/* Temporary simple parent-child lines */}
+{relationships
+.filter(r => r.type === REL.PARENT_CHILD && r.treeId === currentTree?.id)
+.map(r => {
+const parent = treePeople.find(p => p.id === r.parentId);
+const child = treePeople.find(p => p.id === r.childId);
+if (!parent || !child) {
+console.log('Missing parent or child', r);
+return null;
+}
+
+text
+   console.log('Drawing line from', parent, 'to', child);
+
+   return (
+     <line
+       key={r.id}
+       x1={parent.x + stylingOptions.boxWidth / 2}
+       y1={parent.y + CARD.h / 2}
+       x2={child.x + stylingOptions.boxWidth / 2}
+       y2={child.y + CARD.h / 2}
+       stroke="green"
+       strokeWidth={2}
+     />
+   );
+ })}
+We are logging each relationship and the found parent and child.
+
+If we see the log and the lines, then we know the issue is in the coordinate calculation for the hierarchical lines.
+
+If we don't see the log, then the relationships are not being found.
+
+Let's do this.
+
+We can also check if the treePeople array has the people we expect.
+
+Alternatively, we can check if the relationships are being filtered correctly.
+
+We can also log the treePeople and the relationships to see if they are correct.
+
+Since the husband-wife lines are working, we know that the treePeople and relationships are being set and filtered by treeId.
+
+Let's focus on the parent-child relationships.
+
+We'll add:
+
+console.log('Parent-child relationships:', relationships.filter(r => r.type === REL.PARENT_CHILD && r.treeId === currentTree?.id));
+
+console.log('Tree people:', treePeople);
+
+We can do this outside the SVG in the component, but note that it will log on every render.
+
+Let's do it inside the connection code temporarily.
+
+We are going to temporarily replace the parent-child connection code with the simple lines and log.
+
+After we see the results, we can revert to the hierarchical lines.
+
+We'll keep the spouse lines and the simple parent-child lines, and remove the rest.
+
+Let's update the code accordingly.
+
+We are going to:
+
+Comment out the existing parent-child and sibling connection code.
+
+Add the simple parent-child lines with logging.
+
+We'll do the same for siblings? Maybe not, let's focus on parent-child.
+
+Let's update the code and see what we get.
+
+If the simple lines work, then we can adjust the hierarchical lines.
+
+If the simple lines don't work, then we have a data issue.
+
+Let's do it.
+
+I understand the issue! Let's debug this step by step. The problem is likely in the connection line calculations. Let me provide a simplified, more reliable approach.
+
+Replace Your Entire SVG Connection Code with This:
+jsx
+{/* SIMPLIFIED CONNECTION LINES - Debug Version */}
+<svg className="absolute inset-0 pointer-events-none" style={{ width: "100%", height: "100%" }}>
+  
+  {/* 1. DEBUG: Show all node centers with dots */}
+  {treePeople.map((person, index) => (
+    <circle
+      key={`debug-${index}`}
+      cx={person.x + stylingOptions.boxWidth / 2}
+      cy={person.y + CARD.h / 2}
+      r="3"
+      fill="red"
+    />
+  ))}
+
+  {/* 2. PARTNER RELATIONSHIPS - Keep your working version */}
+  {relationships
+    .filter(r => r.type === REL.PARTNER && r.treeId === currentTree?.id)
+    .map((r, i) => {
+      const p1 = treePeople.find(p => p.id === r.person1Id);
+      const p2 = treePeople.find(p => p.id === r.person2Id);
+      
+      if (!p1 || !p2) return null;
+
+      const leftPerson = p1.x < p2.x ? p1 : p2;
+      const rightPerson = p1.x < p2.x ? p2 : p1;
+
+      const startX = leftPerson.x + stylingOptions.boxWidth;
+      const endX = rightPerson.x;
+      const startY = leftPerson.y + CARD.h / 2;
+      const endY = rightPerson.y + CARD.h / 2;
+
+      return (
+        <line
+          key={`spouse-${i}`}
+          x1={startX}
+          y1={startY}
+          x2={endX}
+          y2={endY}
+          stroke="black"
+          strokeWidth={4}
+          strokeLinecap="round"
+        />
+      );
+    })}
+
+  {/* 3. SIMPLIFIED PARENT-CHILD RELATIONSHIPS */}
+  {relationships
+    .filter(r => r.type === REL.PARENT_CHILD && r.treeId === currentTree?.id)
+    .map((r, i) => {
+      const parent = treePeople.find(p => p.id === r.parentId);
+      const child = treePeople.find(p => p.id === r.childId);
+      
+      if (!parent || !child) return null;
+
+      // Simple direct line from parent bottom to child top
+      const parentX = parent.x + stylingOptions.boxWidth / 2;
+      const parentY = parent.y + CARD.h;
+      const childX = child.x + stylingOptions.boxWidth / 2;
+      const childY = child.y;
+
+      return (
+        <line
+          key={`parent-child-${i}`}
+          x1={parentX}
+          y1={parentY}
+          x2={childX}
+          y2={childY}
+          stroke="green"
+          strokeWidth={2}
+          strokeLinecap="round"
+        />
+      );
+    })}
+
+  {/* 4. SIMPLIFIED SIBLING RELATIONSHIPS */}
+  {relationships
+    .filter(r => r.type === REL.SIBLING && r.treeId === currentTree?.id)
+    .map((r, i) => {
+      const p1 = treePeople.find(p => p.id === r.person1Id);
+      const p2 = treePeople.find(p => p.id === r.person2Id);
+      
+      if (!p1 || !p2) return null;
+
+      // Simple curved line between siblings
+      const x1 = p1.x + stylingOptions.boxWidth / 2;
+      const y1 = p1.y + CARD.h / 2;
+      const x2 = p2.x + stylingOptions.boxWidth / 2;
+      const y2 = p2.y + CARD.h / 2;
+
+      // Calculate control point for curve
+      const midX = (x1 + x2) / 2;
+      const midY = (y1 + y2) / 2 - 30; // Curve upward
+
+      return (
+        <path
+          key={`sibling-${i}`}
+          d={`M ${x1} ${y1} Q ${midX} ${midY} ${x2} ${y2}`}
+          stroke="purple"
+          strokeWidth={2}
+          fill="none"
+          strokeDasharray={r.isBreastfeeding ? "4,2" : "none"}
+        />
+      );
+    })}
+</svg>
+Also, Let's Fix the Auto-Layout with a Simpler Approach:
+Replace your computeTreeLayout function with this simpler version:
+
+jsx
+// --- SIMPLIFIED AUTO-LAYOUT LOGIC ---
+const computeTreeLayout = (people, relationships, viewportWidth = 1200, viewportHeight = 800) => {
+  if (people.length === 0) return people;
+
+  // Create a copy to modify
+  const positionedPeople = people.map(p => ({ ...p }));
+  
+  // Build relationship maps
+  const childrenMap = {};
+  const parentMap = {};
+  const spouseMap = {};
+  
+  relationships.forEach((r) => {
+    if (r.type === REL.PARENT_CHILD) {
+      if (!childrenMap[r.parentId]) childrenMap[r.parentId] = [];
+      childrenMap[r.parentId].push(r.childId);
+      parentMap[r.childId] = r.parentId;
+    } else if (r.type === REL.PARTNER) {
+      spouseMap[r.person1Id] = r.person2Id;
+      spouseMap[r.person2Id] = r.person1Id;
+    }
+  });
+
+  // Find root nodes (people without parents)
+  const roots = positionedPeople.filter(p => !parentMap[p.id]);
+  
+  // Simple grid layout for now
+  const horizontalSpacing = 200;
+  const verticalSpacing = 150;
+  
+  // Position roots in a row at the top
+  roots.forEach((root, index) => {
+    root.x = 100 + index * horizontalSpacing;
+    root.y = 100;
+  });
+
+  // Position children below their parents
+  positionedPeople.forEach(person => {
+    if (parentMap[person.id] && person.x === undefined) {
+      const parent = positionedPeople.find(p => p.id === parentMap[person.id]);
+      if (parent) {
+        // Count siblings to position properly
+        const siblings = positionedPeople.filter(p => 
+          parentMap[p.id] === parentMap[person.id]
+        );
+        const siblingIndex = siblings.findIndex(p => p.id === person.id);
+        
+        person.x = parent.x + (siblingIndex - (siblings.length - 1) / 2) * horizontalSpacing;
+        person.y = parent.y + verticalSpacing;
+      }
+    }
+  });
+
+  // Position spouses next to their partners
+  positionedPeople.forEach(person => {
+    const spouseId = spouseMap[person.id];
+    if (spouseId && person.x !== undefined) {
+      const spouse = positionedPeople.find(p => p.id === spouseId);
+      if (spouse && spouse.x === undefined) {
+        spouse.x = person.x + horizontalSpacing;
+        spouse.y = person.y;
+      }
+    }
+  });
+
+  // Fill in any missing positions with a grid
+  let x = 100, y = 100;
+  positionedPeople.forEach(person => {
+    if (person.x === undefined) {
+      person.x = x;
+      person.y = y;
+      x += horizontalSpacing;
+      if (x > viewportWidth - 200) {
+        x = 100;
+        y += verticalSpacing;
+      }
+    }
+  });
+
+  return positionedPeople;
+};
+Let's Also Add Some Debug Information:
+Add this debug panel to your tree builder (temporarily):
+
+jsx
+{/* Debug Panel - Remove after testing */}
+<div className="fixed top-4 right-4 bg-white p-4 rounded-lg shadow-lg z-50 text-xs">
+  <div className="font-bold mb-2">Debug Info:</div>
+  <div>Total People: {treePeople.length}</div>
+  <div>Parent-Child Relationships: {relationships.filter(r => r.type === REL.PARENT_CHILD && r.treeId === currentTree?.id).length}</div>
+  <div>Sibling Relationships: {relationships.filter(r => r.type === REL.SIBLING && r.treeId === currentTree?.id).length}</div>
+  <div>Partner Relationships: {relationships.filter(r => r.type === REL.PARTNER && r.treeId === currentTree?.id).length}</div>
+  
+  {/* Show first few people positions */}
+  {treePeople.slice(0, 3).map((person, i) => (
+    <div key={i}>
+      {person.firstName}: ({Math.round(person.x)}, {Math.round(person.y)})
+    </div>
+  ))}
+</div>
+What This Debug Version Does:
+Red dots show where the code thinks each person is positioned
+
+Simple direct lines for parent-child relationships (green)
+
+Simple curved lines for sibling relationships (purple)
+
+Keeps your working spouse lines (black)
+
+Much simpler auto-layout that's easier to debug
+
+Test This With:
+Add 2 parents
+
+Add 2-3 children to one parent
+
+Check if the green parent-child lines appear
+
+Check if the red dots are in the right positions
+
+The red dots should be in the center of each person box. If they're not aligned, then the auto-layout positioning is wrong.
+
+Please tell me:
+
+Where are the red dots appearing relative to the person boxes?
+
+Do you see any green lines at all?
+
+What specific family structure are you testing with?

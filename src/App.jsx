@@ -2156,111 +2156,33 @@ function App() {
                     />
                   );
                 })}
-              {/* 2. PARENT-CHILD RELATIONSHIPS - Hierarchical tree structure */}
-              {(() => {
-                // Build comprehensive parent-child map
-                const parentChildMap = {};
-                relationships
-                  .filter(r => r.type === REL.PARENT_CHILD && r.treeId === currentTree?.id)
-                  .forEach(r => {
-                    if (!parentChildMap[r.parentId]) parentChildMap[r.parentId] = [];
-                    parentChildMap[r.parentId].push(r.childId);
-                  });
-
-                // Group children by their parent sets
-                const childrenByParentSet = {};
-                
-                treePeople.forEach(child => {
-                  const parentIds = relationships
-                    .filter(r => r.type === REL.PARENT_CHILD && r.childId === child.id && r.treeId === currentTree?.id)
-                    .map(r => r.parentId)
-                    .sort((a, b) => a - b);
+              {/* 2. PARENT-CHILD RELATIONSHIPS - DEBUGGING: Simple direct lines */}
+              {relationships
+                .filter(r => r.type === REL.PARENT_CHILD && r.treeId === currentTree?.id)
+                .map(r => {
+                  const parent = treePeople.find(p => p.id === r.parentId);
+                  const child = treePeople.find(p => p.id === r.childId);
                   
-                  if (parentIds.length > 0) {
-                    const key = parentIds.join('-');
-                    if (!childrenByParentSet[key]) childrenByParentSet[key] = { parents: parentIds, children: [] };
-                    childrenByParentSet[key].children.push(child);
-                  }
-                });
-
-                return Object.values(childrenByParentSet).map((group, groupIndex) => {
-                  if (group.children.length === 0) return null;
-
-                  const parents = group.parents.map(id => treePeople.find(p => p.id === id)).filter(Boolean);
-                  if (parents.length === 0) return null;
-
-                  // Sort children by birth order (right to left - Arabic order)
-                  const children = group.children.sort((a, b) => (b.birthOrder || 0) - (a.birthOrder || 0));
-
-                  // Calculate parent connection point
-                  let parentConnectionX, parentConnectionY;
-                  
-                  if (parents.length === 2) {
-                    // Center between two parents
-                    const p1CenterX = parents[0].x + stylingOptions.boxWidth / 2;
-                    const p2CenterX = parents[1].x + stylingOptions.boxWidth / 2;
-                    parentConnectionX = (p1CenterX + p2CenterX) / 2;
-                    parentConnectionY = Math.min(parents[0].y, parents[1].y) + CARD.h;
-                  } else {
-                    // Single parent - use center bottom
-                    parentConnectionX = parents[0].x + stylingOptions.boxWidth / 2;
-                    parentConnectionY = parents[0].y + CARD.h;
+                  if (!parent || !child) {
+                    console.log('Missing parent or child for relationship:', r);
+                    return null;
                   }
 
-                  // Calculate children positions
-                  const childrenCenters = children.map(child => ({
-                    x: child.x + stylingOptions.boxWidth / 2,
-                    y: child.y
-                  }));
-
-                  const leftmostChild = Math.min(...childrenCenters.map(c => c.x));
-                  const rightmostChild = Math.max(...childrenCenters.map(c => c.x));
-                  const topChildY = Math.min(...childrenCenters.map(c => c.y));
-
-                  // Position horizontal line 40px above the top child
-                  const horizontalLineY = topChildY - 40;
+                  console.log('Drawing line from parent', parent.id, 'to child', child.id);
 
                   return (
-                    <g key={`parent-group-${groupIndex}`}>
-                      {/* Vertical line from parent to horizontal bar */}
-                      <line
-                        x1={parentConnectionX}
-                        y1={parentConnectionY}
-                        x2={parentConnectionX}
-                        y2={horizontalLineY}
-                        stroke="#059669"
-                        strokeWidth={2}
-                        strokeLinecap="round"
-                      />
-
-                      {/* Horizontal bar spanning all children */}
-                      <line
-                        x1={leftmostChild}
-                        y1={horizontalLineY}
-                        x2={rightmostChild}
-                        y2={horizontalLineY}
-                        stroke="#059669"
-                        strokeWidth={2}
-                        strokeLinecap="round"
-                      />
-
-                      {/* Vertical lines from horizontal bar to each child */}
-                      {childrenCenters.map((childCenter, idx) => (
-                        <line
-                          key={`child-line-${idx}`}
-                          x1={childCenter.x}
-                          y1={horizontalLineY}
-                          x2={childCenter.x}
-                          y2={childCenter.y}
-                          stroke="#059669"
-                          strokeWidth={2}
-                          strokeLinecap="round"
-                        />
-                      ))}
-                    </g>
+                    <line
+                      key={`parent-child-${r.id || r.parentId + '-' + r.childId}`}
+                      x1={parent.x + stylingOptions.boxWidth / 2}
+                      y1={parent.y + CARD.h}
+                      x2={child.x + stylingOptions.boxWidth / 2}
+                      y2={child.y}
+                      stroke="#059669"
+                      strokeWidth={2}
+                      strokeLinecap="round"
+                    />
                   );
-                });
-              })()}
+                })}
               {/* 3. SIBLING CONNECTIONS - Only for siblings without shared parents */}
               {(() => {
                 const siblingsWithoutParents = [];
