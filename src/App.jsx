@@ -2225,8 +2225,8 @@ function App() {
                     
                     // Calculate where children are
                     const childrenTopY = Math.min(...children.map(c => c.y));
-                    // Place horizontal line midway between parent bottom and children top
-                    const horizontalLineY = parentConnectionY + (childrenTopY - parentConnectionY) / 2;
+                    // Place horizontal line just above the children (20 pixels)
+                    const horizontalLineY = childrenTopY - 20;
                     
                     // Calculate horizontal line extent - must include parent connection point
                     const childXPositions = children.map(c => c.x + stylingOptions.boxWidth / 2);
