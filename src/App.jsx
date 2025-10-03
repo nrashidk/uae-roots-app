@@ -2035,7 +2035,7 @@ function App() {
                           size="sm"
                           variant="ghost"
                           className="w-8 h-8 p-0 hover:bg-purple-50 rounded-full"
-                          title="Move Right (Younger)"
+                          title="الأكبر"
                         >
                           <ArrowRight className="w-3 h-3 text-purple-600" />
                         </Button>
@@ -2050,7 +2050,7 @@ function App() {
                           size="sm"
                           variant="ghost"
                           className="w-8 h-8 p-0 hover:bg-purple-50 rounded-full"
-                          title="Move Left (Older)"
+                          title="الأصغر"
                         >
                           <ArrowLeft className="w-3 h-3 text-purple-600" />
                         </Button>
