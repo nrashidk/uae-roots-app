@@ -1752,22 +1752,33 @@ function App() {
         // Only show male parents (husbands) - females are already counted as wives
         if (parent.gender !== 'male') return;
         
-        // Count siblings (brothers and sisters)
+        // Count siblings (brothers and sisters, including breastfeeding)
         const siblingRels = treeRelationships.filter(
           r => r.type === REL.SIBLING && (r.person1Id === parentId || r.person2Id === parentId)
         );
         
         let brothersCount = 0;
         let sistersCount = 0;
+        let breastfeedingBrothersCount = 0;
+        let breastfeedingSistersCount = 0;
         
         siblingRels.forEach(rel => {
           const siblingId = rel.person1Id === parentId ? rel.person2Id : rel.person1Id;
           const sibling = treePeople.find(p => p.id === siblingId);
           if (sibling) {
+            const isBreastfeeding = rel.isBreastfeeding === true;
             if (sibling.gender === 'male') {
-              brothersCount++;
+              if (isBreastfeeding) {
+                breastfeedingBrothersCount++;
+              } else {
+                brothersCount++;
+              }
             } else if (sibling.gender === 'female') {
-              sistersCount++;
+              if (isBreastfeeding) {
+                breastfeedingSistersCount++;
+              } else {
+                sistersCount++;
+              }
             }
           }
         });
@@ -1845,6 +1856,8 @@ function App() {
           fullName: fullName.trim(),
           brothersCount,
           sistersCount,
+          breastfeedingBrothersCount,
+          breastfeedingSistersCount,
           spouseCount,
           childrenCount,
         });
@@ -1904,6 +1917,22 @@ function App() {
                       <span>عدد الأخوات:</span>
                       <span className="font-semibold text-pink-600">{profile.sistersCount}</span>
                     </div>
+                    {(profile.breastfeedingBrothersCount > 0 || profile.breastfeedingSistersCount > 0) && (
+                      <div className="mt-2 pt-2 border-t border-green-200">
+                        {profile.breastfeedingBrothersCount > 0 && (
+                          <div className="text-base text-gray-700 arabic-text flex justify-between">
+                            <span>أخوة من الرضاعة:</span>
+                            <span className="font-semibold text-green-500">{profile.breastfeedingBrothersCount}</span>
+                          </div>
+                        )}
+                        {profile.breastfeedingSistersCount > 0 && (
+                          <div className="text-base text-gray-700 arabic-text flex justify-between">
+                            <span>أخوات من الرضاعة:</span>
+                            <span className="font-semibold text-green-500">{profile.breastfeedingSistersCount}</span>
+                          </div>
+                        )}
+                      </div>
+                    )}
                     <div className="text-base text-gray-700 arabic-text flex justify-between">
                       <span>عدد الزوجات:</span>
                       <span className="font-semibold text-purple-600">{profile.spouseCount}</span>
