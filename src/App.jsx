@@ -1429,50 +1429,52 @@ function App() {
     );
   }
 
-  // Lineage view - displays family lineage from oldest ancestor down
+  // Lineage view - displays all family members with their genealogical names
   if (currentView === "lineage") {
-    // Build lineage - find oldest ancestor and trace down
+    // Build lineage - get all people sorted by generation level
     const buildLineage = () => {
       const treePeople = people.filter((p) => p.treeId === currentTree?.id);
       const treeRelationships = relationships.filter((r) => r.treeId === currentTree?.id);
       
       if (treePeople.length === 0) return [];
       
-      // Find people with no parents (oldest ancestors)
-      const oldestAncestors = treePeople.filter(person => {
-        const hasParent = treeRelationships.some(
-          rel => (rel.type === REL.PARENT_CHILD) && rel.childId === person.id
-        );
-        return !hasParent;
-      });
-      
-      if (oldestAncestors.length === 0) return treePeople; // Circular reference or no data
-      
-      // Build lineage from first oldest ancestor
-      const lineage = [];
-      let current = oldestAncestors[0];
-      lineage.push(current);
-      
-      // Trace down through children (prioritize male children for patrilineal line)
-      while (current) {
-        const childRel = treeRelationships.find(
-          rel => rel.type === REL.PARENT_CHILD && rel.parentId === current.id
+      // Calculate generation level for each person (0 = oldest ancestor)
+      const calculateGenerationLevel = (personId, visited = new Set()) => {
+        if (visited.has(personId)) return 0; // Prevent infinite loops
+        visited.add(personId);
+        
+        const parentRels = treeRelationships.filter(
+          rel => rel.type === REL.PARENT_CHILD && rel.childId === personId
         );
         
-        if (childRel) {
-          const child = treePeople.find(p => p.id === childRel.childId);
-          if (child) {
-            lineage.push(child);
-            current = child;
-          } else {
-            break;
-          }
-        } else {
-          break;
-        }
-      }
+        if (parentRels.length === 0) return 0; // No parents = oldest generation
+        
+        // Get max generation of parents + 1
+        const parentGenerations = parentRels.map(rel => {
+          return calculateGenerationLevel(rel.parentId, new Set(visited)) + 1;
+        });
+        
+        return Math.max(...parentGenerations);
+      };
       
-      return lineage;
+      // Add generation level to each person and sort
+      const peopleWithGenerations = treePeople.map(person => ({
+        ...person,
+        generationLevel: calculateGenerationLevel(person.id)
+      }));
+      
+      // Sort by generation level (oldest first), then by gender (males first for patrilineal display)
+      peopleWithGenerations.sort((a, b) => {
+        if (a.generationLevel !== b.generationLevel) {
+          return a.generationLevel - b.generationLevel;
+        }
+        // Within same generation, males first
+        if (a.gender === 'male' && b.gender !== 'male') return -1;
+        if (a.gender !== 'male' && b.gender === 'male') return 1;
+        return 0;
+      });
+      
+      return peopleWithGenerations;
     };
     
     const lineage = buildLineage();

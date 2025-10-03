@@ -47,7 +47,13 @@ src/
 ✅ Run command: `npm run preview`
 
 ## Recent Changes
-- **2025-10-03**: Parent re-linking feature and UI improvements:
+- **2025-10-03**: Genealogical chain display and parent re-linking:
+  - Implemented dynamic genealogical name chains in Family Members view
+  - Names trace up through paternal lineage: "محمد ناصر راشد عبيد آل علي"
+  - Family name (lastName) inherited from oldest ancestor
+  - All family members displayed (not just one lineage path)
+  - Sorted by generation level with males first for patrilineal display
+  - Names automatically update when ancestors are added later
   - Renamed reorder arrow buttons from "الأكبر/الأصغر" to "أكبر/أصغر" (removed definite article)
   - Added "Manage Parents" feature allowing children to be linked to spouses added after child creation
   - New context-aware button appears only when child has parent with unlinked spouse
