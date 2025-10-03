@@ -17,10 +17,14 @@
     "build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "deploy": "npm run build && gh-pages -d dist"
+    "deploy": "npm run build && gh-pages -d dist",
+    "db:push": "drizzle-kit push",
+    "db:generate": "drizzle-kit generate",
+    "db:studio": "drizzle-kit studio"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.0.1",
+    "@neondatabase/serverless": "^1.0.2",
     "@radix-ui/react-accordion": "^1.2.10",
     "@radix-ui/react-alert-dialog": "^1.1.13",
     "@radix-ui/react-aspect-ratio": "^1.1.6",
@@ -52,6 +56,8 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "cmdk": "^1.1.1",
+    "drizzle-kit": "^0.31.5",
+    "drizzle-orm": "^0.44.6",
     "embla-carousel-react": "^8.6.0",
     "framer-motion": "^12.15.0",
     "gh-pages": "^6.3.0",
@@ -68,6 +74,7 @@
     "tailwind-merge": "^3.3.0",
     "tailwindcss": "^4.1.7",
     "vaul": "^1.1.2",
+    "ws": "^8.18.3",
     "zod": "^3.24.4"
   },
   "devDependencies": {
