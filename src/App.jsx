@@ -53,6 +53,7 @@ function App() {
   const [showOptions, setShowOptions] = useState(false);
   const [showDownloadModal, setShowDownloadModal] = useState(false);
   const [selectedDownloadFormat, setSelectedDownloadFormat] = useState("html");
+  const [showManageParentsDialog, setShowManageParentsDialog] = useState(false);
 
   // Enhanced Display Options (FamilyEcho-style)
   const [displayOptions, setDisplayOptions] = useState({
@@ -908,6 +909,88 @@ function App() {
       if (p.id === targetSibling.id) return { ...p, birthOrder: currentBirthOrder };
       return p;
     }));
+  };
+
+  // Get available parent spouses that can be linked to a child
+  const getAvailableParentSpouses = (childId) => {
+    const childParentRels = relationships.filter(
+      r => r.type === REL.PARENT_CHILD && r.childId === childId && r.treeId === currentTree?.id
+    );
+    
+    const currentParentIds = childParentRels.map(r => r.parentId);
+    
+    // If child already has 2 parents, no more can be added
+    if (currentParentIds.length >= 2) return [];
+    
+    // Find spouses of current parents that are not already linked to the child
+    const availableSpouses = [];
+    
+    currentParentIds.forEach(parentId => {
+      const parentSpouseRels = relationships.filter(
+        r => r.type === REL.PARTNER && 
+            (r.person1Id === parentId || r.person2Id === parentId) &&
+            r.treeId === currentTree?.id
+      );
+      
+      parentSpouseRels.forEach(rel => {
+        const spouseId = rel.person1Id === parentId ? rel.person2Id : rel.person1Id;
+        
+        // Only add if not already a parent of this child
+        if (!currentParentIds.includes(spouseId)) {
+          const spouse = people.find(p => p.id === spouseId);
+          const parent = people.find(p => p.id === parentId);
+          if (spouse && parent) {
+            availableSpouses.push({
+              spouse,
+              linkedToParent: parent
+            });
+          }
+        }
+      });
+    });
+    
+    return availableSpouses;
+  };
+
+  // Link child to an additional parent (spouse of existing parent)
+  const linkChildToParent = (childId, newParentId) => {
+    // Validate that child doesn't already have 2 parents
+    const currentParentRels = relationships.filter(
+      r => r.type === REL.PARENT_CHILD && r.childId === childId && r.treeId === currentTree?.id
+    );
+    
+    if (currentParentRels.length >= 2) {
+      alert("هذا الطفل لديه والدين بالفعل"); // This child already has 2 parents
+      return;
+    }
+    
+    // Validate that new parent is actually a spouse of an existing parent
+    const currentParentIds = currentParentRels.map(r => r.parentId);
+    const isValidSpouse = currentParentIds.some(parentId => {
+      return relationships.some(
+        r => r.type === REL.PARTNER &&
+            ((r.person1Id === parentId && r.person2Id === newParentId) ||
+             (r.person2Id === parentId && r.person1Id === newParentId)) &&
+            r.treeId === currentTree?.id
+      );
+    });
+    
+    if (!isValidSpouse) {
+      alert("الشخص المحدد ليس زوجاً/زوجة لأي من والدي الطفل"); // Selected person is not spouse of child's parent
+      return;
+    }
+    
+    // Create new parent-child relationship
+    const newRelationship = {
+      id: Date.now(),
+      type: REL.PARENT_CHILD,
+      parentId: newParentId,
+      childId: childId,
+      treeId: currentTree?.id
+    };
+    
+    setRelationships(prev => [...prev, newRelationship]);
+    setShowManageParentsDialog(false);
   };
 
   // Enhanced pan handling with smooth dragging
@@ -1941,6 +2024,10 @@ function App() {
                   const canMoveLeft = canReorder && siblings.some(s => (s.birthOrder || 0) > currentBirthOrder);
                   const canMoveRight = canReorder && siblings.some(s => (s.birthOrder || 0) < currentBirthOrder);
                   
+                  // Check if "Manage Parents" button should show (child with available parent spouses)
+                  const availableParentSpouses = getAvailableParentSpouses(selectedPerson);
+                  const showManageParentsButton = availableParentSpouses.length > 0;
+                  
                   // Calculate button container width based on visible buttons
                   const buttonWidth = 32; // w-8 = 32px
                   const gap = 4; // gap-1 = 4px
@@ -1948,6 +2035,7 @@ function App() {
                   let numButtons = hideSpouseButton ? 4 : 5; // Base buttons
                   if (canMoveLeft) numButtons++;
                   if (canMoveRight) numButtons++;
+                  if (showManageParentsButton) numButtons++;
                   const containerWidth = (buttonWidth * numButtons) + (gap * (numButtons - 1)) + (padding * 2);
                   
                   return (
@@ -2035,7 +2123,7 @@ function App() {
                           size="sm"
                           variant="ghost"
                           className="w-8 h-8 p-0 hover:bg-purple-50 rounded-full"
-                          title="الأكبر"
+                          title="أكبر"
                         >
                           <ArrowRight className="w-3 h-3 text-purple-600" />
                         </Button>
@@ -2050,9 +2138,24 @@ function App() {
                           size="sm"
                           variant="ghost"
                           className="w-8 h-8 p-0 hover:bg-purple-50 rounded-full"
-                          title="الأصغر"
+                          title="أصغر"
                         >
                           <ArrowLeft className="w-3 h-3 text-purple-600" />
+                        </Button>
+                      )}
+
+                      {showManageParentsButton && (
+                        <Button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setShowManageParentsDialog(true);
+                          }}
+                          size="sm"
+                          variant="ghost"
+                          className="w-8 h-8 p-0 hover:bg-green-50 rounded-full"
+                          title="ربط بوالد آخر"
+                        >
+                          <Users className="w-3 h-3 text-green-600" />
                         </Button>
                       )}
 
@@ -2731,6 +2834,80 @@ function App() {
                     className="arabic-text"
                   >
                     {t.downloadBtn}
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {showManageParentsDialog && selectedPerson && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-lg shadow-xl w-full max-w-md mx-4">
+              <div className="p-6">
+                <div className="flex justify-between items-center mb-6">
+                  <h2 className="text-xl font-semibold text-gray-900 arabic-text">
+                    ربط بوالد آخر
+                  </h2>
+                  <Button
+                    onClick={() => setShowManageParentsDialog(false)}
+                    variant="ghost"
+                    size="sm"
+                  >
+                    <X className="w-4 h-4" />
+                  </Button>
+                </div>
+
+                <div className="space-y-4">
+                  <div className="text-gray-700 arabic-text">
+                    <p className="mb-2">الوالدان الحاليان:</p>
+                    <div className="bg-gray-50 p-3 rounded-lg space-y-1">
+                      {relationships
+                        .filter(r => r.type === REL.PARENT_CHILD && r.childId === selectedPerson && r.treeId === currentTree?.id)
+                        .map(r => {
+                          const parent = people.find(p => p.id === r.parentId);
+                          return parent ? (
+                            <div key={r.parentId} className="text-sm">
+                              • {parent.firstName} {parent.lastName}
+                            </div>
+                          ) : null;
+                        })}
+                    </div>
+                  </div>
+
+                  {getAvailableParentSpouses(selectedPerson).length > 0 && (
+                    <div className="text-gray-700 arabic-text">
+                      <p className="mb-2">يمكن ربط الطفل بـ:</p>
+                      <div className="space-y-2">
+                        {getAvailableParentSpouses(selectedPerson).map(({ spouse, linkedToParent }) => (
+                          <button
+                            key={spouse.id}
+                            onClick={() => linkChildToParent(selectedPerson, spouse.id)}
+                            className="w-full flex items-start justify-between p-3 border rounded-lg hover:bg-green-50 hover:border-green-300 transition-colors text-right"
+                          >
+                            <div className="flex-1">
+                              <div className="font-medium text-gray-900">
+                                {spouse.firstName} {spouse.lastName}
+                              </div>
+                              <div className="text-sm text-gray-600">
+                                زوج/ة {linkedToParent.firstName} {linkedToParent.lastName}
+                              </div>
+                            </div>
+                            <UserPlus className="w-5 h-5 text-green-600 flex-shrink-0 mr-2" />
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex justify-end gap-3 mt-6">
+                  <Button
+                    onClick={() => setShowManageParentsDialog(false)}
+                    variant="outline"
+                    className="arabic-text"
+                  >
+                    إلغاء
                   </Button>
                 </div>
               </div>
