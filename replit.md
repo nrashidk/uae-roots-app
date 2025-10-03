@@ -91,12 +91,64 @@ src/
 ## Current Status
 The application is fully functional and ready for development and deployment. The authentication screen loads correctly with Arabic text and all three login options are visible.
 
-## Database Setup (Ready for Future Use)
-✅ **PostgreSQL Database Configured:**
-- Database provisioned and environment variables set
-- Drizzle ORM installed and configured
-- Database schema designed (trees, people, relationships tables)
-- Tables created successfully in database
-- **Decision:** Continue using in-memory state during development until website is 100% complete
-- **Reason:** Faster feature development, easier testing, migrate to database in one step when ready
-- **Migration Strategy:** When website is complete, add Express backend and migrate data to PostgreSQL in single deployment
+## Pending Implementation (When Website is 100% Complete)
+
+### 1. Database Integration 🗄️
+**Status:** Infrastructure ready, integration deferred
+
+**What's Prepared:**
+- ✅ PostgreSQL database provisioned (10 GB limit)
+- ✅ Drizzle ORM installed and configured
+- ✅ Database schema designed (trees, people, relationships tables)
+- ✅ Tables created successfully in database
+- ✅ Database scripts added (db:push, db:studio)
+
+**What's Needed:**
+- ❌ Express backend server setup
+- ❌ API routes for CRUD operations
+- ❌ Frontend migration from in-memory state to API calls
+- ❌ Data persistence layer
+
+**Estimated Time:** 2-3 hours
+**Strategy:** Add Express backend and migrate all data to PostgreSQL in single deployment
+
+---
+
+### 2. Real Authentication System 🔐
+**Status:** Integrations identified, implementation deferred
+
+**Authentication Requirements:**
+1. **Google Login** - via Replit Auth integration
+2. **Apple ID Login** - via Replit Auth integration  
+3. **UAE Mobile SMS Verification** - via Twilio connector
+
+**What's Prepared:**
+- ✅ Replit Auth integration identified (supports Google, Apple, GitHub, X, email/password)
+- ✅ Twilio connector identified (SMS verification)
+- ✅ Session management strategy planned
+- ✅ User schema designed in database
+
+**What's Needed:**
+- ❌ Express backend with session management
+- ❌ Replit Auth integration setup
+- ❌ Twilio SMS verification flow
+- ❌ Frontend authentication UI (login redirects, logout, protected routes)
+- ❌ User profile management
+
+**Estimated Time:** 4-6 hours
+**Strategy:** Implement all three authentication methods simultaneously when backend is ready
+
+---
+
+**Current Development Strategy:**
+- ✅ Continue using in-memory state (React useState)
+- ✅ Continue using mock/test authentication buttons
+- ✅ Focus on perfecting family tree features and UI
+- ✅ No backend complexity during development
+- ✅ No costs until deployment
+
+**Launch Checklist:** When website features are 100% complete, implement in this order:
+1. Set up Express backend server
+2. Implement database integration
+3. Add authentication system (Google + Apple + SMS)
+4. Deploy to production
