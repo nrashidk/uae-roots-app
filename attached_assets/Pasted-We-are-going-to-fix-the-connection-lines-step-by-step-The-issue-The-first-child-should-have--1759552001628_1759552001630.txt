@@ -1,0 +1,537 @@
+We are going to fix the connection lines step by step.
+
+The issue:
+
+The first child should have a direct vertical line from the middle of the husband and wife line to the child's box.
+
+When a second child is added, the line should become an upside-down T: a vertical line from the parents to a horizontal line, and then vertical lines from the horizontal line to each child.
+
+We have to adjust the connection drawing logic for parent-child relationships.
+
+Steps in the connection drawing for parent-child:
+
+Group children by their parent set (both parents if available, or one parent).
+
+For each group of children (siblings), we want to draw:
+
+A vertical line from the midpoint of the parents (or the single parent) down to a horizontal line that spans the children.
+
+Then, from that horizontal line, draw vertical lines to each child.
+
+The horizontal line should be positioned above the children (so that the children are below the horizontal line).
+
+The vertical line from the parents to the horizontal line should be drawn only once for the group.
+
+The horizontal line should extend from the leftmost child to the rightmost child.
+
+Then, each child gets a vertical line from the horizontal line down to the top of the child's box.
+
+However, note that the current code for parent-child connections is already attempting to do this.
+
+Let's check the current code for parent-child connections:
+
+It groups children by their parent set (both parents or one parent).
+
+It calculates a parent connection point (if two parents, the midpoint of the spouse line; if one parent, the bottom center of the parent).
+
+It then draws:
+
+A vertical line from the parent connection point to a horizontal line (siblingLineY).
+
+A horizontal line from the leftmost child to the rightmost child at siblingLineY.
+
+Vertical lines from the horizontal line to each child.
+
+This is exactly what we want.
+
+So why is it not working for the first child?
+
+Let's consider the case of one child:
+
+The horizontal line would have the same leftmost and rightmost child, so it would be a line of zero length? Actually, no, because we use the same x for the horizontal line and the child's vertical line, so it would be a single point? But we are drawing a line from (childCenter.x, siblingLineY) to (childCenter.x, childCenter.y) for the vertical line to the child.
+
+For one child, we don't want the horizontal line to be drawn? Or we want a very short horizontal line? Actually, in a typical family tree, for one child, we just have the vertical line from the parents to the child. There is no horizontal line.
+
+So we need to adjust: for one child, we don't draw the horizontal line and the vertical line from the horizontal line to the child. Instead, we draw a direct line from the parent connection point to the child.
+
+Let's change the logic:
+
+If there is only one child in the group, then we draw a direct line from the parent connection point to the child.
+
+If there are two or more children, we draw the inverted T.
+
+We can adjust the code in the parent-child connection part:
+
+Instead of always drawing the horizontal line and the vertical lines from it, we can condition on the number of children.
+
+Revised plan for a parent group:
+
+If the group has one child:
+Draw a line from the parent connection point to the child's top center.
+
+If the group has two or more children:
+Draw the vertical line from the parent connection point to the horizontal line.
+Draw the horizontal line from the leftmost child to the rightmost child.
+Draw vertical lines from the horizontal line to each child.
+
+Let's update the code accordingly.
+
+We'll change the part inside the parentGroups mapping:
+
+Instead of:
+
+text
+    <g key={`parent-group-${groupIndex}`}>
+      {/* Vertical line from parent connection point to sibling line */}
+      <line ... />
+      {/* Horizontal sibling line - spans all children */}
+      <line ... />
+      {/* Vertical lines from sibling line to each child */}
+      {childCenters.map(...)}
+    </g>
+We'll do:
+
+text
+    <g key={`parent-group-${groupIndex}`}>
+      {children.length === 1 ? (
+        // Single child: direct line
+        <line
+          x1={parentConnectionX}
+          y1={parentConnectionY}
+          x2={childCenters[0].x}
+          y2={childCenters[0].y}
+          stroke="#059669"
+          strokeWidth={2}
+          strokeLinecap="round"
+        />
+      ) : (
+        // Multiple children: inverted T
+        <>
+          <line ... /> {/* vertical from parent to horizontal line */}
+          <line ... /> {/* horizontal line */}
+          {childCenters.map(...)} {/* verticals from horizontal line to children */}
+        </>
+      )}
+    </g>
+Let's implement this.
+
+Also, note that the horizontal line is drawn at siblingLineY which is topChildY - 40. We must ensure that for a single child, we don't use siblingLineY but go directly to the child's top.
+
+We'll adjust the code accordingly.
+
+However, note that the current code for the single child case in the auto-layout might be positioning the child directly below the parent, so the direct line might be straight down. That's acceptable.
+
+Let's update the connection code for parent-child relationships as described.
+
+We are going to replace the existing return for each parent group with the conditional rendering.
+
+Code changes:
+
+In the return of the parentGroups mapping, we change from:
+
+text
+    return (
+      <g key={`parent-group-${groupIndex}`}>
+        ... [always inverted T] ...
+      </g>
+    );
+To:
+
+text
+    return (
+      <g key={`parent-group-${groupIndex}`}>
+        {children.length === 1 ? (
+          // Single child: direct line from parent to child
+          <line
+            x1={parentConnectionX}
+            y1={parentConnectionY}
+            x2={childCenters[0].x}
+            y2={childCenters[0].y}
+            stroke="#059669"
+            strokeWidth={2}
+            strokeLinecap="round"
+          />
+        ) : (
+          // Multiple children: inverted T
+          <>
+            <line
+              x1={parentConnectionX}
+              y1={parentConnectionY}
+              x2={parentConnectionX}
+              y2={siblingLineY}
+              stroke="#059669"
+              strokeWidth={2}
+              strokeLinecap="round"
+            />
+            <line
+              x1={leftmostChildX}
+              y1={siblingLineY}
+              x2={rightmostChildX}
+              y2={siblingLineY}
+              stroke="#059669"
+              strokeWidth={2}
+              strokeLinecap="round"
+            />
+            {childCenters.map((childCenter, idx) => (
+              <line
+                key={`child-vertical-${idx}`}
+                x1={childCenter.x}
+                y1={siblingLineY}
+                x2={childCenter.x}
+                y2={childCenter.y}
+                stroke="#059669"
+                strokeWidth={2}
+                strokeLinecap="round"
+              />
+            ))}
+          </>
+        )}
+      </g>
+    );
+Let's update the code accordingly.
+
+Also, note that the childCenters array is built from the children array (which is sorted by birth order). We are using the same childCenters for both cases.
+
+We'll make this change and see if it works.
+
+However, note that the current code for the auto-layout might be positioning the children in a way that the first child is not directly below the parent connection point? We must ensure that the single child is centered below the parents so the direct line is vertical.
+
+The auto-layout for a single child in a couple:
+
+The couple has two parents, so the parentConnectionX is the midpoint between the two parents.
+
+The child is positioned at:
+child.x = childrenStartX (which is coupleCenterX - childrenTotalWidth/2)
+and since there's one child, childrenTotalWidth = stylingOptions.boxWidth, so:
+child.x = coupleCenterX - stylingOptions.boxWidth/2
+
+Then the child's center is at child.x + stylingOptions.boxWidth/2 = coupleCenterX.
+
+So the child's center is exactly below the parent connection point? Yes, because the parent connection point is the coupleCenterX.
+
+So the direct line will be vertical.
+
+Similarly, for a single parent, the parentConnectionX is the center of the parent, and the child is centered below, so the line will be vertical.
+
+So it should work.
+
+Let's update the code and test.
+
+We are going to replace the current parent-child connection code with the conditional version.
+
+We'll also remove the debug dots and lines if they are still there.
+
+We are going to keep the partner and sibling connections as they are.
+
+Let's update the code.
+
+Now I understand! You want the classic family tree behavior where:
+
+First child: Direct vertical line from husband-wife midpoint to child
+
+Second+ children: Replace with inverted T shape (vertical line to horizontal sibling line, then vertical lines to each child)
+
+Let me fix this logic:
+
+Replace Your Parent-Child Connection Code with This:
+jsx
+{/* 2. PARENT-CHILD RELATIONSHIPS - Dynamic Behavior */}
+{(() => {
+  // Group children by their parent sets
+  const parentGroups = {};
+  
+  relationships
+    .filter(r => r.type === REL.PARENT_CHILD && r.treeId === currentTree?.id)
+    .forEach(r => {
+      const child = treePeople.find(p => p.id === r.childId);
+      const parent = treePeople.find(p => p.id === r.parentId);
+      
+      if (!child || !parent) return;
+
+      // Find all parents of this child
+      const childParentIds = relationships
+        .filter(rel => rel.type === REL.PARENT_CHILD && rel.childId === child.id && rel.treeId === currentTree?.id)
+        .map(rel => rel.parentId)
+        .sort((a, b) => a - b);
+      
+      const groupKey = childParentIds.join('-');
+      
+      if (!parentGroups[groupKey]) {
+        parentGroups[groupKey] = {
+          parentIds: childParentIds,
+          children: []
+        };
+      }
+      
+      if (!parentGroups[groupKey].children.find(c => c.id === child.id)) {
+        parentGroups[groupKey].children.push(child);
+      }
+    });
+
+  return Object.values(parentGroups).map((group, groupIndex) => {
+    if (group.children.length === 0) return null;
+
+    const parents = group.parentIds.map(id => treePeople.find(p => p.id === id)).filter(Boolean);
+    if (parents.length === 0) return null;
+
+    // Sort children by birth order (right to left for RTL - eldest on right)
+    const children = group.children.sort((a, b) => (b.birthOrder || 0) - (a.birthOrder || 0));
+
+    // Calculate parent connection point
+    let parentConnectionX, parentConnectionY;
+    
+    if (parents.length === 2) {
+      // For couples: midpoint of the spouse line
+      const parent1CenterX = parents[0].x + stylingOptions.boxWidth / 2;
+      const parent2CenterX = parents[1].x + stylingOptions.boxWidth / 2;
+      parentConnectionX = (parent1CenterX + parent2CenterX) / 2;
+      parentConnectionY = Math.max(parents[0].y, parents[1].y) + CARD.h;
+    } else {
+      // Single parent: bottom center
+      parentConnectionX = parents[0].x + stylingOptions.boxWidth / 2;
+      parentConnectionY = parents[0].y + CARD.h;
+    }
+
+    // Calculate children positions
+    const childCenters = children.map(child => ({
+      x: child.x + stylingOptions.boxWidth / 2,
+      y: child.y
+    }));
+
+    const leftmostChildX = Math.min(...childCenters.map(c => c.x));
+    const rightmostChildX = Math.max(...childCenters.map(c => c.x));
+    const topChildY = Math.min(...childCenters.map(c => c.y));
+
+    // Position the horizontal sibling line 40px above the top child
+    const siblingLineY = topChildY - 40;
+
+    return (
+      <g key={`parent-group-${groupIndex}`}>
+        {children.length === 1 ? (
+          /* SINGLE CHILD: Direct vertical line */
+          <line
+            x1={parentConnectionX}
+            y1={parentConnectionY}
+            x2={childCenters[0].x}
+            y2={childCenters[0].y}
+            stroke="#059669"
+            strokeWidth={2}
+            strokeLinecap="round"
+          />
+        ) : (
+          /* MULTIPLE CHILDREN: Inverted T shape */
+          <>
+            {/* Vertical line from parent connection point to sibling line */}
+            <line
+              x1={parentConnectionX}
+              y1={parentConnectionY}
+              x2={parentConnectionX}
+              y2={siblingLineY}
+              stroke="#059669"
+              strokeWidth={2}
+              strokeLinecap="round"
+            />
+
+            {/* Horizontal sibling line - spans all children */}
+            <line
+              x1={leftmostChildX}
+              y1={siblingLineY}
+              x2={rightmostChildX}
+              y2={siblingLineY}
+              stroke="#059669"
+              strokeWidth={2}
+              strokeLinecap="round"
+            />
+
+            {/* Vertical lines from sibling line to each child */}
+            {childCenters.map((childCenter, idx) => (
+              <line
+                key={`child-vertical-${idx}`}
+                x1={childCenter.x}
+                y1={siblingLineY}
+                x2={childCenter.x}
+                y2={childCenter.y}
+                stroke="#059669"
+                strokeWidth={2}
+                strokeLinecap="round"
+              />
+            ))}
+          </>
+        )}
+      </g>
+    );
+  });
+})()}
+Also, Let's Fix the Auto-Layout to Ensure Children are Properly Positioned:
+jsx
+// --- IMPROVED FAMILY TREE LAYOUT ---
+const computeTreeLayout = (people, relationships, viewportWidth = 1200, viewportHeight = 800) => {
+  if (people.length === 0) return people;
+
+  const idToPerson = Object.fromEntries(people.map(p => [p.id, { ...p }]));
+  const childrenMap = {};
+  const parentMap = {};
+  const spouseMap = {};
+
+  // Build relationship maps
+  relationships.forEach(r => {
+    if (r.type === REL.PARENT_CHILD) {
+      if (!childrenMap[r.parentId]) childrenMap[r.parentId] = [];
+      childrenMap[r.parentId].push(r.childId);
+      parentMap[r.childId] = r.parentId;
+    } else if (r.type === REL.PARTNER) {
+      spouseMap[r.person1Id] = r.person2Id;
+      spouseMap[r.person2Id] = r.person1Id;
+    }
+  });
+
+  // Find root nodes (people without parents)
+  const roots = people.filter(p => !parentMap[p.id]);
+
+  // Assign generation levels using BFS
+  const queue = [];
+  roots.forEach(root => {
+    idToPerson[root.id].generation = 0;
+    queue.push(root.id);
+  });
+
+  while (queue.length) {
+    const pid = queue.shift();
+    const gen = idToPerson[pid].generation;
+    (childrenMap[pid] || []).forEach(cid => {
+      idToPerson[cid].generation = gen + 1;
+      queue.push(cid);
+    });
+  }
+
+  // Group by generation
+  const genMap = {};
+  Object.values(idToPerson).forEach(p => {
+    if (!genMap[p.generation]) genMap[p.generation] = [];
+    genMap[p.generation].push(p);
+  });
+
+  // Layout constants
+  const verticalSpacing = 160;
+  const horizontalSpacing = 180;
+  const spouseSpacing = 60;
+
+  // Calculate vertical positioning
+  const generations = Object.keys(genMap).map(Number).sort((a, b) => a - b);
+  const startY = 100;
+
+  // Process each generation from oldest to youngest
+  generations.forEach(gen => {
+    const generationPeople = genMap[gen];
+    
+    // Group into family units
+    const familyUnits = [];
+    const processed = new Set();
+
+    generationPeople.forEach(person => {
+      if (processed.has(person.id)) return;
+
+      const spouseId = spouseMap[person.id];
+      const spouse = spouseId ? idToPerson[spouseId] : null;
+
+      if (spouse && !processed.has(spouseId) && spouse.generation === gen) {
+        // Couple
+        const coupleChildren = [...new Set([
+          ...(childrenMap[person.id] || []),
+          ...(childrenMap[spouseId] || [])
+        ])].map(id => idToPerson[id]).filter(Boolean);
+        
+        familyUnits.push({
+          type: 'couple',
+          people: [person, spouse],
+          children: coupleChildren
+        });
+        processed.add(person.id);
+        processed.add(spouseId);
+      } else {
+        // Single person
+        familyUnits.push({
+          type: 'single', 
+          people: [person],
+          children: (childrenMap[person.id] || []).map(id => idToPerson[id]).filter(Boolean)
+        });
+        processed.add(person.id);
+      }
+    });
+
+    // Position family units horizontally
+    let currentX = 100;
+    
+    familyUnits.forEach(unit => {
+      if (unit.type === 'couple') {
+        const [person1, person2] = unit.people;
+        
+        // Position couple side by side
+        person1.x = currentX;
+        person2.x = currentX + stylingOptions.boxWidth + spouseSpacing;
+        person1.y = startY + gen * verticalSpacing;
+        person2.y = startY + gen * verticalSpacing;
+
+        // Position children centered below the couple
+        if (unit.children.length > 0) {
+          const coupleCenterX = (person1.x + person2.x + stylingOptions.boxWidth) / 2;
+          
+          // Sort children by birth order (eldest on right for RTL)
+          const sortedChildren = unit.children.sort((a, b) => (b.birthOrder || 0) - (a.birthOrder || 0));
+          
+          const childrenTotalWidth = sortedChildren.length * stylingOptions.boxWidth + 
+                                   Math.max(0, sortedChildren.length - 1) * horizontalSpacing;
+          const childrenStartX = coupleCenterX - childrenTotalWidth / 2;
+          
+          sortedChildren.forEach((child, index) => {
+            child.x = childrenStartX + index * (stylingOptions.boxWidth + horizontalSpacing);
+            child.y = startY + (gen + 1) * verticalSpacing;
+          });
+        }
+
+        currentX += (stylingOptions.boxWidth * 2 + spouseSpacing + horizontalSpacing);
+      } else {
+        // Single person
+        const person = unit.people[0];
+        person.x = currentX;
+        person.y = startY + gen * verticalSpacing;
+
+        // Position children centered below single parent
+        if (unit.children.length > 0) {
+          const parentCenterX = person.x + stylingOptions.boxWidth / 2;
+          
+          // Sort children by birth order (eldest on right for RTL)
+          const sortedChildren = unit.children.sort((a, b) => (b.birthOrder || 0) - (a.birthOrder || 0));
+          
+          const childrenTotalWidth = sortedChildren.length * stylingOptions.boxWidth + 
+                                   Math.max(0, sortedChildren.length - 1) * horizontalSpacing;
+          const childrenStartX = parentCenterX - childrenTotalWidth / 2;
+          
+          sortedChildren.forEach((child, index) => {
+            child.x = childrenStartX + index * (stylingOptions.boxWidth + horizontalSpacing);
+            child.y = startY + (gen + 1) * verticalSpacing;
+          });
+        }
+
+        currentX += stylingOptions.boxWidth + horizontalSpacing;
+      }
+    });
+  });
+
+  // Center the entire tree horizontally
+  const allX = Object.values(idToPerson).map(p => p.x).filter(x => x !== undefined);
+  if (allX.length > 0) {
+    const minX = Math.min(...allX);
+    const maxX = Math.max(...allX);
+    const treeWidth = maxX - minX;
+    const centerOffset = (viewportWidth - treeWidth) / 2 - minX;
+    
+    Object.values(idToPerson).forEach(person => {
+      if (person.x !== undefined) {
+        person.x += centerOffset;
+      }
+    });
+  }
+
+  return people.map(p => ({ ...p, ...idToPerson[p.id] }));
+};
