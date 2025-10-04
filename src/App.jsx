@@ -2156,36 +2156,122 @@ function App() {
                     />
                   );
                 })}
-              {/* 2. PARENT-CHILD RELATIONSHIPS - DEBUGGING: Simple direct lines */}
-              {relationships
-                .filter(r => r.type === REL.PARENT_CHILD && r.treeId === currentTree?.id)
-                .map(r => {
-                  const parent = treePeople.find(p => p.id === r.parentId);
-                  const child = treePeople.find(p => p.id === r.childId);
+              {/* 2. PARENT-CHILD RELATIONSHIPS - Classic Family Tree Hierarchy */}
+              {(() => {
+                // Group children by their parent sets
+                const parentGroups = {};
+                
+                relationships
+                  .filter(r => r.type === REL.PARENT_CHILD && r.treeId === currentTree?.id)
+                  .forEach(r => {
+                    const child = treePeople.find(p => p.id === r.childId);
+                    const parent = treePeople.find(p => p.id === r.parentId);
+                    
+                    if (!child || !parent) return;
+
+                    // Find all parents of this child (both mother and father)
+                    const childParentIds = relationships
+                      .filter(rel => rel.type === REL.PARENT_CHILD && rel.childId === child.id && rel.treeId === currentTree?.id)
+                      .map(rel => rel.parentId)
+                      .sort((a, b) => a - b);
+                    
+                    const groupKey = childParentIds.join('-');
+                    
+                    if (!parentGroups[groupKey]) {
+                      parentGroups[groupKey] = {
+                        parentIds: childParentIds,
+                        children: []
+                      };
+                    }
+                    
+                    // Add child if not already in group
+                    if (!parentGroups[groupKey].children.find(c => c.id === child.id)) {
+                      parentGroups[groupKey].children.push(child);
+                    }
+                  });
+
+                return Object.values(parentGroups).map((group, groupIndex) => {
+                  if (group.children.length === 0) return null;
+
+                  const parents = group.parentIds.map(id => treePeople.find(p => p.id === id)).filter(Boolean);
+                  if (parents.length === 0) return null;
+
+                  // Sort children by birth order (right to left for RTL)
+                  const children = group.children.sort((a, b) => (b.birthOrder || 0) - (a.birthOrder || 0));
+
+                  // Calculate the connection point from parents
+                  let parentConnectionX, parentConnectionY;
                   
-                  if (!parent || !child) {
-                    console.log('Missing parent or child for relationship:', r);
-                    return null;
+                  if (parents.length === 2) {
+                    // For couples: use the midpoint of the spouse line
+                    const parent1CenterX = parents[0].x + stylingOptions.boxWidth / 2;
+                    const parent2CenterX = parents[1].x + stylingOptions.boxWidth / 2;
+                    parentConnectionX = (parent1CenterX + parent2CenterX) / 2;
+                    parentConnectionY = Math.max(parents[0].y, parents[1].y) + CARD.h;
+                  } else {
+                    // Single parent: use bottom center
+                    parentConnectionX = parents[0].x + stylingOptions.boxWidth / 2;
+                    parentConnectionY = parents[0].y + CARD.h;
                   }
 
-                  console.log('Drawing line from parent', parent.id, 'to child', child.id);
+                  // Calculate children positions
+                  const childCenters = children.map(child => ({
+                    x: child.x + stylingOptions.boxWidth / 2,
+                    y: child.y
+                  }));
+
+                  const leftmostChildX = Math.min(...childCenters.map(c => c.x));
+                  const rightmostChildX = Math.max(...childCenters.map(c => c.x));
+                  const topChildY = Math.min(...childCenters.map(c => c.y));
+
+                  // Position the horizontal sibling line 40px above the top child
+                  const siblingLineY = topChildY - 40;
 
                   return (
-                    <line
-                      key={`parent-child-${r.id || r.parentId + '-' + r.childId}`}
-                      x1={parent.x + stylingOptions.boxWidth / 2}
-                      y1={parent.y + CARD.h}
-                      x2={child.x + stylingOptions.boxWidth / 2}
-                      y2={child.y}
-                      stroke="#059669"
-                      strokeWidth={2}
-                      strokeLinecap="round"
-                    />
+                    <g key={`parent-group-${groupIndex}`}>
+                      {/* Vertical line from parent connection point to sibling line */}
+                      <line
+                        x1={parentConnectionX}
+                        y1={parentConnectionY}
+                        x2={parentConnectionX}
+                        y2={siblingLineY}
+                        stroke="#059669"
+                        strokeWidth={2}
+                        strokeLinecap="round"
+                      />
+
+                      {/* Horizontal sibling line - spans all children */}
+                      <line
+                        x1={leftmostChildX}
+                        y1={siblingLineY}
+                        x2={rightmostChildX}
+                        y2={siblingLineY}
+                        stroke="#059669"
+                        strokeWidth={2}
+                        strokeLinecap="round"
+                      />
+
+                      {/* Vertical lines from sibling line to each child */}
+                      {childCenters.map((childCenter, idx) => (
+                        <line
+                          key={`child-vertical-${idx}`}
+                          x1={childCenter.x}
+                          y1={siblingLineY}
+                          x2={childCenter.x}
+                          y2={childCenter.y}
+                          stroke="#059669"
+                          strokeWidth={2}
+                          strokeLinecap="round"
+                        />
+                      ))}
+                    </g>
                   );
-                })}
-              {/* 3. SIBLING CONNECTIONS - Only for siblings without shared parents */}
+                });
+              })()}
+
+              {/* 3. SIBLING RELATIONSHIPS - Only for siblings without parents */}
               {(() => {
-                const siblingsWithoutParents = [];
+                const siblingPairs = [];
                 const processedPairs = new Set();
 
                 relationships
@@ -2198,7 +2284,7 @@ function App() {
                     const p2 = treePeople.find(p => p.id === r.person2Id);
                     
                     if (p1 && p2) {
-                      // Check if neither has parents in this tree
+                      // Only connect siblings that don't have parents in the tree
                       const p1HasParents = relationships.some(rel => 
                         rel.type === REL.PARENT_CHILD && rel.childId === p1.id && rel.treeId === currentTree?.id
                       );
@@ -2207,15 +2293,15 @@ function App() {
                       );
                       
                       if (!p1HasParents && !p2HasParents) {
-                        siblingsWithoutParents.push([p1, p2]);
+                        siblingPairs.push([p1, p2]);
                         processedPairs.add(key);
                       }
                     }
                   });
 
-                return siblingsWithoutParents.map(([p1, p2], i) => {
+                return siblingPairs.map(([p1, p2], i) => {
                   const siblings = [p1, p2].sort((a, b) => a.x - b.x);
-                  const y = siblings[0].y - 25;
+                  const y = siblings[0].y - 20;
                   const minX = Math.min(...siblings.map(s => s.x + stylingOptions.boxWidth / 2));
                   const maxX = Math.max(...siblings.map(s => s.x + stylingOptions.boxWidth / 2));
                   
