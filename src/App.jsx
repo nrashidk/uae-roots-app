@@ -2214,58 +2214,78 @@ function App() {
                     parentConnectionY = parents[0].y + CARD.h;
                   }
 
-                  // Calculate children positions
-                  const childCenters = children.map(child => ({
-                    x: child.x + stylingOptions.boxWidth / 2,
-                    y: child.y
-                  }));
+                  // CONDITIONAL RENDERING: First child only vs. multiple children
+                  if (children.length === 1) {
+                    // FIRST CHILD ONLY: Direct vertical line from parent to child
+                    const childCenterX = children[0].x + stylingOptions.boxWidth / 2;
+                    const childTopY = children[0].y;
 
-                  const leftmostChildX = Math.min(...childCenters.map(c => c.x));
-                  const rightmostChildX = Math.max(...childCenters.map(c => c.x));
-                  const topChildY = Math.min(...childCenters.map(c => c.y));
-
-                  // Position the horizontal sibling line 40px above the top child
-                  const siblingLineY = topChildY - 40;
-
-                  return (
-                    <g key={`parent-group-${groupIndex}`}>
-                      {/* Vertical line from parent connection point to sibling line */}
+                    return (
                       <line
+                        key={`parent-group-${groupIndex}`}
                         x1={parentConnectionX}
                         y1={parentConnectionY}
-                        x2={parentConnectionX}
-                        y2={siblingLineY}
+                        x2={childCenterX}
+                        y2={childTopY}
                         stroke="#059669"
                         strokeWidth={2}
                         strokeLinecap="round"
                       />
+                    );
+                  } else {
+                    // MULTIPLE CHILDREN: Upside-down T shape
+                    const childCenters = children.map(child => ({
+                      x: child.x + stylingOptions.boxWidth / 2,
+                      y: child.y
+                    }));
 
-                      {/* Horizontal sibling line - spans all children */}
-                      <line
-                        x1={leftmostChildX}
-                        y1={siblingLineY}
-                        x2={rightmostChildX}
-                        y2={siblingLineY}
-                        stroke="#059669"
-                        strokeWidth={2}
-                        strokeLinecap="round"
-                      />
+                    const leftmostChildX = Math.min(...childCenters.map(c => c.x));
+                    const rightmostChildX = Math.max(...childCenters.map(c => c.x));
+                    const topChildY = Math.min(...childCenters.map(c => c.y));
 
-                      {/* Vertical lines from sibling line to each child */}
-                      {childCenters.map((childCenter, idx) => (
+                    // Position the horizontal sibling line 40px above the top child
+                    const siblingLineY = topChildY - 40;
+
+                    return (
+                      <g key={`parent-group-${groupIndex}`}>
+                        {/* Vertical line from parent connection point to sibling line */}
                         <line
-                          key={`child-vertical-${idx}`}
-                          x1={childCenter.x}
-                          y1={siblingLineY}
-                          x2={childCenter.x}
-                          y2={childCenter.y}
+                          x1={parentConnectionX}
+                          y1={parentConnectionY}
+                          x2={parentConnectionX}
+                          y2={siblingLineY}
                           stroke="#059669"
                           strokeWidth={2}
                           strokeLinecap="round"
                         />
-                      ))}
-                    </g>
-                  );
+
+                        {/* Horizontal sibling line - spans all children */}
+                        <line
+                          x1={leftmostChildX}
+                          y1={siblingLineY}
+                          x2={rightmostChildX}
+                          y2={siblingLineY}
+                          stroke="#059669"
+                          strokeWidth={2}
+                          strokeLinecap="round"
+                        />
+
+                        {/* Vertical lines from sibling line to each child */}
+                        {childCenters.map((childCenter, idx) => (
+                          <line
+                            key={`child-vertical-${idx}`}
+                            x1={childCenter.x}
+                            y1={siblingLineY}
+                            x2={childCenter.x}
+                            y2={childCenter.y}
+                            stroke="#059669"
+                            strokeWidth={2}
+                            strokeLinecap="round"
+                          />
+                        ))}
+                      </g>
+                    );
+                  }
                 });
               })()}
 
