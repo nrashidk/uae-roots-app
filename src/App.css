@@ -133,6 +133,15 @@ body {
   cursor: grabbing;
 }
 
+/* SVG Line Styling for Tree Connections */
+.tree-canvas svg line {
+  stroke-linejoin: miter; /* Sharp corners for bars */
+}
+
+.tree-canvas svg text {
+  dominant-baseline: middle; /* Vertical centering for labels */
+}
+
 /* Floating Controls */
 .floating-controls {
   position: fixed;
