@@ -2124,187 +2124,72 @@ function App() {
                 transformOrigin: "0 0",
               }}
             >
-              {/* 1. PARTNER RELATIONSHIPS - Enhanced with status styling */}
+              {/* 1. PARTNER RELATIONSHIPS - Simple horizontal lines */}
               {relationships
                 .filter(r => r.type === REL.PARTNER && r.treeId === currentTree?.id)
                 .map((r, i) => {
                   const p1 = treePeople.find(p => p.id === r.person1Id);
                   const p2 = treePeople.find(p => p.id === r.person2Id);
                   
-                  if (!p1 || !p2) return null;
+                  if (!p1 || !p2) {
+                    console.log('Partner relationship missing person:', r);
+                    return null;
+                  }
 
-                  // Determine left and right partners
-                  const leftPerson = p1.x < p2.x ? p1 : p2;
-                  const rightPerson = p1.x < p2.x ? p2 : p1;
+                  // Simple center-to-center connection
+                  const x1 = p1.x + stylingOptions.boxWidth / 2;
+                  const y1 = p1.y + CARD.h / 2;
+                  const x2 = p2.x + stylingOptions.boxWidth / 2;
+                  const y2 = p2.y + CARD.h / 2;
 
-                  // Connect from right edge of left person to left edge of right person
-                  const startX = leftPerson.x + stylingOptions.boxWidth;
-                  const startY = leftPerson.y + CARD.h / 2;
-                  const endX = rightPerson.x;
-                  const endY = rightPerson.y + CARD.h / 2;
-
-                  // Enhanced styling: current partners (solid thick) vs ex-partners (dashed thin)
-                  const isCurrentPartner = !r.divorceDate && !r.endDate;
-                  const stroke = isCurrentPartner ? "#1e293b" : "#64748b";
-                  const strokeWidth = isCurrentPartner ? 4 : 2;
-                  const strokeDasharray = isCurrentPartner ? "none" : "8,4";
+                  console.log(`Drawing partner line from (${x1}, ${y1}) to (${x2}, ${y2})`);
 
                   return (
                     <line
                       key={`partner-${i}`}
-                      x1={startX}
-                      y1={startY}
-                      x2={endX}
-                      y2={endY}
-                      stroke={stroke}
-                      strokeWidth={strokeWidth}
+                      x1={x1}
+                      y1={y1}
+                      x2={x2}
+                      y2={y2}
+                      stroke="#000"
+                      strokeWidth={3}
                       strokeLinecap="round"
-                      strokeDasharray={strokeDasharray}
                     />
                   );
                 })}
-              {/* 2. PARENT-CHILD RELATIONSHIPS - Classic Family Tree Hierarchy */}
-              {(() => {
-                // Group children by their parent sets
-                const parentGroups = {};
-                
-                relationships
-                  .filter(r => r.type === REL.PARENT_CHILD && r.treeId === currentTree?.id)
-                  .forEach(r => {
-                    const child = treePeople.find(p => p.id === r.childId);
-                    const parent = treePeople.find(p => p.id === r.parentId);
-                    
-                    if (!child || !parent) return;
-
-                    // Find all parents of this child (both mother and father)
-                    const childParentIds = relationships
-                      .filter(rel => rel.type === REL.PARENT_CHILD && rel.childId === child.id && rel.treeId === currentTree?.id)
-                      .map(rel => rel.parentId)
-                      .sort((a, b) => a - b);
-                    
-                    const groupKey = childParentIds.join('-');
-                    
-                    if (!parentGroups[groupKey]) {
-                      parentGroups[groupKey] = {
-                        parentIds: childParentIds,
-                        children: []
-                      };
-                    }
-                    
-                    // Add child if not already in group
-                    if (!parentGroups[groupKey].children.find(c => c.id === child.id)) {
-                      parentGroups[groupKey].children.push(child);
-                    }
-                  });
-
-                return Object.values(parentGroups).map((group, groupIndex) => {
-                  if (group.children.length === 0) return null;
-
-                  const parents = group.parentIds.map(id => treePeople.find(p => p.id === id)).filter(Boolean);
-                  if (parents.length === 0) return null;
-
-                  // Sort children by birth order (right to left for RTL)
-                  const children = group.children.sort((a, b) => (b.birthOrder || 0) - (a.birthOrder || 0));
-
-                  // Calculate the connection point from parents
-                  let parentConnectionX, parentConnectionY;
+              {/* 2. PARENT-CHILD RELATIONSHIPS - Simple direct lines for debugging */}
+              {relationships
+                .filter(r => r.type === REL.PARENT_CHILD && r.treeId === currentTree?.id)
+                .map((r, i) => {
+                  const parent = treePeople.find(p => p.id === r.parentId);
+                  const child = treePeople.find(p => p.id === r.childId);
                   
-                  if (parents.length === 2) {
-                    // For couples: use the midpoint of the spouse line
-                    const parent1CenterX = parents[0].x + stylingOptions.boxWidth / 2;
-                    const parent2CenterX = parents[1].x + stylingOptions.boxWidth / 2;
-                    parentConnectionX = (parent1CenterX + parent2CenterX) / 2;
-                    parentConnectionY = Math.max(parents[0].y, parents[1].y) + CARD.h;
-                  } else {
-                    // Single parent: use bottom center
-                    parentConnectionX = parents[0].x + stylingOptions.boxWidth / 2;
-                    parentConnectionY = parents[0].y + CARD.h;
+                  if (!parent || !child) {
+                    console.log('Parent-child relationship missing person:', r);
+                    return null;
                   }
 
-                  // CONDITIONAL RENDERING: First child only vs. multiple children
-                  if (children.length === 1) {
-                    // FIRST CHILD ONLY: Direct smooth curved line from parent to child
-                    const childCenterX = children[0].x + stylingOptions.boxWidth / 2;
-                    const childTopY = children[0].y;
+                  // Simple vertical line from parent bottom to child top
+                  const x1 = parent.x + stylingOptions.boxWidth / 2;
+                  const y1 = parent.y + CARD.h;
+                  const x2 = child.x + stylingOptions.boxWidth / 2;
+                  const y2 = child.y;
 
-                    // Calculate control point for smooth S-curve
-                    const midY = (parentConnectionY + childTopY) / 2;
-                    const pathD = `M ${parentConnectionX} ${parentConnectionY} C ${parentConnectionX} ${midY}, ${childCenterX} ${midY}, ${childCenterX} ${childTopY}`;
+                  console.log(`Drawing parent-child line from (${x1}, ${y1}) to (${x2}, ${y2})`);
 
-                    return (
-                      <path
-                        key={`parent-group-${groupIndex}`}
-                        d={pathD}
-                        stroke="#059669"
-                        strokeWidth={2.5}
-                        strokeLinecap="round"
-                        fill="none"
-                      />
-                    );
-                  } else {
-                    // MULTIPLE CHILDREN: Enhanced T-shape with rounded corners
-                    const childCenters = children.map(child => ({
-                      x: child.x + stylingOptions.boxWidth / 2,
-                      y: child.y
-                    }));
-
-                    const leftmostChildX = Math.min(...childCenters.map(c => c.x));
-                    const rightmostChildX = Math.max(...childCenters.map(c => c.x));
-                    const topChildY = Math.min(...childCenters.map(c => c.y));
-
-                    // Position the horizontal sibling line 40px above the top child
-                    const siblingLineY = topChildY - 40;
-                    const cornerRadius = 8; // Rounded corner radius
-
-                    return (
-                      <g key={`parent-group-${groupIndex}`}>
-                        {/* Main vertical line from parent to junction */}
-                        <line
-                          x1={parentConnectionX}
-                          y1={parentConnectionY}
-                          x2={parentConnectionX}
-                          y2={siblingLineY - cornerRadius}
-                          stroke="#059669"
-                          strokeWidth={2.5}
-                          strokeLinecap="round"
-                        />
-
-                        {/* Horizontal sibling bar with smooth rounded corners */}
-                        <path
-                          d={`
-                            M ${leftmostChildX} ${siblingLineY}
-                            L ${parentConnectionX - cornerRadius} ${siblingLineY}
-                            Q ${parentConnectionX} ${siblingLineY} ${parentConnectionX} ${siblingLineY - cornerRadius}
-                            M ${parentConnectionX} ${siblingLineY - cornerRadius}
-                            Q ${parentConnectionX} ${siblingLineY} ${parentConnectionX + cornerRadius} ${siblingLineY}
-                            L ${rightmostChildX} ${siblingLineY}
-                          `}
-                          stroke="#059669"
-                          strokeWidth={2.5}
-                          strokeLinecap="round"
-                          fill="none"
-                        />
-
-                        {/* Vertical lines from sibling line to each child with gentle curves */}
-                        {childCenters.map((childCenter, idx) => {
-                          const curveOffset = 15;
-                          const pathD = `M ${childCenter.x} ${siblingLineY} Q ${childCenter.x} ${siblingLineY + curveOffset} ${childCenter.x} ${childCenter.y}`;
-                          return (
-                            <path
-                              key={`child-vertical-${idx}`}
-                              d={pathD}
-                              stroke="#059669"
-                              strokeWidth={2}
-                              strokeLinecap="round"
-                              fill="none"
-                            />
-                          );
-                        })}
-                      </g>
-                    );
-                  }
-                });
-              })()}
+                  return (
+                    <line
+                      key={`parent-child-${i}`}
+                      x1={x1}
+                      y1={y1}
+                      x2={x2}
+                      y2={y2}
+                      stroke="#059669"
+                      strokeWidth={2}
+                      strokeLinecap="round"
+                    />
+                  );
+                })}
 
               {/* 3. SIBLING RELATIONSHIPS - Enhanced curves for orphaned siblings */}
               {(() => {
