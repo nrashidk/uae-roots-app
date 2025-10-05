@@ -1,0 +1,65 @@
+// Add to state
+const [layoutRoot, setLayoutRoot] = useState(null);
+
+// Auto-layout function (call on button click: computeLayout(selectedPerson?.id))
+const computeLayout = (rootId) => {
+  if (!rootId) return;
+  const newPeople = [...people];
+  const levelSpacing = 150; // Vertical generations
+  const siblingSpacing = 180; // Horizontal within level
+  const spouseOffset = 80; // Side-by-side
+
+  // Helper: Get children/parents from relationships
+  const getConnected = (id, type) => relationships
+    .filter(r => r.type === type && (r.person1Id === id || r.person2Id === id))
+    .map(r => r.person1Id === id ? r.person2Id : r.person1Id);
+
+  // Recursive position: level (y), startX for subtree
+  const positionSubtree = (personId, level, startX = 0, isSpouse = false) => {
+    const person = newPeople.find(p => p.id === personId);
+    if (!person) return 0; // Width of subtree
+
+    person.level = level;
+    person.x = startX + (isSpouse ? spouseOffset : 0); // Spouses offset
+    person.y = level * levelSpacing;
+
+    // Position children (recursion)
+    const children = getConnected(personId, REL.PARENT_CHILD).filter(childId => 
+      relationships.some(r => r.type === REL.PARENT_CHILD && r.person2Id === personId && r.person1Id === childId) // Assume person1=parent
+    );
+    let childStartX = startX - (children.length * siblingSpacing / 2); // Center under parent
+    let subtreeWidth = 0;
+    children.forEach(child => {
+      const childWidth = positionSubtree(child, level + 1, childStartX, false);
+      childStartX += siblingSpacing + childWidth;
+      subtreeWidth = Math.max(subtreeWidth, childWidth + siblingSpacing);
+    });
+
+    // Position spouse
+    const spouse = getConnected(personId, REL.PARTNER)[0]; // Assume one primary
+    if (spouse) {
+      const spousePerson = newPeople.find(p => p.id === spouse);
+      spousePerson.level = level;
+      spousePerson.x = person.x - spouseOffset; // Left of main (RTL adjust)
+      spousePerson.y = person.y;
+      // Recurse spouse's other children if needed (complex; skip for v1)
+    }
+
+    // Parents (upward, limited to avoid cycles)
+    if (level > -5) { // Limit ancestors
+      const parents = getConnected(personId, REL.PARENT_CHILD).filter(p => /* parent logic */);
+      // Similar recursion upward
+    }
+
+    return Math.max(CARD.w, subtreeWidth);
+  };
+
+  positionSubtree(rootId, 0);
+  setPeople(newPeople);
+  setPanOffset({ x: window.innerWidth / 2 - people.find(p => p.id === rootId)?.x * zoom, y: 100 }); // Center root
+};
+
+// Button in floating-controls
+<Button onClick={() => computeLayout(selectedPerson?.id)} className="btn-emerald">
+  {t.autoLayout || 'ترتيب تلقائي'}
+</Button>

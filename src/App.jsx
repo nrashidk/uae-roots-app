@@ -2124,7 +2124,7 @@ function App() {
                 transformOrigin: "0 0",
               }}
             >
-              {/* 1. PARTNER RELATIONSHIPS - Clean straight lines */}
+              {/* 1. PARTNER RELATIONSHIPS - Enhanced with status styling */}
               {relationships
                 .filter(r => r.type === REL.PARTNER && r.treeId === currentTree?.id)
                 .map((r, i) => {
@@ -2143,6 +2143,12 @@ function App() {
                   const endX = rightPerson.x;
                   const endY = rightPerson.y + CARD.h / 2;
 
+                  // Enhanced styling: current partners (solid thick) vs ex-partners (dashed thin)
+                  const isCurrentPartner = !r.divorceDate && !r.endDate;
+                  const stroke = isCurrentPartner ? "#1e293b" : "#64748b";
+                  const strokeWidth = isCurrentPartner ? 4 : 2;
+                  const strokeDasharray = isCurrentPartner ? "none" : "8,4";
+
                   return (
                     <line
                       key={`partner-${i}`}
@@ -2150,9 +2156,10 @@ function App() {
                       y1={startY}
                       x2={endX}
                       y2={endY}
-                      stroke="#dc2626"
-                      strokeWidth={3}
+                      stroke={stroke}
+                      strokeWidth={strokeWidth}
                       strokeLinecap="round"
+                      strokeDasharray={strokeDasharray}
                     />
                   );
                 })}
@@ -2216,24 +2223,26 @@ function App() {
 
                   // CONDITIONAL RENDERING: First child only vs. multiple children
                   if (children.length === 1) {
-                    // FIRST CHILD ONLY: Direct vertical line from parent to child
+                    // FIRST CHILD ONLY: Direct smooth curved line from parent to child
                     const childCenterX = children[0].x + stylingOptions.boxWidth / 2;
                     const childTopY = children[0].y;
 
+                    // Calculate control point for smooth S-curve
+                    const midY = (parentConnectionY + childTopY) / 2;
+                    const pathD = `M ${parentConnectionX} ${parentConnectionY} C ${parentConnectionX} ${midY}, ${childCenterX} ${midY}, ${childCenterX} ${childTopY}`;
+
                     return (
-                      <line
+                      <path
                         key={`parent-group-${groupIndex}`}
-                        x1={parentConnectionX}
-                        y1={parentConnectionY}
-                        x2={childCenterX}
-                        y2={childTopY}
+                        d={pathD}
                         stroke="#059669"
-                        strokeWidth={2}
+                        strokeWidth={2.5}
                         strokeLinecap="round"
+                        fill="none"
                       />
                     );
                   } else {
-                    // MULTIPLE CHILDREN: Upside-down T shape
+                    // MULTIPLE CHILDREN: Enhanced T-shape with rounded corners
                     const childCenters = children.map(child => ({
                       x: child.x + stylingOptions.boxWidth / 2,
                       y: child.y
@@ -2245,51 +2254,59 @@ function App() {
 
                     // Position the horizontal sibling line 40px above the top child
                     const siblingLineY = topChildY - 40;
+                    const cornerRadius = 8; // Rounded corner radius
 
                     return (
                       <g key={`parent-group-${groupIndex}`}>
-                        {/* Vertical line from parent connection point to sibling line */}
+                        {/* Main vertical line from parent to junction */}
                         <line
                           x1={parentConnectionX}
                           y1={parentConnectionY}
                           x2={parentConnectionX}
-                          y2={siblingLineY}
+                          y2={siblingLineY - cornerRadius}
                           stroke="#059669"
-                          strokeWidth={2}
+                          strokeWidth={2.5}
                           strokeLinecap="round"
                         />
 
-                        {/* Horizontal sibling line - spans all children */}
-                        <line
-                          x1={leftmostChildX}
-                          y1={siblingLineY}
-                          x2={rightmostChildX}
-                          y2={siblingLineY}
+                        {/* Horizontal sibling bar with smooth rounded corners */}
+                        <path
+                          d={`
+                            M ${leftmostChildX} ${siblingLineY}
+                            L ${parentConnectionX - cornerRadius} ${siblingLineY}
+                            Q ${parentConnectionX} ${siblingLineY} ${parentConnectionX} ${siblingLineY - cornerRadius}
+                            M ${parentConnectionX} ${siblingLineY - cornerRadius}
+                            Q ${parentConnectionX} ${siblingLineY} ${parentConnectionX + cornerRadius} ${siblingLineY}
+                            L ${rightmostChildX} ${siblingLineY}
+                          `}
                           stroke="#059669"
-                          strokeWidth={2}
+                          strokeWidth={2.5}
                           strokeLinecap="round"
+                          fill="none"
                         />
 
-                        {/* Vertical lines from sibling line to each child */}
-                        {childCenters.map((childCenter, idx) => (
-                          <line
-                            key={`child-vertical-${idx}`}
-                            x1={childCenter.x}
-                            y1={siblingLineY}
-                            x2={childCenter.x}
-                            y2={childCenter.y}
-                            stroke="#059669"
-                            strokeWidth={2}
-                            strokeLinecap="round"
-                          />
-                        ))}
+                        {/* Vertical lines from sibling line to each child with gentle curves */}
+                        {childCenters.map((childCenter, idx) => {
+                          const curveOffset = 15;
+                          const pathD = `M ${childCenter.x} ${siblingLineY} Q ${childCenter.x} ${siblingLineY + curveOffset} ${childCenter.x} ${childCenter.y}`;
+                          return (
+                            <path
+                              key={`child-vertical-${idx}`}
+                              d={pathD}
+                              stroke="#059669"
+                              strokeWidth={2}
+                              strokeLinecap="round"
+                              fill="none"
+                            />
+                          );
+                        })}
                       </g>
                     );
                   }
                 });
               })()}
 
-              {/* 3. SIBLING RELATIONSHIPS - Only for siblings without parents */}
+              {/* 3. SIBLING RELATIONSHIPS - Enhanced curves for orphaned siblings */}
               {(() => {
                 const siblingPairs = [];
                 const processedPairs = new Set();
@@ -2321,17 +2338,23 @@ function App() {
 
                 return siblingPairs.map(([p1, p2], i) => {
                   const siblings = [p1, p2].sort((a, b) => a.x - b.x);
-                  const y = siblings[0].y - 20;
+                  const y = siblings[0].y - 25;
                   const minX = Math.min(...siblings.map(s => s.x + stylingOptions.boxWidth / 2));
                   const maxX = Math.max(...siblings.map(s => s.x + stylingOptions.boxWidth / 2));
+                  
+                  // Enhanced smooth arc for sibling connections
+                  const midX = (minX + maxX) / 2;
+                  const curveHeight = 20;
+                  const pathD = `M ${minX} ${y} Q ${midX} ${y - curveHeight} ${maxX} ${y}`;
                   
                   return (
                     <path
                       key={`sibling-${i}`}
-                      d={`M ${minX} ${y} Q ${(minX + maxX) / 2} ${y - 15} ${maxX} ${y}`}
-                      stroke="#7c3aed"
-                      strokeWidth={1.5}
-                      strokeDasharray="4,2"
+                      d={pathD}
+                      stroke="#8b5cf6"
+                      strokeWidth={2}
+                      strokeDasharray="6,3"
+                      strokeLinecap="round"
                       fill="none"
                     />
                   );
