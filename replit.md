@@ -47,6 +47,18 @@ src/
 ✅ Run command: `npm run preview`
 
 ## Recent Changes
+- **2025-10-05**: FamilyEcho-style connection system with horizontal sibling bars:
+  - Implemented professional hierarchy chart visualization with T-shape connections
+  - **Horizontal sibling bars**: Multiple children (2+) connected via horizontal bar 40px below parents
+  - **Single child connections**: Direct vertical line from parent (no bar)
+  - **Parent-child lines**: Vertical drop from parent to bar, then vertical stub from bar to each child
+  - **Partner lines**: Horizontal lines at mid-height (4px thick, black)
+  - **Arabic labels**: "أم" (mother) or "أب" (father) displayed on parent-child connection lines
+  - **Non-biological relationships**: Dashed lines (5,5 pattern) for adopted/step relationships
+  - **Updated colors**: Light blue boxes for males (#e6f3ff), light pink for females (#ffe4e1)
+  - **Gray bars and lines**: Sibling bars use #8b8b8b gray, proper thickness (3px for bars, 2px for parent-child)
+  - **CSS enhancements**: Sharp corners for bars (stroke-linejoin: miter), centered text labels
+  - Fixed critical bug: SVG rendering now uses correctly computed treePeople with x/y coordinates
 - **2025-10-03**: Breastfeeding sibling support (Islamic custom):
   - Added checkbox "أخ/أخت من الرضاعة" when adding siblings
   - isBreastfeeding flag stored at relationship level (not person level)
