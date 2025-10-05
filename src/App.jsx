@@ -2124,127 +2124,38 @@ function App() {
                 transformOrigin: "0 0",
               }}
             >
-              {/* 1. PARTNER RELATIONSHIPS - Simple horizontal lines */}
-              {relationships
-                .filter(r => r.type === REL.PARTNER && r.treeId === currentTree?.id)
-                .map((r, i) => {
-                  const p1 = treePeople.find(p => p.id === r.person1Id);
-                  const p2 = treePeople.find(p => p.id === r.person2Id);
-                  
-                  if (!p1 || !p2) {
-                    console.log('Partner relationship missing person:', r);
-                    return null;
-                  }
+              {/* Relation Lines */}
+              {relationships.map(rel => {
+                const p1 = treePeople.find(p => p.id === rel.person1Id);
+                const p2 = treePeople.find(p => p.id === rel.person2Id);
+                if (!p1 || !p2) return null;
 
-                  // Simple center-to-center connection
-                  const x1 = p1.x + stylingOptions.boxWidth / 2;
-                  const y1 = p1.y + CARD.h / 2;
-                  const x2 = p2.x + stylingOptions.boxWidth / 2;
-                  const y2 = p2.y + CARD.h / 2;
+                const x1 = p1.x + CARD.w / 2;
+                const y1 = p1.y + (rel.type === REL.PARENT_CHILD ? CARD.h : CARD.h / 2);
+                const x2 = p2.x + CARD.w / 2;
+                const y2 = p2.y + (rel.type === REL.PARENT_CHILD ? 0 : CARD.h / 2);
 
-                  console.log(`Drawing partner line from (${x1}, ${y1}) to (${x2}, ${y2})`);
+                let stroke = '#000', strokeWidth = 2, pathD = `M ${x1} ${y1} L ${x2} ${y2}`;
 
-                  return (
-                    <line
-                      key={`partner-${i}`}
-                      x1={x1}
-                      y1={y1}
-                      x2={x2}
-                      y2={y2}
-                      stroke="#000"
-                      strokeWidth={3}
-                      strokeLinecap="round"
-                    />
-                  );
-                })}
-              {/* 2. PARENT-CHILD RELATIONSHIPS - Simple direct lines for debugging */}
-              {relationships
-                .filter(r => r.type === REL.PARENT_CHILD && r.treeId === currentTree?.id)
-                .map((r, i) => {
-                  const parent = treePeople.find(p => p.id === r.parentId);
-                  const child = treePeople.find(p => p.id === r.childId);
-                  
-                  if (!parent || !child) {
-                    console.log('Parent-child relationship missing person:', r);
-                    return null;
-                  }
+                if (rel.type === REL.PARTNER) {
+                  strokeWidth = 4;
+                  pathD = `M ${x1} ${y1} L ${x2} ${y2}`;
+                } else if (rel.type === REL.PARENT_CHILD) {
+                  strokeWidth = 3;
+                  const midY = (y1 + y2) / 2;
+                  pathD = `M ${x1} ${y1} V ${midY} H ${x2} V ${y2}`;
+                } else if (rel.type === REL.SIBLING) {
+                  stroke = '#ccc';
+                  strokeWidth = 1;
+                  pathD = `M ${x1} ${y1} L ${x2} ${y2}`;
+                }
 
-                  // Simple vertical line from parent bottom to child top
-                  const x1 = parent.x + stylingOptions.boxWidth / 2;
-                  const y1 = parent.y + CARD.h;
-                  const x2 = child.x + stylingOptions.boxWidth / 2;
-                  const y2 = child.y;
+                if (rel.nonBiological) {
+                  return <path key={rel.id} d={pathD} stroke={stroke} strokeWidth={strokeWidth} fill="none" strokeDasharray="5,5" />;
+                }
 
-                  console.log(`Drawing parent-child line from (${x1}, ${y1}) to (${x2}, ${y2})`);
-
-                  return (
-                    <line
-                      key={`parent-child-${i}`}
-                      x1={x1}
-                      y1={y1}
-                      x2={x2}
-                      y2={y2}
-                      stroke="#059669"
-                      strokeWidth={2}
-                      strokeLinecap="round"
-                    />
-                  );
-                })}
-
-              {/* 3. SIBLING RELATIONSHIPS - Enhanced curves for orphaned siblings */}
-              {(() => {
-                const siblingPairs = [];
-                const processedPairs = new Set();
-
-                relationships
-                  .filter(r => r.type === REL.SIBLING && r.treeId === currentTree?.id)
-                  .forEach(r => {
-                    const key = [r.person1Id, r.person2Id].sort().join('-');
-                    if (processedPairs.has(key)) return;
-                    
-                    const p1 = treePeople.find(p => p.id === r.person1Id);
-                    const p2 = treePeople.find(p => p.id === r.person2Id);
-                    
-                    if (p1 && p2) {
-                      // Only connect siblings that don't have parents in the tree
-                      const p1HasParents = relationships.some(rel => 
-                        rel.type === REL.PARENT_CHILD && rel.childId === p1.id && rel.treeId === currentTree?.id
-                      );
-                      const p2HasParents = relationships.some(rel => 
-                        rel.type === REL.PARENT_CHILD && rel.childId === p2.id && rel.treeId === currentTree?.id
-                      );
-                      
-                      if (!p1HasParents && !p2HasParents) {
-                        siblingPairs.push([p1, p2]);
-                        processedPairs.add(key);
-                      }
-                    }
-                  });
-
-                return siblingPairs.map(([p1, p2], i) => {
-                  const siblings = [p1, p2].sort((a, b) => a.x - b.x);
-                  const y = siblings[0].y - 25;
-                  const minX = Math.min(...siblings.map(s => s.x + stylingOptions.boxWidth / 2));
-                  const maxX = Math.max(...siblings.map(s => s.x + stylingOptions.boxWidth / 2));
-                  
-                  // Enhanced smooth arc for sibling connections
-                  const midX = (minX + maxX) / 2;
-                  const curveHeight = 20;
-                  const pathD = `M ${minX} ${y} Q ${midX} ${y - curveHeight} ${maxX} ${y}`;
-                  
-                  return (
-                    <path
-                      key={`sibling-${i}`}
-                      d={pathD}
-                      stroke="#8b5cf6"
-                      strokeWidth={2}
-                      strokeDasharray="6,3"
-                      strokeLinecap="round"
-                      fill="none"
-                    />
-                  );
-                });
-              })()}
+                return <path key={rel.id} d={pathD} stroke={stroke} strokeWidth={strokeWidth} fill="none" />;
+              })}
             </svg>
 
             <div
