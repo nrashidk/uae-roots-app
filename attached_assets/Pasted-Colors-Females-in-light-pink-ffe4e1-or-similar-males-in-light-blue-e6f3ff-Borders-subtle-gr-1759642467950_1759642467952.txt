@@ -1,0 +1,200 @@
+Colors: Females in light pink (#ffe4e1 or similar), males in light blue (#e6f3ff). Borders subtle gray.
+Boxes: Rounded rectangles with centered Arabic names, small font.
+Connections:
+
+Spouses: Short horizontal solid line between centers.
+Parent-Child: Vertical solid from parent bottom to a horizontal sibling bar (spans all children under that parent), then short vertical stubs (solid or dotted if half/non-bio).
+Sibling Bar: Thick horizontal gray line across the group.
+Dotted Lines: For secondary relations (e.g., step-parents; use strokeDasharray="5,5").
+Labels: Small text like "أم" (Mother of) midway on verticals.
+
+
+Layout: Top-down generations, RTL (spouses: female right, male left?), siblings spaced evenly under bar.
+
+Implement these in App.jsx. Assume your people have gender, name, etc., and relationships are {id, type, person1Id (parent/spouse1), person2Id (child/spouse2), isDotted?: bool}. Add a parentGroups computed array for sibling bars.
+1. Update Styling Options and Box Rendering
+Add to stylingOptions state:
+jsxconst [stylingOptions, setStylingOptions] = useState({
+  // ... existing
+  femaleBoxColor: '#ffe4e1', // Light pink from screenshot
+  maleBoxColor: '#e6f3ff',   // Light blue
+  boxBorder: '#d3d3d3',
+  lineColor: '#8b8b8b',      // Gray for bars
+  textColor: '#333',
+  fontSize: 12,
+});
+In the card rendering (inside tree-canvas):
+jsx{people.map(person => (
+  <div
+    key={person.id}
+    className="absolute p-2 rounded border shadow-sm flex items-center justify-center text-center"
+    style={{
+      left: `${person.x * zoom + panOffset.x}px`,
+      top: `${person.y * zoom + panOffset.y}px`,
+      width: `${CARD.w * zoom}px`,
+      height: `${CARD.h * zoom}px`,
+      backgroundColor: person.gender === 'female' ? stylingOptions.femaleBoxColor : stylingOptions.maleBoxColor,
+      border: `1px solid ${stylingOptions.boxBorder}`,
+      color: stylingOptions.textColor,
+      fontSize: `${stylingOptions.fontSize * zoom}px`,
+      fontFamily: 'Sakkal Majalla, sans-serif', // From your CSS
+      direction: 'rtl',
+      whiteSpace: 'nowrap',
+      overflow: 'hidden',
+    }}
+    draggable
+    onDragStart={(e) => {/* your drag handler */}}
+  >
+    <div className="text-xs leading-tight">{person.name}</div> {/* Add displayOptions for more fields */}
+  </div>
+))}
+2. Enhanced Auto-Layout for Screenshot-Like Structure
+Update computeLayout to group siblings and position bars. Call it on load or "Auto Arrange" button. Ensures RTL: Start x from right (higher x = left in screen coords? Adjust for CSS direction: rtl on canvas).
+jsx// Helper: Group children by parent for bars
+const getParentGroups = () => {
+  const groups = {};
+  relationships
+    .filter(r => r.type === REL.PARENT_CHILD)
+    .forEach(r => {
+      const parentId = r.person1Id; // Assume person1 = parent
+      if (!groups[parentId]) groups[parentId] = [];
+      groups[parentId].push(r.person2Id);
+    });
+  return groups;
+};
+
+const computeLayout = (rootId) => {
+  if (!rootId) return;
+  const newPeople = [...people];
+  const groups = getParentGroups();
+  const levelSpacing = 120; // Tighter vertical like screenshot
+  const siblingSpacing = 100; // Horizontal for siblings
+  const spouseOffset = 60; // Female right (higher x in RTL?)
+
+  // Recursive: Position person, then spouse (right), then children under bar
+  const positionSubtree = (personId, level, startX = 0) => {
+    const person = newPeople.find(p => p.id === personId);
+    if (!person) return 0;
+
+    person.level = level;
+    person.x = startX;
+    person.y = level * levelSpacing;
+
+    // Spouse (position right of main, assume primary spouse)
+    const spouse = relationships.find(r => r.type === REL.PARTNER && (r.person1Id === personId || r.person2Id === personId))?.person1Id === personId ? /* spouseId */ : /* main */;
+    if (spouse) {
+      const spousePerson = newPeople.find(p => p.id === spouse);
+      spousePerson.level = level;
+      spousePerson.x = startX + spouseOffset; // Right in RTL
+      spousePerson.y = person.y;
+    }
+
+    // Children: Under horizontal bar
+    const children = groups[personId] || [];
+    if (children.length > 0) {
+      const barY = person.y + CARD.h + 20; // Bar below parent
+      const totalWidth = (children.length - 1) * siblingSpacing + CARD.w;
+      let childX = startX - totalWidth / 2; // Center under parent/spouse midpoint
+      children.forEach(childId => {
+        positionSubtree(childId, level + 1, childX);
+        childX += siblingSpacing;
+      });
+      // Store bar info (for SVG): e.g., person.bar = {y: barY, x1: startX - totalWidth/2, x2: childX - siblingSpacing}
+      person.bar = { y: barY, x1: startX - totalWidth / 2, x2: childX - siblingSpacing };
+    }
+
+    // Ancestors (upward, symmetric)
+    // Similar logic for parents...
+
+    return CARD.w + spouseOffset; // Subtree width
+  };
+
+  positionSubtree(rootId, 0, window.innerWidth / 2); // Center root
+  setPeople(newPeople);
+  // Auto-pan to root
+  const root = newPeople.find(p => p.id === rootId);
+  setPanOffset({ x: window.innerWidth / 2 - root.x * zoom, y: 50 });
+};
+
+RTL Adjustment: If canvas has direction: rtl, flip x: person.x = totalWidth - startX for left-to-right flow in coords.
+
+3. SVG Connections Matching the Screenshot
+Overlay SVG with straight lines + bars + labels. Draw sibling bars per group. Add dotted for rel.isDotted. Labels on verticals.
+jsx// Compute parentGroups once outside render (use useMemo)
+const parentGroups = useMemo(() => getParentGroups(), [relationships]);
+
+// Inside <svg className="absolute inset-0 pointer-events-none" style={{ transform: `translate(${panOffset.x}px, ${panOffset.y}px) scale(${zoom})` }}>
+  {/* Sibling Bars First (background) */}
+  {people.filter(p => p.bar).map(parent => (
+    <line
+      key={`bar-${parent.id}`}
+      x1={parent.bar.x1}
+      y1={parent.bar.y}
+      x2={parent.bar.x2}
+      y2={parent.bar.y}
+      stroke={stylingOptions.lineColor}
+      strokeWidth={3 * zoom} // Thicker like screenshot
+      strokeLinecap="round"
+    />
+  ))}
+
+  {/* Relation Lines */}
+  {relationships.map(rel => {
+    const p1 = people.find(p => p.id === rel.person1Id); // e.g., parent/spouse1
+    const p2 = people.find(p => p.id === rel.person2Id); // child/spouse2
+    if (!p1 || !p2) return null;
+
+    const x1 = p1.x + CARD.w / 2;
+    const y1 = p1.y + CARD.h; // Bottom of p1
+    const x2 = p2.x + CARD.w / 2;
+    const y2 = p2.y; // Top of p2
+    const midY = (y1 + y2) / 2;
+
+    let stroke = stylingOptions.lineColor, strokeWidth = 2 * zoom, strokeDasharray = '';
+    let elements = []; // For lines + labels
+
+    if (rel.type === REL.PARTNER) {
+      // Horizontal spouse line (mid-height)
+      const midY1 = p1.y + CARD.h / 2;
+      elements.push(
+        <line key={`${rel.id}-line`} x1={x1} y1={midY1} x2={x2} y2={midY1} stroke={stroke} strokeWidth={strokeWidth} />
+      );
+    } else if (rel.type === REL.PARENT_CHILD) {
+      // Vertical to bar, then stub to child (use parent's bar if exists)
+      const barY = p1.bar?.y || midY;
+      elements.push(
+        <line key={`${rel.id}-drop`} x1={x1} y1={y1} x2={x1} y2={barY} stroke={stroke} strokeWidth={strokeWidth} />,
+        <line key={`${rel.id}-stub`} x1={x2} y1={barY} x2={x2} y2={y2} stroke={stroke} strokeWidth={strokeWidth} />
+      );
+      // Dotted if half/non-bio
+      if (rel.isDotted) strokeDasharray = '5,5';
+      // Label: "Mother of" if female parent
+      const label = p1.gender === 'female' ? 'أم' : 'أب';
+      elements.push(
+        <text key={`${rel.id}-label`} x={x1 + 10} y={midY} fontSize={`${10 * zoom}px`} fill={stroke} fontFamily="Sakkal Majalla" textAnchor="start">
+          {label} {p2.name.split(' ')[0]} {/* e.g., Mother of Ahmed */}
+        </text>
+      );
+    } else if (rel.type === REL.SIBLING) {
+      // Thin horizontal or diagonal under bar
+      elements.push(<line key={rel.id} x1={x1} y1={y1} x2={x2} y2={y2} stroke={stroke} strokeWidth={1 * zoom} />);
+    }
+
+    return elements.map(el => ({ ...el, strokeDasharray })); // Apply dash to all
+  })}
+</svg>
+
+Dotted Handling: Set rel.isDotted = true in forms for step-relations (add checkbox like your "isBreastfeeding").
+Labels: Positioned right of line (RTL-friendly with textAnchor="end" if needed).
+
+4. UI Polish and Testing
+
+Add Button: In floating controls: <Button onClick={() => computeLayout(selectedPerson?.id)} className="btn-emerald">ترتيب تلقائي</Button>
+Zoom/Pan: Your existing works; ensure SVG scales uniformly.
+Test Data: Create sample like screenshot (2 parents + 4 children, one dotted). Run npm run dev.
+CSS Add: In App.css:
+css.tree-canvas svg line { stroke-linejoin: miter; } /* Sharp corners for bars */
+.tree-canvas text { dominant-baseline: middle; }
+
+
+This should replicate the screenshot's look: grouped bars, gendered colors, labeled straights, RTL flow. If overlaps occur, increase siblingSpacing. Share your updated App.jsx snippet for debugging, or another screenshot of your output!
