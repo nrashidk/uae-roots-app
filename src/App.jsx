@@ -388,7 +388,7 @@ function App() {
     // Build maps for quick lookup
     const idToPerson = Object.fromEntries(people.map((p) => [p.id, { ...p }]));
     const childrenMap = {};
-    const parentMap = {};
+    const parentMap = {}; // Store ALL parents per child (array)
     const spouseMap = {};
 
     // Build relationship maps
@@ -396,7 +396,10 @@ function App() {
       if (r.type === REL.PARENT_CHILD) {
         if (!childrenMap[r.parentId]) childrenMap[r.parentId] = [];
         childrenMap[r.parentId].push(r.childId);
-        parentMap[r.childId] = r.parentId;
+        
+        // Store all parents for each child (not just one)
+        if (!parentMap[r.childId]) parentMap[r.childId] = [];
+        parentMap[r.childId].push(r.parentId);
       } else if (r.type === REL.PARTNER) {
         spouseMap[r.person1Id] = r.person2Id;
         spouseMap[r.person2Id] = r.person1Id;
@@ -404,7 +407,7 @@ function App() {
     });
 
     // Find root people (no parents) - prioritize couples
-    const roots = people.filter((p) => !parentMap[p.id]);
+    const roots = people.filter((p) => !parentMap[p.id] || parentMap[p.id].length === 0);
     
     // Assign generation levels (BFS from roots)
     const queue = [];
