@@ -1421,7 +1421,9 @@ function App() {
   const handleMouseUp = (e) => {
     if (isDragging) {
       setIsDragging(false);
-      e.currentTarget.style.cursor = "grab";
+      if (canvasRef.current) {
+        canvasRef.current.style.cursor = "grab";
+      }
     }
   };
 
@@ -2941,7 +2943,12 @@ function App() {
             <div className="flex flex-col max-h-full">
               <div className="flex justify-between items-center p-4 border-b border-gray-200">
                 <h2 className="text-xl font-bold text-gray-900 arabic-text">
-                  {editingPerson ? t.editFamilyMember : t.addFamilyMember}
+                  {editingPerson ? t.editFamilyMember : 
+                    relationshipType === 'spouse' ? t.addSpouse :
+                    relationshipType === 'child' ? t.addChild :
+                    relationshipType === 'parent' ? t.addParent :
+                    relationshipType === 'sibling' ? t.addSibling :
+                    t.addFamilyMember}
                 </h2>
                 <Button
                   onClick={() => {
