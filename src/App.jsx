@@ -475,6 +475,8 @@ function App() {
     });
 
     // Second pass: Position nodes horizontally with proper family grouping
+    const positionedChildren = new Set(); // Track children already positioned
+    
     generations.forEach((genNum) => {
       const generationPeople = genMap[genNum];
       let currentX = 100; // Start with some padding
@@ -482,12 +484,24 @@ function App() {
       // Group people by their children (family units)
       const familyUnits = [];
       const processedIds = new Set();
+      const processedCouples = new Set();
 
       generationPeople.forEach((person) => {
         if (processedIds.has(person.id)) return;
 
         const spouseId = spouseMap[person.id];
-        const spouse = spouseId ? idToPerson[spouseId] : null;
+        const spouse = spouseId && idToPerson[spouseId]?.generation === genNum ? idToPerson[spouseId] : null;
+        
+        // Create couple key to avoid duplicate processing
+        if (spouse) {
+          const coupleKey = [person.id, spouseId].sort().join('-');
+          if (processedCouples.has(coupleKey)) {
+            processedIds.add(person.id);
+            return;
+          }
+          processedCouples.add(coupleKey);
+        }
+
         const children = childrenMap[person.id] || [];
 
         // Create family unit
@@ -497,16 +511,17 @@ function App() {
           width: 0
         };
 
-        // Add spouse if exists
-        if (spouse && !processedIds.has(spouseId)) {
+        // Add spouse if exists and in same generation
+        if (spouse) {
           family.people.push(spouse);
           processedIds.add(spouseId);
           
-          // Combine children from both spouses
+          // Only include SHARED children (both parents have relationship to child)
           const spouseChildren = childrenMap[spouseId] || [];
-          const allChildren = [...new Set([...children, ...spouseChildren])];
-          family.children = allChildren.map(childId => idToPerson[childId]).filter(Boolean);
+          const sharedChildren = children.filter(childId => spouseChildren.includes(childId));
+          family.children = sharedChildren.map(childId => idToPerson[childId]).filter(Boolean);
         } else {
+          // Single parent - include all their children
           family.children = children.map(childId => idToPerson[childId]).filter(Boolean);
         }
 
@@ -547,10 +562,13 @@ function App() {
                                      (family.children.length - 1) * horizontalSpacing;
             const childrenStartX = coupleCenterX - childrenTotalWidth / 2;
             
-            // Position children in the next generation
+            // Position children in the next generation (only if not already positioned)
             family.children.forEach((child, index) => {
-              child.x = childrenStartX + index * (stylingOptions.boxWidth + horizontalSpacing);
-              child.y = startY + (child.generation || genNum + 1) * verticalSpacing;
+              if (!positionedChildren.has(child.id)) {
+                child.x = childrenStartX + index * (stylingOptions.boxWidth + horizontalSpacing);
+                child.y = startY + (child.generation || genNum + 1) * verticalSpacing;
+                positionedChildren.add(child.id);
+              }
             });
           }
         } else {
@@ -565,10 +583,13 @@ function App() {
                                      (family.children.length - 1) * horizontalSpacing;
             const childrenStartX = parentCenterX - childrenTotalWidth / 2;
             
-            // Position children in the next generation
+            // Position children in the next generation (only if not already positioned)
             family.children.forEach((child, index) => {
-              child.x = childrenStartX + index * (stylingOptions.boxWidth + horizontalSpacing);
-              child.y = startY + (child.generation || genNum + 1) * verticalSpacing;
+              if (!positionedChildren.has(child.id)) {
+                child.x = childrenStartX + index * (stylingOptions.boxWidth + horizontalSpacing);
+                child.y = startY + (child.generation || genNum + 1) * verticalSpacing;
+                positionedChildren.add(child.id);
+              }
             });
           }
         }
