@@ -389,7 +389,7 @@ function App() {
     const idToPerson = Object.fromEntries(people.map((p) => [p.id, { ...p }]));
     const childrenMap = {};
     const parentMap = {}; // Store ALL parents per child (array)
-    const spouseMap = {};
+    const partnersMap = {}; // Store ALL partners per person (Set)
 
     // Build relationship maps
     relationships.forEach((r) => {
@@ -401,27 +401,32 @@ function App() {
         if (!parentMap[r.childId]) parentMap[r.childId] = [];
         parentMap[r.childId].push(r.parentId);
       } else if (r.type === REL.PARTNER) {
-        spouseMap[r.person1Id] = r.person2Id;
-        spouseMap[r.person2Id] = r.person1Id;
+        // Store all partners (multi-partner support)
+        if (!partnersMap[r.person1Id]) partnersMap[r.person1Id] = new Set();
+        if (!partnersMap[r.person2Id]) partnersMap[r.person2Id] = new Set();
+        partnersMap[r.person1Id].add(r.person2Id);
+        partnersMap[r.person2Id].add(r.person1Id);
       }
     });
 
-    // Build couple groups to match connection rendering logic
+    // Build couple groups to match connection rendering logic (multi-partner support)
     const coupleChildrenMap = {}; // coupleKey -> shared children only
-    const processedForCouples = new Set();
+    const processedCouples = new Set();
     
     Object.keys(childrenMap).forEach(parentId => {
-      const spouseId = spouseMap[parentId];
-      if (spouseId && !processedForCouples.has(parentId)) {
-        const coupleKey = [parseInt(parentId), parseInt(spouseId)].sort().join('-');
-        if (!coupleChildrenMap[coupleKey]) {
-          const parentChildren = childrenMap[parentId] || [];
-          const spouseChildren = childrenMap[spouseId] || [];
-          const sharedChildren = parentChildren.filter(childId => spouseChildren.includes(childId));
-          coupleChildrenMap[coupleKey] = sharedChildren;
-          processedForCouples.add(parentId);
-          processedForCouples.add(spouseId);
-        }
+      const partners = partnersMap[parentId];
+      if (partners && partners.size > 0) {
+        // Process each partner relationship separately
+        partners.forEach(partnerId => {
+          const coupleKey = [parseInt(parentId), parseInt(partnerId)].sort().join('-');
+          if (!processedCouples.has(coupleKey)) {
+            const parentChildren = childrenMap[parentId] || [];
+            const partnerChildren = childrenMap[partnerId] || [];
+            const sharedChildren = parentChildren.filter(childId => partnerChildren.includes(childId));
+            coupleChildrenMap[coupleKey] = sharedChildren;
+            processedCouples.add(coupleKey);
+          }
+        });
       }
     });
 
@@ -467,29 +472,10 @@ function App() {
       const generationPeople = genMap[genNum];
       const processedIds = new Set();
 
-      // First pass: Process couples together
+      // First pass: Initialize positions for all people
       generationPeople.forEach((person) => {
-        if (processedIds.has(person.id)) return;
-
-        const spouseId = spouseMap[person.id];
-        const spouse = spouseId ? idToPerson[spouseId] : null;
-
-        if (spouse && !processedIds.has(spouseId) && spouse.generation === genNum) {
-          // Process couple
-          processedIds.add(person.id);
-          processedIds.add(spouseId);
-          
-          // Position couple side by side
-          person.x = 0; // Temporary - will be set later
-          person.y = startY + genNum * verticalSpacing;
-          spouse.x = 0; // Temporary
-          spouse.y = startY + genNum * verticalSpacing;
-        } else if (!processedIds.has(person.id)) {
-          // Process single person
-          processedIds.add(person.id);
-          person.x = 0; // Temporary
-          person.y = startY + genNum * verticalSpacing;
-        }
+        person.x = 0; // Temporary - will be set later
+        person.y = startY + genNum * verticalSpacing;
       });
     });
 
@@ -502,50 +488,45 @@ function App() {
 
       // Group people by their children (family units)
       const familyUnits = [];
-      const processedIds = new Set();
-      const processedCouples = new Set();
+      const processedCoupleKeys = new Set();
+      const peopleInCouples = new Set(); // Track people who are in ANY couple
 
+      // First pass: Create all couple family units
       generationPeople.forEach((person) => {
-        if (processedIds.has(person.id)) return;
-
-        const spouseId = spouseMap[person.id];
-        const spouse = spouseId && idToPerson[spouseId]?.generation === genNum ? idToPerson[spouseId] : null;
+        const partners = partnersMap[person.id];
         
-        // Create couple key to avoid duplicate processing
-        if (spouse) {
-          const coupleKey = [person.id, spouseId].sort().join('-');
-          if (processedCouples.has(coupleKey)) {
-            processedIds.add(person.id);
-            return;
-          }
-          processedCouples.add(coupleKey);
+        if (partners && partners.size > 0) {
+          partners.forEach(partnerId => {
+            const partner = idToPerson[partnerId];
+            if (partner && partner.generation === genNum) {
+              const coupleKey = [person.id, partnerId].sort().join('-');
+              if (!processedCoupleKeys.has(coupleKey)) {
+                // Create couple family unit
+                const sharedChildren = coupleChildrenMap[coupleKey] || [];
+                familyUnits.push({
+                  people: [person, partner],
+                  children: sharedChildren.map(childId => idToPerson[childId]).filter(Boolean),
+                  width: 0
+                });
+                processedCoupleKeys.add(coupleKey);
+                peopleInCouples.add(person.id);
+                peopleInCouples.add(partnerId);
+              }
+            }
+          });
         }
-
-        const children = childrenMap[person.id] || [];
-
-        // Create family unit
-        const family = {
-          people: [person],
-          children: [],
-          width: 0
-        };
-
-        // Add spouse if exists and in same generation
-        if (spouse) {
-          family.people.push(spouse);
-          processedIds.add(spouseId);
-          
-          // Use couple grouping logic: only SHARED children under couple
-          const coupleKey = [person.id, spouseId].sort().join('-');
-          const sharedChildren = coupleChildrenMap[coupleKey] || [];
-          family.children = sharedChildren.map(childId => idToPerson[childId]).filter(Boolean);
-        } else {
-          // Single parent - include all their children
-          family.children = children.map(childId => idToPerson[childId]).filter(Boolean);
+      });
+      
+      // Second pass: Create single parent family units for people NOT in any couple
+      generationPeople.forEach((person) => {
+        if (!peopleInCouples.has(person.id)) {
+          const children = childrenMap[person.id] || [];
+          familyUnits.push({
+            people: [person],
+            children: children.map(childId => idToPerson[childId]).filter(Boolean),
+            width: 0
+          });
         }
-
-        processedIds.add(person.id);
-        familyUnits.push(family);
       });
 
       // Position family units horizontally
@@ -618,16 +599,24 @@ function App() {
 
       // Handle solo children for people in couples (after couples are positioned)
       generationPeople.forEach((person) => {
-        const spouseId = spouseMap[person.id];
-        const spouse = spouseId && idToPerson[spouseId]?.generation === genNum ? idToPerson[spouseId] : null;
+        const partners = partnersMap[person.id];
         
-        if (spouse && person.x && person.x > 0) { // Person is in a positioned couple
-          const coupleKey = [person.id, spouseId].sort().join('-');
-          const sharedChildren = coupleChildrenMap[coupleKey] || [];
+        if (partners && partners.size > 0 && person.x && person.x > 0) { // Person is in a positioned couple
+          // Collect ALL shared children across ALL partners
+          const allSharedChildren = new Set();
+          partners.forEach(partnerId => {
+            const partner = idToPerson[partnerId];
+            if (partner && partner.generation === genNum) {
+              const coupleKey = [person.id, partnerId].sort().join('-');
+              const sharedChildren = coupleChildrenMap[coupleKey] || [];
+              sharedChildren.forEach(childId => allSharedChildren.add(childId));
+            }
+          });
+          
           const children = childrenMap[person.id] || [];
           
-          // Find solo children (not shared with spouse)
-          const soloChildren = children.filter(childId => !sharedChildren.includes(childId));
+          // Find solo children (not shared with ANY partner)
+          const soloChildren = children.filter(childId => !allSharedChildren.has(childId));
           
           if (soloChildren.length > 0) {
             // Position solo children under this parent only
