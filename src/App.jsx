@@ -601,7 +601,7 @@ function App() {
       generationPeople.forEach((person) => {
         const partners = partnersMap[person.id];
         
-        if (partners && partners.size > 0 && person.x && person.x > 0) { // Person is in a positioned couple
+        if (partners && partners.size > 0 && person.x !== undefined) { // Person is in a positioned couple
           // Collect ALL shared children across ALL partners
           const allSharedChildren = new Set();
           partners.forEach(partnerId => {
