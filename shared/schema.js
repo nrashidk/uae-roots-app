@@ -100,12 +100,4 @@ export const relationshipsRelations = relations(relationships, ({ one }) => ({
   }),
 }));
 
-// TypeScript types
-export type Tree = typeof trees.$inferSelect;
-export type InsertTree = typeof trees.$inferInsert;
-
-export type Person = typeof people.$inferSelect;
-export type InsertPerson = typeof people.$inferInsert;
-
-export type Relationship = typeof relationships.$inferSelect;
-export type InsertRelationship = typeof relationships.$inferInsert;
+// TypeScript types removed for JavaScript compatibility
