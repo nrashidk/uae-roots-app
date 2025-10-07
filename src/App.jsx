@@ -292,16 +292,29 @@ function App() {
     
     try {
       setLoading(true);
-      const newTree = await api.trees.create({
-        name: "شجرة عائلتي",
-        description: "",
-        createdBy: "google-user"
-      });
-      setTrees([newTree]);
-      setCurrentTree(newTree);
-      setCurrentView("tree-builder");
+      // First, try to get existing trees for the user
+      const existingTrees = await api.trees.getAll();
+      const userTrees = existingTrees.filter(t => t.createdBy === "google-user");
+      
+      if (userTrees.length > 0) {
+        // Use the most recent tree
+        const latestTree = userTrees[userTrees.length - 1];
+        setTrees(userTrees);
+        setCurrentTree(latestTree);
+        setCurrentView("tree-builder");
+      } else {
+        // Create a new tree only if none exists
+        const newTree = await api.trees.create({
+          name: "شجرة عائلتي",
+          description: "",
+          createdBy: "google-user"
+        });
+        setTrees([newTree]);
+        setCurrentTree(newTree);
+        setCurrentView("tree-builder");
+      }
     } catch (err) {
-      console.error('Error creating tree:', err);
+      console.error('Error handling authentication:', err);
       setError(err.message);
     } finally {
       setLoading(false);
@@ -313,16 +326,29 @@ function App() {
     
     try {
       setLoading(true);
-      const newTree = await api.trees.create({
-        name: "شجرة عائلتي",
-        description: "",
-        createdBy: "apple-user"
-      });
-      setTrees([newTree]);
-      setCurrentTree(newTree);
-      setCurrentView("tree-builder");
+      // First, try to get existing trees for the user
+      const existingTrees = await api.trees.getAll();
+      const userTrees = existingTrees.filter(t => t.createdBy === "apple-user");
+      
+      if (userTrees.length > 0) {
+        // Use the most recent tree
+        const latestTree = userTrees[userTrees.length - 1];
+        setTrees(userTrees);
+        setCurrentTree(latestTree);
+        setCurrentView("tree-builder");
+      } else {
+        // Create a new tree only if none exists
+        const newTree = await api.trees.create({
+          name: "شجرة عائلتي",
+          description: "",
+          createdBy: "apple-user"
+        });
+        setTrees([newTree]);
+        setCurrentTree(newTree);
+        setCurrentView("tree-builder");
+      }
     } catch (err) {
-      console.error('Error creating tree:', err);
+      console.error('Error handling authentication:', err);
       setError(err.message);
     } finally {
       setLoading(false);
@@ -334,16 +360,29 @@ function App() {
     
     try {
       setLoading(true);
-      const newTree = await api.trees.create({
-        name: "شجرة عائلتي",
-        description: "",
-        createdBy: "uae-mobile-user"
-      });
-      setTrees([newTree]);
-      setCurrentTree(newTree);
-      setCurrentView("tree-builder");
+      // First, try to get existing trees for the user
+      const existingTrees = await api.trees.getAll();
+      const userTrees = existingTrees.filter(t => t.createdBy === "uae-mobile-user");
+      
+      if (userTrees.length > 0) {
+        // Use the most recent tree
+        const latestTree = userTrees[userTrees.length - 1];
+        setTrees(userTrees);
+        setCurrentTree(latestTree);
+        setCurrentView("tree-builder");
+      } else {
+        // Create a new tree only if none exists
+        const newTree = await api.trees.create({
+          name: "شجرة عائلتي",
+          description: "",
+          createdBy: "uae-mobile-user"
+        });
+        setTrees([newTree]);
+        setCurrentTree(newTree);
+        setCurrentView("tree-builder");
+      }
     } catch (err) {
-      console.error('Error creating tree:', err);
+      console.error('Error handling authentication:', err);
       setError(err.message);
     } finally {
       setLoading(false);
@@ -2466,6 +2505,11 @@ function App() {
               {(() => {
                 const treeRels = relationships.filter(r => r.treeId === currentTree?.id);
                 const elements = [];
+
+                // Debug: Log what we have
+                console.log('Parent Couple Groups:', parentCoupleGroups);
+                console.log('Tree Relationships:', treeRels);
+                console.log('Tree People:', treePeople);
 
                 // 1. SIBLING BARS FIRST - One bar per couple group with 2+ children
                 Object.entries(parentCoupleGroups).forEach(([coupleKey, group]) => {
