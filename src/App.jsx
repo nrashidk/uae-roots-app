@@ -2398,12 +2398,12 @@ function App() {
                 <div
                   key={person.id}
                   data-person-box
-                  className={`absolute border-2 rounded-lg p-3 cursor-pointer transition-all duration-200 select-none ${
+                  className={`absolute rounded-lg p-3 cursor-pointer transition-all duration-200 select-none ${
                     selectedPerson === person.id
-                      ? "border-green-500 shadow-lg"
+                      ? "border-4 border-green-500 shadow-[0_0_20px_rgba(34,197,94,0.6)] ring-4 ring-green-300 ring-opacity-50 scale-105"
                       : isBreastfeedingSibling
                       ? "border-green-400 border-4 hover:border-green-500"
-                      : "border-gray-300 hover:border-gray-400"
+                      : "border-2 border-gray-300 hover:border-gray-400"
                   }`}
                   style={{
                     left: person.x,

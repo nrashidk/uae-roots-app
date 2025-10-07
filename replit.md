@@ -47,6 +47,11 @@ src/
 ✅ Run command: `npm run preview`
 
 ## Recent Changes
+- **2025-10-07**: Enhanced selection indicator for better UX:
+  - Selected person now has prominent green glow effect
+  - Thicker green border (4px) with green ring and shadow
+  - Slight scale effect (5% larger) to make selection obvious
+  - Visual feedback when clicking person to add family members
 - **2025-10-06**: Enhanced FamilyEcho-style connection system with couple-based grouping:
   - Implemented professional hierarchy chart visualization with T-shape connections
   - **Couple-based grouping**: `parentCoupleGroups` indexes by unique couple pairs (sorted IDs)
