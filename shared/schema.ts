@@ -22,7 +22,10 @@ export const people = pgTable('people', {
   gender: text('gender').notNull(), // 'male' | 'female'
   birthDate: text('birth_date'),
   deathDate: text('death_date'),
-  livingStatus: text('living_status'), // 'living' | 'deceased'
+  isLiving: boolean('is_living').default(true),
+  phone: text('phone'),
+  email: text('email'),
+  identificationNumber: text('identification_number'),
   birthOrder: integer('birth_order'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 });
@@ -36,6 +39,8 @@ export const relationships = pgTable('relationships', {
   person2Id: integer('person2_id').references(() => people.id, { onDelete: 'cascade' }),
   childId: integer('child_id').references(() => people.id, { onDelete: 'cascade' }),
   parentId: integer('parent_id').references(() => people.id, { onDelete: 'cascade' }),
+  isBreastfeeding: boolean('is_breastfeeding').default(false),
+  isDotted: boolean('is_dotted').default(false),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 });
 
