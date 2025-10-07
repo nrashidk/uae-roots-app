@@ -1,4 +1,5 @@
-const API_BASE_URL = 'http://localhost:3000/api';
+// Use relative URL - Vite proxy will forward to backend
+const API_BASE_URL = '/api';
 
 async function fetchAPI(endpoint, options = {}) {
   try {
