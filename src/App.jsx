@@ -680,23 +680,27 @@ function App() {
     treeRels
       .filter(r => r.type === REL.PARENT_CHILD)
       .forEach(r => {
-        if (!parentChildren[r.parentId]) parentChildren[r.parentId] = new Set();
-        parentChildren[r.parentId].add(r.childId);
+        // Convert IDs to numbers to ensure matching
+        const parentId = Number(r.parentId);
+        const childId = Number(r.childId);
+        if (!parentChildren[parentId]) parentChildren[parentId] = new Set();
+        parentChildren[parentId].add(childId);
       });
     
     // Build couple groups indexed by sorted pair key
     const coupleGroups = {};
     const processed = new Set();
     
-    Object.keys(parentChildren).forEach(parentId => {
+    Object.keys(parentChildren).forEach(parentIdStr => {
+      const parentId = Number(parentIdStr);
       // Get all partners for this parent
       const partnerRels = treeRels.filter(r => 
         r.type === REL.PARTNER && 
-        (r.person1Id === parentId || r.person2Id === parentId)
+        (Number(r.person1Id) === parentId || Number(r.person2Id) === parentId)
       );
       
       partnerRels.forEach(spouseRel => {
-        const spouseId = spouseRel.person1Id === parentId ? spouseRel.person2Id : spouseRel.person1Id;
+        const spouseId = Number(spouseRel.person1Id) === parentId ? Number(spouseRel.person2Id) : Number(spouseRel.person1Id);
         
         // Create unique couple key (sorted to ensure consistency)
         const coupleKey = [parentId, spouseId].sort().join('-');
@@ -710,8 +714,8 @@ function App() {
         if (sharedKids.length > 0) {
           // Create couple group with ONLY shared children (not union)
           coupleGroups[coupleKey] = {
-            parents: [parentId, spouseId],
-            children: new Set(sharedKids) // Use sharedKids, not union!
+            parents: [Number(parentId), Number(spouseId)],
+            children: new Set(sharedKids.map(Number)) // Use sharedKids, not union!
           };
           processed.add(coupleKey);
         }
@@ -723,7 +727,7 @@ function App() {
         // Find which children are already in a couple group for this parent
         const childrenInCouples = new Set();
         Object.values(coupleGroups).forEach(group => {
-          if (group.parents.includes(parentId)) {
+          if (group.parents.map(Number).includes(parentId)) {
             group.children.forEach(childId => childrenInCouples.add(childId));
           }
         });
@@ -734,7 +738,7 @@ function App() {
         // Create single-parent group for solo children if any exist
         if (soloChildren.length > 0) {
           coupleGroups[`solo-${parentId}`] = {
-            parents: [parentId],
+            parents: [Number(parentId)],
             children: new Set(soloChildren)
           };
         }
@@ -2463,6 +2467,11 @@ function App() {
                 const treeRels = relationships.filter(r => r.treeId === currentTree?.id);
                 const elements = [];
 
+                // Debug: Log what we have
+                console.log('Parent Couple Groups:', parentCoupleGroups);
+                console.log('Tree Relationships:', treeRels);
+                console.log('Tree People:', treePeople);
+
                 // 1. SIBLING BARS FIRST - One bar per couple group with 2+ children
                 Object.entries(parentCoupleGroups).forEach(([coupleKey, group]) => {
                   const childrenIds = Array.from(group.children);
@@ -2472,7 +2481,7 @@ function App() {
                   if (children.length < 2) return;
 
                   // Use first parent for Y position (couples share same Y)
-                  const parent = treePeople.find(p => p.id === group.parents[0]);
+                  const parent = treePeople.find(p => p.id === Number(group.parents[0]));
                   if (!parent) return;
 
                   // Calculate exact bar position and extent
