@@ -406,6 +406,25 @@ function App() {
       }
     });
 
+    // Build couple groups to match connection rendering logic
+    const coupleChildrenMap = {}; // coupleKey -> shared children only
+    const processedForCouples = new Set();
+    
+    Object.keys(childrenMap).forEach(parentId => {
+      const spouseId = spouseMap[parentId];
+      if (spouseId && !processedForCouples.has(parentId)) {
+        const coupleKey = [parseInt(parentId), parseInt(spouseId)].sort().join('-');
+        if (!coupleChildrenMap[coupleKey]) {
+          const parentChildren = childrenMap[parentId] || [];
+          const spouseChildren = childrenMap[spouseId] || [];
+          const sharedChildren = parentChildren.filter(childId => spouseChildren.includes(childId));
+          coupleChildrenMap[coupleKey] = sharedChildren;
+          processedForCouples.add(parentId);
+          processedForCouples.add(spouseId);
+        }
+      }
+    });
+
     // Find root people (no parents) - prioritize couples
     const roots = people.filter((p) => !parentMap[p.id] || parentMap[p.id].length === 0);
     
@@ -516,9 +535,9 @@ function App() {
           family.people.push(spouse);
           processedIds.add(spouseId);
           
-          // Only include SHARED children (both parents have relationship to child)
-          const spouseChildren = childrenMap[spouseId] || [];
-          const sharedChildren = children.filter(childId => spouseChildren.includes(childId));
+          // Use couple grouping logic: only SHARED children under couple
+          const coupleKey = [person.id, spouseId].sort().join('-');
+          const sharedChildren = coupleChildrenMap[coupleKey] || [];
           family.children = sharedChildren.map(childId => idToPerson[childId]).filter(Boolean);
         } else {
           // Single parent - include all their children
@@ -595,6 +614,38 @@ function App() {
         }
 
         currentX += familyWidth + horizontalSpacing;
+      });
+
+      // Handle solo children for people in couples (after couples are positioned)
+      generationPeople.forEach((person) => {
+        const spouseId = spouseMap[person.id];
+        const spouse = spouseId && idToPerson[spouseId]?.generation === genNum ? idToPerson[spouseId] : null;
+        
+        if (spouse && person.x && person.x > 0) { // Person is in a positioned couple
+          const coupleKey = [person.id, spouseId].sort().join('-');
+          const sharedChildren = coupleChildrenMap[coupleKey] || [];
+          const children = childrenMap[person.id] || [];
+          
+          // Find solo children (not shared with spouse)
+          const soloChildren = children.filter(childId => !sharedChildren.includes(childId));
+          
+          if (soloChildren.length > 0) {
+            // Position solo children under this parent only
+            const parentCenterX = person.x + stylingOptions.boxWidth / 2;
+            const childrenTotalWidth = soloChildren.length * stylingOptions.boxWidth + 
+                                     (soloChildren.length - 1) * horizontalSpacing;
+            const childrenStartX = parentCenterX - childrenTotalWidth / 2;
+            
+            soloChildren.forEach((childId, index) => {
+              const child = idToPerson[childId];
+              if (child && !positionedChildren.has(child.id)) {
+                child.x = childrenStartX + index * (stylingOptions.boxWidth + horizontalSpacing);
+                child.y = startY + (child.generation || genNum + 1) * verticalSpacing;
+                positionedChildren.add(child.id);
+              }
+            });
+          }
+        }
       });
 
       // Handle people not in family units (shouldn't happen, but just in case)
