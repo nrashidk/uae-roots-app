@@ -2205,130 +2205,7 @@ function App() {
                 const treeRels = relationships.filter(r => r.treeId === currentTree?.id);
                 const elements = [];
 
-                // 1. SIBLING BARS FIRST - One bar per couple group with 2+ children
-                Object.entries(parentCoupleGroups).forEach(([coupleKey, group]) => {
-                  const childrenIds = Array.from(group.children);
-                  if (childrenIds.length < 2) return; // No bar for single child
-                  
-                  const children = childrenIds.map(cid => treePeople.find(p => p.id === cid)).filter(Boolean);
-                  if (children.length < 2) return;
-
-                  // Use first parent for Y position (couples share same Y)
-                  const parent = treePeople.find(p => p.id === group.parents[0]);
-                  if (!parent) return;
-
-                  // Calculate exact bar position and extent
-                  const childXPositions = children.map(c => c.x + CARD.w / 2);
-                  const barX1 = Math.min(...childXPositions);
-                  const barX2 = Math.max(...childXPositions);
-                  const barY = parent.y + CARD.h + 15; // 15px gap
-
-                  elements.push(
-                    <line
-                      key={`bar-${coupleKey}`}
-                      x1={barX1}
-                      y1={barY}
-                      x2={barX2}
-                      y2={barY}
-                      stroke="#8B8B8B"
-                      strokeWidth={3 * zoom}
-                      strokeLinecap="round"
-                    />
-                  );
-
-                  // Store bar info for child stubs
-                  children.forEach(child => {
-                    child._barY = barY;
-                    child._coupleKey = coupleKey; // Track which couple group this child belongs to
-                  });
-                });
-
-                // 2. PARENT-CHILD CONNECTIONS - One drop per parent in each couple group
-                Object.entries(parentCoupleGroups).forEach(([coupleKey, group]) => {
-                  const childrenIds = Array.from(group.children);
-                  if (childrenIds.length === 0) return;
-
-                  const children = childrenIds.map(cid => treePeople.find(p => p.id === cid)).filter(Boolean);
-                  
-                  // Draw drop for EACH parent in the couple
-                  group.parents.forEach(parentId => {
-                    const parent = treePeople.find(p => p.id === parentId);
-                    if (!parent) return;
-
-                    // Calculate drop coordinates
-                    const dropX = parent.x + CARD.w / 2;
-                    const dropY1 = parent.y + CARD.h; // Parent bottom
-                    const dropY2 = childrenIds.length >= 2 
-                      ? parent.y + CARD.h + 15  // To bar if multiple children
-                      : children[0]?.y || dropY1; // Direct to child if single
-
-                    // Check if this parent has dotted relationship (non-biological)
-                    const isDotted = treeRels.some(r => 
-                      r.type === REL.PARENT_CHILD && 
-                      r.parentId === parentId && 
-                      (r.nonBiological || r.isDotted)
-                    );
-
-                    // Draw vertical drop from parent
-                    elements.push(
-                      <line
-                        key={`drop-${coupleKey}-${parentId}`}
-                        x1={dropX}
-                        y1={dropY1}
-                        x2={dropX}
-                        y2={dropY2}
-                        stroke="#8B8B8B"
-                        strokeWidth={2 * zoom}
-                        strokeDasharray={isDotted ? '5,5' : ''}
-                      />
-                    );
-
-                    // Add label ONLY on maternal (female) lines
-                    if (parent.gender === 'female' && children.length > 0) {
-                      const firstChild = children[0];
-                      const childFirstName = firstChild?.firstName || firstChild?.name?.split(' ')[0] || '';
-                      
-                      elements.push(
-                        <text
-                          key={`label-${coupleKey}-${parentId}`}
-                          x={dropX + 15}
-                          y={(dropY1 + dropY2) / 2}
-                          fontSize={`${9 * zoom}px`}
-                          fill="#8B8B8B"
-                          fontFamily="Sakkal Majalla, sans-serif"
-                          textAnchor="start"
-                          dominantBaseline="middle"
-                        >
-                          أم {childFirstName}
-                        </text>
-                      );
-                    }
-                  });
-
-                  // 3. Draw stubs from bar to each child (ALWAYS SOLID)
-                  children.forEach(child => {
-                    const stubX = child.x + CARD.w / 2;
-                    const stubY1 = child._barY; // From bar
-                    const stubY2 = child.y; // To child top
-
-                    // Skip stub if no bar (single child - already has direct drop)
-                    if (childrenIds.length < 2 || !stubY1) return;
-
-                    elements.push(
-                      <line
-                        key={`stub-${coupleKey}-${child.id}`}
-                        x1={stubX}
-                        y1={stubY1}
-                        x2={stubX}
-                        y2={stubY2}
-                        stroke="#8B8B8B"
-                        strokeWidth={2 * zoom}
-                      />
-                    );
-                  });
-                });
-
-                // 3. SPOUSE LINES - Horizontal at mid-height
+                // 1. PARTNER LINES
                 treeRels.filter(r => r.type === REL.PARTNER).forEach(rel => {
                   const p1 = treePeople.find(p => p.id === rel.person1Id);
                   const p2 = treePeople.find(p => p.id === rel.person2Id);
@@ -2348,30 +2225,124 @@ function App() {
                   );
                 });
 
-                // 4. SIBLING LINES (optional - only if not already connected via bar)
+                // 2. PARENT-CHILD CONNECTIONS
+                Object.entries(parentCoupleGroups).forEach(([coupleKey, group]) => {
+                  const childrenIds = Array.from(group.children);
+                  if (childrenIds.length === 0) return;
+
+                  const children = childrenIds.map(cid => treePeople.find(p => p.id === cid)).filter(Boolean);
+                  if (children.length === 0) return;
+
+                  const parents = group.parents.map(pid => treePeople.find(p => p.id === pid)).filter(Boolean);
+                  if (parents.length === 0) return;
+
+                  let parentsCenterX;
+                  let parentsCenterY;
+                  
+                  if (parents.length === 2) {
+                    parentsCenterX = (parents[0].x + CARD.w + parents[1].x) / 2;
+                    parentsCenterY = parents[0].y + CARD.h;
+                  } else {
+                    parentsCenterX = parents[0].x + CARD.w / 2;
+                    parentsCenterY = parents[0].y + CARD.h;
+                  }
+
+                  if (children.length === 1) {
+                    // SINGLE CHILD: Direct line from parents to child
+                    const child = children[0];
+                    const childCenterX = child.x + CARD.w / 2;
+                    const childTopY = child.y;
+
+                    elements.push(
+                      <line
+                        key={`parent-child-${coupleKey}`}
+                        x1={parentsCenterX}
+                        y1={parentsCenterY}
+                        x2={childCenterX}
+                        y2={childTopY}
+                        stroke="#8B8B8B"
+                        strokeWidth={2 * zoom}
+                      />
+                    );
+                  } else {
+                    // MULTIPLE CHILDREN: Hierarchy diagram
+                    const childXPositions = children.map(c => c.x + CARD.w / 2);
+                    const barX1 = Math.min(...childXPositions);
+                    const barX2 = Math.max(...childXPositions);
+                    const barY = parentsCenterY + 40;
+                    const barCenterX = (barX1 + barX2) / 2;
+
+                    // Vertical line from parents to bar
+                    elements.push(
+                      <line
+                        key={`parent-to-bar-${coupleKey}`}
+                        x1={parentsCenterX}
+                        y1={parentsCenterY}
+                        x2={barCenterX}
+                        y2={barY}
+                        stroke="#8B8B8B"
+                        strokeWidth={2 * zoom}
+                      />
+                    );
+
+                    // Horizontal bar
+                    elements.push(
+                      <line
+                        key={`sibling-bar-${coupleKey}`}
+                        x1={barX1}
+                        y1={barY}
+                        x2={barX2}
+                        y2={barY}
+                        stroke="#8B8B8B"
+                        strokeWidth={2 * zoom}
+                      />
+                    );
+
+                    // Vertical drops to each child
+                    children.forEach(child => {
+                      const childCenterX = child.x + CARD.w / 2;
+                      const childTopY = child.y;
+
+                      elements.push(
+                        <line
+                          key={`bar-to-child-${coupleKey}-${child.id}`}
+                          x1={childCenterX}
+                          y1={barY}
+                          x2={childCenterX}
+                          y2={childTopY}
+                          stroke="#8B8B8B"
+                          strokeWidth={2 * zoom}
+                        />
+                      );
+                    });
+                  }
+                });
+
+                // 3. SIBLING LINES
                 treeRels.filter(r => r.type === REL.SIBLING).forEach(rel => {
                   const p1 = treePeople.find(p => p.id === rel.person1Id);
                   const p2 = treePeople.find(p => p.id === rel.person2Id);
                   if (!p1 || !p2) return;
 
-                  // Only draw if siblings don't share a parent bar
-                  const p1HasBar = p1._barY !== undefined;
-                  const p2HasBar = p2._barY !== undefined;
-                  
-                  if (p1HasBar && p2HasBar && p1._barY === p2._barY) return; // Skip - already connected via bar
+                  const alreadyConnected = Object.values(parentCoupleGroups).some(group => {
+                    const childrenIds = Array.from(group.children);
+                    return childrenIds.includes(p1.id) && childrenIds.includes(p2.id);
+                  });
 
-                  const y = Math.min(p1.y, p2.y) + CARD.h / 2;
-                  elements.push(
-                    <line
-                      key={`sibling-${rel.id}`}
-                      x1={p1.x + CARD.w / 2}
-                      y1={y}
-                      x2={p2.x + CARD.w / 2}
-                      y2={y}
-                      stroke="#ccc"
-                      strokeWidth={1 * zoom}
-                    />
-                  );
+                  if (!alreadyConnected) {
+                    const y = Math.min(p1.y, p2.y) + CARD.h / 2;
+                    elements.push(
+                      <line
+                        key={`sibling-${rel.id}`}
+                        x1={p1.x + CARD.w / 2}
+                        y1={y}
+                        x2={p2.x + CARD.w / 2}
+                        y2={y}
+                        stroke="#ccc"
+                        strokeWidth={1 * zoom}
+                      />
+                    );
+                  }
                 });
 
                 return elements;
