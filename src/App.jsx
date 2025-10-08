@@ -2225,9 +2225,9 @@ function App() {
                   elements.push(
                     <line
                       key={`spouse-${rel.id}`}
-                      x1={p1.x + CARD.w / 2}
+                      x1={p1.x + CARD.w}
                       y1={midY}
-                      x2={p2.x + CARD.w / 2}
+                      x2={p2.x}
                       y2={midY}
                       stroke="#8B8B8B"
                       strokeWidth={2 * zoom}
