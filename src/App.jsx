@@ -2254,31 +2254,46 @@ function App() {
                   const parent2Children = parentChildMap[parent2Id] || [];
                   const sharedChildren = parent1Children.filter(cid => parent2Children.includes(cid));
                   
-                  if (sharedChildren.length === 0) return;
+                  // Also include siblings of shared children
+                  const allChildrenIds = new Set(sharedChildren);
+                  sharedChildren.forEach(childId => {
+                    const siblingRels = treeRels.filter(r => 
+                      r.type === REL.SIBLING && 
+                      (r.person1Id === childId || r.person2Id === childId)
+                    );
+                    siblingRels.forEach(sibRel => {
+                      const siblingId = sibRel.person1Id === childId ? sibRel.person2Id : sibRel.person1Id;
+                      allChildrenIds.add(siblingId);
+                    });
+                  });
+                  
+                  const finalChildrenIds = Array.from(allChildrenIds);
+                  if (finalChildrenIds.length === 0) return;
 
-                  const children = sharedChildren
+                  const children = finalChildrenIds
                     .map(cid => treePeople.find(p => p.id === cid))
                     .filter(Boolean);
                   
                   if (children.length === 0) return;
 
                   // Mark these children as processed
-                  sharedChildren.forEach(cid => processedChildren.add(cid));
+                  finalChildrenIds.forEach(cid => processedChildren.add(cid));
 
-                  // Calculate center point of the parent line (line goes from parent1.x + CARD.w to parent2.x)
-                  const parentLineCenterX = ((parent1.x + CARD.w) + parent2.x) / 2;
-                  const parentsCenterY = parent1.y + CARD.h;
+                  // Calculate center point between parents - center of the horizontal line
+                  const parentsCenterX = (parent1.x + CARD.w + parent2.x) / 2;
+                  const parentsCenterY = parent1.y + CARD.h / 2; // Start from the spouse line height
 
                   if (children.length === 1) {
-                    // SINGLE CHILD: Direct vertical line from center of parent line to child top
+                    // SINGLE CHILD: Direct vertical line
                     const child = children[0];
+                    const childCenterX = child.x + CARD.w / 2;
                     
                     elements.push(
                       <line
                         key={`pc-${parent1Id}-${parent2Id}-${child.id}`}
-                        x1={parentLineCenterX}
+                        x1={parentsCenterX}
                         y1={parentsCenterY}
-                        x2={parentLineCenterX}
+                        x2={childCenterX}
                         y2={child.y}
                         stroke="#8B8B8B"
                         strokeWidth={2 * zoom}
@@ -2289,15 +2304,16 @@ function App() {
                     const childXPositions = children.map(c => c.x + CARD.w / 2);
                     const barX1 = Math.min(...childXPositions);
                     const barX2 = Math.max(...childXPositions);
-                    const barY = parentsCenterY + 40;
+                    const barY = parent1.y + CARD.h + 40;
+                    const barCenterX = (barX1 + barX2) / 2;
 
-                    // Vertical line from center of parent line down to horizontal bar
+                    // Vertical line from parents down to horizontal bar
                     elements.push(
                       <line
                         key={`pc-bar-${parent1Id}-${parent2Id}`}
-                        x1={parentLineCenterX}
+                        x1={parentsCenterX}
                         y1={parentsCenterY}
-                        x2={parentLineCenterX}
+                        x2={barCenterX}
                         y2={barY}
                         stroke="#8B8B8B"
                         strokeWidth={2 * zoom}
@@ -2344,16 +2360,33 @@ function App() {
 
                   // Get unprocessed children
                   const unprocessedChildIds = childIds.filter(cid => !processedChildren.has(cid));
-                  if (unprocessedChildIds.length === 0) return;
+                  
+                  // Also include siblings of unprocessed children
+                  const allChildrenIds = new Set(unprocessedChildIds);
+                  unprocessedChildIds.forEach(childId => {
+                    const siblingRels = treeRels.filter(r => 
+                      r.type === REL.SIBLING && 
+                      (r.person1Id === childId || r.person2Id === childId)
+                    );
+                    siblingRels.forEach(sibRel => {
+                      const siblingId = sibRel.person1Id === childId ? sibRel.person2Id : sibRel.person1Id;
+                      if (!processedChildren.has(siblingId)) {
+                        allChildrenIds.add(siblingId);
+                      }
+                    });
+                  });
+                  
+                  const finalChildrenIds = Array.from(allChildrenIds);
+                  if (finalChildrenIds.length === 0) return;
 
-                  const children = unprocessedChildIds
+                  const children = finalChildrenIds
                     .map(cid => treePeople.find(p => p.id === cid))
                     .filter(Boolean);
                   
                   if (children.length === 0) return;
 
                   // Mark as processed
-                  unprocessedChildIds.forEach(cid => processedChildren.add(cid));
+                  finalChildrenIds.forEach(cid => processedChildren.add(cid));
 
                   const parentCenterX = parent.x + CARD.w / 2;
                   const parentCenterY = parent.y + CARD.h;

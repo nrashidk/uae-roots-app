@@ -1,0 +1,300 @@
+            <svg
+              className="absolute inset-0 pointer-events-none"
+              style={{
+                width: "100%",
+                height: "100%",
+                transform: `translate(${panOffset.x}px, ${panOffset.y}px) scale(${zoom})`,
+                transformOrigin: "0 0",
+                zIndex: 5,
+              }}
+            >
+              {(() => {
+                const treeRels = relationships.filter(r => r.treeId === currentTree?.id);
+                const elements = [];
+
+                // Build parent-child map for this tree
+                const parentChildMap = {};
+                treeRels.filter(r => r.type === REL.PARENT_CHILD).forEach(rel => {
+                  if (!parentChildMap[rel.parentId]) {
+                    parentChildMap[rel.parentId] = [];
+                  }
+                  parentChildMap[rel.parentId].push(rel.childId);
+                });
+
+                // 1. PARTNER LINES (spouse connections)
+                treeRels.filter(r => r.type === REL.PARTNER).forEach(rel => {
+                  const p1 = treePeople.find(p => p.id === rel.person1Id);
+                  const p2 = treePeople.find(p => p.id === rel.person2Id);
+                  if (!p1 || !p2) return;
+
+                  const midY = p1.y + CARD.h / 2;
+                  elements.push(
+                    <line
+                      key={`spouse-${rel.id}`}
+                      x1={p1.x + CARD.w}
+                      y1={midY}
+                      x2={p2.x}
+                      y2={midY}
+                      stroke="#8B8B8B"
+                      strokeWidth={2 * zoom}
+                    />
+                  );
+                });
+
+                // 2. PARENT-CHILD CONNECTIONS
+                // Group children by their parent couples
+                const processedChildren = new Set();
+                
+                // Process couples first
+                treeRels.filter(r => r.type === REL.PARTNER).forEach(partnerRel => {
+                  const parent1Id = partnerRel.person1Id;
+                  const parent2Id = partnerRel.person2Id;
+                  
+                  const parent1 = treePeople.find(p => p.id === parent1Id);
+                  const parent2 = treePeople.find(p => p.id === parent2Id);
+                  
+                  if (!parent1 || !parent2) return;
+
+                  // Find shared children
+                  const parent1Children = parentChildMap[parent1Id] || [];
+                  const parent2Children = parentChildMap[parent2Id] || [];
+                  const sharedChildren = parent1Children.filter(cid => parent2Children.includes(cid));
+                  
+                  // Also include siblings of shared children
+                  const allChildrenIds = new Set(sharedChildren);
+                  sharedChildren.forEach(childId => {
+                    const siblingRels = treeRels.filter(r => 
+                      r.type === REL.SIBLING && 
+                      (r.person1Id === childId || r.person2Id === childId)
+                    );
+                    siblingRels.forEach(sibRel => {
+                      const siblingId = sibRel.person1Id === childId ? sibRel.person2Id : sibRel.person1Id;
+                      allChildrenIds.add(siblingId);
+                    });
+                  });
+                  
+                  const finalChildrenIds = Array.from(allChildrenIds);
+                  if (finalChildrenIds.length === 0) return;
+
+                  const children = finalChildrenIds
+                    .map(cid => treePeople.find(p => p.id === cid))
+                    .filter(Boolean);
+                  
+                  if (children.length === 0) return;
+
+                  // Mark these children as processed
+                  finalChildrenIds.forEach(cid => processedChildren.add(cid));
+
+                  // Calculate center point between parents - center of the horizontal line
+                  const parentsCenterX = (parent1.x + CARD.w + parent2.x) / 2;
+                  const parentsCenterY = parent1.y + CARD.h / 2; // Start from the spouse line height
+
+                  if (children.length === 1) {
+                    // SINGLE CHILD: Direct vertical line
+                    const child = children[0];
+                    const childCenterX = child.x + CARD.w / 2;
+                    
+                    elements.push(
+                      <line
+                        key={`pc-${parent1Id}-${parent2Id}-${child.id}`}
+                        x1={parentsCenterX}
+                        y1={parentsCenterY}
+                        x2={childCenterX}
+                        y2={child.y}
+                        stroke="#8B8B8B"
+                        strokeWidth={2 * zoom}
+                      />
+                    );
+                  } else {
+                    // MULTIPLE CHILDREN: Hierarchy with horizontal bar
+                    const childXPositions = children.map(c => c.x + CARD.w / 2);
+                    const barX1 = Math.min(...childXPositions);
+                    const barX2 = Math.max(...childXPositions);
+                    const barY = parent1.y + CARD.h + 40;
+                    const barCenterX = (barX1 + barX2) / 2;
+
+                    // Vertical line from parents down to horizontal bar
+                    elements.push(
+                      <line
+                        key={`pc-bar-${parent1Id}-${parent2Id}`}
+                        x1={parentsCenterX}
+                        y1={parentsCenterY}
+                        x2={barCenterX}
+                        y2={barY}
+                        stroke="#8B8B8B"
+                        strokeWidth={2 * zoom}
+                      />
+                    );
+
+                    // Horizontal bar connecting children
+                    elements.push(
+                      <line
+                        key={`hbar-${parent1Id}-${parent2Id}`}
+                        x1={barX1}
+                        y1={barY}
+                        x2={barX2}
+                        y2={barY}
+                        stroke="#8B8B8B"
+                        strokeWidth={2 * zoom}
+                      />
+                    );
+
+                    // Vertical drops from bar to each child
+                    children.forEach(child => {
+                      const childCenterX = child.x + CARD.w / 2;
+                      
+                      elements.push(
+                        <line
+                          key={`drop-${child.id}`}
+                          x1={childCenterX}
+                          y1={barY}
+                          x2={childCenterX}
+                          y2={child.y}
+                          stroke="#8B8B8B"
+                          strokeWidth={2 * zoom}
+                        />
+                      );
+                    });
+                  }
+                });
+
+                // Process single parents (children not yet processed)
+                Object.entries(parentChildMap).forEach(([parentIdStr, childIds]) => {
+                  const parentId = parseInt(parentIdStr);
+                  const parent = treePeople.find(p => p.id === parentId);
+                  if (!parent) return;
+
+                  // Get unprocessed children
+                  const unprocessedChildIds = childIds.filter(cid => !processedChildren.has(cid));
+                  
+                  // Also include siblings of unprocessed children
+                  const allChildrenIds = new Set(unprocessedChildIds);
+                  unprocessedChildIds.forEach(childId => {
+                    const siblingRels = treeRels.filter(r => 
+                      r.type === REL.SIBLING && 
+                      (r.person1Id === childId || r.person2Id === childId)
+                    );
+                    siblingRels.forEach(sibRel => {
+                      const siblingId = sibRel.person1Id === childId ? sibRel.person2Id : sibRel.person1Id;
+                      if (!processedChildren.has(siblingId)) {
+                        allChildrenIds.add(siblingId);
+                      }
+                    });
+                  });
+                  
+                  const finalChildrenIds = Array.from(allChildrenIds);
+                  if (finalChildrenIds.length === 0) return;
+
+                  const children = finalChildrenIds
+                    .map(cid => treePeople.find(p => p.id === cid))
+                    .filter(Boolean);
+                  
+                  if (children.length === 0) return;
+
+                  // Mark as processed
+                  finalChildrenIds.forEach(cid => processedChildren.add(cid));
+
+                  const parentCenterX = parent.x + CARD.w / 2;
+                  const parentCenterY = parent.y + CARD.h;
+
+                  if (children.length === 1) {
+                    // SINGLE CHILD: Direct line
+                    const child = children[0];
+                    const childCenterX = child.x + CARD.w / 2;
+                    
+                    elements.push(
+                      <line
+                        key={`pc-single-${parentId}-${child.id}`}
+                        x1={parentCenterX}
+                        y1={parentCenterY}
+                        x2={childCenterX}
+                        y2={child.y}
+                        stroke="#8B8B8B"
+                        strokeWidth={2 * zoom}
+                      />
+                    );
+                  } else {
+                    // MULTIPLE CHILDREN: Hierarchy
+                    const childXPositions = children.map(c => c.x + CARD.w / 2);
+                    const barX1 = Math.min(...childXPositions);
+                    const barX2 = Math.max(...childXPositions);
+                    const barY = parentCenterY + 40;
+                    const barCenterX = (barX1 + barX2) / 2;
+
+                    elements.push(
+                      <line
+                        key={`pc-bar-single-${parentId}`}
+                        x1={parentCenterX}
+                        y1={parentCenterY}
+                        x2={barCenterX}
+                        y2={barY}
+                        stroke="#8B8B8B"
+                        strokeWidth={2 * zoom}
+                      />
+                    );
+
+                    elements.push(
+                      <line
+                        key={`hbar-single-${parentId}`}
+                        x1={barX1}
+                        y1={barY}
+                        x2={barX2}
+                        y2={barY}
+                        stroke="#8B8B8B"
+                        strokeWidth={2 * zoom}
+                      />
+                    );
+
+                    children.forEach(child => {
+                      const childCenterX = child.x + CARD.w / 2;
+                      
+                      elements.push(
+                        <line
+                          key={`drop-single-${child.id}`}
+                          x1={childCenterX}
+                          y1={barY}
+                          x2={childCenterX}
+                          y2={child.y}
+                          stroke="#8B8B8B"
+                          strokeWidth={2 * zoom}
+                        />
+                      );
+                    });
+                  }
+                });
+
+                // 3. SIBLING LINES (for siblings not connected through parents)
+                treeRels.filter(r => r.type === REL.SIBLING).forEach(rel => {
+                  const p1 = treePeople.find(p => p.id === rel.person1Id);
+                  const p2 = treePeople.find(p => p.id === rel.person2Id);
+                  if (!p1 || !p2) return;
+
+                  // Check if already connected via parents
+                  if (processedChildren.has(p1.id) && processedChildren.has(p2.id)) {
+                    // Check if they share parents
+                    let shareParents = false;
+                    Object.values(parentChildMap).forEach(childIds => {
+                      if (childIds.includes(p1.id) && childIds.includes(p2.id)) {
+                        shareParents = true;
+                      }
+                    });
+                    if (shareParents) return;
+                  }
+
+                  const y = Math.min(p1.y, p2.y) + CARD.h / 2;
+                  elements.push(
+                    <line
+                      key={`sibling-${rel.id}`}
+                      x1={p1.x + CARD.w / 2}
+                      y1={y}
+                      x2={p2.x + CARD.w / 2}
+                      y2={y}
+                      stroke="#ccc"
+                      strokeWidth={1 * zoom}
+                    />
+                  );
+                });
+
+                return elements;
+              })()}
+            </svg>
