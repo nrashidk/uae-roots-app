@@ -2265,21 +2265,20 @@ function App() {
                   // Mark these children as processed
                   sharedChildren.forEach(cid => processedChildren.add(cid));
 
-                  // Calculate center point between parents
-                  const parentsCenterX = (parent1.x + parent2.x + CARD.w) / 2;
+                  // Calculate center point of the parent line (line goes from parent1.x + CARD.w to parent2.x)
+                  const parentLineCenterX = ((parent1.x + CARD.w) + parent2.x) / 2;
                   const parentsCenterY = parent1.y + CARD.h;
 
                   if (children.length === 1) {
-                    // SINGLE CHILD: Direct vertical line
+                    // SINGLE CHILD: Direct vertical line from center of parent line to child top
                     const child = children[0];
-                    const childCenterX = child.x + CARD.w / 2;
                     
                     elements.push(
                       <line
                         key={`pc-${parent1Id}-${parent2Id}-${child.id}`}
-                        x1={parentsCenterX}
+                        x1={parentLineCenterX}
                         y1={parentsCenterY}
-                        x2={childCenterX}
+                        x2={parentLineCenterX}
                         y2={child.y}
                         stroke="#8B8B8B"
                         strokeWidth={2 * zoom}
@@ -2291,15 +2290,14 @@ function App() {
                     const barX1 = Math.min(...childXPositions);
                     const barX2 = Math.max(...childXPositions);
                     const barY = parentsCenterY + 40;
-                    const barCenterX = (barX1 + barX2) / 2;
 
-                    // Vertical line from parents down to horizontal bar
+                    // Vertical line from center of parent line down to horizontal bar
                     elements.push(
                       <line
                         key={`pc-bar-${parent1Id}-${parent2Id}`}
-                        x1={parentsCenterX}
+                        x1={parentLineCenterX}
                         y1={parentsCenterY}
-                        x2={barCenterX}
+                        x2={parentLineCenterX}
                         y2={barY}
                         stroke="#8B8B8B"
                         strokeWidth={2 * zoom}
