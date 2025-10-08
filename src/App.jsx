@@ -2284,21 +2284,66 @@ function App() {
                   const parentsCenterY = parent1.y + CARD.h / 2; // Start from the spouse line height
 
                   if (children.length === 1) {
-                    // SINGLE CHILD: Direct vertical line
+                    // SINGLE CHILD: Direct vertical line - ensure child is centered under parents
                     const child = children[0];
                     const childCenterX = child.x + CARD.w / 2;
                     
+                    // Draw vertical line from parents center straight down, then horizontal if needed, then down to child
+                    const verticalDropY = parent1.y + CARD.h / 2 + 20; // Drop 20px down first
+                    
                     elements.push(
+                      // Vertical drop from parents
                       <line
-                        key={`pc-${parent1Id}-${parent2Id}-${child.id}`}
+                        key={`pc-vert-${parent1Id}-${parent2Id}-${child.id}`}
                         x1={parentsCenterX}
                         y1={parentsCenterY}
-                        x2={childCenterX}
-                        y2={child.y}
+                        x2={parentsCenterX}
+                        y2={verticalDropY}
                         stroke="#8B8B8B"
                         strokeWidth={2 * zoom}
                       />
                     );
+                    
+                    if (Math.abs(parentsCenterX - childCenterX) > 1) {
+                      // If child is not centered, draw horizontal line then vertical
+                      elements.push(
+                        // Horizontal line to child's X position
+                        <line
+                          key={`pc-horiz-${parent1Id}-${parent2Id}-${child.id}`}
+                          x1={parentsCenterX}
+                          y1={verticalDropY}
+                          x2={childCenterX}
+                          y2={verticalDropY}
+                          stroke="#8B8B8B"
+                          strokeWidth={2 * zoom}
+                        />
+                      );
+                      elements.push(
+                        // Vertical line down to child
+                        <line
+                          key={`pc-final-${parent1Id}-${parent2Id}-${child.id}`}
+                          x1={childCenterX}
+                          y1={verticalDropY}
+                          x2={childCenterX}
+                          y2={child.y}
+                          stroke="#8B8B8B"
+                          strokeWidth={2 * zoom}
+                        />
+                      );
+                    } else {
+                      // Child is centered, just draw straight line
+                      elements.push(
+                        <line
+                          key={`pc-final-${parent1Id}-${parent2Id}-${child.id}`}
+                          x1={parentsCenterX}
+                          y1={verticalDropY}
+                          x2={childCenterX}
+                          y2={child.y}
+                          stroke="#8B8B8B"
+                          strokeWidth={2 * zoom}
+                        />
+                      );
+                    }
                   } else {
                     // MULTIPLE CHILDREN: Hierarchy with horizontal bar
                     const childXPositions = children.map(c => c.x + CARD.w / 2);
