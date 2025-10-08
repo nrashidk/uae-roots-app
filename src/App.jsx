@@ -2506,11 +2506,6 @@ function App() {
                 const treeRels = relationships.filter(r => r.treeId === currentTree?.id);
                 const elements = [];
 
-                // Debug: Log what we have
-                console.log('Parent Couple Groups:', parentCoupleGroups);
-                console.log('Tree Relationships:', treeRels);
-                console.log('Tree People:', treePeople);
-
                 // 1. SIBLING BARS FIRST - One bar per couple group with 2+ children
                 Object.entries(parentCoupleGroups).forEach(([coupleKey, group]) => {
                   const childrenIds = Array.from(group.children);
