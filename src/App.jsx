@@ -23,7 +23,6 @@ import {
   ArrowLeft,
   ArrowRight,
 } from "lucide-react";
-import { api } from "./lib/api.js";
 import "./App.css";
 
 // UAE Roots Family Tree Application - Enhanced with FamilyEcho Features
@@ -44,12 +43,9 @@ function App() {
   // State Management
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [currentView, setCurrentView] = useState("auth");
-  const [trees, setTrees] = useState([]);
   const [currentTree, setCurrentTree] = useState(null);
   const [people, setPeople] = useState([]);
   const [relationships, setRelationships] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
   const [showPersonForm, setShowPersonForm] = useState(false);
   const [selectedPerson, setSelectedPerson] = useState(null);
   const [editingPerson, setEditingPerson] = useState(null);
@@ -230,163 +226,36 @@ function App() {
     theDaughter: "الابنة",
   };
 
-  // Fetch all trees on mount
-  useEffect(() => {
-    const fetchTrees = async () => {
-      if (!isAuthenticated) return;
-      
-      try {
-        setLoading(true);
-        setError(null);
-        const treesData = await api.trees.getAll();
-        setTrees(treesData);
-        
-        if (treesData.length > 0 && !currentTree) {
-          setCurrentTree(treesData[0]);
-        }
-      } catch (err) {
-        console.error('Error fetching trees:', err);
-        setError(err.message);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchTrees();
-  }, [isAuthenticated]);
-
-  // Fetch people and relationships when currentTree changes
-  useEffect(() => {
-    const fetchTreeData = async () => {
-      if (!currentTree?.id) {
-        setPeople([]);
-        setRelationships([]);
-        return;
-      }
-
-      try {
-        setLoading(true);
-        setError(null);
-        
-        const [peopleData, relationshipsData] = await Promise.all([
-          api.people.getAll(currentTree.id),
-          api.relationships.getAll(currentTree.id)
-        ]);
-        
-        setPeople(peopleData);
-        setRelationships(relationshipsData);
-      } catch (err) {
-        console.error('Error fetching tree data:', err);
-        setError(err.message);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchTreeData();
-  }, [currentTree?.id]);
-
   // Authentication handlers - auto-create first tree on registration
-  const handleGoogleAuth = async () => {
+  const handleGoogleAuth = () => {
     setIsAuthenticated(true);
-    
-    try {
-      setLoading(true);
-      // First, try to get existing trees for the user
-      const existingTrees = await api.trees.getAll();
-      const userTrees = existingTrees.filter(t => t.createdBy === "google-user");
-      
-      if (userTrees.length > 0) {
-        // Use the most recent tree
-        const latestTree = userTrees[userTrees.length - 1];
-        setTrees(userTrees);
-        setCurrentTree(latestTree);
-        setCurrentView("tree-builder");
-      } else {
-        // Create a new tree only if none exists
-        const newTree = await api.trees.create({
-          name: "شجرة عائلتي",
-          description: "",
-          createdBy: "google-user"
-        });
-        setTrees([newTree]);
-        setCurrentTree(newTree);
-        setCurrentView("tree-builder");
-      }
-    } catch (err) {
-      console.error('Error handling authentication:', err);
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
+    const newTree = {
+      id: Date.now(),
+      name: "شجرة عائلتي",
+      createdAt: new Date().toISOString(),
+    };
+    setCurrentTree(newTree);
+    setCurrentView("tree-builder");
   };
-
-  const handleAppleAuth = async () => {
+  const handleAppleAuth = () => {
     setIsAuthenticated(true);
-    
-    try {
-      setLoading(true);
-      // First, try to get existing trees for the user
-      const existingTrees = await api.trees.getAll();
-      const userTrees = existingTrees.filter(t => t.createdBy === "apple-user");
-      
-      if (userTrees.length > 0) {
-        // Use the most recent tree
-        const latestTree = userTrees[userTrees.length - 1];
-        setTrees(userTrees);
-        setCurrentTree(latestTree);
-        setCurrentView("tree-builder");
-      } else {
-        // Create a new tree only if none exists
-        const newTree = await api.trees.create({
-          name: "شجرة عائلتي",
-          description: "",
-          createdBy: "apple-user"
-        });
-        setTrees([newTree]);
-        setCurrentTree(newTree);
-        setCurrentView("tree-builder");
-      }
-    } catch (err) {
-      console.error('Error handling authentication:', err);
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
+    const newTree = {
+      id: Date.now(),
+      name: "شجرة عائلتي",
+      createdAt: new Date().toISOString(),
+    };
+    setCurrentTree(newTree);
+    setCurrentView("tree-builder");
   };
-
-  const handleUAEMobileAuth = async () => {
+  const handleUAEMobileAuth = () => {
     setIsAuthenticated(true);
-    
-    try {
-      setLoading(true);
-      // First, try to get existing trees for the user
-      const existingTrees = await api.trees.getAll();
-      const userTrees = existingTrees.filter(t => t.createdBy === "uae-mobile-user");
-      
-      if (userTrees.length > 0) {
-        // Use the most recent tree
-        const latestTree = userTrees[userTrees.length - 1];
-        setTrees(userTrees);
-        setCurrentTree(latestTree);
-        setCurrentView("tree-builder");
-      } else {
-        // Create a new tree only if none exists
-        const newTree = await api.trees.create({
-          name: "شجرة عائلتي",
-          description: "",
-          createdBy: "uae-mobile-user"
-        });
-        setTrees([newTree]);
-        setCurrentTree(newTree);
-        setCurrentView("tree-builder");
-      }
-    } catch (err) {
-      console.error('Error handling authentication:', err);
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
+    const newTree = {
+      id: Date.now(),
+      name: "شجرة عائلتي",
+      createdAt: new Date().toISOString(),
+    };
+    setCurrentTree(newTree);
+    setCurrentView("tree-builder");
   };
 
   // Calculate age from birth date
@@ -427,50 +296,23 @@ function App() {
     // Build maps for quick lookup
     const idToPerson = Object.fromEntries(people.map((p) => [p.id, { ...p }]));
     const childrenMap = {};
-    const parentMap = {}; // Store ALL parents per child (array)
-    const partnersMap = {}; // Store ALL partners per person (Set)
+    const parentMap = {};
+    const spouseMap = {};
 
     // Build relationship maps
     relationships.forEach((r) => {
       if (r.type === REL.PARENT_CHILD) {
         if (!childrenMap[r.parentId]) childrenMap[r.parentId] = [];
         childrenMap[r.parentId].push(r.childId);
-        
-        // Store all parents for each child (not just one)
-        if (!parentMap[r.childId]) parentMap[r.childId] = [];
-        parentMap[r.childId].push(r.parentId);
+        parentMap[r.childId] = r.parentId;
       } else if (r.type === REL.PARTNER) {
-        // Store all partners (multi-partner support)
-        if (!partnersMap[r.person1Id]) partnersMap[r.person1Id] = new Set();
-        if (!partnersMap[r.person2Id]) partnersMap[r.person2Id] = new Set();
-        partnersMap[r.person1Id].add(r.person2Id);
-        partnersMap[r.person2Id].add(r.person1Id);
-      }
-    });
-
-    // Build couple groups to match connection rendering logic (multi-partner support)
-    const coupleChildrenMap = {}; // coupleKey -> shared children only
-    const processedCouples = new Set();
-    
-    Object.keys(childrenMap).forEach(parentId => {
-      const partners = partnersMap[parentId];
-      if (partners && partners.size > 0) {
-        // Process each partner relationship separately
-        partners.forEach(partnerId => {
-          const coupleKey = [parseInt(parentId), parseInt(partnerId)].sort().join('-');
-          if (!processedCouples.has(coupleKey)) {
-            const parentChildren = childrenMap[parentId] || [];
-            const partnerChildren = childrenMap[partnerId] || [];
-            const sharedChildren = parentChildren.filter(childId => partnerChildren.includes(childId));
-            coupleChildrenMap[coupleKey] = sharedChildren;
-            processedCouples.add(coupleKey);
-          }
-        });
+        spouseMap[r.person1Id] = r.person2Id;
+        spouseMap[r.person2Id] = r.person1Id;
       }
     });
 
     // Find root people (no parents) - prioritize couples
-    const roots = people.filter((p) => !parentMap[p.id] || parentMap[p.id].length === 0);
+    const roots = people.filter((p) => !parentMap[p.id]);
     
     // Assign generation levels (BFS from roots)
     const queue = [];
@@ -511,61 +353,70 @@ function App() {
       const generationPeople = genMap[genNum];
       const processedIds = new Set();
 
-      // First pass: Initialize positions for all people
+      // First pass: Process couples together
       generationPeople.forEach((person) => {
-        person.x = 0; // Temporary - will be set later
-        person.y = startY + genNum * verticalSpacing;
+        if (processedIds.has(person.id)) return;
+
+        const spouseId = spouseMap[person.id];
+        const spouse = spouseId ? idToPerson[spouseId] : null;
+
+        if (spouse && !processedIds.has(spouseId) && spouse.generation === genNum) {
+          // Process couple
+          processedIds.add(person.id);
+          processedIds.add(spouseId);
+          
+          // Position couple side by side
+          person.x = 0; // Temporary - will be set later
+          person.y = startY + genNum * verticalSpacing;
+          spouse.x = 0; // Temporary
+          spouse.y = startY + genNum * verticalSpacing;
+        } else if (!processedIds.has(person.id)) {
+          // Process single person
+          processedIds.add(person.id);
+          person.x = 0; // Temporary
+          person.y = startY + genNum * verticalSpacing;
+        }
       });
     });
 
     // Second pass: Position nodes horizontally with proper family grouping
-    const positionedChildren = new Set(); // Track children already positioned
-    
     generations.forEach((genNum) => {
       const generationPeople = genMap[genNum];
       let currentX = 100; // Start with some padding
 
       // Group people by their children (family units)
       const familyUnits = [];
-      const processedCoupleKeys = new Set();
-      const peopleInCouples = new Set(); // Track people who are in ANY couple
+      const processedIds = new Set();
 
-      // First pass: Create all couple family units
       generationPeople.forEach((person) => {
-        const partners = partnersMap[person.id];
-        
-        if (partners && partners.size > 0) {
-          partners.forEach(partnerId => {
-            const partner = idToPerson[partnerId];
-            if (partner && partner.generation === genNum) {
-              const coupleKey = [person.id, partnerId].sort().join('-');
-              if (!processedCoupleKeys.has(coupleKey)) {
-                // Create couple family unit
-                const sharedChildren = coupleChildrenMap[coupleKey] || [];
-                familyUnits.push({
-                  people: [person, partner],
-                  children: sharedChildren.map(childId => idToPerson[childId]).filter(Boolean),
-                  width: 0
-                });
-                processedCoupleKeys.add(coupleKey);
-                peopleInCouples.add(person.id);
-                peopleInCouples.add(partnerId);
-              }
-            }
-          });
+        if (processedIds.has(person.id)) return;
+
+        const spouseId = spouseMap[person.id];
+        const spouse = spouseId ? idToPerson[spouseId] : null;
+        const children = childrenMap[person.id] || [];
+
+        // Create family unit
+        const family = {
+          people: [person],
+          children: [],
+          width: 0
+        };
+
+        // Add spouse if exists
+        if (spouse && !processedIds.has(spouseId)) {
+          family.people.push(spouse);
+          processedIds.add(spouseId);
+          
+          // Combine children from both spouses
+          const spouseChildren = childrenMap[spouseId] || [];
+          const allChildren = [...new Set([...children, ...spouseChildren])];
+          family.children = allChildren.map(childId => idToPerson[childId]).filter(Boolean);
+        } else {
+          family.children = children.map(childId => idToPerson[childId]).filter(Boolean);
         }
-      });
-      
-      // Second pass: Create single parent family units for people NOT in any couple
-      generationPeople.forEach((person) => {
-        if (!peopleInCouples.has(person.id)) {
-          const children = childrenMap[person.id] || [];
-          familyUnits.push({
-            people: [person],
-            children: children.map(childId => idToPerson[childId]).filter(Boolean),
-            width: 0
-          });
-        }
+
+        processedIds.add(person.id);
+        familyUnits.push(family);
       });
 
       // Position family units horizontally
@@ -601,13 +452,10 @@ function App() {
                                      (family.children.length - 1) * horizontalSpacing;
             const childrenStartX = coupleCenterX - childrenTotalWidth / 2;
             
-            // Position children in the next generation (only if not already positioned)
+            // Position children in the next generation
             family.children.forEach((child, index) => {
-              if (!positionedChildren.has(child.id)) {
-                child.x = childrenStartX + index * (stylingOptions.boxWidth + horizontalSpacing);
-                child.y = startY + (child.generation || genNum + 1) * verticalSpacing;
-                positionedChildren.add(child.id);
-              }
+              child.x = childrenStartX + index * (stylingOptions.boxWidth + horizontalSpacing);
+              child.y = startY + (child.generation || genNum + 1) * verticalSpacing;
             });
           }
         } else {
@@ -622,58 +470,15 @@ function App() {
                                      (family.children.length - 1) * horizontalSpacing;
             const childrenStartX = parentCenterX - childrenTotalWidth / 2;
             
-            // Position children in the next generation (only if not already positioned)
+            // Position children in the next generation
             family.children.forEach((child, index) => {
-              if (!positionedChildren.has(child.id)) {
-                child.x = childrenStartX + index * (stylingOptions.boxWidth + horizontalSpacing);
-                child.y = startY + (child.generation || genNum + 1) * verticalSpacing;
-                positionedChildren.add(child.id);
-              }
+              child.x = childrenStartX + index * (stylingOptions.boxWidth + horizontalSpacing);
+              child.y = startY + (child.generation || genNum + 1) * verticalSpacing;
             });
           }
         }
 
         currentX += familyWidth + horizontalSpacing;
-      });
-
-      // Handle solo children for people in couples (after couples are positioned)
-      generationPeople.forEach((person) => {
-        const partners = partnersMap[person.id];
-        
-        if (partners && partners.size > 0 && person.x !== undefined) { // Person is in a positioned couple
-          // Collect ALL shared children across ALL partners
-          const allSharedChildren = new Set();
-          partners.forEach(partnerId => {
-            const partner = idToPerson[partnerId];
-            if (partner && partner.generation === genNum) {
-              const coupleKey = [person.id, partnerId].sort().join('-');
-              const sharedChildren = coupleChildrenMap[coupleKey] || [];
-              sharedChildren.forEach(childId => allSharedChildren.add(childId));
-            }
-          });
-          
-          const children = childrenMap[person.id] || [];
-          
-          // Find solo children (not shared with ANY partner)
-          const soloChildren = children.filter(childId => !allSharedChildren.has(childId));
-          
-          if (soloChildren.length > 0) {
-            // Position solo children under this parent only
-            const parentCenterX = person.x + stylingOptions.boxWidth / 2;
-            const childrenTotalWidth = soloChildren.length * stylingOptions.boxWidth + 
-                                     (soloChildren.length - 1) * horizontalSpacing;
-            const childrenStartX = parentCenterX - childrenTotalWidth / 2;
-            
-            soloChildren.forEach((childId, index) => {
-              const child = idToPerson[childId];
-              if (child && !positionedChildren.has(child.id)) {
-                child.x = childrenStartX + index * (stylingOptions.boxWidth + horizontalSpacing);
-                child.y = startY + (child.generation || genNum + 1) * verticalSpacing;
-                positionedChildren.add(child.id);
-              }
-            });
-          }
-        }
       });
 
       // Handle people not in family units (shouldn't happen, but just in case)
@@ -719,27 +524,23 @@ function App() {
     treeRels
       .filter(r => r.type === REL.PARENT_CHILD)
       .forEach(r => {
-        // Convert IDs to numbers to ensure matching
-        const parentId = Number(r.parentId);
-        const childId = Number(r.childId);
-        if (!parentChildren[parentId]) parentChildren[parentId] = new Set();
-        parentChildren[parentId].add(childId);
+        if (!parentChildren[r.parentId]) parentChildren[r.parentId] = new Set();
+        parentChildren[r.parentId].add(r.childId);
       });
     
     // Build couple groups indexed by sorted pair key
     const coupleGroups = {};
     const processed = new Set();
     
-    Object.keys(parentChildren).forEach(parentIdStr => {
-      const parentId = Number(parentIdStr);
+    Object.keys(parentChildren).forEach(parentId => {
       // Get all partners for this parent
       const partnerRels = treeRels.filter(r => 
         r.type === REL.PARTNER && 
-        (Number(r.person1Id) === parentId || Number(r.person2Id) === parentId)
+        (r.person1Id === parentId || r.person2Id === parentId)
       );
       
       partnerRels.forEach(spouseRel => {
-        const spouseId = Number(spouseRel.person1Id) === parentId ? Number(spouseRel.person2Id) : Number(spouseRel.person1Id);
+        const spouseId = spouseRel.person1Id === parentId ? spouseRel.person2Id : spouseRel.person1Id;
         
         // Create unique couple key (sorted to ensure consistency)
         const coupleKey = [parentId, spouseId].sort().join('-');
@@ -753,8 +554,8 @@ function App() {
         if (sharedKids.length > 0) {
           // Create couple group with ONLY shared children (not union)
           coupleGroups[coupleKey] = {
-            parents: [Number(parentId), Number(spouseId)],
-            children: new Set(sharedKids.map(Number)) // Use sharedKids, not union!
+            parents: [parentId, spouseId],
+            children: new Set(sharedKids) // Use sharedKids, not union!
           };
           processed.add(coupleKey);
         }
@@ -766,7 +567,7 @@ function App() {
         // Find which children are already in a couple group for this parent
         const childrenInCouples = new Set();
         Object.values(coupleGroups).forEach(group => {
-          if (group.parents.map(Number).includes(parentId)) {
+          if (group.parents.includes(parentId)) {
             group.children.forEach(childId => childrenInCouples.add(childId));
           }
         });
@@ -777,7 +578,7 @@ function App() {
         // Create single-parent group for solo children if any exist
         if (soloChildren.length > 0) {
           coupleGroups[`solo-${parentId}`] = {
-            parents: [Number(parentId)],
+            parents: [parentId],
             children: new Set(soloChildren)
           };
         }
@@ -788,52 +589,14 @@ function App() {
   }, [relationships, currentTree?.id]);
 
   // Tree management
-  const createNewTree = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      
-      const newTree = await api.trees.create({
-        name: "شجرة عائلتي",
-        description: "",
-        createdBy: "user"
-      });
-      
-      const treesData = await api.trees.getAll();
-      setTrees(treesData);
-      setCurrentTree(newTree);
-      setCurrentView("tree-builder");
-    } catch (err) {
-      console.error('Error creating tree:', err);
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Delete tree
-  const deleteTree = async (treeId) => {
-    if (!window.confirm("هل أنت متأكد من حذف هذه الشجرة؟")) return;
-    
-    try {
-      setLoading(true);
-      setError(null);
-      
-      await api.trees.delete(treeId);
-      
-      const treesData = await api.trees.getAll();
-      setTrees(treesData);
-      
-      if (currentTree?.id === treeId) {
-        setCurrentTree(treesData.length > 0 ? treesData[0] : null);
-        setCurrentView("dashboard");
-      }
-    } catch (err) {
-      console.error('Error deleting tree:', err);
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
+  const createNewTree = () => {
+    const newTree = {
+      id: Date.now(),
+      name: "شجرة عائلتي",
+      createdAt: new Date().toISOString(),
+    };
+    setCurrentTree(newTree);
+    setCurrentView("tree-builder");
   };
 
   // Enhanced auto-center view on a specific person
@@ -1020,7 +783,7 @@ function App() {
   };
 
   // Enhanced add person with smart gender defaults
-  const addPerson = async (personData) => {
+  const addPerson = (personData) => {
     const anchorPerson = selectedPerson
       ? people.find((p) => p.id === selectedPerson)
       : null;
@@ -1040,8 +803,10 @@ function App() {
       let existingSiblings = [];
       
       if (relationshipType === "child") {
+        // Find all children who share the SAME parent set (full siblings only)
         const parentIds = [selectedPerson];
         
+        // Check if selected parent has a spouse
         const spouseRel = relationships.find(
           (r) =>
             r.type === REL.PARTNER &&
@@ -1056,6 +821,7 @@ function App() {
           parentIds.push(spouseId);
         }
         
+        // Get all children and build parent sets for each
         const allChildren = relationships
           .filter(r => r.type === REL.PARENT_CHILD && r.treeId === currentTree?.id)
           .reduce((acc, r) => {
@@ -1064,6 +830,7 @@ function App() {
             return acc;
           }, {});
         
+        // Find children who have exactly the same parent set (full siblings)
         const targetParentSet = parentIds.sort().join('-');
         existingSiblings = Object.entries(allChildren)
           .filter(([childId, childParents]) => {
@@ -1073,15 +840,17 @@ function App() {
           .map(([childId]) => people.find(p => p.id === parseInt(childId)))
           .filter(Boolean);
       } else if (relationshipType === "sibling") {
+        // Find existing siblings
         existingSiblings = relationships
           .filter(r => r.type === REL.SIBLING && 
                   (r.person1Id === selectedPerson || r.person2Id === selectedPerson) &&
                   r.treeId === currentTree?.id)
           .map(r => people.find(p => p.id === (r.person1Id === selectedPerson ? r.person2Id : r.person1Id)))
           .filter(Boolean);
-        existingSiblings.push(anchorPerson);
+        existingSiblings.push(anchorPerson); // Include the anchor person
       }
       
+      // Find max birth order and add 1
       const maxBirthOrder = existingSiblings.length > 0 
         ? Math.max(...existingSiblings.map(s => s.birthOrder || 0))
         : 0;
@@ -1091,165 +860,123 @@ function App() {
 
     const position = calculatePosition(relationshipType, anchorPerson);
 
-    try {
-      setLoading(true);
-      setError(null);
+    const newPerson = {
+      id: Date.now(),
+      ...finalPersonData,
+      x: position.x,
+      y: position.y,
+      treeId: currentTree?.id,
+      isLiving: finalPersonData.isLiving !== false,
+      birthOrder: finalPersonData.birthOrder || 0,
+    };
 
-      const newPerson = await api.people.create({
-        ...finalPersonData,
-        x: position.x,
-        y: position.y,
-        treeId: currentTree?.id,
-        isLiving: finalPersonData.isLiving !== false,
-        birthOrder: finalPersonData.birthOrder || 0,
-      });
+    setPeople((prev) => [...prev, newPerson]);
 
-      if (selectedPerson && relationshipType) {
-        const relationshipsToCreate = [];
+    // Create relationships
+    if (selectedPerson && relationshipType) {
+      const newRelationship = { id: Date.now() + 1, treeId: currentTree?.id };
 
-        switch (relationshipType) {
-          case "spouse":
-            relationshipsToCreate.push({
-              type: REL.PARTNER,
-              person1Id: selectedPerson,
-              person2Id: newPerson.id,
-              treeId: currentTree?.id
-            });
-            break;
-          case "child":
-            relationshipsToCreate.push({
+      switch (relationshipType) {
+        case "spouse":
+          newRelationship.type = REL.PARTNER;
+          newRelationship.person1Id = selectedPerson;
+          newRelationship.person2Id = newPerson.id;
+          break;
+        case "child":
+          newRelationship.type = REL.PARENT_CHILD;
+          newRelationship.parentId = selectedPerson;
+          newRelationship.childId = newPerson.id;
+
+          // Add relationship with spouse if exists
+          const spouseRel = relationships.find(
+            (r) =>
+              r.type === REL.PARTNER &&
+              (r.person1Id === selectedPerson ||
+                r.person2Id === selectedPerson) &&
+              r.treeId === currentTree?.id,
+          );
+
+          if (spouseRel) {
+            const spouseId =
+              spouseRel.person1Id === selectedPerson
+                ? spouseRel.person2Id
+                : spouseRel.person1Id;
+            const spouseChildRelationship = {
+              id: Date.now() + 2,
               type: REL.PARENT_CHILD,
-              parentId: selectedPerson,
+              parentId: spouseId,
               childId: newPerson.id,
-              treeId: currentTree?.id
-            });
-
-            const spouseRel = relationships.find(
-              (r) =>
-                r.type === REL.PARTNER &&
-                (r.person1Id === selectedPerson ||
-                  r.person2Id === selectedPerson) &&
-                r.treeId === currentTree?.id,
-            );
-
-            if (spouseRel) {
-              const spouseId =
-                spouseRel.person1Id === selectedPerson
-                  ? spouseRel.person2Id
-                  : spouseRel.person1Id;
-              relationshipsToCreate.push({
-                type: REL.PARENT_CHILD,
-                parentId: spouseId,
-                childId: newPerson.id,
-                treeId: currentTree?.id
-              });
-            }
-            break;
-          case "parent":
-            relationshipsToCreate.push({
-              type: REL.PARENT_CHILD,
-              parentId: newPerson.id,
-              childId: selectedPerson,
-              treeId: currentTree?.id
-            });
-            break;
-          case "sibling":
-            relationshipsToCreate.push({
-              type: REL.SIBLING,
-              person1Id: selectedPerson,
-              person2Id: newPerson.id,
-              isBreastfeeding: personData.isBreastfeeding || false,
-              treeId: currentTree?.id
-            });
-            break;
-        }
-
-        for (const rel of relationshipsToCreate) {
-          await api.relationships.create(rel);
-        }
+              treeId: currentTree?.id,
+            };
+            setRelationships((prev) => [...prev, spouseChildRelationship]);
+          }
+          break;
+        case "parent":
+          newRelationship.type = REL.PARENT_CHILD;
+          newRelationship.parentId = newPerson.id;
+          newRelationship.childId = selectedPerson;
+          break;
+        case "sibling":
+          newRelationship.type = REL.SIBLING;
+          newRelationship.person1Id = selectedPerson;
+          newRelationship.person2Id = newPerson.id;
+          newRelationship.isBreastfeeding = personData.isBreastfeeding || false;
+          break;
       }
 
-      const [peopleData, relationshipsData] = await Promise.all([
-        api.people.getAll(currentTree.id),
-        api.relationships.getAll(currentTree.id)
-      ]);
-      
-      setPeople(peopleData);
-      setRelationships(relationshipsData);
-
-      const createdPerson = peopleData.find(p => p.id === newPerson.id);
-      if (createdPerson) {
-        setTimeout(() => {
-          centerOnPerson(createdPerson);
-        }, 100);
-      }
-
-      setShowPersonForm(false);
-      setRelationshipType(null);
-      setEditingPerson(null);
-      setSelectedPerson(null);
-    } catch (err) {
-      console.error('Error adding person:', err);
-      setError(err.message);
-    } finally {
-      setLoading(false);
+      setRelationships((prev) => [...prev, newRelationship]);
     }
+
+    // Auto-center on new person
+    setTimeout(() => {
+      centerOnPerson(newPerson);
+    }, 100);
+
+    setShowPersonForm(false);
+    setRelationshipType(null);
+    setEditingPerson(null);
+    setSelectedPerson(null);
   };
 
   // Update person
-  const updatePerson = async (personData) => {
-    if (!editingPerson) return;
-
-    try {
-      setLoading(true);
-      setError(null);
-
-      await api.people.update(editingPerson, personData);
-
-      const peopleData = await api.people.getAll(currentTree.id);
-      setPeople(peopleData);
-
-      setShowPersonForm(false);
-      setEditingPerson(null);
-    } catch (err) {
-      console.error('Error updating person:', err);
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
+  const updatePerson = (personData) => {
+    setPeople((prev) =>
+      prev.map((p) => (p.id === editingPerson ? { ...p, ...personData } : p)),
+    );
+    setShowPersonForm(false);
+    setEditingPerson(null);
   };
 
   // Delete person
-  const deletePerson = async (personId) => {
-    if (!window.confirm(t.deleteConfirm)) return;
-
-    try {
-      setLoading(true);
-      setError(null);
-
-      await api.people.delete(personId);
-
-      const [peopleData, relationshipsData] = await Promise.all([
-        api.people.getAll(currentTree.id),
-        api.relationships.getAll(currentTree.id)
-      ]);
-
-      setPeople(peopleData);
-      setRelationships(relationshipsData);
-
-      if (peopleData.length === 0) {
-        setShowPersonForm(false);
-        setEditingPerson(null);
-        setRelationshipType(null);
-        setCurrentView("dashboard");
-      }
-
+  const deletePerson = (personId) => {
+    if (window.confirm(t.deleteConfirm)) {
+      setPeople((prev) => {
+        const updatedPeople = prev.filter((p) => p.id !== personId);
+        
+        // If tree becomes empty after deletion, reset tree and go to dashboard
+        const remainingInTree = updatedPeople.filter(
+          (p) => p.treeId === currentTree?.id
+        );
+        if (remainingInTree.length === 0) {
+          setShowPersonForm(false);
+          setEditingPerson(null);
+          setRelationshipType(null);
+          setCurrentTree(null);
+          setCurrentView("dashboard");
+        }
+        
+        return updatedPeople;
+      });
+      setRelationships((prev) =>
+        prev.filter(
+          (r) =>
+            r.person1Id !== personId &&
+            r.person2Id !== personId &&
+            r.parentId !== personId &&
+            r.childId !== personId,
+        ),
+      );
       setSelectedPerson(null);
-    } catch (err) {
-      console.error('Error deleting person:', err);
-      setError(err.message);
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -1285,75 +1012,57 @@ function App() {
   };
 
   // Move person left (swap with ADJACENT higher birth order sibling - older)
-  const moveBirthOrderLeft = async (personId) => {
+  const moveBirthOrderLeft = (personId) => {
     const person = people.find(p => p.id === personId);
     if (!person) return;
     
     const siblings = getSiblingsWithSameParents(personId);
-    if (siblings.length < 2) return;
+    if (siblings.length < 2) return; // Need at least 2 siblings to reorder
     
     const currentBirthOrder = person.birthOrder || 0;
     
+    // Find the CLOSEST sibling with next higher birth order (immediately to the left)
+    // Higher birth order = older = positioned more to the left
     const candidateSiblings = siblings
       .filter(s => (s.birthOrder || 0) > currentBirthOrder)
-      .sort((a, b) => (a.birthOrder || 0) - (b.birthOrder || 0));
+      .sort((a, b) => (a.birthOrder || 0) - (b.birthOrder || 0)); // Sort ascending to get the smallest higher value
     
-    const targetSibling = candidateSiblings[0];
-    if (!targetSibling) return;
+    const targetSibling = candidateSiblings[0]; // Get the one with smallest birthOrder > current
+    if (!targetSibling) return; // Already leftmost (highest birth order)
     
-    try {
-      setLoading(true);
-      setError(null);
-
-      await Promise.all([
-        api.people.update(personId, { birthOrder: targetSibling.birthOrder || 0 }),
-        api.people.update(targetSibling.id, { birthOrder: currentBirthOrder })
-      ]);
-
-      const peopleData = await api.people.getAll(currentTree.id);
-      setPeople(peopleData);
-    } catch (err) {
-      console.error('Error updating birth order:', err);
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
+    // Swap birth orders
+    setPeople(prev => prev.map(p => {
+      if (p.id === personId) return { ...p, birthOrder: targetSibling.birthOrder || 0 };
+      if (p.id === targetSibling.id) return { ...p, birthOrder: currentBirthOrder };
+      return p;
+    }));
   };
 
   // Move person right (swap with ADJACENT lower birth order sibling - younger)
-  const moveBirthOrderRight = async (personId) => {
+  const moveBirthOrderRight = (personId) => {
     const person = people.find(p => p.id === personId);
     if (!person) return;
     
     const siblings = getSiblingsWithSameParents(personId);
-    if (siblings.length < 2) return;
+    if (siblings.length < 2) return; // Need at least 2 siblings to reorder
     
     const currentBirthOrder = person.birthOrder || 0;
     
+    // Find the CLOSEST sibling with next lower birth order (immediately to the right)
+    // Lower birth order = younger = positioned more to the right
     const candidateSiblings = siblings
       .filter(s => (s.birthOrder || 0) < currentBirthOrder)
-      .sort((a, b) => (b.birthOrder || 0) - (a.birthOrder || 0));
+      .sort((a, b) => (b.birthOrder || 0) - (a.birthOrder || 0)); // Sort descending to get the largest lower value
     
-    const targetSibling = candidateSiblings[0];
-    if (!targetSibling) return;
+    const targetSibling = candidateSiblings[0]; // Get the one with largest birthOrder < current
+    if (!targetSibling) return; // Already rightmost (lowest birth order)
     
-    try {
-      setLoading(true);
-      setError(null);
-
-      await Promise.all([
-        api.people.update(personId, { birthOrder: targetSibling.birthOrder || 0 }),
-        api.people.update(targetSibling.id, { birthOrder: currentBirthOrder })
-      ]);
-
-      const peopleData = await api.people.getAll(currentTree.id);
-      setPeople(peopleData);
-    } catch (err) {
-      console.error('Error updating birth order:', err);
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
+    // Swap birth orders
+    setPeople(prev => prev.map(p => {
+      if (p.id === personId) return { ...p, birthOrder: targetSibling.birthOrder || 0 };
+      if (p.id === targetSibling.id) return { ...p, birthOrder: currentBirthOrder };
+      return p;
+    }));
   };
 
   // Get available parent spouses that can be linked to a child
@@ -1398,16 +1107,18 @@ function App() {
   };
 
   // Link child to an additional parent (spouse of existing parent)
-  const linkChildToParent = async (childId, newParentId) => {
+  const linkChildToParent = (childId, newParentId) => {
+    // Validate that child doesn't already have 2 parents
     const currentParentRels = relationships.filter(
       r => r.type === REL.PARENT_CHILD && r.childId === childId && r.treeId === currentTree?.id
     );
     
     if (currentParentRels.length >= 2) {
-      alert("هذا الطفل لديه والدين بالفعل");
+      alert("هذا الطفل لديه والدين بالفعل"); // This child already has 2 parents
       return;
     }
     
+    // Validate that new parent is actually a spouse of an existing parent
     const currentParentIds = currentParentRels.map(r => r.parentId);
     const isValidSpouse = currentParentIds.some(parentId => {
       return relationships.some(
@@ -1419,69 +1130,59 @@ function App() {
     });
     
     if (!isValidSpouse) {
-      alert("الشخص المحدد ليس زوجاً/زوجة لأي من والدي الطفل");
+      alert("الشخص المحدد ليس زوجاً/زوجة لأي من والدي الطفل"); // Selected person is not spouse of child's parent
       return;
     }
-
-    try {
-      setLoading(true);
-      setError(null);
-
-      const newParentIds = [...currentParentIds, newParentId].sort();
-      
-      const tempRelationships = [...relationships, {
-        type: REL.PARENT_CHILD,
-        parentId: newParentId,
-        childId: childId,
-        treeId: currentTree?.id
-      }];
-      
-      const childrenParentMap = tempRelationships
-        .filter(r => r.type === REL.PARENT_CHILD && r.treeId === currentTree?.id)
-        .reduce((acc, r) => {
-          if (!acc[r.childId]) acc[r.childId] = [];
-          acc[r.childId].push(r.parentId);
-          return acc;
-        }, {});
-      
-      const targetParentSet = newParentIds.join('-');
-      const siblings = Object.entries(childrenParentMap)
-        .filter(([cId, parentIds]) => {
-          const parentSet = parentIds.sort().join('-');
-          return parentSet === targetParentSet;
-        })
-        .map(([cId]) => people.find(p => p.id === parseInt(cId)))
-        .filter(Boolean)
-        .filter(p => p.id !== childId);
-      
-      const maxBirthOrder = siblings.length > 0 
-        ? Math.max(...siblings.map(s => s.birthOrder || 0))
-        : 0;
-      const newBirthOrder = maxBirthOrder + 1;
-      
-      await api.people.update(childId, { birthOrder: newBirthOrder });
-      
-      await api.relationships.create({
-        type: REL.PARENT_CHILD,
-        parentId: newParentId,
-        childId: childId,
-        treeId: currentTree?.id
-      });
-
-      const [peopleData, relationshipsData] = await Promise.all([
-        api.people.getAll(currentTree.id),
-        api.relationships.getAll(currentTree.id)
-      ]);
-      
-      setPeople(peopleData);
-      setRelationships(relationshipsData);
-      setShowManageParentsDialog(false);
-    } catch (err) {
-      console.error('Error linking child to parent:', err);
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
+    
+    // Create new parent-child relationship
+    const newRelationship = {
+      id: Date.now(),
+      type: REL.PARENT_CHILD,
+      parentId: newParentId,
+      childId: childId,
+      treeId: currentTree?.id
+    };
+    
+    // Recalculate birth order for the child in their new parent set
+    // The new parent set now includes both the original parent and the new parent
+    const newParentIds = [...currentParentIds, newParentId].sort();
+    
+    // Find all children with the same parent set (will be siblings after this operation)
+    const updatedRelationships = [...relationships, newRelationship];
+    
+    // Build map of children to their parent sets
+    const childrenParentMap = updatedRelationships
+      .filter(r => r.type === REL.PARENT_CHILD && r.treeId === currentTree?.id)
+      .reduce((acc, r) => {
+        if (!acc[r.childId]) acc[r.childId] = [];
+        acc[r.childId].push(r.parentId);
+        return acc;
+      }, {});
+    
+    // Find siblings with the same parent set
+    const targetParentSet = newParentIds.join('-');
+    const siblings = Object.entries(childrenParentMap)
+      .filter(([cId, parentIds]) => {
+        const parentSet = parentIds.sort().join('-');
+        return parentSet === targetParentSet;
+      })
+      .map(([cId]) => people.find(p => p.id === parseInt(cId)))
+      .filter(Boolean)
+      .filter(p => p.id !== childId); // Exclude the child being linked
+    
+    // Calculate new birth order (max of siblings + 1)
+    const maxBirthOrder = siblings.length > 0 
+      ? Math.max(...siblings.map(s => s.birthOrder || 0))
+      : 0;
+    const newBirthOrder = maxBirthOrder + 1;
+    
+    // Update the child's birth order
+    setPeople(prev => prev.map(p => 
+      p.id === childId ? { ...p, birthOrder: newBirthOrder } : p
+    ));
+    
+    setRelationships(prev => [...prev, newRelationship]);
+    setShowManageParentsDialog(false);
   };
 
   // Enhanced pan handling with smooth dragging
@@ -1528,9 +1229,7 @@ function App() {
   const handleMouseUp = (e) => {
     if (isDragging) {
       setIsDragging(false);
-      if (canvasRef.current) {
-        canvasRef.current.style.cursor = "grab";
-      }
+      e.currentTarget.style.cursor = "grab";
     }
   };
 
@@ -2515,7 +2214,7 @@ function App() {
                   if (children.length < 2) return;
 
                   // Use first parent for Y position (couples share same Y)
-                  const parent = treePeople.find(p => p.id === Number(group.parents[0]));
+                  const parent = treePeople.find(p => p.id === group.parents[0]);
                   if (!parent) return;
 
                   // Calculate exact bar position and extent
@@ -2699,12 +2398,12 @@ function App() {
                 <div
                   key={person.id}
                   data-person-box
-                  className={`absolute rounded-lg p-3 cursor-pointer transition-all duration-200 select-none ${
+                  className={`absolute border-2 rounded-lg p-3 cursor-pointer transition-all duration-200 select-none ${
                     selectedPerson === person.id
-                      ? "border-4 border-green-500 shadow-[0_0_20px_rgba(34,197,94,0.6)] ring-4 ring-green-300 ring-opacity-50 scale-105"
+                      ? "border-green-500 shadow-lg"
                       : isBreastfeedingSibling
                       ? "border-green-400 border-4 hover:border-green-500"
-                      : "border-2 border-gray-300 hover:border-gray-400"
+                      : "border-gray-300 hover:border-gray-400"
                   }`}
                   style={{
                     left: person.x,
@@ -3050,12 +2749,7 @@ function App() {
             <div className="flex flex-col max-h-full">
               <div className="flex justify-between items-center p-4 border-b border-gray-200">
                 <h2 className="text-xl font-bold text-gray-900 arabic-text">
-                  {editingPerson ? t.editFamilyMember : 
-                    relationshipType === 'spouse' ? t.addSpouse :
-                    relationshipType === 'child' ? t.addChild :
-                    relationshipType === 'parent' ? t.addParent :
-                    relationshipType === 'sibling' ? t.addSibling :
-                    t.addFamilyMember}
+                  {editingPerson ? t.editFamilyMember : t.addFamilyMember}
                 </h2>
                 <Button
                   onClick={() => {
