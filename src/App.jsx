@@ -2346,26 +2346,26 @@ function App() {
                     }
                   } else {
                     // MULTIPLE CHILDREN: Hierarchy with horizontal bar
-                    const childXPositions = children.map(c => c.x + CARD.w / 2);
-                    const barX1 = Math.min(...childXPositions);
-                    const barX2 = Math.max(...childXPositions);
+                    // Calculate exact center positions for all children
+                    const childrenCenters = children.map(child => child.x + CARD.w / 2);
                     const barY = parent1.y + CARD.h + 40;
-                    const barCenterX = (barX1 + barX2) / 2;
+                    const barX1 = Math.min(...childrenCenters);
+                    const barX2 = Math.max(...childrenCenters);
 
-                    // Vertical line from parents down to horizontal bar
+                    // Vertical line from parents center straight down to horizontal bar
                     elements.push(
                       <line
                         key={`pc-bar-${parent1Id}-${parent2Id}`}
                         x1={parentsCenterX}
                         y1={parentsCenterY}
-                        x2={barCenterX}
+                        x2={parentsCenterX}
                         y2={barY}
                         stroke="#8B8B8B"
                         strokeWidth={2 * zoom}
                       />
                     );
 
-                    // Horizontal bar connecting children
+                    // Horizontal bar connecting all children centers
                     elements.push(
                       <line
                         key={`hbar-${parent1Id}-${parent2Id}`}
@@ -2378,9 +2378,9 @@ function App() {
                       />
                     );
 
-                    // Vertical drops from bar to each child
-                    children.forEach(child => {
-                      const childCenterX = child.x + CARD.w / 2;
+                    // Vertical drops from bar to each child center-top
+                    children.forEach((child, index) => {
+                      const childCenterX = childrenCenters[index];
                       
                       elements.push(
                         <line
@@ -2454,24 +2454,26 @@ function App() {
                     );
                   } else {
                     // MULTIPLE CHILDREN: Hierarchy
-                    const childXPositions = children.map(c => c.x + CARD.w / 2);
-                    const barX1 = Math.min(...childXPositions);
-                    const barX2 = Math.max(...childXPositions);
+                    // Calculate exact center positions for all children
+                    const childrenCenters = children.map(child => child.x + CARD.w / 2);
                     const barY = parentCenterY + 40;
-                    const barCenterX = (barX1 + barX2) / 2;
+                    const barX1 = Math.min(...childrenCenters);
+                    const barX2 = Math.max(...childrenCenters);
 
+                    // Vertical line from parent center straight down to horizontal bar
                     elements.push(
                       <line
                         key={`pc-bar-single-${parentId}`}
                         x1={parentCenterX}
                         y1={parentCenterY}
-                        x2={barCenterX}
+                        x2={parentCenterX}
                         y2={barY}
                         stroke="#8B8B8B"
                         strokeWidth={2 * zoom}
                       />
                     );
 
+                    // Horizontal bar connecting all children centers
                     elements.push(
                       <line
                         key={`hbar-single-${parentId}`}
@@ -2484,8 +2486,9 @@ function App() {
                       />
                     );
 
-                    children.forEach(child => {
-                      const childCenterX = child.x + CARD.w / 2;
+                    // Vertical drops from bar to each child center-top
+                    children.forEach((child, index) => {
+                      const childCenterX = childrenCenters[index];
                       
                       elements.push(
                         <line
