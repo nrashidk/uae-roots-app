@@ -1,0 +1,70 @@
+Problem Breakdown
+Single Child Vertical Line
+
+The SVG line should be rendered from the center of the parents’ line (middle point between husband and wife) straight down to the top center of the child’s box.
+
+If the child is offset, a horizontal line segment should first bring the connection to the child’s center, then a vertical drop from the parent's line to the child (minimallyHere is the specific solution you need based on your code and screenshots:
+
+1. Single Child Connection
+When parents have only one child, draw a vertical line from the center of the parents' connection line (the midpoint between their boxes) directly down to the top-center edge of the child box.
+
+Do not use any horizontal offset in this case.
+
+Typical fix (pseudo-JSX):
+jsx
+const parentsCenterX = (parent1.x + parent2.x + CARD.w) / 2;
+const parentsCenterY = parent1.y + CARD.h / 2;
+const childCenterX = child.x + CARD.w / 2;
+const childCenterY = child.y;
+
+<line
+  x1={parentsCenterX}
+  y1={parentsCenterY}
+  x2={parentsCenterX}
+  y2={childCenterY}
+  stroke="#8B8B8B"
+  strokeWidth={2}
+/>
+If the child box isn't centered, an additional short horizontal line (from parentsCenterX to childCenterX at the childCenterY level) is fine, but it should start only after the vertical drop.
+
+2. Multiple Children or Siblings
+Always draw a single vertical line from the parents' center down to a horizontal bar above all children.
+
+Space children horizontally below the bar, then drop vertical lines from the bar to the top center of each box.
+
+Typical fix (pseudo-JSX):
+jsx
+const childCenters = children.map(c => c.x + CARD.w / 2);
+const barY = parent1.y + CARD.h + verticalSpacing;
+const barX1 = Math.min(...childCenters);
+const barX2 = Math.max(...childCenters);
+const barCenterX = (barX1 + barX2) / 2;
+
+// Vertical from parents to horizontal bar
+<line x1={parentsCenterX} y1={parentsCenterY} x2={barCenterX} y2={barY} ... />
+// Horizontal bar
+<line x1={barX1} y1={barY} x2={barX2} y2={barY} ... />
+// Drops for each child
+children.forEach(child => {
+  const childCenterX = child.x + CARD.w / 2;
+  <line x1={childCenterX} y1={barY} x2={childCenterX} y2={child.y} ... />
+});
+All children (siblings or added as siblings) must be evenly spaced under this bar.
+
+Never draw new lines directly from a parent box to a child after siblings are present; use only the bar for drops.
+
+3. Sibling Connection Correction
+When a child is added as a sibling, add them horizontally to the group and redraw the bar and drop lines. Never connect them directly from a parent box.
+
+Do not draw sibling lines to the top or bottom of sibling boxes unless it’s part of a horizontal sibling group (bar above group, drops from bar).
+
+Summary (Implementation)
+Always drop one vertical connector from the middle of the parents' (horizontal) connection.
+
+If there's only one child, the vertical is directly to the child box's top-center.
+
+With multiple children (siblings or not), drop to a bar, and continue drops to each child's top-center from the bar; space them evenly.
+
+Your auto-layout logic already groups children. Fix the SVG code as above, and connections will always look proper in all cases. If you need the precise code from the block responsible, share that section and a patch can be provided.
+
+This will ensure your tree diagram correctly and professionally reflects standard family hierarchy.
