@@ -17,6 +17,9 @@ import {
   User,
   MoveLeft,
   MoveRight,
+  Loader2,
+  Eye,
+  EyeOff,
 } from "lucide-react";
 import FamilyTreeLayout from "./lib/family-tree-layout.js";
 import {
@@ -25,6 +28,7 @@ import {
   addPersonWithRelationship,
 } from "./lib/dataTransform.js";
 import TreeCanvas from "./components/FamilyTree/TreeCanvas.jsx";
+import { useAuth } from "./hooks/useAuth";
 
 function App() {
   const CARD = { w: 140, h: 90 };
@@ -34,7 +38,12 @@ function App() {
     SIBLING: "sibling",
   };
 
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const { user, isAuthenticated, isLoading: authLoading, error: authError, loginWithGoogle, loginWithMicrosoft, loginWithEmail, signUpWithEmail, logout } = useAuth();
+  const [authMode, setAuthMode] = useState('login');
+  const [emailInput, setEmailInput] = useState('');
+  const [passwordInput, setPasswordInput] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [authProcessing, setAuthProcessing] = useState(false);
   const [currentView, setCurrentView] = useState("auth");
   const [currentTree, setCurrentTree] = useState(null);
   const [people, setPeople] = useState([]);
@@ -272,8 +281,7 @@ function App() {
     return "";
   }, [relationshipType, editingPerson, selectedPerson, treePeople]);
 
-  const handleGoogleAuth = () => {
-    setIsAuthenticated(true);
+  const handleAuthSuccess = () => {
     const newTree = {
       id: Date.now(),
       name: "شجرة عائلتي",
@@ -281,6 +289,61 @@ function App() {
     };
     setCurrentTree(newTree);
     setCurrentView("tree-builder");
+  };
+
+  const handleGoogleLogin = async () => {
+    try {
+      setAuthProcessing(true);
+      await loginWithGoogle();
+      handleAuthSuccess();
+    } catch (err) {
+      console.error('Google login failed:', err);
+    } finally {
+      setAuthProcessing(false);
+    }
+  };
+
+  const handleMicrosoftLogin = async () => {
+    try {
+      setAuthProcessing(true);
+      await loginWithMicrosoft();
+      handleAuthSuccess();
+    } catch (err) {
+      console.error('Microsoft login failed:', err);
+    } finally {
+      setAuthProcessing(false);
+    }
+  };
+
+  const handleEmailAuth = async (e) => {
+    e.preventDefault();
+    if (!emailInput || !passwordInput) return;
+    
+    try {
+      setAuthProcessing(true);
+      if (authMode === 'login') {
+        await loginWithEmail(emailInput, passwordInput);
+      } else {
+        await signUpWithEmail(emailInput, passwordInput);
+      }
+      handleAuthSuccess();
+    } catch (err) {
+      console.error('Email auth failed:', err);
+    } finally {
+      setAuthProcessing(false);
+    }
+  };
+
+  const handleLogout = async () => {
+    try {
+      await logout();
+      setCurrentTree(null);
+      setPeople([]);
+      setRelationships([]);
+      setCurrentView("auth");
+    } catch (err) {
+      console.error('Logout failed:', err);
+    }
   };
 
   // Add person using the data transformation utility
@@ -852,6 +915,17 @@ function App() {
     );
   };
 
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-purple-400 via-purple-500 to-purple-600 flex items-center justify-center p-4">
+        <div className="bg-white rounded-2xl shadow-xl p-8 w-full max-w-md text-center">
+          <Loader2 className="w-12 h-12 animate-spin mx-auto text-purple-600" />
+          <p className="mt-4 text-gray-600">جاري التحميل...</p>
+        </div>
+      </div>
+    );
+  }
+
   if (!isAuthenticated) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-purple-400 via-purple-500 to-purple-600 flex items-center justify-center p-4">
@@ -859,27 +933,100 @@ function App() {
           <h1 className="text-4xl font-bold text-gray-800 mb-8 text-center">
             {t.welcome}
           </h1>
-          <div className="space-y-4">
+          
+          {authError && (
+            <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-4 text-center text-sm">
+              {authError}
+            </div>
+          )}
+          
+          <form onSubmit={handleEmailAuth} className="space-y-4 mb-6">
+            <div>
+              <input
+                type="email"
+                value={emailInput}
+                onChange={(e) => setEmailInput(e.target.value)}
+                placeholder="البريد الإلكتروني"
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent text-right"
+                dir="rtl"
+                disabled={authProcessing}
+              />
+            </div>
+            <div className="relative">
+              <input
+                type={showPassword ? "text" : "password"}
+                value={passwordInput}
+                onChange={(e) => setPasswordInput(e.target.value)}
+                placeholder="كلمة المرور"
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent text-right pr-12"
+                dir="rtl"
+                disabled={authProcessing}
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700"
+              >
+                {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+              </button>
+            </div>
             <Button
-              onClick={handleGoogleAuth}
-              className="w-full bg-green-600 hover:bg-green-700 text-white py-3"
+              type="submit"
+              disabled={authProcessing || !emailInput || !passwordInput}
+              className="w-full bg-purple-600 hover:bg-purple-700 text-white py-3"
             >
-              <Mail className="w-5 h-5 ml-2" />
-              {t.continueWithGoogle}
+              {authProcessing ? (
+                <Loader2 className="w-5 h-5 animate-spin" />
+              ) : authMode === 'login' ? (
+                'تسجيل الدخول'
+              ) : (
+                'إنشاء حساب'
+              )}
+            </Button>
+          </form>
+          
+          <div className="text-center mb-6">
+            <button
+              type="button"
+              onClick={() => setAuthMode(authMode === 'login' ? 'signup' : 'login')}
+              className="text-purple-600 hover:text-purple-800 text-sm"
+            >
+              {authMode === 'login' ? 'ليس لديك حساب؟ إنشاء حساب جديد' : 'لديك حساب؟ تسجيل الدخول'}
+            </button>
+          </div>
+          
+          <div className="relative mb-6">
+            <div className="absolute inset-0 flex items-center">
+              <div className="w-full border-t border-gray-300"></div>
+            </div>
+            <div className="relative flex justify-center text-sm">
+              <span className="px-2 bg-white text-gray-500">أو</span>
+            </div>
+          </div>
+          
+          <div className="space-y-3">
+            <Button
+              onClick={handleGoogleLogin}
+              disabled={authProcessing}
+              className="w-full bg-white hover:bg-gray-50 text-gray-700 border border-gray-300 py-3"
+            >
+              {authProcessing ? <Loader2 className="w-5 h-5 animate-spin ml-2" /> : <Mail className="w-5 h-5 ml-2" />}
+              تسجيل الدخول عبر Google
             </Button>
             <Button
-              onClick={handleGoogleAuth}
-              className="w-full bg-black hover:bg-gray-800 text-white py-3"
+              onClick={handleMicrosoftLogin}
+              disabled={authProcessing}
+              className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3"
             >
-              <User className="w-5 h-5 ml-2" />
-              {t.continueWithApple}
+              {authProcessing ? <Loader2 className="w-5 h-5 animate-spin ml-2" /> : <User className="w-5 h-5 ml-2" />}
+              تسجيل الدخول عبر Microsoft
             </Button>
             <Button
-              onClick={handleGoogleAuth}
-              className="w-full bg-orange-500 hover:bg-orange-600 text-white py-3"
+              disabled={true}
+              className="w-full bg-orange-500 hover:bg-orange-600 text-white py-3 opacity-50 cursor-not-allowed"
             >
               <Smartphone className="w-5 h-5 ml-2" />
-              {t.uaeMobile}
+              {t.uaeMobile} (قريباً)
             </Button>
           </div>
         </div>
@@ -892,9 +1039,12 @@ function App() {
       <div className="min-h-screen bg-gray-50">
         <div className="bg-white shadow-sm border-b px-8 py-4 flex justify-between items-center">
           <h1 className="text-3xl font-bold">{t.dashboard}</h1>
-          <Button onClick={() => setIsAuthenticated(false)} variant="outline">
-            {t.logout}
-          </Button>
+          <div className="flex items-center gap-4">
+            {user?.email && <span className="text-sm text-gray-600">{user.email}</span>}
+            <Button onClick={handleLogout} variant="outline">
+              {t.logout}
+            </Button>
+          </div>
         </div>
         <div className="max-w-7xl mx-auto px-8 py-8 grid grid-cols-3 gap-6">
           <div
