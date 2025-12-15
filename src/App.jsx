@@ -15,8 +15,8 @@ import {
   Mail,
   Smartphone,
   User,
-  ArrowLeft,
-  ArrowRight,
+  MoveLeft,
+  MoveRight,
 } from "lucide-react";
 import FamilyTreeLayout from "./lib/family-tree-layout.js";
 import {
@@ -1145,10 +1145,11 @@ function App() {
                       {hasSiblings && (
                         <>
                           <Button
-                            onClick={(e) => {
+                            onClick={async (e) => {
                               e.stopPropagation();
-                              handleReorderSibling(selectedPerson, "older");
+                              const personToReorder = selectedPerson;
                               setShowActionMenu(false);
+                              await handleReorderSibling(personToReorder, "older");
                             }}
                             disabled={!canMoveOlder}
                             size="sm"
@@ -1156,13 +1157,14 @@ function App() {
                             className="w-8 h-8 p-0"
                             title="أكبر"
                           >
-                            <ArrowRight className="w-4 h-4" />
+                            <MoveRight className="w-4 h-4" />
                           </Button>
                           <Button
-                            onClick={(e) => {
+                            onClick={async (e) => {
                               e.stopPropagation();
-                              handleReorderSibling(selectedPerson, "younger");
+                              const personToReorder = selectedPerson;
                               setShowActionMenu(false);
+                              await handleReorderSibling(personToReorder, "younger");
                             }}
                             disabled={!canMoveYounger}
                             size="sm"
@@ -1170,7 +1172,7 @@ function App() {
                             className="w-8 h-8 p-0"
                             title="أصغر"
                           >
-                            <ArrowLeft className="w-4 h-4" />
+                            <MoveLeft className="w-4 h-4" />
                           </Button>
                         </>
                       )}
