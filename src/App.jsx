@@ -15,8 +15,8 @@ import {
   Mail,
   Smartphone,
   User,
-  ChevronLeft,
-  ChevronRight,
+  ArrowLeft,
+  ArrowRight,
 } from "lucide-react";
 import FamilyTreeLayout from "./lib/family-tree-layout.js";
 import {
@@ -1148,6 +1148,7 @@ function App() {
                             onClick={(e) => {
                               e.stopPropagation();
                               handleReorderSibling(selectedPerson, "older");
+                              setShowActionMenu(false);
                             }}
                             disabled={!canMoveOlder}
                             size="sm"
@@ -1155,12 +1156,13 @@ function App() {
                             className="w-8 h-8 p-0"
                             title="أكبر"
                           >
-                            <ChevronRight className="w-4 h-4" />
+                            <ArrowRight className="w-4 h-4" />
                           </Button>
                           <Button
                             onClick={(e) => {
                               e.stopPropagation();
                               handleReorderSibling(selectedPerson, "younger");
+                              setShowActionMenu(false);
                             }}
                             disabled={!canMoveYounger}
                             size="sm"
@@ -1168,7 +1170,7 @@ function App() {
                             className="w-8 h-8 p-0"
                             title="أصغر"
                           >
-                            <ChevronLeft className="w-4 h-4" />
+                            <ArrowLeft className="w-4 h-4" />
                           </Button>
                         </>
                       )}
