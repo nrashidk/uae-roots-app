@@ -15,6 +15,8 @@ import {
   Mail,
   Smartphone,
   User,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import FamilyTreeLayout from "./lib/family-tree-layout.js";
 import {
@@ -701,6 +703,108 @@ function App() {
     }
   };
 
+  // Get siblings for a person (people who share at least one parent)
+  const getSiblings = (personId) => {
+    // Find all parents of this person
+    const parentRels = relationships.filter(
+      (r) =>
+        r.treeId === currentTree?.id &&
+        r.type === "parent-child" &&
+        r.childId === personId,
+    );
+    const parentIds = parentRels.map((r) => r.parentId);
+    if (parentIds.length === 0) return [];
+
+    // Find all children of these parents (siblings)
+    const siblingRels = relationships.filter(
+      (r) =>
+        r.treeId === currentTree?.id &&
+        r.type === "parent-child" &&
+        parentIds.includes(r.parentId) &&
+        r.childId !== personId,
+    );
+    const siblingIds = [...new Set(siblingRels.map((r) => r.childId))];
+    return people.filter((p) => siblingIds.includes(p.id));
+  };
+
+  // Reorder sibling: swap birthOrder with adjacent sibling
+  // direction: 'older' (أكبر - move right) or 'younger' (أصغر - move left)
+  const handleReorderSibling = async (personId, direction) => {
+    const person = people.find((p) => p.id === personId);
+    if (!person) return;
+
+    const siblings = getSiblings(personId);
+    if (siblings.length === 0) return;
+
+    // Create array with current person and siblings, sorted by birthOrder (oldest first)
+    const allSiblings = [person, ...siblings].sort((a, b) => {
+      const orderA = a.birthOrder ?? 9999;
+      const orderB = b.birthOrder ?? 9999;
+      return orderA - orderB;
+    });
+
+    const currentIndex = allSiblings.findIndex((s) => s.id === personId);
+    if (currentIndex === -1) return;
+
+    // Determine swap target index
+    // In Arabic RTL: older = right = lower index, younger = left = higher index
+    // So 'older' means swap with the one BEFORE (lower birthOrder)
+    // And 'younger' means swap with the one AFTER (higher birthOrder)
+    let targetIndex;
+    if (direction === "older") {
+      targetIndex = currentIndex - 1;
+    } else {
+      targetIndex = currentIndex + 1;
+    }
+
+    // Check bounds
+    if (targetIndex < 0 || targetIndex >= allSiblings.length) return;
+
+    const targetPerson = allSiblings[targetIndex];
+    const currentOrder = person.birthOrder ?? currentIndex + 1;
+    const targetOrder = targetPerson.birthOrder ?? targetIndex + 1;
+
+    // Optimistically update UI
+    setPeople((prev) =>
+      prev.map((p) => {
+        if (p.id === personId) return { ...p, birthOrder: targetOrder };
+        if (p.id === targetPerson.id) return { ...p, birthOrder: currentOrder };
+        return p;
+      }),
+    );
+
+    // Persist to database via API
+    try {
+      const [res1, res2] = await Promise.all([
+        fetch(`/api/people/${personId}/birthOrder`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ birthOrder: targetOrder }),
+        }),
+        fetch(`/api/people/${targetPerson.id}/birthOrder`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ birthOrder: currentOrder }),
+        }),
+      ]);
+
+      // Check if both requests succeeded
+      if (!res1.ok || !res2.ok) {
+        throw new Error("Failed to update birthOrder");
+      }
+    } catch (error) {
+      console.error("Failed to persist birthOrder swap:", error);
+      // Rollback on error
+      setPeople((prev) =>
+        prev.map((p) => {
+          if (p.id === personId) return { ...p, birthOrder: currentOrder };
+          if (p.id === targetPerson.id) return { ...p, birthOrder: targetOrder };
+          return p;
+        }),
+      );
+    }
+  };
+
   const handleMouseDown = (e) => {
     const isBackground =
       !e.target.closest("[data-person-box]") &&
@@ -945,6 +1049,25 @@ function App() {
                   ? t.addParent
                   : "Both parents already exist";
 
+                // Check if person has siblings for reorder buttons
+                const siblings = getSiblings(selectedPerson);
+                const hasSiblings = siblings.length > 0;
+
+                // Determine if can move older/younger based on current position
+                let canMoveOlder = false;
+                let canMoveYounger = false;
+                if (hasSiblings) {
+                  const currentPerson = treePeople.find((p) => p.id === selectedPerson);
+                  const allSiblings = [currentPerson, ...siblings].sort((a, b) => {
+                    const orderA = a.birthOrder ?? 9999;
+                    const orderB = b.birthOrder ?? 9999;
+                    return orderA - orderB;
+                  });
+                  const currentIndex = allSiblings.findIndex((s) => s.id === selectedPerson);
+                  canMoveOlder = currentIndex > 0;
+                  canMoveYounger = currentIndex < allSiblings.length - 1;
+                }
+
                 return (
                   <div
                     data-action-button
@@ -1019,6 +1142,36 @@ function App() {
                       >
                         <UserPlus className="w-4 h-4" />
                       </Button>
+                      {hasSiblings && (
+                        <>
+                          <Button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleReorderSibling(selectedPerson, "older");
+                            }}
+                            disabled={!canMoveOlder}
+                            size="sm"
+                            variant="ghost"
+                            className="w-8 h-8 p-0"
+                            title="أكبر"
+                          >
+                            <ChevronRight className="w-4 h-4" />
+                          </Button>
+                          <Button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleReorderSibling(selectedPerson, "younger");
+                            }}
+                            disabled={!canMoveYounger}
+                            size="sm"
+                            variant="ghost"
+                            className="w-8 h-8 p-0"
+                            title="أصغر"
+                          >
+                            <ChevronLeft className="w-4 h-4" />
+                          </Button>
+                        </>
+                      )}
                       <Button
                         onClick={(e) => {
                           e.stopPropagation();

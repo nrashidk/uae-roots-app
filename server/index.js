@@ -111,6 +111,19 @@ app.delete('/api/people/:id', async (req, res) => {
   }
 });
 
+app.patch('/api/people/:id/birthOrder', async (req, res) => {
+  try {
+    const { birthOrder } = req.body;
+    const [person] = await db.update(people)
+      .set({ birthOrder })
+      .where(eq(people.id, parseInt(req.params.id)))
+      .returning();
+    res.json(person);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 app.get('/api/relationships', async (req, res) => {
   try {
     const { treeId } = req.query;

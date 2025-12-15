@@ -219,6 +219,11 @@ export function convertToAlgorithmFormat(people, relationships, treeId) {
             // Auto-generated index for sorting
             ai: person.id,
 
+            // Order field for custom ordering (used by layout algorithm for sibling ordering)
+            O: person.birthOrder !== undefined && person.birthOrder !== null 
+                ? person.birthOrder 
+                : undefined,
+
             // Partner count - MUST be present (0 if no partners)
             cp: spouses.length,
 
