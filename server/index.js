@@ -75,43 +75,32 @@ app.post('/api/sms/send-code', async (req, res) => {
 
     const formattedPhone = phoneNumber.startsWith('+') ? phoneNumber : '+971' + phoneNumber.replace(/^0/, '');
     
-    const code = Math.floor(100000 + Math.random() * 900000).toString();
-    
-    verificationCodes.set(formattedPhone, {
-      code,
-      expiresAt: Date.now() + 5 * 60 * 1000
-    });
-
-    const { accountSid, apiKey, apiKeySecret, phoneNumber: fromNumber } = await getTwilioCredentials();
-    
-    if (!fromNumber) {
-      throw new Error('Twilio phone number not configured. Please configure a phone number in Twilio settings.');
-    }
-    
+    const { accountSid, apiKey, apiKeySecret } = await getTwilioCredentials();
     const client = twilio(apiKey, apiKeySecret, { accountSid });
+    
+    const verifySid = process.env.TWILIO_VERIFY_SID;
+    if (!verifySid) {
+      throw new Error('Twilio Verify Service not configured');
+    }
 
-    await client.messages.create({
-      body: `رمز التحقق الخاص بك في جذور الإمارات: ${code}`,
-      from: fromNumber,
-      to: formattedPhone
-    });
+    await client.verify.v2.services(verifySid)
+      .verifications
+      .create({ to: formattedPhone, channel: 'sms' });
 
     res.json({ success: true, message: 'Verification code sent' });
   } catch (error) {
     console.error('SMS send error:', error);
     let userMessage = 'فشل إرسال رمز التحقق';
-    if (error.code === 21608) {
-      userMessage = 'رقم الهاتف غير صالح أو غير مدعوم في منطقتك';
-    } else if (error.code === 21211) {
+    if (error.code === 60200) {
       userMessage = 'رقم الهاتف غير صالح. تأكد من إدخال رقم صحيح';
-    } else if (error.code === 21614) {
-      userMessage = 'رقم الهاتف لا يدعم استقبال الرسائل النصية';
-    } else if (error.code === 21408) {
-      userMessage = 'خدمة الرسائل النصية غير متوفرة لهذه المنطقة';
+    } else if (error.code === 60203) {
+      userMessage = 'تم تجاوز الحد الأقصى للمحاولات. حاول مرة أخرى لاحقاً';
+    } else if (error.code === 60205) {
+      userMessage = 'تعذر إرسال الرسالة. حاول مرة أخرى';
     } else if (error.message?.includes('Twilio not connected')) {
       userMessage = 'خدمة الرسائل غير متصلة. يرجى التواصل مع الدعم';
-    } else if (error.message?.includes('phone number not configured')) {
-      userMessage = 'رقم الإرسال غير مهيأ. يرجى التواصل مع الدعم';
+    } else if (error.message?.includes('Verify Service not configured')) {
+      userMessage = 'خدمة التحقق غير مهيأة. يرجى التواصل مع الدعم';
     }
     res.status(500).json({ error: userMessage, details: error.message });
   }
@@ -127,22 +116,21 @@ app.post('/api/sms/verify-code', async (req, res) => {
 
     const formattedPhone = phoneNumber.startsWith('+') ? phoneNumber : '+971' + phoneNumber.replace(/^0/, '');
     
-    const stored = verificationCodes.get(formattedPhone);
+    const { accountSid, apiKey, apiKeySecret } = await getTwilioCredentials();
+    const client = twilio(apiKey, apiKeySecret, { accountSid });
     
-    if (!stored) {
-      return res.status(400).json({ error: 'No verification code found. Please request a new code.' });
+    const verifySid = process.env.TWILIO_VERIFY_SID;
+    if (!verifySid) {
+      throw new Error('Twilio Verify Service not configured');
     }
+
+    const verification = await client.verify.v2.services(verifySid)
+      .verificationChecks
+      .create({ to: formattedPhone, code: code });
     
-    if (Date.now() > stored.expiresAt) {
-      verificationCodes.delete(formattedPhone);
-      return res.status(400).json({ error: 'Verification code expired. Please request a new code.' });
+    if (verification.status !== 'approved') {
+      return res.status(400).json({ error: 'رمز التحقق غير صحيح' });
     }
-    
-    if (stored.code !== code) {
-      return res.status(400).json({ error: 'Invalid verification code' });
-    }
-    
-    verificationCodes.delete(formattedPhone);
     
     res.json({ 
       success: true, 
