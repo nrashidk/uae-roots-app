@@ -48,5 +48,11 @@ externalPort = 5173
 
 [deployment]
 deploymentTarget = "autoscale"
-run = ["npm", "run", "preview"]
+run = ["node", "server/index.js"]
 build = ["npm", "run", "build"]
+
+[userenv]
+
+[userenv.production]
+NODE_ENV = "production"
+PORT = "5000"

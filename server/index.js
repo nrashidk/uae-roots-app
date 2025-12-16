@@ -1,12 +1,17 @@
 import express from 'express';
 import cors from 'cors';
 import twilio from 'twilio';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import { db } from './db.js';
 import { users, trees, people, relationships } from '../shared/schema.js';
 import { eq, and } from 'drizzle-orm';
 
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
 const app = express();
-const PORT = 3000;
+const PORT = process.env.PORT || 3000;
 
 app.use(cors());
 app.use(express.json());
@@ -396,6 +401,19 @@ app.delete('/api/relationships/:id', async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 });
+
+// Serve static files in production
+if (process.env.NODE_ENV === 'production') {
+  const distPath = path.join(__dirname, '..', 'dist');
+  app.use(express.static(distPath));
+  
+  // Handle client-side routing - serve index.html for all non-API routes
+  app.get('*', (req, res) => {
+    if (!req.path.startsWith('/api')) {
+      res.sendFile(path.join(distPath, 'index.html'));
+    }
+  });
+}
 
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`Backend server running on port ${PORT}`);

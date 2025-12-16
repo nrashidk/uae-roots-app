@@ -44,7 +44,9 @@ src/
 ## Deployment Configuration (Completed)
 ✅ Configured for autoscale deployment
 ✅ Build command: `npm run build`
-✅ Run command: `npm run preview`
+✅ Run command: `node server/index.js` (serves both API and static files)
+✅ Production environment variables: NODE_ENV=production, PORT=5000
+✅ Server serves static files from dist/ folder in production
 
 ## Recent Changes
 - **2025-10-07**: Enhanced selection indicator for better UX:
