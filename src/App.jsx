@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useMemo, useLayoutEffect } from "react";
 import { Button } from "@/components/ui/button.jsx";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog.jsx";
 import {
   Heart,
   Baby,
@@ -44,6 +45,11 @@ function App() {
   const [passwordInput, setPasswordInput] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [authProcessing, setAuthProcessing] = useState(false);
+  const [showSmsLogin, setShowSmsLogin] = useState(false);
+  const [phoneInput, setPhoneInput] = useState('');
+  const [smsCode, setSmsCode] = useState('');
+  const [smsStep, setSmsStep] = useState('phone');
+  const [smsError, setSmsError] = useState('');
   const [currentView, setCurrentView] = useState("auth");
   const [currentTree, setCurrentTree] = useState(null);
   const [people, setPeople] = useState([]);
@@ -343,6 +349,72 @@ function App() {
       setCurrentView("auth");
     } catch (err) {
       console.error('Logout failed:', err);
+    }
+  };
+
+  const handleSendSmsCode = async () => {
+    if (!phoneInput) {
+      setSmsError('الرجاء إدخال رقم الهاتف');
+      return;
+    }
+    
+    try {
+      setAuthProcessing(true);
+      setSmsError('');
+      
+      const response = await fetch('/api/sms/send-code', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phoneNumber: phoneInput })
+      });
+      
+      const data = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(data.error || 'فشل إرسال رمز التحقق');
+      }
+      
+      setSmsStep('code');
+    } catch (err) {
+      setSmsError(err.message);
+    } finally {
+      setAuthProcessing(false);
+    }
+  };
+
+  const handleVerifySmsCode = async () => {
+    if (!smsCode) {
+      setSmsError('الرجاء إدخال رمز التحقق');
+      return;
+    }
+    
+    try {
+      setAuthProcessing(true);
+      setSmsError('');
+      
+      const response = await fetch('/api/sms/verify-code', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phoneNumber: phoneInput, code: smsCode })
+      });
+      
+      const data = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(data.error || 'رمز التحقق غير صحيح');
+      }
+      
+      if (data.verified) {
+        setShowSmsLogin(false);
+        setSmsStep('phone');
+        setPhoneInput('');
+        setSmsCode('');
+        handleAuthSuccess();
+      }
+    } catch (err) {
+      setSmsError(err.message);
+    } finally {
+      setAuthProcessing(false);
     }
   };
 
@@ -1029,14 +1101,125 @@ function App() {
               تسجيل الدخول عبر Microsoft
             </Button>
             <Button
-              disabled={true}
-              className="w-full bg-orange-500 hover:bg-orange-600 text-white py-3 opacity-50 cursor-not-allowed"
+              onClick={() => setShowSmsLogin(true)}
+              disabled={authProcessing}
+              className="w-full bg-orange-500 hover:bg-orange-600 text-white py-3"
             >
               <Smartphone className="w-5 h-5 ml-2" />
-              {t.uaeMobile} (قريباً)
+              {t.uaeMobile}
             </Button>
           </div>
         </div>
+
+        <Dialog open={showSmsLogin} onOpenChange={(open) => {
+          setShowSmsLogin(open);
+          if (!open) {
+            setSmsStep('phone');
+            setPhoneInput('');
+            setSmsCode('');
+            setSmsError('');
+          }
+        }}>
+          <DialogContent className="sm:max-w-md" dir="rtl">
+            <DialogHeader>
+              <DialogTitle className="text-right text-xl">
+                التسجيل عبر الهاتف الإماراتي
+              </DialogTitle>
+            </DialogHeader>
+            
+            {smsError && (
+              <div className="bg-red-50 text-red-600 p-3 rounded-lg text-sm text-right">
+                {smsError}
+              </div>
+            )}
+            
+            {smsStep === 'phone' ? (
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2 text-right">
+                    رقم الهاتف الإماراتي
+                  </label>
+                  <div className="flex gap-2" dir="ltr">
+                    <span className="inline-flex items-center px-3 rounded-l-md border border-r-0 border-gray-300 bg-gray-50 text-gray-500 text-sm">
+                      +971
+                    </span>
+                    <input
+                      type="tel"
+                      value={phoneInput}
+                      onChange={(e) => setPhoneInput(e.target.value.replace(/\D/g, ''))}
+                      placeholder="501234567"
+                      className="flex-1 block w-full rounded-r-md border border-gray-300 px-3 py-2 focus:border-purple-500 focus:ring-purple-500"
+                      maxLength={9}
+                    />
+                  </div>
+                  <p className="text-xs text-gray-500 mt-1 text-right">
+                    أدخل رقم الهاتف بدون صفر البداية
+                  </p>
+                </div>
+                <Button
+                  onClick={handleSendSmsCode}
+                  disabled={authProcessing || !phoneInput}
+                  className="w-full bg-purple-600 hover:bg-purple-700"
+                >
+                  {authProcessing ? (
+                    <Loader2 className="w-5 h-5 animate-spin ml-2" />
+                  ) : null}
+                  إرسال رمز التحقق
+                </Button>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2 text-right">
+                    رمز التحقق
+                  </label>
+                  <input
+                    type="text"
+                    value={smsCode}
+                    onChange={(e) => setSmsCode(e.target.value.replace(/\D/g, ''))}
+                    placeholder="أدخل الرمز المكون من 6 أرقام"
+                    className="block w-full rounded-md border border-gray-300 px-3 py-2 focus:border-purple-500 focus:ring-purple-500 text-center text-lg tracking-widest"
+                    maxLength={6}
+                    dir="ltr"
+                  />
+                  <p className="text-xs text-gray-500 mt-1 text-right">
+                    تم إرسال رمز التحقق إلى +971{phoneInput}
+                  </p>
+                </div>
+                <div className="flex gap-2">
+                  <Button
+                    onClick={() => {
+                      setSmsStep('phone');
+                      setSmsCode('');
+                      setSmsError('');
+                    }}
+                    variant="outline"
+                    className="flex-1"
+                  >
+                    تغيير الرقم
+                  </Button>
+                  <Button
+                    onClick={handleVerifySmsCode}
+                    disabled={authProcessing || smsCode.length !== 6}
+                    className="flex-1 bg-purple-600 hover:bg-purple-700"
+                  >
+                    {authProcessing ? (
+                      <Loader2 className="w-5 h-5 animate-spin ml-2" />
+                    ) : null}
+                    تحقق
+                  </Button>
+                </div>
+                <button
+                  onClick={handleSendSmsCode}
+                  disabled={authProcessing}
+                  className="w-full text-sm text-purple-600 hover:text-purple-700 underline"
+                >
+                  إعادة إرسال الرمز
+                </button>
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
       </div>
     );
   }

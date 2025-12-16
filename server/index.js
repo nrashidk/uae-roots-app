@@ -1,5 +1,6 @@
 import express from 'express';
 import cors from 'cors';
+import twilio from 'twilio';
 import { db } from './db.js';
 import { trees, people, relationships } from '../shared/schema.js';
 import { eq, and } from 'drizzle-orm';
@@ -9,6 +10,114 @@ const PORT = 3000;
 
 app.use(cors());
 app.use(express.json());
+
+const verificationCodes = new Map();
+
+async function getTwilioCredentials() {
+  const hostname = process.env.REPLIT_CONNECTORS_HOSTNAME;
+  const xReplitToken = process.env.REPL_IDENTITY 
+    ? 'repl ' + process.env.REPL_IDENTITY 
+    : process.env.WEB_REPL_RENEWAL 
+    ? 'depl ' + process.env.WEB_REPL_RENEWAL 
+    : null;
+
+  if (!xReplitToken) {
+    throw new Error('X_REPLIT_TOKEN not found');
+  }
+
+  const response = await fetch(
+    'https://' + hostname + '/api/v2/connection?include_secrets=true&connector_names=twilio',
+    {
+      headers: {
+        'Accept': 'application/json',
+        'X_REPLIT_TOKEN': xReplitToken
+      }
+    }
+  );
+  const data = await response.json();
+  const connectionSettings = data.items?.[0];
+
+  if (!connectionSettings || !connectionSettings.settings.account_sid) {
+    throw new Error('Twilio not connected');
+  }
+  return {
+    accountSid: connectionSettings.settings.account_sid,
+    apiKey: connectionSettings.settings.api_key,
+    apiKeySecret: connectionSettings.settings.api_key_secret,
+    phoneNumber: connectionSettings.settings.phone_number
+  };
+}
+
+app.post('/api/sms/send-code', async (req, res) => {
+  try {
+    const { phoneNumber } = req.body;
+    
+    if (!phoneNumber) {
+      return res.status(400).json({ error: 'Phone number is required' });
+    }
+
+    const formattedPhone = phoneNumber.startsWith('+') ? phoneNumber : '+971' + phoneNumber.replace(/^0/, '');
+    
+    const code = Math.floor(100000 + Math.random() * 900000).toString();
+    
+    verificationCodes.set(formattedPhone, {
+      code,
+      expiresAt: Date.now() + 5 * 60 * 1000
+    });
+
+    const { accountSid, apiKey, apiKeySecret, phoneNumber: fromNumber } = await getTwilioCredentials();
+    const client = twilio(apiKey, apiKeySecret, { accountSid });
+
+    await client.messages.create({
+      body: `رمز التحقق الخاص بك في جذور الإمارات: ${code}`,
+      from: fromNumber,
+      to: formattedPhone
+    });
+
+    res.json({ success: true, message: 'Verification code sent' });
+  } catch (error) {
+    console.error('SMS send error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/sms/verify-code', async (req, res) => {
+  try {
+    const { phoneNumber, code } = req.body;
+    
+    if (!phoneNumber || !code) {
+      return res.status(400).json({ error: 'Phone number and code are required' });
+    }
+
+    const formattedPhone = phoneNumber.startsWith('+') ? phoneNumber : '+971' + phoneNumber.replace(/^0/, '');
+    
+    const stored = verificationCodes.get(formattedPhone);
+    
+    if (!stored) {
+      return res.status(400).json({ error: 'No verification code found. Please request a new code.' });
+    }
+    
+    if (Date.now() > stored.expiresAt) {
+      verificationCodes.delete(formattedPhone);
+      return res.status(400).json({ error: 'Verification code expired. Please request a new code.' });
+    }
+    
+    if (stored.code !== code) {
+      return res.status(400).json({ error: 'Invalid verification code' });
+    }
+    
+    verificationCodes.delete(formattedPhone);
+    
+    res.json({ 
+      success: true, 
+      verified: true,
+      phoneNumber: formattedPhone
+    });
+  } catch (error) {
+    console.error('SMS verify error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
 
 app.get('/api/trees', async (req, res) => {
   try {
