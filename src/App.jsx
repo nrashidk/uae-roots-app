@@ -317,12 +317,14 @@ function App() {
   const handleAuthSuccess = async (phoneUser = null) => {
     try {
       const currentUser = phoneUser || user;
+      console.log('handleAuthSuccess called with user:', currentUser);
       if (!currentUser) {
         console.error('No user found after auth success');
         return;
       }
 
       const userId = currentUser.uid || currentUser.phoneNumber || currentUser.id;
+      console.log('Creating/updating user with ID:', userId);
       const provider = currentUser.providerData?.[0]?.providerId || 
                        (currentUser.phoneNumber ? 'phone' : 'email');
       
@@ -333,6 +335,7 @@ function App() {
         phoneNumber: currentUser.phoneNumber || null,
         provider: provider
       });
+      console.log('User saved:', savedUser);
       setUserProfile(savedUser);
 
       const userTrees = await api.trees.getAll(userId);
@@ -354,9 +357,11 @@ function App() {
         setRelationships([]);
       }
       
+      console.log('Setting view to tree-builder');
       setCurrentView("tree-builder");
     } catch (err) {
       console.error('Error in handleAuthSuccess:', err);
+      alert('Error during login: ' + err.message);
       const fallbackTree = {
         id: Date.now(),
         name: "شجرة عائلتي",
