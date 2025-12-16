@@ -21,6 +21,7 @@ import {
   Loader2,
   Eye,
   EyeOff,
+  LogOut,
 } from "lucide-react";
 import FamilyTreeLayout from "./lib/family-tree-layout.js";
 import {
@@ -412,7 +413,13 @@ function App() {
         body: JSON.stringify({ phoneNumber: phoneInput })
       });
       
-      const data = await response.json();
+      const text = await response.text();
+      let data;
+      try {
+        data = text ? JSON.parse(text) : {};
+      } catch {
+        data = { error: text || 'خطأ غير متوقع من الخادم' };
+      }
       
       if (!response.ok) {
         throw new Error(data.error || 'فشل إرسال رمز التحقق');
@@ -442,7 +449,13 @@ function App() {
         body: JSON.stringify({ phoneNumber: phoneInput, code: smsCode })
       });
       
-      const data = await response.json();
+      const text = await response.text();
+      let data;
+      try {
+        data = text ? JSON.parse(text) : {};
+      } catch {
+        data = { error: text || 'خطأ غير متوقع من الخادم' };
+      }
       
       if (!response.ok) {
         throw new Error(data.error || 'رمز التحقق غير صحيح');
@@ -1275,6 +1288,210 @@ function App() {
     );
   }
 
+  // Helper function to build genealogical name chain
+  const getGenealogicalName = (person) => {
+    const treePeople = people.filter(p => p.treeId === currentTree?.id);
+    const treeRels = relationships.filter(r => r.treeId === currentTree?.id);
+    
+    let nameParts = [person.firstName];
+    let current = person;
+    
+    while (true) {
+      // Find parent-child relationship where this person is the child
+      const parentRel = treeRels.find(r => 
+        r.type === "parent-child" && r.childId === current.id
+      );
+      if (!parentRel) break;
+      
+      // Look for male parent first
+      const parent = treePeople.find(p => p.id === parentRel.parentId && p.gender === "male");
+      if (!parent) {
+        // If parent is female, try to find her male parent
+        const femaleParent = treePeople.find(p => p.id === parentRel.parentId && p.gender === "female");
+        if (femaleParent) {
+          const femaleParentRel = treeRels.find(r => 
+            r.type === "parent-child" && r.childId === femaleParent.id
+          );
+          if (femaleParentRel) {
+            const grandparent = treePeople.find(p => p.id === femaleParentRel.parentId && p.gender === "male");
+            if (grandparent) {
+              current = grandparent;
+              nameParts.push(grandparent.firstName);
+              continue;
+            }
+          }
+        }
+        break;
+      }
+      nameParts.push(parent.firstName);
+      current = parent;
+    }
+    
+    // Find oldest ancestor's last name
+    const oldestAncestor = treePeople.find(p => {
+      const hasParent = treeRels.some(r => r.type === "parent-child" && r.childId === p.id);
+      return !hasParent && p.lastName;
+    });
+    
+    if (oldestAncestor?.lastName) {
+      nameParts.push(oldestAncestor.lastName);
+    } else if (person.lastName) {
+      nameParts.push(person.lastName);
+    }
+    
+    return nameParts.join(" ");
+  };
+
+  if (currentView === "family-members") {
+    const treePeople = people.filter(p => p.treeId === currentTree?.id);
+    
+    return (
+      <div className="min-h-screen bg-gray-50">
+        <div className="bg-white shadow-sm border-b px-8 py-4 flex justify-between items-center">
+          <div className="flex items-center gap-4">
+            <Button onClick={() => setCurrentView("dashboard")} variant="outline">
+              <Home className="w-4 h-4 ml-2" />
+              {t.backToDashboard}
+            </Button>
+            <h1 className="text-3xl font-bold">{t.familyMembers}</h1>
+          </div>
+          <Button onClick={handleLogout} variant="outline">
+            <LogOut className="w-4 h-4 ml-2" />
+            {t.logout}
+          </Button>
+        </div>
+        <div className="max-w-7xl mx-auto px-8 py-8">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {treePeople.map(person => (
+              <div key={person.id} className="bg-white rounded-lg shadow p-4">
+                <div className="text-lg">{getGenealogicalName(person)}</div>
+                {person.identificationNumber && (
+                  <div className="text-sm text-gray-500">
+                    رقم الهوية: {person.identificationNumber}
+                  </div>
+                )}
+                <div className="text-sm text-gray-500">
+                  {person.gender === "male" ? "ذكر" : "أنثى"}
+                </div>
+              </div>
+            ))}
+          </div>
+          {treePeople.length === 0 && (
+            <div className="text-center text-gray-500 py-8">
+              لا يوجد أفراد في العائلة بعد
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  if (currentView === "relationships-detail") {
+    const treePeople = people.filter(p => p.treeId === currentTree?.id);
+    const treeRels = relationships.filter(r => r.treeId === currentTree?.id);
+    
+    // Get male parents (husbands who have wives and children)
+    const maleParents = treePeople.filter(person => {
+      if (person.gender !== "male") return false;
+      
+      const hasSpouse = treeRels.some(r => 
+        r.type === "partner" && (r.person1Id === person.id || r.person2Id === person.id)
+      );
+      const hasChildren = treeRels.some(r => 
+        r.type === "parent-child" && r.parentId === person.id
+      );
+      
+      return hasSpouse && hasChildren;
+    });
+
+    const getRelationshipCounts = (person) => {
+      const siblings = treeRels.filter(r => 
+        r.type === "sibling" && (r.person1Id === person.id || r.person2Id === person.id)
+      );
+      const siblingIds = siblings.map(r => r.person1Id === person.id ? r.person2Id : r.person1Id);
+      const siblingPeople = treePeople.filter(p => siblingIds.includes(p.id));
+      
+      const brothers = siblingPeople.filter(p => p.gender === "male").length;
+      const sisters = siblingPeople.filter(p => p.gender === "female").length;
+      
+      const breastfeedingSiblings = siblings.filter(r => r.isBreastfeeding);
+      const breastfeedingBrothers = breastfeedingSiblings.filter(r => {
+        const sibId = r.person1Id === person.id ? r.person2Id : r.person1Id;
+        const sib = treePeople.find(p => p.id === sibId);
+        return sib?.gender === "male";
+      }).length;
+      const breastfeedingSisters = breastfeedingSiblings.filter(r => {
+        const sibId = r.person1Id === person.id ? r.person2Id : r.person1Id;
+        const sib = treePeople.find(p => p.id === sibId);
+        return sib?.gender === "female";
+      }).length;
+
+      const spouseRels = treeRels.filter(r => 
+        r.type === "partner" && (r.person1Id === person.id || r.person2Id === person.id)
+      );
+      const wives = spouseRels.length;
+
+      const children = treeRels.filter(r => 
+        r.type === "parent-child" && r.parentId === person.id
+      ).length;
+
+      return { brothers, sisters, breastfeedingBrothers, breastfeedingSisters, wives, children };
+    };
+    
+    return (
+      <div className="min-h-screen bg-gray-50">
+        <div className="bg-white shadow-sm border-b px-8 py-4 flex justify-between items-center">
+          <div className="flex items-center gap-4">
+            <Button onClick={() => setCurrentView("dashboard")} variant="outline">
+              <Home className="w-4 h-4 ml-2" />
+              {t.backToDashboard}
+            </Button>
+            <h1 className="text-3xl font-bold">{t.relationships}</h1>
+          </div>
+          <Button onClick={handleLogout} variant="outline">
+            <LogOut className="w-4 h-4 ml-2" />
+            {t.logout}
+          </Button>
+        </div>
+        <div className="max-w-7xl mx-auto px-8 py-8">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {maleParents.map(person => {
+              const counts = getRelationshipCounts(person);
+              return (
+                <div key={person.id} className="bg-white rounded-lg shadow p-4">
+                  <div className="text-lg font-bold mb-2">
+                    الاسم: {getGenealogicalName(person)}
+                  </div>
+                  <div className="space-y-1 text-sm">
+                    <div className="text-green-600">عدد الأخوة: {counts.brothers}</div>
+                    <div className="text-pink-600">عدد الأخوات: {counts.sisters}</div>
+                    {counts.breastfeedingBrothers > 0 && (
+                      <div className="text-green-400 border-t border-green-400 pt-1">
+                        أخوة من الرضاعة: {counts.breastfeedingBrothers}
+                      </div>
+                    )}
+                    {counts.breastfeedingSisters > 0 && (
+                      <div className="text-pink-400">
+                        أخوات من الرضاعة: {counts.breastfeedingSisters}
+                      </div>
+                    )}
+                    <div className="text-purple-600">عدد الزوجات: {counts.wives}</div>
+                    <div className="text-blue-600">عدد الأبناء: {counts.children}</div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          {maleParents.length === 0 && (
+            <div className="text-center text-gray-500 py-8">
+              لا يوجد علاقات زوجية مع أبناء بعد
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
   if (currentView === "dashboard") {
     return (
       <div className="min-h-screen bg-gray-50">
@@ -1283,6 +1500,7 @@ function App() {
           <div className="flex items-center gap-4">
             {user?.email && <span className="text-sm text-gray-600">{user.email}</span>}
             <Button onClick={handleLogout} variant="outline">
+              <LogOut className="w-4 h-4 ml-2" />
               {t.logout}
             </Button>
           </div>
@@ -1297,13 +1515,19 @@ function App() {
               {currentTree ? 1 : 0}
             </div>
           </div>
-          <div className="bg-white rounded-lg shadow p-6">
+          <div 
+            className="bg-white rounded-lg shadow p-6 cursor-pointer hover:shadow-lg"
+            onClick={() => currentTree && setCurrentView("family-members")}
+          >
             <h3 className="text-xl font-bold mb-4">{t.familyMembers}</h3>
             <div className="text-3xl font-bold text-blue-600">
               {people.filter((p) => p.treeId === currentTree?.id).length}
             </div>
           </div>
-          <div className="bg-white rounded-lg shadow p-6">
+          <div 
+            className="bg-white rounded-lg shadow p-6 cursor-pointer hover:shadow-lg"
+            onClick={() => currentTree && setCurrentView("relationships-detail")}
+          >
             <h3 className="text-xl font-bold mb-4">{t.relationships}</h3>
             <div className="text-3xl font-bold text-green-600">
               {relationships.filter((r) => r.treeId === currentTree?.id).length}
@@ -1316,16 +1540,22 @@ function App() {
 
   return (
     <div className="h-screen bg-gray-100 overflow-hidden">
-      <div className="bg-white shadow-sm border-b px-4 py-3 flex items-center gap-4">
-        <Button
-          onClick={() => setCurrentView("dashboard")}
-          variant="outline"
-          size="sm"
-        >
-          <Home className="w-4 h-4 ml-2" />
-          {t.backToDashboard}
+      <div className="bg-white shadow-sm border-b px-4 py-3 flex items-center justify-between">
+        <div className="flex items-center gap-4">
+          <Button
+            onClick={() => setCurrentView("dashboard")}
+            variant="outline"
+            size="sm"
+          >
+            <Home className="w-4 h-4 ml-2" />
+            {t.backToDashboard}
+          </Button>
+          <h1 className="text-2xl font-bold">{t.familyTreeName}</h1>
+        </div>
+        <Button onClick={handleLogout} variant="outline" size="sm">
+          <LogOut className="w-4 h-4 ml-2" />
+          {t.logout}
         </Button>
-        <h1 className="text-2xl font-bold">{t.familyTreeName}</h1>
       </div>
 
       <div className="relative" style={{ height: "calc(100vh - 64px)" }}>

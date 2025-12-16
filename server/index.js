@@ -34,7 +34,19 @@ async function getTwilioCredentials() {
       }
     }
   );
-  const data = await response.json();
+  
+  if (!response.ok) {
+    const text = await response.text();
+    console.error('Twilio connector response:', text);
+    throw new Error('Failed to get Twilio credentials: ' + response.status);
+  }
+  
+  const text = await response.text();
+  if (!text) {
+    throw new Error('Empty response from Twilio connector');
+  }
+  
+  const data = JSON.parse(text);
   const connectionSettings = data.items?.[0];
 
   if (!connectionSettings || !connectionSettings.settings.account_sid) {
