@@ -1449,10 +1449,16 @@ function App() {
             </Button>
             <h1 className="text-3xl font-bold">{t.familyMembers}</h1>
           </div>
-          <Button onClick={handleLogout} variant="outline">
-            <LogOut className="w-4 h-4 ml-2" />
-            {t.logout}
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button onClick={handleOpenProfile} variant="outline">
+              <User className="w-4 h-4 ml-2" />
+              {t.profile}
+            </Button>
+            <Button onClick={handleLogout} variant="outline">
+              <LogOut className="w-4 h-4 ml-2" />
+              {t.logout}
+            </Button>
+          </div>
         </div>
         <div className="max-w-7xl mx-auto px-8 py-8">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -1542,10 +1548,16 @@ function App() {
             </Button>
             <h1 className="text-3xl font-bold">{t.relationships}</h1>
           </div>
-          <Button onClick={handleLogout} variant="outline">
-            <LogOut className="w-4 h-4 ml-2" />
-            {t.logout}
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button onClick={handleOpenProfile} variant="outline">
+              <User className="w-4 h-4 ml-2" />
+              {t.profile}
+            </Button>
+            <Button onClick={handleLogout} variant="outline">
+              <LogOut className="w-4 h-4 ml-2" />
+              {t.logout}
+            </Button>
+          </div>
         </div>
         <div className="max-w-7xl mx-auto px-8 py-8">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -1752,10 +1764,16 @@ function App() {
           </Button>
           <h1 className="text-2xl font-bold">{t.familyTreeName}</h1>
         </div>
-        <Button onClick={handleLogout} variant="outline" size="sm">
-          <LogOut className="w-4 h-4 ml-2" />
-          {t.logout}
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button onClick={handleOpenProfile} variant="outline" size="sm">
+            <User className="w-4 h-4 ml-2" />
+            {t.profile}
+          </Button>
+          <Button onClick={handleLogout} variant="outline" size="sm">
+            <LogOut className="w-4 h-4 ml-2" />
+            {t.logout}
+          </Button>
+        </div>
       </div>
 
       <div className="relative" style={{ height: "calc(100vh - 64px)" }}>
