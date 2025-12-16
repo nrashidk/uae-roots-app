@@ -2,7 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import twilio from 'twilio';
 import { db } from './db.js';
-import { trees, people, relationships } from '../shared/schema.js';
+import { users, trees, people, relationships } from '../shared/schema.js';
 import { eq, and } from 'drizzle-orm';
 
 const app = express();
@@ -119,9 +119,54 @@ app.post('/api/sms/verify-code', async (req, res) => {
   }
 });
 
+app.post('/api/users', async (req, res) => {
+  try {
+    const { id, email, displayName, phoneNumber, provider } = req.body;
+    
+    const existingUser = await db.select().from(users).where(eq(users.id, id));
+    
+    if (existingUser.length > 0) {
+      const [updatedUser] = await db.update(users)
+        .set({ lastLoginAt: new Date(), displayName, email })
+        .where(eq(users.id, id))
+        .returning();
+      return res.json(updatedUser);
+    }
+    
+    const [user] = await db.insert(users).values({
+      id,
+      email,
+      displayName,
+      phoneNumber,
+      provider
+    }).returning();
+    res.json(user);
+  } catch (error) {
+    console.error('User create/update error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.get('/api/users/:id', async (req, res) => {
+  try {
+    const [user] = await db.select().from(users).where(eq(users.id, req.params.id));
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    res.json(user);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 app.get('/api/trees', async (req, res) => {
   try {
-    const allTrees = await db.select().from(trees);
+    const { userId } = req.query;
+    let query = db.select().from(trees);
+    if (userId) {
+      query = query.where(eq(trees.createdBy, userId));
+    }
+    const allTrees = await query;
     res.json(allTrees);
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -131,10 +176,13 @@ app.get('/api/trees', async (req, res) => {
 app.post('/api/trees', async (req, res) => {
   try {
     const { name, description, createdBy } = req.body;
+    if (!createdBy) {
+      return res.status(400).json({ error: 'User ID is required' });
+    }
     const [tree] = await db.insert(trees).values({
       name,
       description,
-      createdBy: createdBy || 'test-user'
+      createdBy
     }).returning();
     res.json(tree);
   } catch (error) {

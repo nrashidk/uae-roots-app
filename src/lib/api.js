@@ -24,8 +24,16 @@ async function fetchAPI(endpoint, options = {}) {
 }
 
 export const api = {
+  users: {
+    createOrUpdate: (data) => fetchAPI('/users', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+    get: (id) => fetchAPI(`/users/${id}`),
+  },
+
   trees: {
-    getAll: () => fetchAPI('/trees'),
+    getAll: (userId) => fetchAPI(userId ? `/trees?userId=${userId}` : '/trees'),
     create: (data) => fetchAPI('/trees', {
       method: 'POST',
       body: JSON.stringify(data),

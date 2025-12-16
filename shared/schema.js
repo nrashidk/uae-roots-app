@@ -4,6 +4,17 @@
 import { pgTable, text, integer, serial, timestamp, boolean } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
 
+// Users table - stores authenticated users
+export const users = pgTable('users', {
+  id: text('id').primaryKey(), // Firebase UID or phone number
+  email: text('email'),
+  displayName: text('display_name'),
+  phoneNumber: text('phone_number'),
+  provider: text('provider'), // 'google' | 'microsoft' | 'email' | 'phone'
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  lastLoginAt: timestamp('last_login_at').defaultNow().notNull(),
+});
+
 // Trees table - represents individual family trees
 export const trees = pgTable('trees', {
   id: serial('id').primaryKey(),

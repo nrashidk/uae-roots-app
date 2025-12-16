@@ -30,6 +30,7 @@ import {
 } from "./lib/dataTransform.js";
 import TreeCanvas from "./components/FamilyTree/TreeCanvas.jsx";
 import { useAuth } from "./hooks/useAuth";
+import { api } from "./lib/api.js";
 
 function App() {
   const CARD = { w: 140, h: 90 };
@@ -287,21 +288,63 @@ function App() {
     return "";
   }, [relationshipType, editingPerson, selectedPerson, treePeople]);
 
-  const handleAuthSuccess = () => {
-    const newTree = {
-      id: Date.now(),
-      name: "شجرة عائلتي",
-      createdAt: new Date().toISOString(),
-    };
-    setCurrentTree(newTree);
-    setCurrentView("tree-builder");
+  const handleAuthSuccess = async (phoneUser = null) => {
+    try {
+      const currentUser = phoneUser || user;
+      if (!currentUser) {
+        console.error('No user found after auth success');
+        return;
+      }
+
+      const userId = currentUser.uid || currentUser.phoneNumber || currentUser.id;
+      const provider = currentUser.providerData?.[0]?.providerId || 
+                       (currentUser.phoneNumber ? 'phone' : 'email');
+      
+      await api.users.createOrUpdate({
+        id: userId,
+        email: currentUser.email || null,
+        displayName: currentUser.displayName || null,
+        phoneNumber: currentUser.phoneNumber || null,
+        provider: provider
+      });
+
+      const userTrees = await api.trees.getAll(userId);
+      
+      if (userTrees.length > 0) {
+        setCurrentTree(userTrees[0]);
+        const treePeopleData = await api.people.getAll(userTrees[0].id);
+        const treeRelData = await api.relationships.getAll(userTrees[0].id);
+        setPeople(treePeopleData);
+        setRelationships(treeRelData);
+      } else {
+        const newTree = await api.trees.create({
+          name: "شجرة عائلتي",
+          description: "شجرة العائلة الأولى",
+          createdBy: userId
+        });
+        setCurrentTree(newTree);
+        setPeople([]);
+        setRelationships([]);
+      }
+      
+      setCurrentView("tree-builder");
+    } catch (err) {
+      console.error('Error in handleAuthSuccess:', err);
+      const fallbackTree = {
+        id: Date.now(),
+        name: "شجرة عائلتي",
+        createdAt: new Date().toISOString(),
+      };
+      setCurrentTree(fallbackTree);
+      setCurrentView("tree-builder");
+    }
   };
 
   const handleGoogleLogin = async () => {
     try {
       setAuthProcessing(true);
-      await loginWithGoogle();
-      handleAuthSuccess();
+      const loggedInUser = await loginWithGoogle();
+      await handleAuthSuccess(loggedInUser);
     } catch (err) {
       console.error('Google login failed:', err);
     } finally {
@@ -312,8 +355,8 @@ function App() {
   const handleMicrosoftLogin = async () => {
     try {
       setAuthProcessing(true);
-      await loginWithMicrosoft();
-      handleAuthSuccess();
+      const loggedInUser = await loginWithMicrosoft();
+      await handleAuthSuccess(loggedInUser);
     } catch (err) {
       console.error('Microsoft login failed:', err);
     } finally {
@@ -327,12 +370,13 @@ function App() {
     
     try {
       setAuthProcessing(true);
+      let loggedInUser;
       if (authMode === 'login') {
-        await loginWithEmail(emailInput, passwordInput);
+        loggedInUser = await loginWithEmail(emailInput, passwordInput);
       } else {
-        await signUpWithEmail(emailInput, passwordInput);
+        loggedInUser = await signUpWithEmail(emailInput, passwordInput);
       }
-      handleAuthSuccess();
+      await handleAuthSuccess(loggedInUser);
     } catch (err) {
       console.error('Email auth failed:', err);
     } finally {
@@ -405,11 +449,18 @@ function App() {
       }
       
       if (data.verified) {
+        const formattedPhone = phoneInput.startsWith('+') ? phoneInput : '+971' + phoneInput.replace(/^0/, '');
+        const phoneUser = {
+          uid: formattedPhone,
+          phoneNumber: formattedPhone,
+          displayName: null,
+          email: null
+        };
         setShowSmsLogin(false);
         setSmsStep('phone');
         setPhoneInput('');
         setSmsCode('');
-        handleAuthSuccess();
+        await handleAuthSuccess(phoneUser);
       }
     } catch (err) {
       setSmsError(err.message);
