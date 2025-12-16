@@ -41,7 +41,7 @@ function App() {
     SIBLING: "sibling",
   };
 
-  const { user, isAuthenticated, isLoading: authLoading, error: authError, loginWithGoogle, loginWithMicrosoft, loginWithEmail, signUpWithEmail, logout } = useAuth();
+  const { user, isAuthenticated, isLoading: authLoading, error: authError, loginWithGoogle, loginWithMicrosoft, loginWithEmail, signUpWithEmail, logout, deleteAccount } = useAuth();
   const [authMode, setAuthMode] = useState('login');
   const [emailInput, setEmailInput] = useState('');
   const [passwordInput, setPasswordInput] = useState('');
@@ -73,6 +73,14 @@ function App() {
   });
   const [showOptions, setShowOptions] = useState(false);
   const [showActionMenu, setShowActionMenu] = useState(false);
+  const [showProfile, setShowProfile] = useState(false);
+  const [profileEmail, setProfileEmail] = useState('');
+  const [profilePhone, setProfilePhone] = useState('');
+  const [profileSaving, setProfileSaving] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleteConfirmText, setDeleteConfirmText] = useState('');
+  const [profileMessage, setProfileMessage] = useState('');
+  const [userProfile, setUserProfile] = useState(null);
 
   const [displayOptions, setDisplayOptions] = useState({
     showName: true,
@@ -162,6 +170,23 @@ function App() {
     spouseOf: "شريك",
     siblingOf: "شقيق",
     childOf: "طفل",
+    profile: "الملف الشخصي",
+    profileSettings: "إعدادات الحساب",
+    updateEmail: "تحديث البريد الإلكتروني",
+    updatePhone: "تحديث رقم الهاتف",
+    deleteAccount: "حذف الحساب",
+    deleteAccountWarning: "تحذير: سيتم حذف جميع بياناتك وأشجار العائلة نهائياً",
+    deleteAccountConfirm: "اكتب 'حذف' لتأكيد حذف الحساب",
+    confirmDelete: "تأكيد الحذف",
+    saving: "جاري الحفظ...",
+    saved: "تم الحفظ",
+    accountDeleted: "تم حذف الحساب",
+    back: "رجوع",
+    currentEmail: "البريد الإلكتروني الحالي",
+    currentPhone: "رقم الهاتف الحالي",
+    newEmail: "البريد الإلكتروني الجديد",
+    newPhone: "رقم الهاتف الجديد",
+    notSet: "غير محدد",
   };
 
   useEffect(() => {
@@ -301,13 +326,14 @@ function App() {
       const provider = currentUser.providerData?.[0]?.providerId || 
                        (currentUser.phoneNumber ? 'phone' : 'email');
       
-      await api.users.createOrUpdate({
+      const savedUser = await api.users.createOrUpdate({
         id: userId,
         email: currentUser.email || null,
         displayName: currentUser.displayName || null,
         phoneNumber: currentUser.phoneNumber || null,
         provider: provider
       });
+      setUserProfile(savedUser);
 
       const userTrees = await api.trees.getAll(userId);
       
@@ -391,9 +417,72 @@ function App() {
       setCurrentTree(null);
       setPeople([]);
       setRelationships([]);
+      setUserProfile(null);
       setCurrentView("auth");
     } catch (err) {
       console.error('Logout failed:', err);
+    }
+  };
+
+  const handleOpenProfile = () => {
+    setProfileEmail(userProfile?.email || user?.email || '');
+    setProfilePhone(userProfile?.phoneNumber || '');
+    setShowProfile(true);
+    setShowDeleteConfirm(false);
+    setDeleteConfirmText('');
+    setProfileMessage('');
+  };
+
+  const handleSaveProfile = async () => {
+    const userId = userProfile?.id || user?.uid;
+    if (!userId) return;
+    try {
+      setProfileSaving(true);
+      setProfileMessage('');
+      const updatedUser = await api.users.update(userId, {
+        email: profileEmail || null,
+        phoneNumber: profilePhone || null,
+        displayName: userProfile?.displayName || user?.displayName || null
+      });
+      setUserProfile(updatedUser);
+      setProfileMessage('تم حفظ التغييرات بنجاح');
+      setTimeout(() => {
+        setShowProfile(false);
+        setProfileMessage('');
+      }, 1500);
+    } catch (err) {
+      console.error('Profile save error:', err);
+      setProfileMessage('فشل في حفظ التغييرات');
+    } finally {
+      setProfileSaving(false);
+    }
+  };
+
+  const handleDeleteAccount = async () => {
+    const userId = userProfile?.id || user?.uid;
+    if (!userId || deleteConfirmText !== 'حذف') return;
+    try {
+      setProfileSaving(true);
+      await api.users.delete(userId);
+      try {
+        await deleteAccount();
+      } catch (authErr) {
+        if (authErr.code === 'auth/requires-recent-login') {
+          alert('يرجى تسجيل الخروج وإعادة تسجيل الدخول ثم المحاولة مرة أخرى لحذف حساب Firebase');
+        }
+        console.error('Firebase delete error (non-blocking):', authErr);
+      }
+      setCurrentTree(null);
+      setPeople([]);
+      setRelationships([]);
+      setUserProfile(null);
+      setCurrentView("auth");
+      setShowProfile(false);
+    } catch (err) {
+      console.error('Account delete error:', err);
+      setProfileMessage('فشل في حذف الحساب');
+    } finally {
+      setProfileSaving(false);
     }
   };
 
@@ -1498,7 +1587,11 @@ function App() {
         <div className="bg-white shadow-sm border-b px-8 py-4 flex justify-between items-center">
           <h1 className="text-3xl font-bold">{t.dashboard}</h1>
           <div className="flex items-center gap-4">
-            {user?.email && <span className="text-sm text-gray-600">{user.email}</span>}
+            {(userProfile?.email || user?.email) && <span className="text-sm text-gray-600">{userProfile?.email || user?.email}</span>}
+            <Button onClick={handleOpenProfile} variant="outline">
+              <User className="w-4 h-4 ml-2" />
+              {t.profile}
+            </Button>
             <Button onClick={handleLogout} variant="outline">
               <LogOut className="w-4 h-4 ml-2" />
               {t.logout}
@@ -1534,6 +1627,108 @@ function App() {
             </div>
           </div>
         </div>
+
+        <Dialog open={showProfile} onOpenChange={setShowProfile}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle className="text-right">{t.profileSettings}</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-6 py-4" dir="rtl">
+              <div className="space-y-2">
+                <label className="block text-sm font-medium">{t.currentEmail}</label>
+                <input
+                  type="email"
+                  value={profileEmail}
+                  onChange={(e) => setProfileEmail(e.target.value)}
+                  placeholder={t.notSet}
+                  className="w-full px-3 py-2 border rounded-lg text-right"
+                />
+              </div>
+              
+              <div className="space-y-2">
+                <label className="block text-sm font-medium">{t.currentPhone}</label>
+                <input
+                  type="tel"
+                  value={profilePhone}
+                  onChange={(e) => setProfilePhone(e.target.value)}
+                  placeholder={t.notSet}
+                  className="w-full px-3 py-2 border rounded-lg text-right"
+                  dir="ltr"
+                />
+              </div>
+              
+              {profileMessage && (
+                <div className={`p-3 rounded-lg text-center text-sm ${profileMessage.includes('نجاح') ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                  {profileMessage}
+                </div>
+              )}
+              
+              <div className="flex gap-3">
+                <Button 
+                  onClick={handleSaveProfile} 
+                  disabled={profileSaving}
+                  className="flex-1"
+                >
+                  {profileSaving ? t.saving : t.save}
+                </Button>
+                <Button 
+                  onClick={() => setShowProfile(false)} 
+                  variant="outline"
+                  className="flex-1"
+                >
+                  {t.cancel}
+                </Button>
+              </div>
+              
+              <div className="border-t pt-4 mt-4">
+                <div className="space-y-3">
+                  {!showDeleteConfirm ? (
+                    <Button 
+                      onClick={() => setShowDeleteConfirm(true)} 
+                      variant="destructive"
+                      className="w-full"
+                    >
+                      <Trash2 className="w-4 h-4 ml-2" />
+                      {t.deleteAccount}
+                    </Button>
+                  ) : (
+                    <div className="space-y-3 p-4 bg-red-50 rounded-lg border border-red-200">
+                      <p className="text-red-600 text-sm">{t.deleteAccountWarning}</p>
+                      <p className="text-sm">{t.deleteAccountConfirm}</p>
+                      <input
+                        type="text"
+                        value={deleteConfirmText}
+                        onChange={(e) => setDeleteConfirmText(e.target.value)}
+                        placeholder="حذف"
+                        className="w-full px-3 py-2 border border-red-300 rounded-lg text-right"
+                      />
+                      <div className="flex gap-2">
+                        <Button 
+                          onClick={handleDeleteAccount}
+                          disabled={deleteConfirmText !== 'حذف' || profileSaving}
+                          variant="destructive"
+                          className="flex-1"
+                        >
+                          {t.confirmDelete}
+                        </Button>
+                        <Button 
+                          onClick={() => {
+                            setShowDeleteConfirm(false);
+                            setDeleteConfirmText('');
+                          }}
+                          variant="outline"
+                          className="flex-1"
+                        >
+                          {t.cancel}
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
     );
   }

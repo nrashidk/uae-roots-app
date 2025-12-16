@@ -30,6 +30,13 @@ export const api = {
       body: JSON.stringify(data),
     }),
     get: (id) => fetchAPI(`/users/${id}`),
+    update: (id, data) => fetchAPI(`/users/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
+    delete: (id) => fetchAPI(`/users/${id}`, {
+      method: 'DELETE',
+    }),
   },
 
   trees: {

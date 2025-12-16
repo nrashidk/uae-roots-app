@@ -5,7 +5,8 @@ import {
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
   signOut,
-  sendPasswordResetEmail
+  sendPasswordResetEmail,
+  deleteUser
 } from 'firebase/auth';
 import { auth, googleProvider, microsoftProvider } from '../lib/firebase';
 
@@ -87,6 +88,18 @@ export function useAuth() {
     }
   };
 
+  const deleteAccount = async () => {
+    try {
+      setError(null);
+      if (auth.currentUser) {
+        await deleteUser(auth.currentUser);
+      }
+    } catch (err) {
+      setError(err.message);
+      throw err;
+    }
+  };
+
   return {
     user,
     isLoading,
@@ -97,6 +110,7 @@ export function useAuth() {
     loginWithEmail,
     signUpWithEmail,
     resetPassword,
-    logout
+    logout,
+    deleteAccount
   };
 }

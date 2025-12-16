@@ -78,6 +78,11 @@ app.post('/api/sms/send-code', async (req, res) => {
     });
 
     const { accountSid, apiKey, apiKeySecret, phoneNumber: fromNumber } = await getTwilioCredentials();
+    
+    if (!fromNumber) {
+      throw new Error('Twilio phone number not configured. Please configure a phone number in Twilio settings.');
+    }
+    
     const client = twilio(apiKey, apiKeySecret, { accountSid });
 
     await client.messages.create({
@@ -89,7 +94,21 @@ app.post('/api/sms/send-code', async (req, res) => {
     res.json({ success: true, message: 'Verification code sent' });
   } catch (error) {
     console.error('SMS send error:', error);
-    res.status(500).json({ error: error.message });
+    let userMessage = 'فشل إرسال رمز التحقق';
+    if (error.code === 21608) {
+      userMessage = 'رقم الهاتف غير صالح أو غير مدعوم في منطقتك';
+    } else if (error.code === 21211) {
+      userMessage = 'رقم الهاتف غير صالح. تأكد من إدخال رقم صحيح';
+    } else if (error.code === 21614) {
+      userMessage = 'رقم الهاتف لا يدعم استقبال الرسائل النصية';
+    } else if (error.code === 21408) {
+      userMessage = 'خدمة الرسائل النصية غير متوفرة لهذه المنطقة';
+    } else if (error.message?.includes('Twilio not connected')) {
+      userMessage = 'خدمة الرسائل غير متصلة. يرجى التواصل مع الدعم';
+    } else if (error.message?.includes('phone number not configured')) {
+      userMessage = 'رقم الإرسال غير مهيأ. يرجى التواصل مع الدعم';
+    }
+    res.status(500).json({ error: userMessage, details: error.message });
   }
 });
 
@@ -167,6 +186,49 @@ app.get('/api/users/:id', async (req, res) => {
     }
     res.json(user);
   } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.put('/api/users/:id', async (req, res) => {
+  try {
+    const { email, phoneNumber, displayName } = req.body;
+    const [updatedUser] = await db.update(users)
+      .set({ 
+        email: email || null,
+        phoneNumber: phoneNumber || null,
+        displayName: displayName || null
+      })
+      .where(eq(users.id, req.params.id))
+      .returning();
+    
+    if (!updatedUser) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    res.json(updatedUser);
+  } catch (error) {
+    console.error('User update error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.delete('/api/users/:id', async (req, res) => {
+  try {
+    const userId = req.params.id;
+    
+    const userTrees = await db.select().from(trees).where(eq(trees.createdBy, userId));
+    
+    for (const tree of userTrees) {
+      await db.delete(relationships).where(eq(relationships.treeId, tree.id));
+      await db.delete(people).where(eq(people.treeId, tree.id));
+      await db.delete(trees).where(eq(trees.id, tree.id));
+    }
+    
+    await db.delete(users).where(eq(users.id, userId));
+    
+    res.json({ success: true, message: 'Account deleted successfully' });
+  } catch (error) {
+    console.error('User delete error:', error);
     res.status(500).json({ error: error.message });
   }
 });
