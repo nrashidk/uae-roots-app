@@ -1156,7 +1156,7 @@ function App() {
     );
   }
 
-  if (!isAuthenticated) {
+  if (!isAuthenticated && !userProfile) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-purple-400 via-purple-500 to-purple-600 flex items-center justify-center p-4">
         <div className="bg-white rounded-2xl shadow-xl p-8 w-full max-w-md">
