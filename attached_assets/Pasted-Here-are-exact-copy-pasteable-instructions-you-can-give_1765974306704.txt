@@ -1,0 +1,87 @@
+Here are exact, copy-pasteable instructions you can give a Replit Agent to fix the PAGE_UNREACHABLE / ERR_CONNECTION_REFUSED screenshot issue.
+
+⸻
+
+Goal
+
+Make the app reachable from Replit’s webview/browser tool by:
+	•	binding the server to 0.0.0.0
+	•	listening on Replit’s port (prefer PORT env var, fallback 3000)
+	•	updating the agent/screenshot target URL to the Replit public web URL, not 127.0.0.1
+
+⸻
+
+Instructions for the Replit Agent
+	1.	Stop using http://127.0.0.1:5000/ anywhere
+
+	•	Search the repo for 127.0.0.1, localhost:5000, and :5000
+	•	Replace references with:
+	•	runtime bind: 0.0.0.0
+	•	port: process.env.PORT / os.environ["PORT"] (fallback 3000)
+	•	browsing URL: the Replit “Open in new tab” URL (public URL)
+
+	2.	Bind the server to 0.0.0.0 and use the PORT env var
+
+If Python + Flask
+
+In your main file (often main.py / app.py):
+
+import os
+
+port = int(os.environ.get("PORT", 3000))
+
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=port)
+
+If you start Flask via CLI, update the run command to:
+
+flask run --host=0.0.0.0 --port=$PORT
+
+If Python + FastAPI (uvicorn)
+
+Update the start command to:
+
+uvicorn main:app --host 0.0.0.0 --port $PORT
+
+If Node + Express
+
+In your server file:
+
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, "0.0.0.0", () => console.log(`Listening on ${PORT}`));
+
+If Vite / frontend dev server
+
+Run with host binding:
+
+vite --host 0.0.0.0 --port $PORT
+
+or npm run dev -- --host 0.0.0.0 --port $PORT)
+	3.	Ensure the Repl actually exposes the port
+
+	•	Replit will proxy the port your app listens on (typically PORT).
+	•	Make sure only one server is binding that port.
+
+	4.	Verify from inside the Repl that the server is reachable
+Add a quick check (or run in Shell):
+
+curl -I http://127.0.0.1:$PORT
+
+This should return HTTP/1.1 200 / 302 etc. If it fails, the server still isn’t listening correctly.
+	5.	Update the screenshot/browse step to use the Replit public URL
+
+	•	Do not browse http://127.0.0.1:$PORT for screenshots.
+	•	Instead, use the Replit-provided web URL (the same one you get from Open in new tab).
+
+If the agent workflow needs a URL automatically, use the environment variable Replit provides for the public URL if available (often one of these in many Replit templates):
+	•	REPLIT_DEV_DOMAIN
+	•	REPL_SLUG + REPL_OWNER (constructing URL depends on Replit’s current domain format)
+
+If no env var exists, instruct the workflow to:
+	•	read the webview URL from Replit UI and paste it into the config once
+	•	then the agent uses that URL for browsing/screenshotting
+
+	6.	Add a “wait until ready” before taking a screenshot
+In the workflow step that takes screenshots, wait for the server:
+
+until curl -sf http://127.0.0.1:$PORT >/dev/null; do sleep 0.5; done
