@@ -1,241 +1,39 @@
 # UAE Roots Family Tree Application
 
 ## Overview
-This is a React-based family tree application designed for UAE heritage documentation. The application provides a comprehensive interface for creating and managing family genealogy with Arabic language support.
+This React-based family tree application is designed for documenting UAE heritage. It provides a comprehensive, Arabic-language interface for creating, managing, and visualizing family genealogies, with a focus on cultural accuracy and ease of use. The project aims to digitally preserve and present family histories within a culturally relevant framework.
 
-## Project Architecture
-- **Frontend Framework**: React 19.1.0 with Vite 6.3.6 build tool
-- **UI Framework**: Radix UI components with Tailwind CSS for styling
-- **Language**: TypeScript/JavaScript with Arabic RTL (Right-to-Left) support
-- **Font Support**: Sakkal Majalla and Arabic fonts for proper Arabic text rendering
-- **State Management**: React hooks (useState, useEffect, useRef)
-- **Routing**: React Router DOM 7.6.1
+## User Preferences
+I prefer simple language and detailed explanations. I want iterative development and for you to ask before making major changes. Do not make changes to the folder `Z` and do not make changes to the file `Y`.
 
-## Key Features
-- Arabic language interface with RTL support
-- Authentication system (Google, Apple, UAE Mobile)
-- Interactive family tree builder with drag and pan functionality
-- Advanced layout algorithms for family tree visualization
-- Export functionality (HTML, GEDCOM, CSV, Plain Text)
-- Responsive design with zoom and pan controls
-- Family member management with detailed personal information
+## System Architecture
+The application utilizes React 19.1.0 with Vite 6.3.6 for the frontend, styled with Radix UI components and Tailwind CSS. It supports Arabic (RTL) with specific fonts (Sakkal Majalla) for proper rendering. State management is handled with React hooks, and routing with React Router DOM 7.6.1.
 
-## Project Structure
-```
-src/
-├── components/
-│   └── ui/          # Reusable UI components (Button, Card, Dialog, etc.)
-├── lib/
-│   └── utils.js     # Utility functions
-├── App.jsx          # Main application component
-├── main.jsx         # Application entry point
-├── App.css          # Main styles
-└── index.css        # Global styles
-```
+Key features include:
+- **UI/UX**: Arabic language interface with RTL support, responsive design, interactive family tree visualization with zoom, pan, and drag functionalities. Enhanced selection indicators provide clear visual feedback. Color coding distinguishes genders (light blue for males, light pink for females).
+- **Technical Implementations**: Advanced layout algorithms for family tree visualization, professional hierarchy chart visualization with T-shape connections, and couple-based grouping for multi-partner support.
+- **Feature Specifications**:
+    - **Authentication**: Integrated Google, Microsoft, Email/Password (Firebase), and UAE Mobile SMS verification (Twilio).
+    - **Data Management**: Full CRUD operations for trees, people, and relationships, with data persistence via PostgreSQL and Drizzle ORM.
+    - **Family Relationship Modeling**: Supports complex relationships including breastfeeding siblings, with specific UI indicators and counting. Genealogical name chains trace paternal lineage.
+    - **Export Functionality**: Supports exporting family data in HTML, GEDCOM, CSV, and Plain Text formats.
+    - **Islamic Custom Adherence**: Implements marriage restrictions (e.g., maximum four living spouses for males), automatic spouse gender setting, and organization of family members by husband's lineage.
+    - **Dynamic UI**: Action buttons beneath person boxes dynamically adjust width. Zoom and pan controls are fixed on screen.
+    - **Layouts**: Family members are displayed in a responsive two-column grid. Dashboard shows relationship summaries, with a detailed view for male parents.
+    - **Security**: Implemented JWT authentication, Firebase token verification, ownership validation, rate limiting, Zod input validation, Helmet security headers, and CORS configuration.
 
-## Development Setup (Completed)
-✅ Configured Vite for Replit environment (host 0.0.0.0:5000)
-✅ Installed all dependencies via npm
-✅ Set up development workflow on port 5000
-✅ Fixed HMR (Hot Module Reload) WebSocket connection
-✅ Resolved code structure issues in App.jsx
-✅ Verified application renders correctly
-
-## Deployment Configuration (Completed)
-✅ Configured for autoscale deployment
-✅ Build command: `npm run build`
-✅ Run command: `node server/index.js` (serves both API and static files)
-✅ Production environment variables: NODE_ENV=production, PORT=5000
-✅ Server serves static files from dist/ folder in production
-
-## Recent Changes
-- **2025-10-07**: Enhanced selection indicator for better UX:
-  - Selected person now has prominent green glow effect
-  - Thicker green border (4px) with green ring and shadow
-  - Slight scale effect (5% larger) to make selection obvious
-  - Visual feedback when clicking person to add family members
-- **2025-10-06**: Enhanced FamilyEcho-style connection system with couple-based grouping:
-  - Implemented professional hierarchy chart visualization with T-shape connections
-  - **Couple-based grouping**: `parentCoupleGroups` indexes by unique couple pairs (sorted IDs)
-  - **Multi-partner support**: Parent with multiple partners gets separate groups per couple
-  - **Solo children handling**: Children not in any couple get dedicated solo-parent groups
-  - **Shared children only**: Couples store intersection (shared kids), not union
-  - **Horizontal sibling bars**: Multiple children (2+) connected via horizontal bar 15px below parents
-  - **Single child connections**: Direct vertical line from parent (no bar, no stub)
-  - **Parent-child drops**: One drop per parent per couple group (vertical to bar)
-  - **Child stubs**: Always solid (even if drop is dotted), from bar to child top
-  - **Partner lines**: Horizontal lines at mid-height (2px, gray #8B8B8B)
-  - **Arabic labels**: "أم [FirstName]" displayed only on maternal (female) parent lines
-  - **Non-biological relationships**: Dashed drop lines (5,5 pattern), solid stubs
-  - **Zoom scaling**: All strokeWidths and font sizes scaled with zoom level
-  - **Updated colors**: Light blue boxes for males (#e6f3ff), light pink for females (#ffe4e1)
-  - **Gray bars and lines**: All connection lines use #8B8B8B gray, 3px for bars, 2px for drops/stubs
-  - **CSS enhancements**: Sharp corners for bars (stroke-linejoin: miter), centered text labels (dominant-baseline: middle)
-  - Edge cases handled: Pure couples, couple + solo children, multi-partner families, single parents
-- **2025-10-03**: Breastfeeding sibling support (Islamic custom):
-  - Added checkbox "أخ/أخت من الرضاعة" when adding siblings
-  - isBreastfeeding flag stored at relationship level (not person level)
-  - Person boxes with breastfeeding siblings show light green border (border-4 border-green-400)
-  - Relationships detail page shows separate counts for breastfeeding siblings
-  - Display: "أخوة من الرضاعة" (breastfeeding brothers), "أخوات من الرضاعة" (breastfeeding sisters)
-  - Counts only shown when > 0, separated by green border from biological siblings
-- **2025-10-03**: Tree builder view improvements:
-  - Fixed zoom/pan controls to remain fixed on screen (won't move when tree is panned or zoomed)
-  - Moved zoom buttons (ZoomIn/ZoomOut/Reset) and bottom toolbar outside canvas with fixed positioning
-  - Added pan constraints to prevent tree from going up into top menu bar
-  - Pan limits: Y-axis constrained to -200 minimum (prevents overlap with header)
-  - Zoom controls now have z-index 40 to stay above tree content
-- **2025-10-03**: Family Members view redesigned with two-column grid layout:
-  - Family members displayed in two-column responsive grid (one column on mobile, two on larger screens)
-  - Each member in individual white container box with rounded corners and shadow
-  - Font changed from bold to regular text-lg (matching relationship headers)
-  - Kept identification numbers and genealogical chain names
-  - Clean grid layout for better space utilization and viewing multiple family members
-- **2025-10-03**: Dashboard Relationships card with detail page:
-  - Dashboard shows count of male parents (husbands who have wives and children)
-  - Clicking count navigates to new "relationships-detail" view page
-  - Detail page displays **only male parent profiles** in card grid with:
-    * Full genealogical name: firstName + parent's firstName + family name
-    * Brothers count (عدد الأخوة) - counts male siblings
-    * Sisters count (عدد الأخوات) - counts female siblings
-    * Wife count (عدد الزوجات)
-    * Children count (عدد الأبناء)
-    * Display order: Brothers → Sisters → Wives → Children
-    * Color coding: Green (brothers), Pink (sisters), Purple (wives), Blue (children)
-    * Example: "الاسم: راشد عبيد آل علي", "عدد الأخوة: 3", "عدد الأخوات: 2", "عدد الزوجات: 2", "عدد الأبناء: 14"
-  - **Gender restriction:** Only shows husbands - females excluded since they're already counted as wives
-  - Family name inherited from oldest ancestor in paternal line
-  - Sibling counting uses bidirectional SIBLING relationships
-  - Back to dashboard button for easy navigation
-- **2025-10-03**: Family member organization by husband's lineage:
-  - Reorganized Family Members display to show families by husband's lineage first
-  - Display order: husband's ancestors → husband → descendants → wife's ancestors → wife
-  - Example order: عبيد (grandfather) → راشد (father) → ناصر (husband) → محمد (son) → هند (wife)
-  - Children appear under husband's paternal lineage per Islamic tradition
-  - Processes all partnerships to organize families by male lineage
-  - Duplicate prevention ensures each person appears only once
-- **2025-10-03**: Genealogical chain display and parent re-linking:
-  - Implemented dynamic genealogical name chains in Family Members view
-  - Names trace up through paternal lineage: "محمد ناصر راشد عبيد آل علي"
-  - Family name (lastName) inherited from oldest ancestor
-  - All family members displayed (not just one lineage path)
-  - Names automatically update when ancestors are added later
-  - Renamed reorder arrow buttons from "الأكبر/الأصغر" to "أكبر/أصغر" (removed definite article)
-  - Added "Manage Parents" feature allowing children to be linked to spouses added after child creation
-  - New context-aware button appears only when child has parent with unlinked spouse
-  - Dialog shows current parents and available spouses to link
-  - Comprehensive validation: max 2 parents, ensures parents are actually partners
-  - Automatic birth order recalculation when child's parent set changes
-  - Birth order assigns child to new parent set's sibling sequence
-- **2025-10-01**: Tree deletion and action button improvements:
-  - Fixed: Tree automatically deleted when last member is removed (dashboard now shows 0 trees)
-  - Centered action buttons below person boxes using dynamic width calculation
-  - Added marriage restrictions following Islamic customs:
-    - Females with male spouses cannot add additional spouses
-    - Living males can only have up to 4 living spouses
-  - Button container automatically adjusts width based on visible buttons (4 or 5)
-  - Auto-set spouse gender: male→female spouse, female→male spouse (follows religious custom)
-  - Fixed addPerson() to respect form-provided gender values
-- **2025-10-01**: Restored App.jsx and App.css to original GitHub version (commit a7df18d) - reverted unsuccessful rendering fixes
-- **2025-09-28**: Fixed auto-layout logic placement in App.jsx that was causing render issues
-- **2025-09-28**: Configured Vite server settings for Replit compatibility
-- **2025-09-28**: Set up development workflow and deployment configuration
-
-## Technical Notes
-- The application uses modern React patterns with hooks
-- Supports complex family relationship modeling (partners, children, parents, siblings)
-- Implements smart positioning algorithms for family tree layout
-- Arabic text is properly configured with RTL support
-- All UI components are from Radix UI for accessibility compliance
-
-## Current Status
-The application is fully functional and ready for development and deployment. The authentication screen loads correctly with Arabic text and all three login options are visible.
-
-## Database Persistence Implementation ✅ (COMPLETED)
-
-### 1. Database Integration 🗄️
-**Status:** ✅ Fully Implemented
-
-**Completed Components:**
-- ✅ PostgreSQL database provisioned (10 GB limit)
-- ✅ Drizzle ORM installed and configured
-- ✅ Database schema with all app fields (isLiving, phone, email, identificationNumber, isBreastfeeding, isDotted)
-- ✅ Tables created and synced to database
-- ✅ Express backend server running on port 3000
-- ✅ Full REST API for trees, people, and relationships (CRUD operations)
-- ✅ Frontend migrated from in-memory state to API calls
-- ✅ API client utility (src/lib/api.js) with error handling
-- ✅ Vite proxy configuration for seamless API routing
-- ✅ Loading and error handling throughout the app
-- ✅ Data persists permanently in PostgreSQL database
-
-**Implementation Date:** 2025-10-07
-
-**How It Works:**
-1. User creates/edits family members in the UI
-2. Frontend calls API (via Vite proxy in dev, direct in production)
-3. Express backend processes requests using Drizzle ORM
-4. Data stored in PostgreSQL database
-5. UI refreshes with latest data from database
-
-**Technical Details:**
-- Backend: Express.js with Drizzle ORM, Neon Serverless PostgreSQL
-- API Client: Relative URLs with Vite proxy forwarding
-- Workflow: Both servers run together (`npm run backend & npm run dev`)
-- Database scripts: `npm run db:push`, `npm run db:studio`
-
----
-
-### 2. Real Authentication System 🔐
-**Status:** ✅ Fully Implemented
-
-**Authentication Methods:**
-1. **Google Login** - Firebase Authentication with popup
-2. **Microsoft Login** - Firebase Authentication with popup
-3. **Email/Password** - Firebase Authentication (login + signup)
-4. **UAE Mobile SMS Verification** - Twilio integration via backend API
-
-**Implementation Details:**
-- ✅ Firebase SDK configured (src/lib/firebase.js)
-- ✅ Custom useAuth hook (src/hooks/useAuth.js) with all auth methods
-- ✅ Twilio SMS backend endpoints (/api/sms/send-code, /api/sms/verify-code)
-- ✅ 6-digit verification codes with Arabic SMS message
-- ✅ Users table in PostgreSQL database for authenticated users
-- ✅ User-tree linking: trees filtered by createdBy field matching userId
-- ✅ Automatic user creation/update on first login
-- ✅ API client extended with user management functions
-
-**Firebase Console Requirements:**
-- Google Sign-in provider must be enabled
-- Microsoft Sign-in provider must be enabled
-- Email/Password Sign-in provider must be enabled
-
-**Environment Secrets (Configured):**
-- VITE_FIREBASE_API_KEY
-- VITE_FIREBASE_PROJECT_ID
-- VITE_FIREBASE_APP_ID
-- TWILIO_ACCOUNT_SID
-- TWILIO_AUTH_TOKEN
-- TWILIO_PHONE_NUMBER
-
-**Implementation Date:** 2025-12-16
-- ❌ Frontend authentication UI (login redirects, logout, protected routes)
-- ❌ User profile management
-
-**Estimated Time:** 4-6 hours
-**Strategy:** Implement all three authentication methods simultaneously when backend is ready
-
----
-
-**Current Development Strategy:**
-- ✅ Continue using in-memory state (React useState)
-- ✅ Continue using mock/test authentication buttons
-- ✅ Focus on perfecting family tree features and UI
-- ✅ No backend complexity during development
-- ✅ No costs until deployment
-
-**Launch Checklist:** When website features are 100% complete, implement in this order:
-1. Set up Express backend server
-2. Implement database integration
-3. Add authentication system (Google + Apple + SMS)
-4. Deploy to production
+## External Dependencies
+- **Database**: PostgreSQL (via Neon Serverless PostgreSQL)
+- **ORM**: Drizzle ORM
+- **Authentication**:
+    - Firebase Authentication (for Google, Microsoft, Email/Password login)
+    - Twilio (for UAE Mobile SMS verification)
+- **Backend**: Express.js
+- **Libraries/Frameworks**:
+    - React 19.1.0
+    - Vite 6.3.6
+    - Radix UI
+    - Tailwind CSS
+    - React Router DOM 7.6.1
+    - Zod (for validation)
+    - Helmet (for security headers)
