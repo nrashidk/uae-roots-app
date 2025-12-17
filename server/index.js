@@ -568,7 +568,7 @@ app.post('/api/users', authenticateUser, async (req, res) => {
     const validatedData = userCreateSchema.parse(req.body);
     
     if (req.userId !== validatedData.id) {
-      return res.status(403).json({ error: 'Access denied: Cannot create/update other users' });
+      return res.status(403).json({ error: 'غير مصرح: لا يمكن إنشاء أو تعديل مستخدمين آخرين' });
     }
     
     const existingUser = await db.select().from(users).where(eq(users.id, validatedData.id));
@@ -605,7 +605,7 @@ app.get('/api/users/:id', authenticateUser, async (req, res) => {
     const userId = req.params.id;
     
     if (req.userId !== userId) {
-      return res.status(403).json({ error: 'Access denied' });
+      return res.status(403).json({ error: 'غير مصرح بالوصول' });
     }
     
     const [user] = await db.select().from(users).where(eq(users.id, userId));
@@ -623,7 +623,7 @@ app.put('/api/users/:id', authenticateUser, async (req, res) => {
     const userId = req.params.id;
     
     if (req.userId !== userId) {
-      return res.status(403).json({ error: 'Access denied' });
+      return res.status(403).json({ error: 'غير مصرح بالوصول' });
     }
     
     const validatedData = userUpdateSchema.parse(req.body);
@@ -656,7 +656,7 @@ app.delete('/api/users/:id', authenticateUser, async (req, res) => {
     const userId = req.params.id;
     
     if (req.userId !== userId) {
-      return res.status(403).json({ error: 'Access denied' });
+      return res.status(403).json({ error: 'غير مصرح بالوصول' });
     }
     
     const userTrees = await db.select().from(trees).where(eq(trees.createdBy, userId));
@@ -688,7 +688,7 @@ app.get('/api/trees', authenticateUser, async (req, res) => {
     }
     
     if (req.userId !== userId) {
-      return res.status(403).json({ error: 'Access denied' });
+      return res.status(403).json({ error: 'غير مصرح بالوصول' });
     }
     
     const userTrees = await db.select().from(trees).where(eq(trees.createdBy, userId));
@@ -703,7 +703,7 @@ app.post('/api/trees', authenticateUser, async (req, res) => {
     const validatedData = treeSchema.parse(req.body);
     
     if (req.userId !== validatedData.createdBy) {
-      return res.status(403).json({ error: 'Access denied' });
+      return res.status(403).json({ error: 'غير مصرح بالوصول' });
     }
     
     const [tree] = await db.insert(trees).values({
@@ -736,7 +736,7 @@ app.delete('/api/trees/:id', authenticateUser, async (req, res) => {
     }
     
     if (req.userId !== tree.createdBy) {
-      return res.status(403).json({ error: 'Access denied' });
+      return res.status(403).json({ error: 'غير مصرح بالوصول' });
     }
     
     await db.delete(relationships).where(eq(relationships.treeId, treeId));

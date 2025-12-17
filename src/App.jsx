@@ -127,6 +127,20 @@ function App() {
     return () => document.removeEventListener("click", handleDocClick, true);
   }, []);
 
+  const displayOptionLabels = {
+    showName: "الاسم",
+    showSurname: "اسم العائلة",
+    showBirthDate: "تاريخ الميلاد",
+    showBirthPlace: "مكان الميلاد",
+    showAge: "العمر",
+    showDeathDate: "تاريخ الوفاة",
+    showProfession: "المهنة",
+    showCompany: "جهة العمل",
+    showEmail: "البريد الإلكتروني",
+    showTelephone: "الهاتف",
+    showAddress: "العنوان",
+  };
+
   const t = {
     welcome: "مرحباً بكم في جذور الإمارات",
     continueWithGoogle: "التسجيل عبر البريد الإلكتروني",
@@ -374,7 +388,7 @@ function App() {
       setCurrentView("tree-builder");
     } catch (err) {
       console.error('Error in handleAuthSuccess:', err);
-      alert('Error during login: ' + err.message);
+      alert('خطأ أثناء تسجيل الدخول: ' + err.message);
       const fallbackTree = {
         id: Date.now(),
         name: "شجرة عائلتي",
@@ -2203,7 +2217,7 @@ function App() {
                           className="rounded"
                         />
                         <span className="text-sm">
-                          {key.replace("show", "إظهار ")}
+                          إظهار {displayOptionLabels[key] || key}
                         </span>
                       </label>
                     ))}
