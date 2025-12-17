@@ -491,6 +491,110 @@ function App() {
     }
   };
 
+  const renderProfileDialog = () => (
+    <Dialog open={showProfile} onOpenChange={setShowProfile}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle className="text-right">{t.profileSettings}</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-6 py-4" dir="rtl">
+          <div className="space-y-2">
+            <label className="block text-sm font-medium">{t.currentEmail}</label>
+            <input
+              type="email"
+              value={profileEmail}
+              onChange={(e) => setProfileEmail(e.target.value)}
+              placeholder={t.notSet}
+              className="w-full px-3 py-2 border rounded-lg text-right"
+            />
+          </div>
+          
+          <div className="space-y-2">
+            <label className="block text-sm font-medium">{t.currentPhone}</label>
+            <input
+              type="tel"
+              value={profilePhone}
+              onChange={(e) => setProfilePhone(e.target.value)}
+              placeholder={t.notSet}
+              className="w-full px-3 py-2 border rounded-lg text-right"
+              dir="ltr"
+            />
+          </div>
+          
+          {profileMessage && (
+            <div className={`p-3 rounded-lg text-center text-sm ${profileMessage.includes('نجاح') ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+              {profileMessage}
+            </div>
+          )}
+          
+          <div className="flex gap-3">
+            <Button 
+              onClick={handleSaveProfile} 
+              disabled={profileSaving}
+              className="flex-1"
+            >
+              {profileSaving ? t.saving : t.save}
+            </Button>
+            <Button 
+              onClick={() => setShowProfile(false)} 
+              variant="outline"
+              className="flex-1"
+            >
+              {t.cancel}
+            </Button>
+          </div>
+          
+          <div className="border-t pt-4 mt-4">
+            <div className="space-y-3">
+              {!showDeleteConfirm ? (
+                <Button 
+                  onClick={() => setShowDeleteConfirm(true)} 
+                  variant="destructive"
+                  className="w-full"
+                >
+                  <Trash2 className="w-4 h-4 ml-2" />
+                  {t.deleteAccount}
+                </Button>
+              ) : (
+                <div className="space-y-3 p-4 bg-red-50 rounded-lg border border-red-200">
+                  <p className="text-red-600 text-sm">{t.deleteAccountWarning}</p>
+                  <p className="text-sm">{t.deleteAccountConfirm}</p>
+                  <input
+                    type="text"
+                    value={deleteConfirmText}
+                    onChange={(e) => setDeleteConfirmText(e.target.value)}
+                    placeholder="حذف"
+                    className="w-full px-3 py-2 border border-red-300 rounded-lg text-right"
+                  />
+                  <div className="flex gap-2">
+                    <Button 
+                      onClick={handleDeleteAccount}
+                      disabled={deleteConfirmText !== 'حذف' || profileSaving}
+                      variant="destructive"
+                      className="flex-1"
+                    >
+                      {t.confirmDelete}
+                    </Button>
+                    <Button 
+                      onClick={() => {
+                        setShowDeleteConfirm(false);
+                        setDeleteConfirmText('');
+                      }}
+                      variant="outline"
+                      className="flex-1"
+                    >
+                      {t.cancel}
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+
   const handleSendSmsCode = async () => {
     if (!phoneInput) {
       setSmsError('الرجاء إدخال رقم الهاتف');
@@ -1482,6 +1586,7 @@ function App() {
             </div>
           )}
         </div>
+        {renderProfileDialog()}
       </div>
     );
   }
@@ -1594,6 +1699,7 @@ function App() {
             </div>
           )}
         </div>
+        {renderProfileDialog()}
       </div>
     );
   }
@@ -1644,108 +1750,7 @@ function App() {
             </div>
           </div>
         </div>
-
-        <Dialog open={showProfile} onOpenChange={setShowProfile}>
-          <DialogContent className="max-w-md">
-            <DialogHeader>
-              <DialogTitle className="text-right">{t.profileSettings}</DialogTitle>
-            </DialogHeader>
-            <div className="space-y-6 py-4" dir="rtl">
-              <div className="space-y-2">
-                <label className="block text-sm font-medium">{t.currentEmail}</label>
-                <input
-                  type="email"
-                  value={profileEmail}
-                  onChange={(e) => setProfileEmail(e.target.value)}
-                  placeholder={t.notSet}
-                  className="w-full px-3 py-2 border rounded-lg text-right"
-                />
-              </div>
-              
-              <div className="space-y-2">
-                <label className="block text-sm font-medium">{t.currentPhone}</label>
-                <input
-                  type="tel"
-                  value={profilePhone}
-                  onChange={(e) => setProfilePhone(e.target.value)}
-                  placeholder={t.notSet}
-                  className="w-full px-3 py-2 border rounded-lg text-right"
-                  dir="ltr"
-                />
-              </div>
-              
-              {profileMessage && (
-                <div className={`p-3 rounded-lg text-center text-sm ${profileMessage.includes('نجاح') ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
-                  {profileMessage}
-                </div>
-              )}
-              
-              <div className="flex gap-3">
-                <Button 
-                  onClick={handleSaveProfile} 
-                  disabled={profileSaving}
-                  className="flex-1"
-                >
-                  {profileSaving ? t.saving : t.save}
-                </Button>
-                <Button 
-                  onClick={() => setShowProfile(false)} 
-                  variant="outline"
-                  className="flex-1"
-                >
-                  {t.cancel}
-                </Button>
-              </div>
-              
-              <div className="border-t pt-4 mt-4">
-                <div className="space-y-3">
-                  {!showDeleteConfirm ? (
-                    <Button 
-                      onClick={() => setShowDeleteConfirm(true)} 
-                      variant="destructive"
-                      className="w-full"
-                    >
-                      <Trash2 className="w-4 h-4 ml-2" />
-                      {t.deleteAccount}
-                    </Button>
-                  ) : (
-                    <div className="space-y-3 p-4 bg-red-50 rounded-lg border border-red-200">
-                      <p className="text-red-600 text-sm">{t.deleteAccountWarning}</p>
-                      <p className="text-sm">{t.deleteAccountConfirm}</p>
-                      <input
-                        type="text"
-                        value={deleteConfirmText}
-                        onChange={(e) => setDeleteConfirmText(e.target.value)}
-                        placeholder="حذف"
-                        className="w-full px-3 py-2 border border-red-300 rounded-lg text-right"
-                      />
-                      <div className="flex gap-2">
-                        <Button 
-                          onClick={handleDeleteAccount}
-                          disabled={deleteConfirmText !== 'حذف' || profileSaving}
-                          variant="destructive"
-                          className="flex-1"
-                        >
-                          {t.confirmDelete}
-                        </Button>
-                        <Button 
-                          onClick={() => {
-                            setShowDeleteConfirm(false);
-                            setDeleteConfirmText('');
-                          }}
-                          variant="outline"
-                          className="flex-1"
-                        >
-                          {t.cancel}
-                        </Button>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-          </DialogContent>
-        </Dialog>
+        {renderProfileDialog()}
       </div>
     );
   }
@@ -2285,6 +2290,7 @@ function App() {
             </div>
           </div>
         )}
+        {renderProfileDialog()}
       </div>
     </div>
   );
