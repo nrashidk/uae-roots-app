@@ -1,28 +1,5 @@
 const API_BASE_URL = '/api';
 
-let authToken = null;
-
-export function setAuthToken(token) {
-  authToken = token;
-  if (token) {
-    localStorage.setItem('uae_roots_token', token);
-  } else {
-    localStorage.removeItem('uae_roots_token');
-  }
-}
-
-export function getAuthToken() {
-  if (!authToken) {
-    authToken = localStorage.getItem('uae_roots_token');
-  }
-  return authToken;
-}
-
-export function clearAuthToken() {
-  authToken = null;
-  localStorage.removeItem('uae_roots_token');
-}
-
 async function fetchAPI(endpoint, options = {}) {
   try {
     const headers = {
@@ -30,14 +7,30 @@ async function fetchAPI(endpoint, options = {}) {
       ...options.headers,
     };
     
-    const token = getAuthToken();
-    if (token) {
-      headers['Authorization'] = `Bearer ${token}`;
-    }
-    
     const response = await fetch(`${API_BASE_URL}${endpoint}`, {
       headers,
+      credentials: 'include',
       ...options,
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ error: 'An error occurred' }));
+      throw new Error(error.error || `HTTP error! status: ${response.status}`);
+    }
+
+    return await response.json();
+  } catch (error) {
+    console.error(`API Error (${endpoint}):`, error);
+    throw error;
+  }
+}
+
+async function fetchAPIWithFile(endpoint, formData) {
+  try {
+    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+      method: 'POST',
+      credentials: 'include',
+      body: formData,
     });
 
     if (!response.ok) {
@@ -66,6 +59,10 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ phoneNumber, code }),
     }),
+    logout: () => fetchAPI('/auth/logout', {
+      method: 'POST',
+    }),
+    check: () => fetchAPI('/auth/check'),
   },
 
   users: {
@@ -96,6 +93,7 @@ export const api = {
 
   people: {
     getAll: (treeId) => fetchAPI(`/people?treeId=${treeId}`),
+    search: (treeId, query) => fetchAPI(`/people/search?treeId=${treeId}&query=${encodeURIComponent(query)}`),
     create: (data) => fetchAPI('/people', {
       method: 'POST',
       body: JSON.stringify(data),
@@ -123,4 +121,48 @@ export const api = {
       method: 'DELETE',
     }),
   },
+
+  upload: {
+    photo: (file) => {
+      const formData = new FormData();
+      formData.append('photo', file);
+      return fetchAPIWithFile('/upload/photo', formData);
+    },
+  },
+
+  history: {
+    get: (treeId) => fetchAPI(`/history/${treeId}`),
+    undo: (historyId) => fetchAPI(`/history/undo/${historyId}`, {
+      method: 'POST',
+    }),
+  },
+
+  export: {
+    tree: (treeId, format = 'json') => {
+      const url = `${API_BASE_URL}/export/${treeId}?format=${format}`;
+      
+      if (format === 'json') {
+        return fetchAPI(`/export/${treeId}?format=${format}`);
+      }
+      
+      return fetch(url, {
+        credentials: 'include',
+      }).then(res => {
+        if (!res.ok) throw new Error('Export failed');
+        return res.blob();
+      }).then(blob => {
+        const extension = format === 'gedcom' ? 'ged' : format;
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = `family-tree.${extension}`;
+        link.click();
+        URL.revokeObjectURL(link.href);
+        return { success: true };
+      });
+    },
+  },
 };
+
+export function setAuthToken() {}
+export function getAuthToken() { return null; }
+export function clearAuthToken() {}

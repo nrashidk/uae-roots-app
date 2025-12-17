@@ -1,7 +1,7 @@
 // Database schema for UAE Family Tree application
 // Referenced from blueprint:javascript_database
 
-import { pgTable, text, integer, serial, timestamp, boolean } from 'drizzle-orm/pg-core';
+import { pgTable, text, integer, serial, timestamp, boolean, jsonb } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
 
 // Users table - stores authenticated users
@@ -13,6 +13,32 @@ export const users = pgTable('users', {
   provider: text('provider'), // 'google' | 'microsoft' | 'email' | 'phone'
   createdAt: timestamp('created_at').defaultNow().notNull(),
   lastLoginAt: timestamp('last_login_at').defaultNow().notNull(),
+});
+
+// Audit logs table - tracks sensitive operations
+export const auditLogs = pgTable('audit_logs', {
+  id: serial('id').primaryKey(),
+  userId: text('user_id').notNull(),
+  action: text('action').notNull(), // 'login' | 'logout' | 'create' | 'update' | 'delete'
+  resourceType: text('resource_type').notNull(), // 'user' | 'tree' | 'person' | 'relationship'
+  resourceId: text('resource_id'),
+  details: jsonb('details'), // Additional context
+  ipAddress: text('ip_address'),
+  userAgent: text('user_agent'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+});
+
+// Edit history for undo/redo functionality
+export const editHistory = pgTable('edit_history', {
+  id: serial('id').primaryKey(),
+  userId: text('user_id').notNull(),
+  treeId: integer('tree_id').notNull().references(() => trees.id, { onDelete: 'cascade' }),
+  action: text('action').notNull(), // 'create' | 'update' | 'delete'
+  resourceType: text('resource_type').notNull(), // 'person' | 'relationship'
+  resourceId: integer('resource_id').notNull(),
+  previousData: jsonb('previous_data'), // State before change
+  newData: jsonb('new_data'), // State after change
+  createdAt: timestamp('created_at').defaultNow().notNull(),
 });
 
 // Trees table - represents individual family trees
@@ -38,6 +64,7 @@ export const people = pgTable('people', {
   email: text('email'),
   identificationNumber: text('identification_number'),
   birthOrder: integer('birth_order'),
+  photoUrl: text('photo_url'), // URL to uploaded photo
   createdAt: timestamp('created_at').defaultNow().notNull(),
 });
 
