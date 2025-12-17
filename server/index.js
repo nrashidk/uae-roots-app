@@ -17,7 +17,11 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-const JWT_SECRET = process.env.JWT_SECRET || 'uae-roots-secure-key-' + Date.now();
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET) {
+  console.error('CRITICAL: JWT_SECRET environment variable is required');
+  process.exit(1);
+}
 
 const allowedOrigins = process.env.ALLOWED_ORIGINS 
   ? process.env.ALLOWED_ORIGINS.split(',') 
@@ -53,8 +57,23 @@ app.use(cors({
 }));
 
 app.use(helmet({
-  contentSecurityPolicy: false,
-  crossOriginEmbedderPolicy: false
+  contentSecurityPolicy: {
+    useDefaults: false,
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'", "'unsafe-inline'", "https://www.gstatic.com", "https://apis.google.com", "https://*.firebaseapp.com"],
+      styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+      fontSrc: ["'self'", "https://fonts.gstatic.com", "data:"],
+      imgSrc: ["'self'", "data:", "https:", "blob:"],
+      connectSrc: ["'self'", "https://identitytoolkit.googleapis.com", "https://securetoken.googleapis.com", "https://www.googleapis.com", "https://firebaseinstallations.googleapis.com", "https://oauth2.googleapis.com", "wss:", "ws:"],
+      frameSrc: ["'self'", "https://accounts.google.com", "https://login.microsoftonline.com", "https://*.firebaseapp.com"],
+      objectSrc: ["'none'"],
+      baseUri: ["'self'"],
+      formAction: ["'self'"]
+    }
+  },
+  crossOriginEmbedderPolicy: false,
+  crossOriginOpenerPolicy: { policy: "same-origin-allow-popups" }
 }));
 
 app.use(express.json({ limit: '1mb' }));
@@ -123,6 +142,24 @@ const userCreateSchema = z.object({
   displayName: z.string().max(200).trim().optional().nullable(),
   phoneNumber: z.string().max(20).optional().nullable(),
   provider: z.enum(['google.com', 'microsoft.com', 'phone', 'email', 'password', 'unknown']).optional()
+});
+
+const personUpdateSchema = z.object({
+  treeId: z.number().int().positive().optional(),
+  firstName: z.string().min(1).max(100).trim().optional(),
+  lastName: z.string().max(100).trim().optional().nullable(),
+  gender: z.enum(['male', 'female']).optional(),
+  birthDate: z.string().max(20).optional().nullable(),
+  deathDate: z.string().max(20).optional().nullable(),
+  isLiving: z.boolean().optional(),
+  phone: z.string().max(20).optional().nullable(),
+  email: z.string().email().max(100).optional().nullable().or(z.literal('')).or(z.null()),
+  identificationNumber: z.string().max(50).optional().nullable(),
+  birthOrder: z.number().int().optional().nullable()
+});
+
+const birthOrderSchema = z.object({
+  birthOrder: z.number().int().nullable().optional()
 });
 
 const authenticateUser = async (req, res, next) => {
@@ -610,6 +647,8 @@ app.put('/api/people/:id', authenticateUser, async (req, res) => {
       return res.status(400).json({ error: 'Invalid person ID' });
     }
     
+    const validatedData = personUpdateSchema.parse(req.body);
+    
     const [existingPerson] = await db.select().from(people).where(eq(people.id, personId));
     if (!existingPerson) {
       return res.status(404).json({ error: 'Person not found' });
@@ -620,24 +659,27 @@ app.put('/api/people/:id', authenticateUser, async (req, res) => {
       return res.status(403).json({ error: ownership.error });
     }
     
-    const personData = {
-      firstName: req.body.firstName,
-      lastName: req.body.lastName || null,
-      gender: req.body.gender,
-      birthDate: req.body.birthDate || null,
-      deathDate: req.body.deathDate || null,
-      isLiving: req.body.isLiving,
-      phone: req.body.phone || null,
-      email: req.body.email || null,
-      identificationNumber: req.body.identificationNumber || null,
-      birthOrder: req.body.birthOrder || null
-    };
+    const personData = {};
+    if (validatedData.firstName !== undefined) personData.firstName = validatedData.firstName;
+    if (validatedData.lastName !== undefined) personData.lastName = validatedData.lastName || null;
+    if (validatedData.gender !== undefined) personData.gender = validatedData.gender;
+    if (validatedData.birthDate !== undefined) personData.birthDate = validatedData.birthDate || null;
+    if (validatedData.deathDate !== undefined) personData.deathDate = validatedData.deathDate || null;
+    if (validatedData.isLiving !== undefined) personData.isLiving = validatedData.isLiving;
+    if (validatedData.phone !== undefined) personData.phone = validatedData.phone || null;
+    if (validatedData.email !== undefined) personData.email = validatedData.email || null;
+    if (validatedData.identificationNumber !== undefined) personData.identificationNumber = validatedData.identificationNumber || null;
+    if (validatedData.birthOrder !== undefined) personData.birthOrder = validatedData.birthOrder;
+    
     const [person] = await db.update(people)
       .set(personData)
       .where(eq(people.id, personId))
       .returning();
     res.json(person);
   } catch (error) {
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({ error: 'Invalid input', details: error.errors });
+    }
     handleError(res, error, 'Person update');
   }
 });
@@ -673,6 +715,8 @@ app.patch('/api/people/:id/birthOrder', authenticateUser, async (req, res) => {
       return res.status(400).json({ error: 'Invalid person ID' });
     }
     
+    const validatedData = birthOrderSchema.parse(req.body);
+    
     const [existingPerson] = await db.select().from(people).where(eq(people.id, personId));
     if (!existingPerson) {
       return res.status(404).json({ error: 'Person not found' });
@@ -683,13 +727,15 @@ app.patch('/api/people/:id/birthOrder', authenticateUser, async (req, res) => {
       return res.status(403).json({ error: ownership.error });
     }
     
-    const { birthOrder } = req.body;
     const [person] = await db.update(people)
-      .set({ birthOrder })
+      .set({ birthOrder: validatedData.birthOrder })
       .where(eq(people.id, personId))
       .returning();
     res.json(person);
   } catch (error) {
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({ error: 'Invalid input', details: error.errors });
+    }
     handleError(res, error, 'Birth order update');
   }
 });
