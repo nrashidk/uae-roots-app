@@ -31,7 +31,7 @@ import {
 } from "./lib/dataTransform.js";
 import TreeCanvas from "./components/FamilyTree/TreeCanvas.jsx";
 import { useAuth } from "./hooks/useAuth";
-import { api } from "./lib/api.js";
+import { api, setAuthToken, clearAuthToken, getAuthToken } from "./lib/api.js";
 
 function App() {
   const CARD = { w: 140, h: 90 };
@@ -314,7 +314,7 @@ function App() {
     return "";
   }, [relationshipType, editingPerson, selectedPerson, treePeople]);
 
-  const handleAuthSuccess = async (phoneUser = null) => {
+  const handleAuthSuccess = async (phoneUser = null, authToken = null) => {
     try {
       const currentUser = phoneUser || user;
       console.log('handleAuthSuccess called with user:', currentUser);
@@ -327,6 +327,19 @@ function App() {
       console.log('Creating/updating user with ID:', userId);
       const provider = currentUser.providerData?.[0]?.providerId || 
                        (currentUser.phoneNumber ? 'phone' : 'email');
+      
+      if (authToken) {
+        setAuthToken(authToken);
+      } else if (!getAuthToken()) {
+        let firebaseIdToken = null;
+        if (currentUser.getIdToken) {
+          firebaseIdToken = await currentUser.getIdToken();
+        }
+        const tokenResponse = await api.auth.getToken(userId, provider, firebaseIdToken);
+        if (tokenResponse.token) {
+          setAuthToken(tokenResponse.token);
+        }
+      }
       
       const savedUser = await api.users.createOrUpdate({
         id: userId,
@@ -419,6 +432,7 @@ function App() {
   const handleLogout = async () => {
     try {
       await logout();
+      clearAuthToken();
       setCurrentTree(null);
       setPeople([]);
       setRelationships([]);
@@ -671,7 +685,7 @@ function App() {
         setSmsStep('phone');
         setPhoneInput('');
         setSmsCode('');
-        await handleAuthSuccess(phoneUser);
+        await handleAuthSuccess(phoneUser, data.token);
       }
     } catch (err) {
       setSmsError(err.message);

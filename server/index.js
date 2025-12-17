@@ -1,11 +1,15 @@
 import express from 'express';
 import cors from 'cors';
+import helmet from 'helmet';
+import rateLimit from 'express-rate-limit';
 import twilio from 'twilio';
 import path from 'path';
+import jwt from 'jsonwebtoken';
 import { fileURLToPath } from 'url';
 import { db } from './db.js';
 import { users, trees, people, relationships } from '../shared/schema.js';
 import { eq, and } from 'drizzle-orm';
+import { z } from 'zod';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -13,10 +17,169 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-app.use(cors());
-app.use(express.json());
+const JWT_SECRET = process.env.JWT_SECRET || 'uae-roots-secure-key-' + Date.now();
 
-const verificationCodes = new Map();
+const allowedOrigins = process.env.ALLOWED_ORIGINS 
+  ? process.env.ALLOWED_ORIGINS.split(',') 
+  : [
+      'https://*.replit.dev',
+      'https://*.repl.co',
+      /\.replit\.dev$/,
+      /\.repl\.co$/
+    ];
+
+app.use(cors({
+  origin: (origin, callback) => {
+    if (!origin) return callback(null, true);
+    
+    const isAllowed = allowedOrigins.some(allowed => {
+      if (allowed instanceof RegExp) return allowed.test(origin);
+      if (allowed.includes('*')) {
+        const pattern = new RegExp('^' + allowed.replace(/\*/g, '.*') + '$');
+        return pattern.test(origin);
+      }
+      return allowed === origin;
+    });
+    
+    if (isAllowed || process.env.NODE_ENV !== 'production') {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+}));
+
+app.use(helmet({
+  contentSecurityPolicy: false,
+  crossOriginEmbedderPolicy: false
+}));
+
+app.use(express.json({ limit: '1mb' }));
+
+const apiLimiter = rateLimit({
+  windowMs: 1 * 60 * 1000,
+  max: 100,
+  message: { error: 'تم تجاوز الحد الأقصى للطلبات. حاول مرة أخرى لاحقاً' },
+  standardHeaders: true,
+  legacyHeaders: false,
+  validate: { xForwardedForHeader: false }
+});
+
+const smsLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 5,
+  message: { error: 'تم تجاوز الحد الأقصى لإرسال الرسائل. حاول مرة أخرى بعد 15 دقيقة' },
+  standardHeaders: true,
+  legacyHeaders: false,
+  validate: { xForwardedForHeader: false }
+});
+
+const phoneSchema = z.string().regex(/^\+?[0-9]{10,15}$/, 'Invalid phone number format');
+const codeSchema = z.string().regex(/^[0-9]{4,8}$/, 'Invalid verification code');
+
+const personSchema = z.object({
+  treeId: z.number().int().positive(),
+  firstName: z.string().min(1).max(100).trim(),
+  lastName: z.string().max(100).trim().optional().nullable(),
+  gender: z.enum(['male', 'female']),
+  birthDate: z.string().max(20).optional().nullable(),
+  deathDate: z.string().max(20).optional().nullable(),
+  isLiving: z.boolean().optional().default(true),
+  phone: z.string().max(20).optional().nullable(),
+  email: z.string().email().max(100).optional().nullable().or(z.literal('')).or(z.null()),
+  identificationNumber: z.string().max(50).optional().nullable(),
+  birthOrder: z.number().int().optional().nullable()
+});
+
+const treeSchema = z.object({
+  name: z.string().min(1).max(200).trim(),
+  description: z.string().max(1000).trim().optional().nullable(),
+  createdBy: z.string().min(1).max(200)
+});
+
+const relationshipSchema = z.object({
+  treeId: z.number().int().positive(),
+  type: z.enum(['partner', 'parent-child', 'sibling']),
+  person1Id: z.number().int().positive().optional().nullable(),
+  person2Id: z.number().int().positive().optional().nullable(),
+  childId: z.number().int().positive().optional().nullable(),
+  parentId: z.number().int().positive().optional().nullable(),
+  isBreastfeeding: z.boolean().optional().default(false),
+  isDotted: z.boolean().optional().default(false)
+});
+
+const userUpdateSchema = z.object({
+  email: z.string().email().max(100).optional().nullable().or(z.literal('')).or(z.null()),
+  phoneNumber: z.string().max(20).optional().nullable(),
+  displayName: z.string().max(200).trim().optional().nullable()
+});
+
+const userCreateSchema = z.object({
+  id: z.string().min(1).max(200),
+  email: z.string().email().max(100).optional().nullable().or(z.literal('')).or(z.null()),
+  displayName: z.string().max(200).trim().optional().nullable(),
+  phoneNumber: z.string().max(20).optional().nullable(),
+  provider: z.enum(['google.com', 'microsoft.com', 'phone', 'email', 'password', 'unknown']).optional()
+});
+
+const authenticateUser = async (req, res, next) => {
+  const authHeader = req.headers.authorization;
+  
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({ error: 'Authentication required' });
+  }
+
+  const token = authHeader.split('Bearer ')[1];
+  
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET);
+    req.userId = decoded.userId;
+    req.userType = decoded.type;
+    next();
+  } catch (jwtError) {
+    return res.status(401).json({ error: 'Invalid or expired token' });
+  }
+};
+
+const optionalAuth = async (req, res, next) => {
+  const authHeader = req.headers.authorization;
+  
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    const token = authHeader.split('Bearer ')[1];
+    try {
+      const decoded = jwt.verify(token, JWT_SECRET);
+      req.userId = decoded.userId;
+      req.userType = decoded.type;
+    } catch (error) {
+    }
+  }
+  next();
+};
+
+const verifyTreeOwnership = async (treeId, userId) => {
+  const [tree] = await db.select().from(trees).where(eq(trees.id, treeId));
+  if (!tree) return { valid: false, error: 'Tree not found' };
+  if (tree.createdBy !== userId) return { valid: false, error: 'Unauthorized access to tree' };
+  return { valid: true, tree };
+};
+
+const handleError = (res, error, context = 'Operation') => {
+  console.error(`${context} error:`, error);
+  
+  if (process.env.NODE_ENV === 'production') {
+    res.status(500).json({ error: 'حدث خطأ. يرجى المحاولة مرة أخرى' });
+  } else {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+const validateId = (id) => {
+  const parsed = parseInt(id, 10);
+  return !isNaN(parsed) && parsed > 0 ? parsed : null;
+};
 
 async function getTwilioCredentials() {
   const hostname = process.env.REPLIT_CONNECTORS_HOSTNAME;
@@ -65,7 +228,7 @@ async function getTwilioCredentials() {
   };
 }
 
-app.post('/api/sms/send-code', async (req, res) => {
+app.post('/api/sms/send-code', smsLimiter, async (req, res) => {
   try {
     const { phoneNumber } = req.body;
     
@@ -74,6 +237,12 @@ app.post('/api/sms/send-code', async (req, res) => {
     }
 
     const formattedPhone = phoneNumber.startsWith('+') ? phoneNumber : '+971' + phoneNumber.replace(/^0/, '');
+    
+    try {
+      phoneSchema.parse(formattedPhone);
+    } catch (validationError) {
+      return res.status(400).json({ error: 'رقم الهاتف غير صالح' });
+    }
     
     const { accountSid, apiKey, apiKeySecret } = await getTwilioCredentials();
     const client = twilio(apiKey, apiKeySecret, { accountSid });
@@ -102,11 +271,11 @@ app.post('/api/sms/send-code', async (req, res) => {
     } else if (error.message?.includes('Verify Service not configured')) {
       userMessage = 'خدمة التحقق غير مهيأة. يرجى التواصل مع الدعم';
     }
-    res.status(500).json({ error: userMessage, details: error.message });
+    res.status(500).json({ error: userMessage });
   }
 });
 
-app.post('/api/sms/verify-code', async (req, res) => {
+app.post('/api/sms/verify-code', smsLimiter, async (req, res) => {
   try {
     const { phoneNumber, code } = req.body;
     
@@ -115,6 +284,13 @@ app.post('/api/sms/verify-code', async (req, res) => {
     }
 
     const formattedPhone = phoneNumber.startsWith('+') ? phoneNumber : '+971' + phoneNumber.replace(/^0/, '');
+    
+    try {
+      phoneSchema.parse(formattedPhone);
+      codeSchema.parse(code);
+    } catch (validationError) {
+      return res.status(400).json({ error: 'بيانات غير صالحة' });
+    }
     
     const { accountSid, apiKey, apiKeySecret } = await getTwilioCredentials();
     const client = twilio(apiKey, apiKeySecret, { accountSid });
@@ -132,67 +308,140 @@ app.post('/api/sms/verify-code', async (req, res) => {
       return res.status(400).json({ error: 'رمز التحقق غير صحيح' });
     }
     
+    const token = jwt.sign(
+      { userId: formattedPhone, type: 'phone' },
+      JWT_SECRET,
+      { expiresIn: '30d' }
+    );
+    
     res.json({ 
       success: true, 
       verified: true,
-      phoneNumber: formattedPhone
+      phoneNumber: formattedPhone,
+      token
     });
   } catch (error) {
     console.error('SMS verify error:', error);
-    res.status(500).json({ error: error.message });
+    handleError(res, error, 'SMS verification');
   }
 });
 
-app.post('/api/users', async (req, res) => {
+app.post('/api/auth/token', async (req, res) => {
   try {
-    const { id, email, displayName, phoneNumber, provider } = req.body;
+    const { userId, provider, firebaseIdToken } = req.body;
     
-    const existingUser = await db.select().from(users).where(eq(users.id, id));
+    if (!userId) {
+      return res.status(400).json({ error: 'User ID is required' });
+    }
+    
+    if (!firebaseIdToken) {
+      return res.status(401).json({ error: 'Firebase ID token required for authentication' });
+    }
+    
+    try {
+      const admin = (await import('firebase-admin')).default;
+      
+      if (!admin.apps.length) {
+        admin.initializeApp({
+          projectId: process.env.VITE_FIREBASE_PROJECT_ID
+        });
+      }
+      
+      const decodedToken = await admin.auth().verifyIdToken(firebaseIdToken);
+      
+      if (decodedToken.uid !== userId) {
+        return res.status(401).json({ error: 'Token does not match user ID' });
+      }
+    } catch (firebaseError) {
+      console.error('Firebase token verification failed:', firebaseError);
+      return res.status(401).json({ error: 'Invalid Firebase token' });
+    }
+    
+    const token = jwt.sign(
+      { userId, type: provider || 'firebase' },
+      JWT_SECRET,
+      { expiresIn: '30d' }
+    );
+    
+    res.json({ token });
+  } catch (error) {
+    handleError(res, error, 'Token generation');
+  }
+});
+
+app.use('/api/users', apiLimiter);
+app.use('/api/trees', apiLimiter);
+app.use('/api/people', apiLimiter);
+app.use('/api/relationships', apiLimiter);
+
+app.post('/api/users', authenticateUser, async (req, res) => {
+  try {
+    const validatedData = userCreateSchema.parse(req.body);
+    
+    if (req.userId !== validatedData.id) {
+      return res.status(403).json({ error: 'Access denied: Cannot create/update other users' });
+    }
+    
+    const existingUser = await db.select().from(users).where(eq(users.id, validatedData.id));
     
     if (existingUser.length > 0) {
       const [updatedUser] = await db.update(users)
-        .set({ lastLoginAt: new Date(), displayName, email })
-        .where(eq(users.id, id))
+        .set({ lastLoginAt: new Date(), displayName: validatedData.displayName, email: validatedData.email })
+        .where(eq(users.id, validatedData.id))
         .returning();
       return res.json(updatedUser);
     }
     
     const [user] = await db.insert(users).values({
-      id,
-      email,
-      displayName,
-      phoneNumber,
-      provider
+      id: validatedData.id,
+      email: validatedData.email || null,
+      displayName: validatedData.displayName || null,
+      phoneNumber: validatedData.phoneNumber || null,
+      provider: validatedData.provider || 'unknown'
     }).returning();
     res.json(user);
   } catch (error) {
-    console.error('User create/update error:', error);
-    res.status(500).json({ error: error.message });
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({ error: 'Invalid input', details: error.errors });
+    }
+    handleError(res, error, 'User create/update');
   }
 });
 
-app.get('/api/users/:id', async (req, res) => {
+app.get('/api/users/:id', authenticateUser, async (req, res) => {
   try {
-    const [user] = await db.select().from(users).where(eq(users.id, req.params.id));
+    const userId = req.params.id;
+    
+    if (req.userId !== userId) {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+    
+    const [user] = await db.select().from(users).where(eq(users.id, userId));
     if (!user) {
       return res.status(404).json({ error: 'User not found' });
     }
     res.json(user);
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    handleError(res, error, 'User fetch');
   }
 });
 
-app.put('/api/users/:id', async (req, res) => {
+app.put('/api/users/:id', authenticateUser, async (req, res) => {
   try {
-    const { email, phoneNumber, displayName } = req.body;
+    const userId = req.params.id;
+    
+    if (req.userId !== userId) {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+    
+    const validatedData = userUpdateSchema.parse(req.body);
     const [updatedUser] = await db.update(users)
       .set({ 
-        email: email || null,
-        phoneNumber: phoneNumber || null,
-        displayName: displayName || null
+        email: validatedData.email || null,
+        phoneNumber: validatedData.phoneNumber || null,
+        displayName: validatedData.displayName || null
       })
-      .where(eq(users.id, req.params.id))
+      .where(eq(users.id, userId))
       .returning();
     
     if (!updatedUser) {
@@ -200,14 +449,20 @@ app.put('/api/users/:id', async (req, res) => {
     }
     res.json(updatedUser);
   } catch (error) {
-    console.error('User update error:', error);
-    res.status(500).json({ error: error.message });
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({ error: 'Invalid input', details: error.errors });
+    }
+    handleError(res, error, 'User update');
   }
 });
 
-app.delete('/api/users/:id', async (req, res) => {
+app.delete('/api/users/:id', authenticateUser, async (req, res) => {
   try {
     const userId = req.params.id;
+    
+    if (req.userId !== userId) {
+      return res.status(403).json({ error: 'Access denied' });
+    }
     
     const userTrees = await db.select().from(trees).where(eq(trees.createdBy, userId));
     
@@ -221,92 +476,153 @@ app.delete('/api/users/:id', async (req, res) => {
     
     res.json({ success: true, message: 'Account deleted successfully' });
   } catch (error) {
-    console.error('User delete error:', error);
-    res.status(500).json({ error: error.message });
+    handleError(res, error, 'User delete');
   }
 });
 
-app.get('/api/trees', async (req, res) => {
+app.get('/api/trees', authenticateUser, async (req, res) => {
   try {
     const { userId } = req.query;
-    let query = db.select().from(trees);
-    if (userId) {
-      query = query.where(eq(trees.createdBy, userId));
+    
+    if (!userId) {
+      return res.status(400).json({ error: 'User ID is required' });
     }
-    const allTrees = await query;
-    res.json(allTrees);
+    
+    if (req.userId !== userId) {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+    
+    const userTrees = await db.select().from(trees).where(eq(trees.createdBy, userId));
+    res.json(userTrees);
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    handleError(res, error, 'Trees fetch');
   }
 });
 
-app.post('/api/trees', async (req, res) => {
+app.post('/api/trees', authenticateUser, async (req, res) => {
   try {
-    const { name, description, createdBy } = req.body;
-    if (!createdBy) {
-      return res.status(400).json({ error: 'User ID is required' });
+    const validatedData = treeSchema.parse(req.body);
+    
+    if (req.userId !== validatedData.createdBy) {
+      return res.status(403).json({ error: 'Access denied' });
     }
+    
     const [tree] = await db.insert(trees).values({
-      name,
-      description,
-      createdBy
+      name: validatedData.name,
+      description: validatedData.description || null,
+      createdBy: validatedData.createdBy
     }).returning();
     res.json(tree);
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({ error: 'Invalid input', details: error.errors });
+    }
+    handleError(res, error, 'Tree create');
   }
 });
 
-app.delete('/api/trees/:id', async (req, res) => {
+app.delete('/api/trees/:id', authenticateUser, async (req, res) => {
   try {
-    await db.delete(trees).where(eq(trees.id, parseInt(req.params.id)));
+    const treeId = validateId(req.params.id);
+    if (!treeId) {
+      return res.status(400).json({ error: 'Invalid tree ID' });
+    }
+    
+    const [tree] = await db.select().from(trees).where(eq(trees.id, treeId));
+    if (!tree) {
+      return res.status(404).json({ error: 'Tree not found' });
+    }
+    
+    if (req.userId !== tree.createdBy) {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+    
+    await db.delete(relationships).where(eq(relationships.treeId, treeId));
+    await db.delete(people).where(eq(people.treeId, treeId));
+    await db.delete(trees).where(eq(trees.id, treeId));
     res.json({ success: true });
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    handleError(res, error, 'Tree delete');
   }
 });
 
-app.get('/api/people', async (req, res) => {
+app.get('/api/people', authenticateUser, async (req, res) => {
   try {
     const { treeId } = req.query;
-    let query = db.select().from(people);
-    if (treeId) {
-      query = query.where(eq(people.treeId, parseInt(treeId)));
+    
+    if (!treeId) {
+      return res.status(400).json({ error: 'Tree ID is required' });
     }
-    const allPeople = await query;
+    
+    const parsedTreeId = validateId(treeId);
+    if (!parsedTreeId) {
+      return res.status(400).json({ error: 'Invalid tree ID' });
+    }
+    
+    const ownership = await verifyTreeOwnership(parsedTreeId, req.userId);
+    if (!ownership.valid) {
+      return res.status(403).json({ error: ownership.error });
+    }
+    
+    const allPeople = await db.select().from(people).where(eq(people.treeId, parsedTreeId));
     res.json(allPeople);
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    handleError(res, error, 'People fetch');
   }
 });
 
-app.post('/api/people', async (req, res) => {
+app.post('/api/people', authenticateUser, async (req, res) => {
   try {
+    const validatedData = personSchema.parse(req.body);
+    
+    const ownership = await verifyTreeOwnership(validatedData.treeId, req.userId);
+    if (!ownership.valid) {
+      return res.status(403).json({ error: ownership.error });
+    }
+    
     const personData = {
-      treeId: req.body.treeId,
-      firstName: req.body.firstName,
-      lastName: req.body.lastName,
-      gender: req.body.gender,
-      birthDate: req.body.birthDate || null,
-      deathDate: req.body.deathDate || null,
-      isLiving: req.body.isLiving !== undefined ? req.body.isLiving : true,
-      phone: req.body.phone || null,
-      email: req.body.email || null,
-      identificationNumber: req.body.identificationNumber || null,
-      birthOrder: req.body.birthOrder || null
+      treeId: validatedData.treeId,
+      firstName: validatedData.firstName,
+      lastName: validatedData.lastName || null,
+      gender: validatedData.gender,
+      birthDate: validatedData.birthDate || null,
+      deathDate: validatedData.deathDate || null,
+      isLiving: validatedData.isLiving !== undefined ? validatedData.isLiving : true,
+      phone: validatedData.phone || null,
+      email: validatedData.email || null,
+      identificationNumber: validatedData.identificationNumber || null,
+      birthOrder: validatedData.birthOrder || null
     };
     const [person] = await db.insert(people).values(personData).returning();
     res.json(person);
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({ error: 'Invalid input', details: error.errors });
+    }
+    handleError(res, error, 'Person create');
   }
 });
 
-app.put('/api/people/:id', async (req, res) => {
+app.put('/api/people/:id', authenticateUser, async (req, res) => {
   try {
+    const personId = validateId(req.params.id);
+    if (!personId) {
+      return res.status(400).json({ error: 'Invalid person ID' });
+    }
+    
+    const [existingPerson] = await db.select().from(people).where(eq(people.id, personId));
+    if (!existingPerson) {
+      return res.status(404).json({ error: 'Person not found' });
+    }
+    
+    const ownership = await verifyTreeOwnership(existingPerson.treeId, req.userId);
+    if (!ownership.valid) {
+      return res.status(403).json({ error: ownership.error });
+    }
+    
     const personData = {
       firstName: req.body.firstName,
-      lastName: req.body.lastName,
+      lastName: req.body.lastName || null,
       gender: req.body.gender,
       birthDate: req.body.birthDate || null,
       deathDate: req.body.deathDate || null,
@@ -318,84 +634,148 @@ app.put('/api/people/:id', async (req, res) => {
     };
     const [person] = await db.update(people)
       .set(personData)
-      .where(eq(people.id, parseInt(req.params.id)))
+      .where(eq(people.id, personId))
       .returning();
     res.json(person);
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    handleError(res, error, 'Person update');
   }
 });
 
-app.delete('/api/people/:id', async (req, res) => {
+app.delete('/api/people/:id', authenticateUser, async (req, res) => {
   try {
-    await db.delete(people).where(eq(people.id, parseInt(req.params.id)));
+    const personId = validateId(req.params.id);
+    if (!personId) {
+      return res.status(400).json({ error: 'Invalid person ID' });
+    }
+    
+    const [existingPerson] = await db.select().from(people).where(eq(people.id, personId));
+    if (!existingPerson) {
+      return res.status(404).json({ error: 'Person not found' });
+    }
+    
+    const ownership = await verifyTreeOwnership(existingPerson.treeId, req.userId);
+    if (!ownership.valid) {
+      return res.status(403).json({ error: ownership.error });
+    }
+    
+    await db.delete(people).where(eq(people.id, personId));
     res.json({ success: true });
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    handleError(res, error, 'Person delete');
   }
 });
 
-app.patch('/api/people/:id/birthOrder', async (req, res) => {
+app.patch('/api/people/:id/birthOrder', authenticateUser, async (req, res) => {
   try {
+    const personId = validateId(req.params.id);
+    if (!personId) {
+      return res.status(400).json({ error: 'Invalid person ID' });
+    }
+    
+    const [existingPerson] = await db.select().from(people).where(eq(people.id, personId));
+    if (!existingPerson) {
+      return res.status(404).json({ error: 'Person not found' });
+    }
+    
+    const ownership = await verifyTreeOwnership(existingPerson.treeId, req.userId);
+    if (!ownership.valid) {
+      return res.status(403).json({ error: ownership.error });
+    }
+    
     const { birthOrder } = req.body;
     const [person] = await db.update(people)
       .set({ birthOrder })
-      .where(eq(people.id, parseInt(req.params.id)))
+      .where(eq(people.id, personId))
       .returning();
     res.json(person);
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    handleError(res, error, 'Birth order update');
   }
 });
 
-app.get('/api/relationships', async (req, res) => {
+app.get('/api/relationships', authenticateUser, async (req, res) => {
   try {
     const { treeId } = req.query;
-    let query = db.select().from(relationships);
-    if (treeId) {
-      query = query.where(eq(relationships.treeId, parseInt(treeId)));
+    
+    if (!treeId) {
+      return res.status(400).json({ error: 'Tree ID is required' });
     }
-    const allRelationships = await query;
+    
+    const parsedTreeId = validateId(treeId);
+    if (!parsedTreeId) {
+      return res.status(400).json({ error: 'Invalid tree ID' });
+    }
+    
+    const ownership = await verifyTreeOwnership(parsedTreeId, req.userId);
+    if (!ownership.valid) {
+      return res.status(403).json({ error: ownership.error });
+    }
+    
+    const allRelationships = await db.select().from(relationships).where(eq(relationships.treeId, parsedTreeId));
     res.json(allRelationships);
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    handleError(res, error, 'Relationships fetch');
   }
 });
 
-app.post('/api/relationships', async (req, res) => {
+app.post('/api/relationships', authenticateUser, async (req, res) => {
   try {
+    const validatedData = relationshipSchema.parse(req.body);
+    
+    const ownership = await verifyTreeOwnership(validatedData.treeId, req.userId);
+    if (!ownership.valid) {
+      return res.status(403).json({ error: ownership.error });
+    }
+    
     const relationshipData = {
-      treeId: req.body.treeId,
-      type: req.body.type,
-      person1Id: req.body.person1Id || null,
-      person2Id: req.body.person2Id || null,
-      childId: req.body.childId || null,
-      parentId: req.body.parentId || null,
-      isBreastfeeding: req.body.isBreastfeeding || false,
-      isDotted: req.body.isDotted || false
+      treeId: validatedData.treeId,
+      type: validatedData.type,
+      person1Id: validatedData.person1Id || null,
+      person2Id: validatedData.person2Id || null,
+      childId: validatedData.childId || null,
+      parentId: validatedData.parentId || null,
+      isBreastfeeding: validatedData.isBreastfeeding || false,
+      isDotted: validatedData.isDotted || false
     };
     const [relationship] = await db.insert(relationships).values(relationshipData).returning();
     res.json(relationship);
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({ error: 'Invalid input', details: error.errors });
+    }
+    handleError(res, error, 'Relationship create');
   }
 });
 
-app.delete('/api/relationships/:id', async (req, res) => {
+app.delete('/api/relationships/:id', authenticateUser, async (req, res) => {
   try {
-    await db.delete(relationships).where(eq(relationships.id, parseInt(req.params.id)));
+    const relId = validateId(req.params.id);
+    if (!relId) {
+      return res.status(400).json({ error: 'Invalid relationship ID' });
+    }
+    
+    const [existingRel] = await db.select().from(relationships).where(eq(relationships.id, relId));
+    if (!existingRel) {
+      return res.status(404).json({ error: 'Relationship not found' });
+    }
+    
+    const ownership = await verifyTreeOwnership(existingRel.treeId, req.userId);
+    if (!ownership.valid) {
+      return res.status(403).json({ error: ownership.error });
+    }
+    
+    await db.delete(relationships).where(eq(relationships.id, relId));
     res.json({ success: true });
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    handleError(res, error, 'Relationship delete');
   }
 });
 
-// Serve static files in production
 if (process.env.NODE_ENV === 'production') {
   const distPath = path.join(__dirname, '..', 'dist');
   app.use(express.static(distPath));
   
-  // Handle client-side routing - serve index.html for all non-API routes
   app.get('/{*path}', (req, res) => {
     if (!req.path.startsWith('/api')) {
       res.sendFile(path.join(distPath, 'index.html'));

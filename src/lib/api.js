@@ -1,13 +1,42 @@
-// Use relative URL - Vite proxy will forward to backend
 const API_BASE_URL = '/api';
+
+let authToken = null;
+
+export function setAuthToken(token) {
+  authToken = token;
+  if (token) {
+    localStorage.setItem('uae_roots_token', token);
+  } else {
+    localStorage.removeItem('uae_roots_token');
+  }
+}
+
+export function getAuthToken() {
+  if (!authToken) {
+    authToken = localStorage.getItem('uae_roots_token');
+  }
+  return authToken;
+}
+
+export function clearAuthToken() {
+  authToken = null;
+  localStorage.removeItem('uae_roots_token');
+}
 
 async function fetchAPI(endpoint, options = {}) {
   try {
+    const headers = {
+      'Content-Type': 'application/json',
+      ...options.headers,
+    };
+    
+    const token = getAuthToken();
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+    
     const response = await fetch(`${API_BASE_URL}${endpoint}`, {
-      headers: {
-        'Content-Type': 'application/json',
-        ...options.headers,
-      },
+      headers,
       ...options,
     });
 
@@ -24,6 +53,21 @@ async function fetchAPI(endpoint, options = {}) {
 }
 
 export const api = {
+  auth: {
+    getToken: (userId, provider, firebaseIdToken) => fetchAPI('/auth/token', {
+      method: 'POST',
+      body: JSON.stringify({ userId, provider, firebaseIdToken }),
+    }),
+    sendSmsCode: (phoneNumber) => fetchAPI('/sms/send-code', {
+      method: 'POST',
+      body: JSON.stringify({ phoneNumber }),
+    }),
+    verifySmsCode: (phoneNumber, code) => fetchAPI('/sms/verify-code', {
+      method: 'POST',
+      body: JSON.stringify({ phoneNumber, code }),
+    }),
+  },
+
   users: {
     createOrUpdate: (data) => fetchAPI('/users', {
       method: 'POST',
@@ -62,6 +106,10 @@ export const api = {
     }),
     delete: (id) => fetchAPI(`/people/${id}`, {
       method: 'DELETE',
+    }),
+    updateBirthOrder: (id, birthOrder) => fetchAPI(`/people/${id}/birthOrder`, {
+      method: 'PATCH',
+      body: JSON.stringify({ birthOrder }),
     }),
   },
 
