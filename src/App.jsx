@@ -131,7 +131,7 @@ function App() {
     welcome: "مرحباً بكم في جذور الإمارات",
     continueWithGoogle: "التسجيل عبر البريد الإلكتروني",
     continueWithApple: "التسجيل عبر الهوية الرقمية",
-    uaeMobile: "التسجيل عبر الهاتف الإماراتي",
+    uaeMobile: "الدخول عبر الهاتف الإماراتي",
     dashboard: "لوحة التحكم",
     myFamilyTrees: "أشجار عائلتي",
     familyMembers: "أفراد العائلة",
@@ -1399,7 +1399,7 @@ function App() {
           <DialogContent className="sm:max-w-md" dir="rtl">
             <DialogHeader>
               <DialogTitle className="text-right text-xl">
-                التسجيل عبر الهاتف الإماراتي
+                الدخول عبر الهاتف الإماراتي
               </DialogTitle>
             </DialogHeader>
             
