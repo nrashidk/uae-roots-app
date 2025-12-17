@@ -636,6 +636,7 @@ function App() {
       const response = await fetch('/api/sms/send-code', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({ phoneNumber: phoneInput })
       });
       
@@ -672,6 +673,7 @@ function App() {
       const response = await fetch('/api/sms/verify-code', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({ phoneNumber: phoneInput, code: smsCode })
       });
       

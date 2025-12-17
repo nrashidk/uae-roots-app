@@ -267,7 +267,7 @@ const recordEdit = async (userId, treeId, action, resourceType, resourceId, prev
 const COOKIE_OPTIONS = {
   httpOnly: true,
   secure: isProduction,
-  sameSite: isProduction ? 'strict' : 'lax',
+  sameSite: 'lax',
   maxAge: 30 * 24 * 60 * 60 * 1000,
   path: '/'
 };
