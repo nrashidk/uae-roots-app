@@ -705,7 +705,14 @@ app.post('/api/sms/send-code', smsLimiter, async (req, res) => {
       return res.status(400).json({ error: 'Phone number is required' });
     }
 
-    const formattedPhone = phoneNumber.startsWith('+') ? phoneNumber : '+971' + phoneNumber.replace(/^0/, '');
+    let formattedPhone = phoneNumber.trim();
+    if (formattedPhone.startsWith('00971')) {
+      formattedPhone = '+971' + formattedPhone.slice(5);
+    } else if (formattedPhone.startsWith('971') && !formattedPhone.startsWith('+')) {
+      formattedPhone = '+' + formattedPhone;
+    } else if (!formattedPhone.startsWith('+')) {
+      formattedPhone = '+971' + formattedPhone.replace(/^0/, '');
+    }
     
     try {
       phoneSchema.parse(formattedPhone);
@@ -754,7 +761,14 @@ app.post('/api/sms/verify-code', smsLimiter, async (req, res) => {
       return res.status(400).json({ error: 'Phone number and code are required' });
     }
 
-    const formattedPhone = phoneNumber.startsWith('+') ? phoneNumber : '+971' + phoneNumber.replace(/^0/, '');
+    let formattedPhone = phoneNumber.trim();
+    if (formattedPhone.startsWith('00971')) {
+      formattedPhone = '+971' + formattedPhone.slice(5);
+    } else if (formattedPhone.startsWith('971') && !formattedPhone.startsWith('+')) {
+      formattedPhone = '+' + formattedPhone;
+    } else if (!formattedPhone.startsWith('+')) {
+      formattedPhone = '+971' + formattedPhone.replace(/^0/, '');
+    }
     
     try {
       phoneSchema.parse(formattedPhone);
@@ -780,7 +794,16 @@ app.post('/api/sms/verify-code', smsLimiter, async (req, res) => {
       return res.status(400).json({ error: 'رمز التحقق غير صحيح' });
     }
     
-    const existingUser = await findUserByIdentity('phone', formattedPhone);
+    let existingUser = await findUserByIdentity('phone', formattedPhone);
+    
+    if (!existingUser) {
+      const [directUser] = await db.select().from(users).where(eq(users.id, formattedPhone));
+      if (directUser) {
+        existingUser = directUser;
+        await linkIdentityToUser(directUser.id, 'phone', formattedPhone, null, true);
+      }
+    }
+    
     const userId = existingUser ? existingUser.id : formattedPhone;
     
     const token = jwt.sign(
