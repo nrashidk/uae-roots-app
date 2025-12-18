@@ -52,12 +52,16 @@ Key features include:
       - Zod input validation on all endpoints
       - Helmet security headers with CSP
       - CORS configuration (localhost in dev, allowed domains in prod)
-      - Audit logging for sensitive operations
+      - Audit logging for sensitive operations with request ID correlation
       - PII encryption at rest using AES
       - JWT secret strength validation (32+ chars required in production)
       - ENCRYPTION_KEY validation with secure warnings
       - Authenticated photo access endpoint (/api/photos/:filename)
       - Undo operation data validation to prevent tampering
+      - XSS sanitization for user-generated text (names, descriptions)
+      - Magic byte verification for uploaded files (JPEG, PNG, GIF, WebP)
+      - Request ID tracking (X-Request-ID header) for log correlation
+      - Automatic audit log cleanup (90-day retention policy)
 
 ## Database Schema
 - **users**: User accounts with authentication info

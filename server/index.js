@@ -12,7 +12,7 @@ import CryptoJS from 'crypto-js';
 import { fileURLToPath } from 'url';
 import { db } from './db.js';
 import { users, trees, people, relationships, auditLogs, editHistory, authIdentities } from '../shared/schema.js';
-import { eq, and, or, ilike, desc } from 'drizzle-orm';
+import { eq, and, or, ilike, desc, lt } from 'drizzle-orm';
 import { z } from 'zod';
 import fs from 'fs';
 
@@ -63,6 +63,58 @@ const decryptPII = (encrypted) => {
   } catch {
     return encrypted;
   }
+};
+
+// XSS sanitization - escapes HTML special characters to prevent script injection
+const sanitizeText = (text) => {
+  if (!text || typeof text !== 'string') return text;
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#x27;');
+};
+
+// Sanitize object fields that contain user-generated text
+const sanitizeUserInput = (obj, fieldsToSanitize) => {
+  if (!obj || typeof obj !== 'object') return obj;
+  const sanitized = { ...obj };
+  for (const field of fieldsToSanitize) {
+    if (sanitized[field] && typeof sanitized[field] === 'string') {
+      sanitized[field] = sanitizeText(sanitized[field]);
+    }
+  }
+  return sanitized;
+};
+
+// Magic byte signatures for allowed image types
+const IMAGE_SIGNATURES = {
+  'image/jpeg': [[0xFF, 0xD8, 0xFF]],
+  'image/png': [[0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]],
+  'image/gif': [[0x47, 0x49, 0x46, 0x38, 0x37, 0x61], [0x47, 0x49, 0x46, 0x38, 0x39, 0x61]]
+};
+
+// Verify file magic bytes match claimed MIME type
+const verifyImageMagicBytes = (buffer, mimeType) => {
+  // Special handling for WebP: RIFF header at 0-3, "WEBP" at bytes 8-11
+  if (mimeType === 'image/webp') {
+    if (buffer.length < 12) return false;
+    const riffHeader = buffer.slice(0, 4);
+    const webpMarker = buffer.slice(8, 12);
+    return riffHeader[0] === 0x52 && riffHeader[1] === 0x49 && 
+           riffHeader[2] === 0x46 && riffHeader[3] === 0x46 &&
+           webpMarker[0] === 0x57 && webpMarker[1] === 0x45 && 
+           webpMarker[2] === 0x42 && webpMarker[3] === 0x50; // "WEBP"
+  }
+  
+  const signatures = IMAGE_SIGNATURES[mimeType];
+  if (!signatures) return false;
+  
+  return signatures.some(sig => {
+    if (buffer.length < sig.length) return false;
+    return sig.every((byte, i) => buffer[i] === byte);
+  });
 };
 
 const developmentOrigins = [
@@ -131,6 +183,13 @@ app.use(helmet({
 }));
 
 app.use(express.json({ limit: '1mb' }));
+
+// Request ID middleware for log correlation and debugging
+app.use((req, res, next) => {
+  req.requestId = uuidv4().substring(0, 8);
+  res.setHeader('X-Request-ID', req.requestId);
+  next();
+});
 
 const uploadsDir = path.join(__dirname, '..', 'uploads');
 if (!fs.existsSync(uploadsDir)) {
@@ -279,18 +338,19 @@ const searchSchema = z.object({
 });
 
 const logAudit = async (userId, action, resourceType, resourceId, details, req) => {
+  const requestId = req.requestId || 'unknown';
   try {
     await db.insert(auditLogs).values({
       userId,
       action,
       resourceType,
       resourceId: resourceId?.toString() || null,
-      details: details || null,
+      details: details ? { ...details, requestId } : { requestId },
       ipAddress: req.ip || req.headers['x-forwarded-for'] || 'unknown',
       userAgent: req.headers['user-agent'] || 'unknown'
     });
   } catch (error) {
-    console.error('Audit log error:', error);
+    console.error(`[${requestId}] Audit log error:`, error);
   }
 };
 
@@ -319,20 +379,21 @@ const COOKIE_OPTIONS = {
 };
 
 const authenticateUser = async (req, res, next) => {
+  const rid = req.requestId || '';
   let token = req.cookies?.auth_token;
   
-  console.log(`[Auth] ${req.method} ${req.path} - Cookie token: ${token ? 'present' : 'missing'}`);
+  console.log(`[${rid}][Auth] ${req.method} ${req.path} - Cookie token: ${token ? 'present' : 'missing'}`);
   
   if (!token) {
     const authHeader = req.headers.authorization;
     if (authHeader && authHeader.startsWith('Bearer ')) {
       token = authHeader.split('Bearer ')[1];
-      console.log('[Auth] Using Bearer token from header');
+      console.log(`[${rid}][Auth] Using Bearer token from header`);
     }
   }
   
   if (!token) {
-    console.log('[Auth] No token found - returning 401');
+    console.log(`[${rid}][Auth] No token found - returning 401`);
     return res.status(401).json({ error: 'Authentication required' });
   }
 
@@ -340,10 +401,10 @@ const authenticateUser = async (req, res, next) => {
     const decoded = jwt.verify(token, JWT_SECRET);
     req.userId = decoded.userId;
     req.userType = decoded.type;
-    console.log(`[Auth] Token valid - userId: ${req.userId}`);
+    console.log(`[${rid}][Auth] Token valid - userId: ${req.userId}`);
     next();
   } catch (jwtError) {
-    console.log('[Auth] Token invalid or expired:', jwtError.message);
+    console.log(`[${rid}][Auth] Token invalid or expired:`, jwtError.message);
     res.clearCookie('auth_token', COOKIE_OPTIONS);
     return res.status(401).json({ error: 'Invalid or expired token' });
   }
@@ -378,8 +439,9 @@ const verifyTreeOwnership = async (treeId, userId) => {
   return { valid: true, tree };
 };
 
-const handleError = (res, error, context = 'Operation') => {
-  console.error(`${context} error:`, error);
+const handleError = (res, error, context = 'Operation', req = null) => {
+  const rid = req?.requestId || '';
+  console.error(`[${rid}] ${context} error:`, error);
   
   if (isProduction) {
     res.status(500).json({ error: 'حدث خطأ. يرجى المحاولة مرة أخرى' });
@@ -940,10 +1002,13 @@ app.post('/api/trees', authenticateUser, async (req, res) => {
       return res.status(403).json({ error: 'غير مصرح بالوصول' });
     }
     
+    // Sanitize text fields to prevent XSS
+    const sanitizedData = sanitizeUserInput(validatedData, ['name', 'description']);
+    
     const [tree] = await db.insert(trees).values({
-      name: validatedData.name,
-      description: validatedData.description || null,
-      createdBy: validatedData.createdBy
+      name: sanitizedData.name,
+      description: sanitizedData.description || null,
+      createdBy: sanitizedData.createdBy
     }).returning();
     
     await logAudit(req.userId, 'create', 'tree', tree.id, { name: tree.name }, req);
@@ -1069,19 +1134,22 @@ app.post('/api/people', authenticateUser, async (req, res) => {
       return res.status(403).json({ error: ownership.error });
     }
     
+    // Sanitize text fields to prevent XSS
+    const sanitizedData = sanitizeUserInput(validatedData, ['firstName', 'lastName']);
+    
     const personData = {
-      treeId: validatedData.treeId,
-      firstName: validatedData.firstName,
-      lastName: validatedData.lastName || null,
-      gender: validatedData.gender,
-      birthDate: validatedData.birthDate || null,
-      deathDate: validatedData.deathDate || null,
-      isLiving: validatedData.isLiving !== undefined ? validatedData.isLiving : true,
-      phone: encryptPII(validatedData.phone),
-      email: encryptPII(validatedData.email),
-      identificationNumber: encryptPII(validatedData.identificationNumber),
-      birthOrder: validatedData.birthOrder || null,
-      photoUrl: validatedData.photoUrl || null
+      treeId: sanitizedData.treeId,
+      firstName: sanitizedData.firstName,
+      lastName: sanitizedData.lastName || null,
+      gender: sanitizedData.gender,
+      birthDate: sanitizedData.birthDate || null,
+      deathDate: sanitizedData.deathDate || null,
+      isLiving: sanitizedData.isLiving !== undefined ? sanitizedData.isLiving : true,
+      phone: encryptPII(sanitizedData.phone),
+      email: encryptPII(sanitizedData.email),
+      identificationNumber: encryptPII(sanitizedData.identificationNumber),
+      birthOrder: sanitizedData.birthOrder || null,
+      photoUrl: sanitizedData.photoUrl || null
     };
     const [person] = await db.insert(people).values(personData).returning();
     
@@ -1113,6 +1181,9 @@ app.put('/api/people/:id', authenticateUser, async (req, res) => {
     
     const validatedData = personUpdateSchema.parse(req.body);
     
+    // Sanitize text fields to prevent XSS
+    const sanitizedData = sanitizeUserInput(validatedData, ['firstName', 'lastName', 'birthPlace', 'profession', 'company', 'address']);
+    
     const [existingPerson] = await db.select().from(people).where(eq(people.id, personId));
     if (!existingPerson) {
       return res.status(404).json({ error: 'Person not found' });
@@ -1124,17 +1195,21 @@ app.put('/api/people/:id', authenticateUser, async (req, res) => {
     }
     
     const personData = {};
-    if (validatedData.firstName !== undefined) personData.firstName = validatedData.firstName;
-    if (validatedData.lastName !== undefined) personData.lastName = validatedData.lastName || null;
-    if (validatedData.gender !== undefined) personData.gender = validatedData.gender;
-    if (validatedData.birthDate !== undefined) personData.birthDate = validatedData.birthDate || null;
-    if (validatedData.deathDate !== undefined) personData.deathDate = validatedData.deathDate || null;
-    if (validatedData.isLiving !== undefined) personData.isLiving = validatedData.isLiving;
-    if (validatedData.phone !== undefined) personData.phone = encryptPII(validatedData.phone);
-    if (validatedData.email !== undefined) personData.email = encryptPII(validatedData.email);
-    if (validatedData.identificationNumber !== undefined) personData.identificationNumber = encryptPII(validatedData.identificationNumber);
-    if (validatedData.birthOrder !== undefined) personData.birthOrder = validatedData.birthOrder;
-    if (validatedData.photoUrl !== undefined) personData.photoUrl = validatedData.photoUrl;
+    if (sanitizedData.firstName !== undefined) personData.firstName = sanitizedData.firstName;
+    if (sanitizedData.lastName !== undefined) personData.lastName = sanitizedData.lastName || null;
+    if (sanitizedData.gender !== undefined) personData.gender = sanitizedData.gender;
+    if (sanitizedData.birthDate !== undefined) personData.birthDate = sanitizedData.birthDate || null;
+    if (sanitizedData.deathDate !== undefined) personData.deathDate = sanitizedData.deathDate || null;
+    if (sanitizedData.isLiving !== undefined) personData.isLiving = sanitizedData.isLiving;
+    if (sanitizedData.phone !== undefined) personData.phone = encryptPII(sanitizedData.phone);
+    if (sanitizedData.email !== undefined) personData.email = encryptPII(sanitizedData.email);
+    if (sanitizedData.identificationNumber !== undefined) personData.identificationNumber = encryptPII(sanitizedData.identificationNumber);
+    if (sanitizedData.birthOrder !== undefined) personData.birthOrder = sanitizedData.birthOrder;
+    if (sanitizedData.photoUrl !== undefined) personData.photoUrl = sanitizedData.photoUrl;
+    if (sanitizedData.birthPlace !== undefined) personData.birthPlace = sanitizedData.birthPlace || null;
+    if (sanitizedData.profession !== undefined) personData.profession = sanitizedData.profession || null;
+    if (sanitizedData.company !== undefined) personData.company = sanitizedData.company || null;
+    if (sanitizedData.address !== undefined) personData.address = sanitizedData.address || null;
     
     const [person] = await db.update(people)
       .set(personData)
@@ -1225,6 +1300,18 @@ app.post('/api/upload/photo', authenticateUser, upload.single('photo'), async (r
   try {
     if (!req.file) {
       return res.status(400).json({ error: 'No file uploaded' });
+    }
+    
+    // Verify magic bytes match claimed MIME type
+    const filePath = path.join(uploadsDir, req.file.filename);
+    const fileBuffer = fs.readFileSync(filePath);
+    const headerBytes = fileBuffer.slice(0, 12);
+    
+    if (!verifyImageMagicBytes(headerBytes, req.file.mimetype)) {
+      // Delete the invalid file
+      fs.unlinkSync(filePath);
+      console.warn(`[${req.requestId}] Rejected file with mismatched magic bytes: ${req.file.mimetype}`);
+      return res.status(400).json({ error: 'نوع الملف غير صالح. تأكد من أن الملف صورة حقيقية' });
     }
     
     const photoUrl = `/uploads/${req.file.filename}`;
@@ -1535,6 +1622,24 @@ app.get('/api/export/:treeId', authenticateUser, async (req, res) => {
     handleError(res, error, 'Export');
   }
 });
+
+// Audit log cleanup - removes logs older than 90 days
+const AUDIT_LOG_RETENTION_DAYS = 90;
+const cleanupAuditLogs = async () => {
+  try {
+    const cutoffDate = new Date();
+    cutoffDate.setDate(cutoffDate.getDate() - AUDIT_LOG_RETENTION_DAYS);
+    
+    const result = await db.delete(auditLogs).where(lt(auditLogs.createdAt, cutoffDate));
+    console.log(`[Audit Cleanup] Removed audit logs older than ${AUDIT_LOG_RETENTION_DAYS} days`);
+  } catch (error) {
+    console.error('[Audit Cleanup] Error:', error.message);
+  }
+};
+
+// Run cleanup once on startup and then every 24 hours
+cleanupAuditLogs();
+setInterval(cleanupAuditLogs, 24 * 60 * 60 * 1000);
 
 if (isProduction) {
   const distPath = path.join(__dirname, '..', 'dist');
