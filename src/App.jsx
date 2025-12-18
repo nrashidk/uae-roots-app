@@ -2144,7 +2144,7 @@ function App() {
           <div
             data-person-form
             className="fixed right-4 top-1/2 transform -translate-y-1/2 bg-white shadow-2xl border rounded-lg z-50"
-            style={{ width: "380px", maxHeight: "min(650px, 80vh)", overflow: "hidden" }}
+            style={{ width: "380px", maxHeight: "min(700px, 80vh)", overflow: "hidden" }}
           >
             <div className="flex flex-col h-full" style={{ maxHeight: "inherit" }}>
               <div className="flex justify-between items-center p-4 border-b">
