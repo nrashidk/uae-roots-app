@@ -15,6 +15,7 @@ I prefer simple language and detailed explanations. I want iterative development
   - Multi-provider account linking with verified identities only (prevents account takeover)
   - SQL search pattern escaping to prevent LIKE injection
   - JWT expiry reduced to 7 days (from 30 days) for improved security
+  - Cookie settings updated for Replit preview iframe (sameSite:'none', secure:true, trust proxy)
 - **New Features**:
   - Family member search functionality
   - Photo upload for family members
@@ -22,12 +23,14 @@ I prefer simple language and detailed explanations. I want iterative development
   - Multi-format data export (GEDCOM, CSV, HTML, Text, JSON)
   - Privacy policy page
   - Multi-provider authentication: Users can login with multiple methods (phone, email, Google, Microsoft) linked to same account
+  - **Session Restoration**: Automatic loading of user's family trees when Firebase restores authentication session
 - **Technical Improvements**:
   - TypeScript configuration added
   - Loading state components (spinners, skeletons)
   - Type definitions for all data models
   - URL encoding fix for phone numbers with + characters in API requests
   - Auth identities table for multi-provider account resolution
+  - Session restoration with fallback handling: checks backend cookie validity, refreshes Firebase tokens, caches resolved userId in sessionStorage (not JWT for security)
 
 ## System Architecture
 The application utilizes React 19.1.0 with Vite 6.3.6 for the frontend, styled with Radix UI components and Tailwind CSS. It supports Arabic (RTL) with specific fonts (Sakkal Majalla) for proper rendering. State management is handled with React hooks, and routing with React Router DOM 7.6.1.
