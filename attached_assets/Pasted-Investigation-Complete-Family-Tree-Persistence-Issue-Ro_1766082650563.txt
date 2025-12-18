@@ -1,0 +1,191 @@
+Investigation Complete: Family Tree Persistence Issue
+Root Cause Analysis
+I've thoroughly investigated the issue and found that your family tree data IS being saved correctly to the database, but the app fails to load it when you return after logging out.
+
+Here's what's happening:
+During Login Flow:
+
+✅ User logs in via Google/Phone
+✅ handleAuthSuccess() function is called (src/App.jsx:331)
+✅ User is created/updated in database
+✅ Trees are fetched from database via api.trees.getAll(userId) (line 374)
+✅ People and relationships are loaded
+✅ View is set to "tree-builder"
+During Logout:
+
+✅ User logs out
+✅ Local state is cleared (currentTree, people, relationships set to null/empty)
+✅ View returns to "auth"
+When Returning to App (THE PROBLEM):
+
+✅ Firebase Auth automatically restores the session via onAuthStateChanged (src/hooks/useAuth.js:19)
+✅ isAuthenticated becomes true
+❌ NO code exists to load the user's trees from the database
+❌ App shows login screen OR shows empty tree builder
+The Missing Piece
+Location: src/App.jsx
+
+There's no useEffect hook that:
+
+Watches for when the user becomes authenticated
+Automatically loads their family tree data from the backend
+Restores their previous session
+The handleAuthSuccess function (which loads the data) is ONLY called during the login flow, not when Firebase restores an existing session.
+
+Permanent Solution
+Add a useEffect hook in src/App.jsx that monitors the authentication state and automatically loads user data when authentication is detected. Here's the implementation:
+
+Code to Add
+Insert this useEffect hook in the App component (after line 216, with the other useEffect hooks):
+
+// Auto-load user data when authentication state changes
+useEffect(() => {
+  const loadUserData = async () => {
+    // Only load if authenticated but no data loaded yet
+    if (isAuthenticated && user && !currentTree && currentView === 'auth') {
+      console.log('Auto-loading user data for authenticated user:', user.uid);
+      await handleAuthSuccess(user);
+    }
+  };
+  
+  if (!authLoading) {
+    loadUserData();
+  }
+}, [isAuthenticated, user, authLoading, currentTree, currentView]);
+
+Alternative: More Robust Implementation
+For better control and to avoid dependency issues, you can refactor the data loading logic:
+
+// Extract data loading into a separate function
+const loadUserTreeData = async (userId, provider) => {
+  try {
+    console.log('Loading tree data for user:', userId);
+    
+    // Get or create backend auth token
+    let firebaseIdToken = null;
+    if (user?.getIdToken) {
+      firebaseIdToken = await user.getIdToken();
+    }
+    
+    const tokenResponse = await api.auth.getToken(
+      userId, 
+      provider, 
+      firebaseIdToken, 
+      user?.email
+    );
+    
+    if (tokenResponse.token) {
+      setAuthToken(tokenResponse.token);
+    }
+    
+    const resolvedUserId = tokenResponse.userId || userId;
+    
+    // Create or update user record
+    const savedUser = await api.users.createOrUpdate({
+      id: resolvedUserId,
+      email: user?.email || null,
+      displayName: user?.displayName || null,
+      phoneNumber: user?.phoneNumber || null,
+      provider: provider
+    });
+    setUserProfile(savedUser);
+    
+    // Load trees
+    const userTrees = await api.trees.getAll(resolvedUserId);
+    
+    if (userTrees.length > 0) {
+      setCurrentTree(userTrees[0]);
+      const treePeopleData = await api.people.getAll(userTrees[0].id);
+      const treeRelData = await api.relationships.getAll(userTrees[0].id);
+      setPeople(treePeopleData);
+      setRelationships(treeRelData);
+      setCurrentView("tree-builder");
+    } else {
+      // Create default tree for new user
+      const newTree = await api.trees.create({
+        name: "شجرة عائلتي",
+        description: "شجرة العائلة الأولى",
+        createdBy: resolvedUserId
+      });
+      setCurrentTree(newTree);
+      setPeople([]);
+      setRelationships([]);
+      setCurrentView("tree-builder");
+    }
+  } catch (err) {
+    console.error('Error loading user tree data:', err);
+  }
+};
+
+// Auto-restore session data
+useEffect(() => {
+  if (!authLoading && isAuthenticated && user && !currentTree) {
+    const userId = user.uid || user.phoneNumber || user.id;
+    const provider = user.providerData?.[0]?.providerId || 
+                    (user.phoneNumber ? 'phone' : 'email');
+    loadUserTreeData(userId, provider);
+  }
+}, [authLoading, isAuthenticated, user, currentTree]);
+
+Then refactor handleAuthSuccess to use this new function:
+
+const handleAuthSuccess = async (phoneUser = null, authToken = null) => {
+  const currentUser = phoneUser || user;
+  if (!currentUser) {
+    console.error('No user found after auth success');
+    return;
+  }
+
+  const userId = currentUser.uid || currentUser.phoneNumber || currentUser.id;
+  const provider = currentUser.providerData?.[0]?.providerId || 
+                   (currentUser.phoneNumber ? 'phone' : 'email');
+  
+  await loadUserTreeData(userId, provider);
+};
+
+Why This Fixes the Issue
+Session Restoration: When you return to the app, Firebase Auth automatically detects your previous session and sets isAuthenticated = true
+Automatic Data Load: The new useEffect hook detects this authentication and triggers data loading
+Idempotent: Uses !currentTree check to ensure data is only loaded once
+Works for All Auth Methods: Handles Google, Microsoft, phone, and email authentication
+Additional Recommendations
+1. Add Loading State
+const [isLoadingUserData, setIsLoadingUserData] = useState(false);
+
+// In loadUserTreeData:
+setIsLoadingUserData(true);
+try {
+  // ... loading logic
+} finally {
+  setIsLoadingUserData(false);
+}
+
+2. Handle Edge Cases
+Check for network errors and show user-friendly messages
+Handle case where user is authenticated but database user doesn't exist
+Add retry logic for failed data loads
+3. Consider Token Refresh
+The JWT token stored in cookies has a 7-day expiration. Add logic to refresh it:
+
+// In the useEffect, check token validity
+const token = getAuthToken();
+if (isAuthenticated && !token) {
+  // Token expired, re-authenticate
+  await loadUserTreeData(userId, provider);
+}
+
+Summary
+The Issue: Missing initialization logic when Firebase Auth restores a session
+
+The Fix: Add a useEffect hook that monitors authentication state and automatically loads user data
+
+Files to Modify:
+
+src/App.jsx - Add the useEffect hook around line 217
+Impact:
+
+✅ Data persists across sessions
+✅ Users see their family trees immediately after returning
+✅ Works for all authentication methods
+✅ No data loss
+Your data is safe! Everything is in the PostgreSQL database. You just need to add code to load it when the app starts with an authenticated user.
