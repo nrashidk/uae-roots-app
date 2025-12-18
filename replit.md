@@ -12,16 +12,20 @@ I prefer simple language and detailed explanations. I want iterative development
   - Comprehensive audit logging for sensitive operations
   - PII encryption at rest (phone, email, identification numbers)
   - CORS restrictions for development/production environments
+  - Multi-provider account linking with verified identities only (prevents account takeover)
 - **New Features**:
   - Family member search functionality
   - Photo upload for family members
   - Edit history with undo/redo capability
   - Multi-format data export (GEDCOM, CSV, HTML, Text, JSON)
   - Privacy policy page
+  - Multi-provider authentication: Users can login with multiple methods (phone, email, Google, Microsoft) linked to same account
 - **Technical Improvements**:
   - TypeScript configuration added
   - Loading state components (spinners, skeletons)
   - Type definitions for all data models
+  - URL encoding fix for phone numbers with + characters in API requests
+  - Auth identities table for multi-provider account resolution
 
 ## System Architecture
 The application utilizes React 19.1.0 with Vite 6.3.6 for the frontend, styled with Radix UI components and Tailwind CSS. It supports Arabic (RTL) with specific fonts (Sakkal Majalla) for proper rendering. State management is handled with React hooks, and routing with React Router DOM 7.6.1.

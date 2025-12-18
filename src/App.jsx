@@ -342,6 +342,8 @@ function App() {
       const provider = currentUser.providerData?.[0]?.providerId || 
                        (currentUser.phoneNumber ? 'phone' : 'email');
       
+      let resolvedUserId = userId;
+      
       if (authToken) {
         setAuthToken(authToken);
       } else if (!getAuthToken()) {
@@ -349,14 +351,18 @@ function App() {
         if (currentUser.getIdToken) {
           firebaseIdToken = await currentUser.getIdToken();
         }
-        const tokenResponse = await api.auth.getToken(userId, provider, firebaseIdToken);
+        const tokenResponse = await api.auth.getToken(userId, provider, firebaseIdToken, currentUser.email);
         if (tokenResponse.token) {
           setAuthToken(tokenResponse.token);
+        }
+        if (tokenResponse.userId) {
+          resolvedUserId = tokenResponse.userId;
+          console.log('Resolved to linked account:', resolvedUserId);
         }
       }
       
       const savedUser = await api.users.createOrUpdate({
-        id: userId,
+        id: resolvedUserId,
         email: currentUser.email || null,
         displayName: currentUser.displayName || null,
         phoneNumber: currentUser.phoneNumber || null,
@@ -365,7 +371,7 @@ function App() {
       console.log('User saved:', savedUser);
       setUserProfile(savedUser);
 
-      const userTrees = await api.trees.getAll(userId);
+      const userTrees = await api.trees.getAll(resolvedUserId);
       
       if (userTrees.length > 0) {
         setCurrentTree(userTrees[0]);
@@ -377,7 +383,7 @@ function App() {
         const newTree = await api.trees.create({
           name: "شجرة عائلتي",
           description: "شجرة العائلة الأولى",
-          createdBy: userId
+          createdBy: resolvedUserId
         });
         setCurrentTree(newTree);
         setPeople([]);
@@ -691,8 +697,9 @@ function App() {
       
       if (data.verified) {
         const formattedPhone = phoneInput.startsWith('+') ? phoneInput : '+971' + phoneInput.replace(/^0/, '');
+        const resolvedUserId = data.userId || formattedPhone;
         const phoneUser = {
-          uid: formattedPhone,
+          uid: resolvedUserId,
           phoneNumber: formattedPhone,
           displayName: null,
           email: null

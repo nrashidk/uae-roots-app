@@ -47,9 +47,9 @@ async function fetchAPIWithFile(endpoint, formData) {
 
 export const api = {
   auth: {
-    getToken: (userId, provider, firebaseIdToken) => fetchAPI('/auth/token', {
+    getToken: (userId, provider, firebaseIdToken, email) => fetchAPI('/auth/token', {
       method: 'POST',
-      body: JSON.stringify({ userId, provider, firebaseIdToken }),
+      body: JSON.stringify({ userId, provider, firebaseIdToken, email }),
     }),
     sendSmsCode: (phoneNumber) => fetchAPI('/sms/send-code', {
       method: 'POST',

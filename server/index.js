@@ -11,7 +11,7 @@ import { v4 as uuidv4 } from 'uuid';
 import CryptoJS from 'crypto-js';
 import { fileURLToPath } from 'url';
 import { db } from './db.js';
-import { users, trees, people, relationships, auditLogs, editHistory } from '../shared/schema.js';
+import { users, trees, people, relationships, auditLogs, editHistory, authIdentities } from '../shared/schema.js';
 import { eq, and, or, ilike, desc } from 'drizzle-orm';
 import { z } from 'zod';
 import fs from 'fs';
@@ -347,6 +347,117 @@ const validateId = (id) => {
   return !isNaN(parsed) && parsed > 0 ? parsed : null;
 };
 
+const normalizeEmail = (email) => {
+  if (!email) return null;
+  return email.toLowerCase().trim();
+};
+
+const normalizePhone = (phone) => {
+  if (!phone) return null;
+  let formatted = phone.trim();
+  if (!formatted.startsWith('+')) {
+    formatted = '+971' + formatted.replace(/^0/, '');
+  }
+  return formatted;
+};
+
+const findUserByIdentity = async (identityType, identityValue) => {
+  if (!identityValue) return null;
+  
+  const normalized = identityType === 'phone' 
+    ? normalizePhone(identityValue) 
+    : normalizeEmail(identityValue);
+  
+  if (!normalized) return null;
+  
+  const [identity] = await db.select()
+    .from(authIdentities)
+    .where(and(
+      eq(authIdentities.identityType, identityType),
+      eq(authIdentities.identityValue, normalized),
+      eq(authIdentities.isVerified, true)
+    ));
+  
+  if (identity) {
+    const [user] = await db.select().from(users).where(eq(users.id, identity.userId));
+    return user || null;
+  }
+  
+  return null;
+};
+
+const findUserByEmailOrPhone = async (email, phone) => {
+  if (email) {
+    const user = await findUserByIdentity('email', email);
+    if (user) return user;
+  }
+  
+  if (phone) {
+    const user = await findUserByIdentity('phone', phone);
+    if (user) return user;
+  }
+  
+  return null;
+};
+
+const linkIdentityToUser = async (userId, identityType, identityValue, providerUserId = null, isVerified = true) => {
+  if (!identityValue) return null;
+  
+  const normalized = identityType === 'phone' 
+    ? normalizePhone(identityValue) 
+    : normalizeEmail(identityValue);
+  
+  if (!normalized) return null;
+  
+  const existingIdentity = await db.select()
+    .from(authIdentities)
+    .where(and(
+      eq(authIdentities.identityType, identityType),
+      eq(authIdentities.identityValue, normalized)
+    ));
+  
+  if (existingIdentity.length > 0) {
+    if (existingIdentity[0].userId === userId) {
+      return existingIdentity[0];
+    }
+    return null;
+  }
+  
+  const [newIdentity] = await db.insert(authIdentities).values({
+    userId,
+    identityType,
+    identityValue: normalized,
+    providerUserId,
+    isVerified
+  }).returning();
+  
+  return newIdentity;
+};
+
+const createUserWithIdentities = async (userId, email, phone, displayName, provider) => {
+  const [user] = await db.insert(users).values({
+    id: userId,
+    email: email || null,
+    displayName: displayName || null,
+    phoneNumber: phone || null,
+    provider: provider || 'unknown'
+  }).returning();
+  
+  if (email) {
+    await linkIdentityToUser(userId, 'email', email, null, true);
+  }
+  
+  if (phone) {
+    await linkIdentityToUser(userId, 'phone', phone, null, true);
+  }
+  
+  if (provider && provider !== 'phone') {
+    await linkIdentityToUser(userId, provider, email || userId, userId, true);
+  }
+  
+  return user;
+};
+
 async function getTwilioCredentials() {
   const hostname = process.env.REPLIT_CONNECTORS_HOSTNAME;
   const xReplitToken = process.env.REPL_IDENTITY 
@@ -479,20 +590,25 @@ app.post('/api/sms/verify-code', smsLimiter, async (req, res) => {
       return res.status(400).json({ error: 'رمز التحقق غير صحيح' });
     }
     
+    const existingUser = await findUserByIdentity('phone', formattedPhone);
+    const userId = existingUser ? existingUser.id : formattedPhone;
+    
     const token = jwt.sign(
-      { userId: formattedPhone, type: 'phone' },
+      { userId: userId, type: 'phone' },
       JWT_SECRET,
       { expiresIn: '30d' }
     );
     
     res.cookie('auth_token', token, COOKIE_OPTIONS);
     
-    await logAudit(formattedPhone, 'login', 'auth', null, { provider: 'phone' }, req);
+    await logAudit(userId, 'login', 'auth', null, { provider: 'phone', linkedAccount: !!existingUser }, req);
     
     res.json({ 
       success: true, 
       verified: true,
       phoneNumber: formattedPhone,
+      userId: userId,
+      isLinkedAccount: !!existingUser,
       token
     });
   } catch (error) {
@@ -503,7 +619,7 @@ app.post('/api/sms/verify-code', smsLimiter, async (req, res) => {
 
 app.post('/api/auth/token', async (req, res) => {
   try {
-    const { userId, provider, firebaseIdToken } = req.body;
+    const { userId, provider, firebaseIdToken, email } = req.body;
     
     if (!userId) {
       return res.status(400).json({ error: 'User ID is required' });
@@ -513,6 +629,7 @@ app.post('/api/auth/token', async (req, res) => {
       return res.status(401).json({ error: 'Firebase ID token required for authentication' });
     }
     
+    let decodedToken;
     try {
       const admin = (await import('firebase-admin')).default;
       
@@ -522,7 +639,7 @@ app.post('/api/auth/token', async (req, res) => {
         });
       }
       
-      const decodedToken = await admin.auth().verifyIdToken(firebaseIdToken);
+      decodedToken = await admin.auth().verifyIdToken(firebaseIdToken);
       
       if (decodedToken.uid !== userId) {
         await logAudit(userId, 'login_failed', 'auth', null, { reason: 'token_mismatch' }, req);
@@ -534,17 +651,21 @@ app.post('/api/auth/token', async (req, res) => {
       return res.status(401).json({ error: 'Invalid Firebase token' });
     }
     
+    const userEmail = email || decodedToken?.email;
+    const existingUser = userEmail ? await findUserByIdentity('email', userEmail) : null;
+    const resolvedUserId = existingUser ? existingUser.id : userId;
+    
     const token = jwt.sign(
-      { userId, type: provider || 'firebase' },
+      { userId: resolvedUserId, type: provider || 'firebase' },
       JWT_SECRET,
       { expiresIn: '30d' }
     );
     
     res.cookie('auth_token', token, COOKIE_OPTIONS);
     
-    await logAudit(userId, 'login', 'auth', null, { provider }, req);
+    await logAudit(resolvedUserId, 'login', 'auth', null, { provider, linkedAccount: !!existingUser }, req);
     
-    res.json({ token });
+    res.json({ token, userId: resolvedUserId, isLinkedAccount: !!existingUser });
   } catch (error) {
     handleError(res, error, 'Token generation');
   }
@@ -587,6 +708,7 @@ app.post('/api/users', authenticateUser, async (req, res) => {
         .set({ lastLoginAt: new Date(), displayName: validatedData.displayName, email: validatedData.email })
         .where(eq(users.id, validatedData.id))
         .returning();
+      
       return res.json(updatedUser);
     }
     
@@ -597,6 +719,16 @@ app.post('/api/users', authenticateUser, async (req, res) => {
       phoneNumber: validatedData.phoneNumber || null,
       provider: validatedData.provider || 'unknown'
     }).returning();
+    
+    if (validatedData.email) {
+      await linkIdentityToUser(validatedData.id, 'email', validatedData.email, null, true);
+    }
+    if (validatedData.phoneNumber) {
+      await linkIdentityToUser(validatedData.id, 'phone', validatedData.phoneNumber, null, true);
+    }
+    if (validatedData.provider && validatedData.provider !== 'phone') {
+      await linkIdentityToUser(validatedData.id, validatedData.provider, validatedData.email || validatedData.id, validatedData.id, true);
+    }
     
     await logAudit(validatedData.id, 'create', 'user', validatedData.id, null, req);
     
