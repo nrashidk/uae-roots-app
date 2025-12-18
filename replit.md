@@ -61,7 +61,8 @@ Key features include:
       - JWT secret strength validation (32+ chars required in production)
       - JWT token expiry: 7 days (aligned with cookie maxAge)
       - ENCRYPTION_KEY validation with secure warnings
-      - Authenticated photo access endpoint (/api/photos/:filename)
+      - Authenticated photo access endpoint (/api/photos/:filename) - no public static serving
+      - Photo URL normalization for legacy database records
       - Undo operation data validation to prevent tampering
       - XSS sanitization for user-generated text (names, descriptions)
       - Magic byte verification for uploaded files (JPEG, PNG, GIF, WebP)
