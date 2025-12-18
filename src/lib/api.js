@@ -163,24 +163,25 @@ export const api = {
   },
 };
 
-// Store authentication state in memory
+// Store only resolvedUserId in memory (JWT stays in httpOnly cookie for security)
 let authState = {
   resolvedUserId: null,
-  token: null,
   timestamp: null
 };
 
 export function setAuthToken(token, userId) {
-  authState = {
-    resolvedUserId: userId,
-    token: token,
-    timestamp: Date.now()
-  };
-  // Store in sessionStorage for page reload persistence
-  try {
-    sessionStorage.setItem('auth_state', JSON.stringify(authState));
-  } catch (e) {
-    console.error('Failed to store auth state:', e);
+  // Only store resolvedUserId - JWT is handled by httpOnly cookie from backend
+  if (userId) {
+    authState = {
+      resolvedUserId: userId,
+      timestamp: Date.now()
+    };
+    // Store resolvedUserId in sessionStorage for page reload persistence
+    try {
+      sessionStorage.setItem('resolved_user_id', userId);
+    } catch (e) {
+      console.error('Failed to store user id:', e);
+    }
   }
 }
 
@@ -190,15 +191,18 @@ export function getAuthToken() {
     return authState;
   }
   
-  // Try sessionStorage
+  // Try sessionStorage for resolvedUserId only
   try {
-    const stored = sessionStorage.getItem('auth_state');
-    if (stored) {
-      authState = JSON.parse(stored);
+    const storedUserId = sessionStorage.getItem('resolved_user_id');
+    if (storedUserId) {
+      authState = {
+        resolvedUserId: storedUserId,
+        timestamp: Date.now()
+      };
       return authState;
     }
   } catch (e) {
-    console.error('Failed to retrieve auth state:', e);
+    console.error('Failed to retrieve user id:', e);
   }
   
   return null;
@@ -207,12 +211,11 @@ export function getAuthToken() {
 export function clearAuthToken() {
   authState = {
     resolvedUserId: null,
-    token: null,
     timestamp: null
   };
   try {
-    sessionStorage.removeItem('auth_state');
+    sessionStorage.removeItem('resolved_user_id');
   } catch (e) {
-    console.error('Failed to clear auth state:', e);
+    console.error('Failed to clear user id:', e);
   }
 }

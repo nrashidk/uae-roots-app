@@ -215,14 +215,14 @@ function App() {
     return () => window.removeEventListener("resize", updateDimensions);
   }, [currentView]);
 
-  // Track if session restoration has been attempted
-  const [restorationAttempted, setRestorationAttempted] = useState(false);
+  // Track if session restoration has been attempted (persists across re-renders)
+  const restorationAttemptedRef = useRef(false);
 
   // Robust session restoration when Firebase restores authentication
   useEffect(() => {
     const restoreSession = async () => {
       // Prevent multiple restoration attempts
-      if (restorationAttempted) return;
+      if (restorationAttemptedRef.current) return;
       
       // Wait for Firebase auth to finish loading
       if (authLoading) return;
@@ -232,10 +232,15 @@ function App() {
         return;
       }
 
+      // Mark as attempted immediately to prevent re-entry
+      restorationAttemptedRef.current = true;
       console.log('[Session Restore] Starting restoration for user:', user.uid || user.phoneNumber);
-      setRestorationAttempted(true);
 
       try {
+        // Fallback userId from Firebase user
+        const fallbackUserId = user.uid || user.phoneNumber || user.id;
+        let resolvedUserId = fallbackUserId;
+
         // STEP 1: Check if backend cookie is still valid
         let backendAuth = null;
         try {
@@ -244,8 +249,6 @@ function App() {
         } catch (e) {
           console.log('[Session Restore] Backend auth check failed:', e.message);
         }
-
-        let resolvedUserId = null;
 
         // STEP 2: If backend cookie is valid, use that userId
         if (backendAuth?.authenticated && backendAuth?.userId) {
@@ -256,6 +259,13 @@ function App() {
           // STEP 3: Backend cookie expired/missing - need to re-authenticate
           console.log('[Session Restore] Backend cookie invalid, re-authenticating...');
           
+          // Check sessionStorage for cached resolvedUserId first
+          const cachedAuth = getAuthToken();
+          if (cachedAuth?.resolvedUserId) {
+            resolvedUserId = cachedAuth.resolvedUserId;
+            console.log('[Session Restore] Using cached userId:', resolvedUserId);
+          }
+          
           // Get fresh Firebase ID token (force refresh to avoid expired token)
           let firebaseIdToken = null;
           try {
@@ -265,30 +275,34 @@ function App() {
             }
           } catch (tokenError) {
             console.error('[Session Restore] Failed to get Firebase token:', tokenError);
-            throw new Error('فشل في تحديث رمز المصادقة');
+            // Continue with fallback userId - user may need to re-login
           }
 
-          if (!firebaseIdToken) {
-            throw new Error('لا يوجد رمز مصادقة متاح');
+          if (firebaseIdToken) {
+            // Get backend JWT and resolved userId
+            const provider = user.providerData?.[0]?.providerId || 
+                            (user.phoneNumber ? 'phone' : 'email');
+            
+            try {
+              const tokenResponse = await api.auth.getToken(
+                fallbackUserId, 
+                provider, 
+                firebaseIdToken, 
+                user.email
+              );
+              
+              if (tokenResponse.userId) {
+                resolvedUserId = tokenResponse.userId;
+              }
+              console.log('[Session Restore] Got new backend token, userId:', resolvedUserId);
+              
+              // Store the resolved userId (not the JWT - that's in httpOnly cookie)
+              setAuthToken(null, resolvedUserId);
+            } catch (tokenErr) {
+              console.error('[Session Restore] Backend token request failed:', tokenErr);
+              // Continue with fallback/cached userId
+            }
           }
-
-          // Get backend JWT and resolved userId
-          const userId = user.uid || user.phoneNumber || user.id;
-          const provider = user.providerData?.[0]?.providerId || 
-                          (user.phoneNumber ? 'phone' : 'email');
-          
-          const tokenResponse = await api.auth.getToken(
-            userId, 
-            provider, 
-            firebaseIdToken, 
-            user.email
-          );
-          
-          resolvedUserId = tokenResponse.userId || userId;
-          console.log('[Session Restore] Got new backend token, userId:', resolvedUserId);
-          
-          // Store the resolved userId
-          setAuthToken(tokenResponse.token, resolvedUserId);
         }
 
         // STEP 4: Create/update user record
@@ -336,25 +350,25 @@ function App() {
         console.log('[Session Restore] Session restored successfully');
       } catch (error) {
         console.error('[Session Restore] Failed to restore session:', error);
-        
-        // Show user-friendly error and require re-login
-        if (error.message.includes('401') || error.message.includes('Authentication')) {
-          console.log('[Session Restore] Session expired, user needs to log in again');
-          clearAuthToken();
+        // Clear auth state and log out so user can try again
+        clearAuthToken();
+        try {
           await logout();
+        } catch (logoutErr) {
+          console.error('[Session Restore] Logout failed:', logoutErr);
         }
-        // Reset restoration flag to allow retry
-        setRestorationAttempted(false);
+        // Reset flag after logout so user can retry
+        restorationAttemptedRef.current = false;
       }
     };
 
     restoreSession();
-  }, [authLoading, isAuthenticated, user, currentTree, currentView, restorationAttempted]);
+  }, [authLoading, isAuthenticated, user, currentTree, currentView, logout]);
 
   // Reset restoration flag when user logs out
   useEffect(() => {
     if (!isAuthenticated) {
-      setRestorationAttempted(false);
+      restorationAttemptedRef.current = false;
       clearAuthToken();
     }
   }, [isAuthenticated]);
