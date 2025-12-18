@@ -525,35 +525,38 @@ function App() {
     }
   };
 
-  const renderProfileDialog = () => (
+  const renderProfileDialog = () => {
+    const isPhoneUser = userProfile?.provider === 'phone';
+    
+    return (
     <Dialog open={showProfile} onOpenChange={setShowProfile}>
       <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle className="text-right">{t.profileSettings}</DialogTitle>
         </DialogHeader>
         <div className="space-y-6 py-4" dir="rtl">
-          <div className="space-y-2">
-            <label className="block text-sm font-medium">{t.currentEmail}</label>
-            <input
-              type="email"
-              value={profileEmail}
-              onChange={(e) => setProfileEmail(e.target.value)}
-              placeholder={t.notSet}
-              className="w-full px-3 py-2 border rounded-lg text-right"
-            />
-          </div>
-          
-          <div className="space-y-2">
-            <label className="block text-sm font-medium">{t.currentPhone}</label>
-            <input
-              type="tel"
-              value={profilePhone}
-              onChange={(e) => setProfilePhone(e.target.value)}
-              placeholder={t.notSet}
-              className="w-full px-3 py-2 border rounded-lg text-right"
-              dir="ltr"
-            />
-          </div>
+          {isPhoneUser ? (
+            <div className="space-y-2">
+              <label className="block text-sm font-medium">{t.currentPhone}</label>
+              <input
+                type="tel"
+                value={profilePhone}
+                readOnly
+                className="w-full px-3 py-2 border rounded-lg text-right bg-gray-100"
+                dir="ltr"
+              />
+            </div>
+          ) : (
+            <div className="space-y-2">
+              <label className="block text-sm font-medium">{t.currentEmail}</label>
+              <input
+                type="email"
+                value={profileEmail}
+                readOnly
+                className="w-full px-3 py-2 border rounded-lg text-right bg-gray-100"
+              />
+            </div>
+          )}
           
           {profileMessage && (
             <div className={`p-3 rounded-lg text-center text-sm ${profileMessage.includes('نجاح') ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
@@ -561,20 +564,12 @@ function App() {
             </div>
           )}
           
-          <div className="flex gap-3">
-            <Button 
-              onClick={handleSaveProfile} 
-              disabled={profileSaving}
-              className="flex-1"
-            >
-              {profileSaving ? t.saving : t.save}
-            </Button>
+          <div className="flex justify-center">
             <Button 
               onClick={() => setShowProfile(false)} 
               variant="outline"
-              className="flex-1"
             >
-              {t.cancel}
+              {t.back}
             </Button>
           </div>
           
@@ -627,7 +622,8 @@ function App() {
         </div>
       </DialogContent>
     </Dialog>
-  );
+    );
+  };
 
   const handleSendSmsCode = async () => {
     if (!phoneInput) {
