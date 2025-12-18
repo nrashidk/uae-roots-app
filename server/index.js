@@ -9,6 +9,7 @@ import cookieParser from 'cookie-parser';
 import multer from 'multer';
 import { v4 as uuidv4 } from 'uuid';
 import CryptoJS from 'crypto-js';
+import crypto from 'crypto';
 import { fileURLToPath } from 'url';
 import { db } from './db.js';
 import { users, trees, people, relationships, auditLogs, editHistory, authIdentities } from '../shared/schema.js';
@@ -50,19 +51,50 @@ if (!usingDedicatedEncryptionKey) {
   }
 }
 
-const encryptPII = (text) => {
-  if (!text) return null;
-  return CryptoJS.AES.encrypt(text, ENCRYPTION_KEY).toString();
+// Derive a 32-byte key for AES-256-GCM from the encryption key string
+const deriveEncryptionKey = (keyString) => {
+  return crypto.createHash('sha256').update(keyString).digest();
 };
 
+const DERIVED_KEY = deriveEncryptionKey(ENCRYPTION_KEY);
+
+// New AES-256-GCM encryption (more secure with IV and auth tag)
+const encryptPII = (text) => {
+  if (!text) return null;
+  const iv = crypto.randomBytes(12);
+  const cipher = crypto.createCipheriv('aes-256-gcm', DERIVED_KEY, iv);
+  let encrypted = cipher.update(text, 'utf8', 'hex');
+  encrypted += cipher.final('hex');
+  const tag = cipher.getAuthTag();
+  return `v2:${iv.toString('hex')}:${tag.toString('hex')}:${encrypted}`;
+};
+
+// Dual-format decryption: supports new v2 format and legacy CryptoJS format
 const decryptPII = (encrypted) => {
   if (!encrypted) return null;
   try {
+    // New v2 format: v2:<iv>:<tag>:<ciphertext>
+    if (encrypted.startsWith('v2:')) {
+      const parts = encrypted.split(':');
+      if (parts.length !== 4) return encrypted;
+      const [, ivHex, tagHex, data] = parts;
+      const decipher = crypto.createDecipheriv('aes-256-gcm', DERIVED_KEY, Buffer.from(ivHex, 'hex'));
+      decipher.setAuthTag(Buffer.from(tagHex, 'hex'));
+      let decrypted = decipher.update(data, 'hex', 'utf8');
+      return decrypted + decipher.final('utf8');
+    }
+    // Legacy CryptoJS format (for backward compatibility with existing data)
     const bytes = CryptoJS.AES.decrypt(encrypted, ENCRYPTION_KEY);
     return bytes.toString(CryptoJS.enc.Utf8);
   } catch {
     return encrypted;
   }
+};
+
+// Escape special characters for SQL LIKE/ILIKE patterns
+const escapeLikePattern = (str) => {
+  if (!str) return str;
+  return str.replace(/[%_\\]/g, '\\$&');
 };
 
 // XSS sanitization - escapes HTML special characters to prevent script injection
@@ -374,7 +406,7 @@ const COOKIE_OPTIONS = {
   httpOnly: true,
   secure: isProduction,
   sameSite: 'lax',
-  maxAge: 30 * 24 * 60 * 60 * 1000,
+  maxAge: 7 * 24 * 60 * 60 * 1000,
   path: '/'
 };
 
@@ -748,7 +780,7 @@ app.post('/api/sms/verify-code', smsLimiter, async (req, res) => {
     const token = jwt.sign(
       { userId: userId, type: 'phone' },
       JWT_SECRET,
-      { expiresIn: '30d' }
+      { expiresIn: '7d' }
     );
     
     res.cookie('auth_token', token, COOKIE_OPTIONS);
@@ -810,7 +842,7 @@ app.post('/api/auth/token', async (req, res) => {
     const token = jwt.sign(
       { userId: resolvedUserId, type: provider || 'firebase' },
       JWT_SECRET,
-      { expiresIn: '30d' }
+      { expiresIn: '7d' }
     );
     
     res.cookie('auth_token', token, COOKIE_OPTIONS);
@@ -1102,12 +1134,13 @@ app.get('/api/people/search', authenticateUser, async (req, res) => {
       return res.status(403).json({ error: ownership.error });
     }
     
+    const escapedQuery = escapeLikePattern(query);
     const searchResults = await db.select().from(people).where(
       and(
         eq(people.treeId, parsedTreeId),
         or(
-          ilike(people.firstName, `%${query}%`),
-          ilike(people.lastName, `%${query}%`)
+          ilike(people.firstName, `%${escapedQuery}%`),
+          ilike(people.lastName, `%${escapedQuery}%`)
         )
       )
     );

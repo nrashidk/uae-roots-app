@@ -10,9 +10,11 @@ I prefer simple language and detailed explanations. I want iterative development
 - **Security Enhancements**:
   - HttpOnly cookie-based JWT authentication (replaces localStorage)
   - Comprehensive audit logging for sensitive operations
-  - PII encryption at rest (phone, email, identification numbers)
+  - PII encryption at rest using AES-256-GCM with IV and auth tag (upgraded from CryptoJS)
   - CORS restrictions for development/production environments
   - Multi-provider account linking with verified identities only (prevents account takeover)
+  - SQL search pattern escaping to prevent LIKE injection
+  - JWT expiry reduced to 7 days (from 30 days) for improved security
 - **New Features**:
   - Family member search functionality
   - Photo upload for family members
@@ -53,8 +55,11 @@ Key features include:
       - Helmet security headers with CSP
       - CORS configuration (localhost in dev, allowed domains in prod)
       - Audit logging for sensitive operations with request ID correlation
-      - PII encryption at rest using AES
+      - PII encryption at rest using AES-256-GCM (with IV and authentication tag)
+      - Dual-format decryption for backward compatibility with legacy encrypted data
+      - SQL LIKE pattern escaping to prevent wildcard injection
       - JWT secret strength validation (32+ chars required in production)
+      - JWT token expiry: 7 days (aligned with cookie maxAge)
       - ENCRYPTION_KEY validation with secure warnings
       - Authenticated photo access endpoint (/api/photos/:filename)
       - Undo operation data validation to prevent tampering
