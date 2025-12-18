@@ -215,6 +215,17 @@ function App() {
     return () => window.removeEventListener("resize", updateDimensions);
   }, [currentView]);
 
+  // Auto-load user data when Firebase restores authentication session
+  useEffect(() => {
+    const loadUserData = async () => {
+      if (!authLoading && isAuthenticated && user && !currentTree && currentView === 'auth') {
+        console.log('Auto-loading user data for authenticated user:', user.uid || user.phoneNumber);
+        await handleAuthSuccess(null);
+      }
+    };
+    loadUserData();
+  }, [authLoading, isAuthenticated, user, currentTree, currentView]);
+
   // Generate tree layout using the working algorithm
   const treeLayout = useMemo(() => {
     const treePeople = people.filter((p) => p.treeId === currentTree?.id);
