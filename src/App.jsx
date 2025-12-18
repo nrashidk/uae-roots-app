@@ -215,16 +215,149 @@ function App() {
     return () => window.removeEventListener("resize", updateDimensions);
   }, [currentView]);
 
-  // Auto-load user data when Firebase restores authentication session
+  // Track if session restoration has been attempted
+  const [restorationAttempted, setRestorationAttempted] = useState(false);
+
+  // Robust session restoration when Firebase restores authentication
   useEffect(() => {
-    const loadUserData = async () => {
-      if (!authLoading && isAuthenticated && user && !currentTree && currentView === 'auth') {
-        console.log('Auto-loading user data for authenticated user:', user.uid || user.phoneNumber);
-        await handleAuthSuccess(null);
+    const restoreSession = async () => {
+      // Prevent multiple restoration attempts
+      if (restorationAttempted) return;
+      
+      // Wait for Firebase auth to finish loading
+      if (authLoading) return;
+      
+      // Only proceed if authenticated but no tree loaded
+      if (!isAuthenticated || !user || currentTree || currentView !== 'auth') {
+        return;
+      }
+
+      console.log('[Session Restore] Starting restoration for user:', user.uid || user.phoneNumber);
+      setRestorationAttempted(true);
+
+      try {
+        // STEP 1: Check if backend cookie is still valid
+        let backendAuth = null;
+        try {
+          backendAuth = await api.auth.check();
+          console.log('[Session Restore] Backend auth check:', backendAuth);
+        } catch (e) {
+          console.log('[Session Restore] Backend auth check failed:', e.message);
+        }
+
+        let resolvedUserId = null;
+
+        // STEP 2: If backend cookie is valid, use that userId
+        if (backendAuth?.authenticated && backendAuth?.userId) {
+          resolvedUserId = backendAuth.userId;
+          console.log('[Session Restore] Using backend userId:', resolvedUserId);
+          setAuthToken(null, resolvedUserId);
+        } else {
+          // STEP 3: Backend cookie expired/missing - need to re-authenticate
+          console.log('[Session Restore] Backend cookie invalid, re-authenticating...');
+          
+          // Get fresh Firebase ID token (force refresh to avoid expired token)
+          let firebaseIdToken = null;
+          try {
+            if (user.getIdToken) {
+              firebaseIdToken = await user.getIdToken(true);  // force refresh = true
+              console.log('[Session Restore] Got fresh Firebase ID token');
+            }
+          } catch (tokenError) {
+            console.error('[Session Restore] Failed to get Firebase token:', tokenError);
+            throw new Error('فشل في تحديث رمز المصادقة');
+          }
+
+          if (!firebaseIdToken) {
+            throw new Error('لا يوجد رمز مصادقة متاح');
+          }
+
+          // Get backend JWT and resolved userId
+          const userId = user.uid || user.phoneNumber || user.id;
+          const provider = user.providerData?.[0]?.providerId || 
+                          (user.phoneNumber ? 'phone' : 'email');
+          
+          const tokenResponse = await api.auth.getToken(
+            userId, 
+            provider, 
+            firebaseIdToken, 
+            user.email
+          );
+          
+          resolvedUserId = tokenResponse.userId || userId;
+          console.log('[Session Restore] Got new backend token, userId:', resolvedUserId);
+          
+          // Store the resolved userId
+          setAuthToken(tokenResponse.token, resolvedUserId);
+        }
+
+        // STEP 4: Create/update user record
+        const provider = user.providerData?.[0]?.providerId || 
+                        (user.phoneNumber ? 'phone' : 'email');
+        const savedUser = await api.users.createOrUpdate({
+          id: resolvedUserId,
+          email: user.email || null,
+          displayName: user.displayName || null,
+          phoneNumber: user.phoneNumber || null,
+          provider: provider
+        });
+        console.log('[Session Restore] User record updated:', savedUser);
+        setUserProfile(savedUser);
+
+        // STEP 5: Load user's trees using the RESOLVED userId
+        console.log('[Session Restore] Fetching trees for userId:', resolvedUserId);
+        const userTrees = await api.trees.getAll(resolvedUserId);
+        console.log('[Session Restore] Found trees:', userTrees.length);
+
+        if (userTrees.length > 0) {
+          // Load first tree
+          setCurrentTree(userTrees[0]);
+          const treePeopleData = await api.people.getAll(userTrees[0].id);
+          const treeRelData = await api.relationships.getAll(userTrees[0].id);
+          setPeople(treePeopleData);
+          setRelationships(treeRelData);
+          console.log('[Session Restore] Loaded tree:', userTrees[0].name, 
+                     'with', treePeopleData.length, 'people');
+          setCurrentView("tree-builder");
+        } else {
+          // No trees - create default tree
+          console.log('[Session Restore] No trees found, creating default tree');
+          const newTree = await api.trees.create({
+            name: "شجرة عائلتي",
+            description: "شجرة العائلة الأولى",
+            createdBy: resolvedUserId
+          });
+          setCurrentTree(newTree);
+          setPeople([]);
+          setRelationships([]);
+          setCurrentView("tree-builder");
+        }
+
+        console.log('[Session Restore] Session restored successfully');
+      } catch (error) {
+        console.error('[Session Restore] Failed to restore session:', error);
+        
+        // Show user-friendly error and require re-login
+        if (error.message.includes('401') || error.message.includes('Authentication')) {
+          console.log('[Session Restore] Session expired, user needs to log in again');
+          clearAuthToken();
+          await logout();
+        }
+        // Reset restoration flag to allow retry
+        setRestorationAttempted(false);
       }
     };
-    loadUserData();
-  }, [authLoading, isAuthenticated, user, currentTree, currentView]);
+
+    restoreSession();
+  }, [authLoading, isAuthenticated, user, currentTree, currentView, restorationAttempted]);
+
+  // Reset restoration flag when user logs out
+  useEffect(() => {
+    if (!isAuthenticated) {
+      setRestorationAttempted(false);
+      clearAuthToken();
+    }
+  }, [isAuthenticated]);
 
   // Generate tree layout using the working algorithm
   const treeLayout = useMemo(() => {
@@ -356,20 +489,21 @@ function App() {
       let resolvedUserId = userId;
       
       if (authToken) {
-        setAuthToken(authToken);
-      } else if (!getAuthToken()) {
+        // Phone login already has token - store with userId
+        setAuthToken(authToken, userId);
+      } else {
+        // Firebase login - get fresh token with force refresh
         let firebaseIdToken = null;
         if (currentUser.getIdToken) {
-          firebaseIdToken = await currentUser.getIdToken();
+          firebaseIdToken = await currentUser.getIdToken(true);  // force refresh
         }
         const tokenResponse = await api.auth.getToken(userId, provider, firebaseIdToken, currentUser.email);
-        if (tokenResponse.token) {
-          setAuthToken(tokenResponse.token);
-        }
         if (tokenResponse.userId) {
           resolvedUserId = tokenResponse.userId;
           console.log('Resolved to linked account:', resolvedUserId);
         }
+        // Store token with resolved userId
+        setAuthToken(tokenResponse.token, resolvedUserId);
       }
       
       const savedUser = await api.users.createOrUpdate({
@@ -406,13 +540,6 @@ function App() {
     } catch (err) {
       console.error('Error in handleAuthSuccess:', err);
       alert('خطأ أثناء تسجيل الدخول: ' + err.message);
-      const fallbackTree = {
-        id: Date.now(),
-        name: "شجرة عائلتي",
-        createdAt: new Date().toISOString(),
-      };
-      setCurrentTree(fallbackTree);
-      setCurrentView("tree-builder");
     }
   };
 

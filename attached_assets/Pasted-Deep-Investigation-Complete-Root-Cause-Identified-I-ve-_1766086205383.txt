@@ -1,0 +1,432 @@
+Deep Investigation Complete: Root Cause Identified
+I've conducted a thorough analysis of the authentication and data persistence flow. The issue is more complex than initially thought and involves multiple interrelated problems.
+
+Critical Findings
+🔴 Issue #1: No Backend JWT Cookie on Page Reload
+Location: The authentication flow after Firebase session restoration
+
+The Problem:
+When you refresh the page or return to the app:
+
+✅ Firebase automatically restores your auth session (from localStorage)
+❌ BUT the backend JWT cookie may have expired (7-day expiration)
+❌ OR the cookie was never set in the first place if you close the browser in some configurations
+✅ Your useEffect tries to load data
+❌ API calls fail with 401 Unauthorized because there's no valid JWT cookie
+The backend's authenticateUser middleware (server/index.js:422) requires a valid JWT token in the cookie:
+
+const authenticateUser = async (req, res, next) => {
+  let token = req.cookies?.auth_token;  // NO TOKEN = 401 ERROR
+  if (!token) {
+    return res.status(401).json({ error: 'Authentication required' });
+  }
+  // ...
+}
+
+🔴 Issue #2: userId Mismatch in API Calls
+Location: server/index.js:1023 and server/index.js:889
+
+The Problem:
+Your backend has strict userId matching requirements:
+
+// /api/trees endpoint
+if (req.userId !== userId) {  // JWT userId vs Query userId
+  return res.status(403).json({ error: 'غير مصرح بالوصول' });
+}
+
+// /api/users endpoint  
+if (req.userId !== validatedData.id) {  // JWT userId vs Body userId
+  return res.status(403).json({ error: 'غير مصرح' });
+}
+
+The userId must match in THREE places:
+
+The userId in the JWT token (from /api/auth/token response)
+The userId in the query parameter (for /api/trees)
+The userId in the database (trees.createdBy field)
+If any of these don't match → 403 Forbidden
+
+🔴 Issue #3: Firebase ID Token Required for Backend Authentication
+Location: server/index.js:818
+
+The /api/auth/token endpoint requires a Firebase ID token:
+
+if (!firebaseIdToken) {
+  return res.status(401).json({ error: 'Firebase ID token required for authentication' });
+}
+
+The Problem:
+
+Firebase ID tokens expire after 1 hour
+When you return to the app after 1+ hour, the cached token is expired
+You must call user.getIdToken(true) to force refresh the token
+If you don't, the backend will reject your authentication attempt
+🔴 Issue #4: "Resolved UserId" Not Stored Client-Side
+Location: src/App.jsx:346-360
+
+When you log in, the backend may return a different userId than your Firebase UID:
+
+// Backend logic (server/index.js:844-846)
+const existingUser = userEmail ? await findUserByIdentity('email', userEmail) : null;
+const resolvedUserId = existingUser ? existingUser.id : userId;
+
+Example Scenario:
+
+First login with Phone → userId = "+971501234567", tree created with createdBy="+971501234567"
+Logout
+Login with Google (same email) → Firebase UID = "google_abc123"
+Backend finds existing user by email → resolvedUserId = "+971501234567" (phone user id)
+BUT frontend uses user.uid = "google_abc123" to fetch trees
+❌ No trees found! They're stored under "+971501234567"
+🔴 Issue #5: Empty Token Management Functions
+Location: src/lib/api.js:166-168
+
+export function setAuthToken() {}      // DOES NOTHING!
+export function getAuthToken() { return null; }  // ALWAYS RETURNS NULL!
+export function clearAuthToken() {}    // DOES NOTHING!
+
+These are stub functions that don't actually work. The frontend has no way to:
+
+Store the resolved userId
+Check if a valid session exists
+Track authentication state beyond Firebase
+Why Your Fix Didn't Work
+The fix you implemented likely had these issues:
+
+Didn't regenerate the backend JWT cookie - The cookie expired, so API calls fail with 401
+Used wrong userId - Used user.uid instead of the resolvedUserId from /api/auth/token
+Didn't force-refresh Firebase token - Used expired Firebase ID token
+Timing issue - Ran before Firebase fully restored the auth state
+Silent failures - API errors were caught but not displayed to you
+Complete Permanent Solution
+Part 1: Fix Token Management (src/lib/api.js)
+Replace the empty functions with working implementations:
+
+// Store authentication state in memory
+let authState = {
+  resolvedUserId: null,
+  token: null,
+  timestamp: null
+};
+
+export function setAuthToken(token, userId) {
+  authState = {
+    resolvedUserId: userId,
+    token: token,
+    timestamp: Date.now()
+  };
+  // Store in sessionStorage for page reload persistence
+  try {
+    sessionStorage.setItem('auth_state', JSON.stringify(authState));
+  } catch (e) {
+    console.error('Failed to store auth state:', e);
+  }
+}
+
+export function getAuthToken() {
+  // Try memory first
+  if (authState.resolvedUserId) {
+    return authState;
+  }
+  
+  // Try sessionStorage
+  try {
+    const stored = sessionStorage.getItem('auth_state');
+    if (stored) {
+      authState = JSON.parse(stored);
+      return authState;
+    }
+  } catch (e) {
+    console.error('Failed to retrieve auth state:', e);
+  }
+  
+  return null;
+}
+
+export function clearAuthToken() {
+  authState = {
+    resolvedUserId: null,
+    token: null,
+    timestamp: null
+  };
+  try {
+    sessionStorage.removeItem('auth_state');
+  } catch (e) {
+    console.error('Failed to clear auth state:', e);
+  }
+}
+
+Part 2: Add Session Restoration Check API
+This endpoint checks if the JWT cookie is still valid without needing Firebase token.
+
+Backend already has this: /api/auth/check (server/index.js:870)
+
+app.get('/api/auth/check', optionalAuth, (req, res) => {
+  if (req.userId) {
+    res.json({ authenticated: true, userId: req.userId });
+  } else {
+    res.json({ authenticated: false });
+  }
+});
+
+✅ This is already implemented and working!
+
+Part 3: Robust Session Restoration in App.jsx
+Add this comprehensive useEffect that handles all edge cases:
+
+// Add state to track if we've already attempted restoration
+const [restorationAttempted, setRestorationAttempted] = useState(false);
+
+// Session restoration effect
+useEffect(() => {
+  const restoreSession = async () => {
+    // Prevent multiple restoration attempts
+    if (restorationAttempted) return;
+    
+    // Wait for Firebase auth to finish loading
+    if (authLoading) return;
+    
+    // Only proceed if authenticated but no tree loaded
+    if (!isAuthenticated || !user || currentTree || currentView !== 'auth') {
+      return;
+    }
+
+    console.log('[Session Restore] Starting restoration for user:', user.uid);
+    setRestorationAttempted(true);
+
+    try {
+      // STEP 1: Check if backend cookie is still valid
+      let backendAuth = null;
+      try {
+        backendAuth = await api.auth.check();
+        console.log('[Session Restore] Backend auth check:', backendAuth);
+      } catch (e) {
+        console.log('[Session Restore] Backend auth check failed:', e.message);
+      }
+
+      let resolvedUserId = null;
+
+      // STEP 2: If backend cookie is valid, use that userId
+      if (backendAuth?.authenticated && backendAuth?.userId) {
+        resolvedUserId = backendAuth.userId;
+        console.log('[Session Restore] Using backend userId:', resolvedUserId);
+      } else {
+        // STEP 3: Backend cookie expired/missing - need to re-authenticate
+        console.log('[Session Restore] Backend cookie invalid, re-authenticating...');
+        
+        // Get fresh Firebase ID token (force refresh to avoid expired token)
+        let firebaseIdToken = null;
+        try {
+          if (user.getIdToken) {
+            firebaseIdToken = await user.getIdToken(true);  // force refresh = true
+            console.log('[Session Restore] Got fresh Firebase ID token');
+          }
+        } catch (tokenError) {
+          console.error('[Session Restore] Failed to get Firebase token:', tokenError);
+          throw new Error('Failed to refresh authentication token');
+        }
+
+        if (!firebaseIdToken) {
+          throw new Error('No Firebase ID token available');
+        }
+
+        // Get backend JWT and resolved userId
+        const userId = user.uid || user.phoneNumber || user.id;
+        const provider = user.providerData?.[0]?.providerId || 
+                        (user.phoneNumber ? 'phone' : 'email');
+        
+        const tokenResponse = await api.auth.getToken(
+          userId, 
+          provider, 
+          firebaseIdToken, 
+          user.email
+        );
+        
+        resolvedUserId = tokenResponse.userId || userId;
+        console.log('[Session Restore] Got new backend token, userId:', resolvedUserId);
+        
+        // Store the resolved userId
+        setAuthToken(tokenResponse.token, resolvedUserId);
+      }
+
+      // STEP 4: Create/update user record
+      const savedUser = await api.users.createOrUpdate({
+        id: resolvedUserId,
+        email: user.email || null,
+        displayName: user.displayName || null,
+        phoneNumber: user.phoneNumber || null,
+        provider: user.providerData?.[0]?.providerId || 
+                 (user.phoneNumber ? 'phone' : 'email')
+      });
+      console.log('[Session Restore] User record updated:', savedUser);
+      setUserProfile(savedUser);
+
+      // STEP 5: Load user's trees using the RESOLVED userId
+      console.log('[Session Restore] Fetching trees for userId:', resolvedUserId);
+      const userTrees = await api.trees.getAll(resolvedUserId);
+      console.log('[Session Restore] Found trees:', userTrees.length);
+
+      if (userTrees.length > 0) {
+        // Load first tree
+        setCurrentTree(userTrees[0]);
+        const treePeopleData = await api.people.getAll(userTrees[0].id);
+        const treeRelData = await api.relationships.getAll(userTrees[0].id);
+        setPeople(treePeopleData);
+        setRelationships(treeRelData);
+        console.log('[Session Restore] Loaded tree:', userTrees[0].name, 
+                   'with', treePeopleData.length, 'people');
+        setCurrentView("tree-builder");
+      } else {
+        // No trees - create default tree
+        console.log('[Session Restore] No trees found, creating default tree');
+        const newTree = await api.trees.create({
+          name: "شجرة عائلتي",
+          description: "شجرة العائلة الأولى",
+          createdBy: resolvedUserId
+        });
+        setCurrentTree(newTree);
+        setPeople([]);
+        setRelationships([]);
+        setCurrentView("tree-builder");
+      }
+
+      console.log('[Session Restore] ✅ Session restored successfully');
+    } catch (error) {
+      console.error('[Session Restore] ❌ Failed to restore session:', error);
+      
+      // Show user-friendly error
+      if (error.message.includes('401') || error.message.includes('Authentication required')) {
+        console.log('[Session Restore] Session expired, user needs to log in again');
+        // Clear invalid session
+        await handleLogout();
+      } else {
+        // Other errors - show message but don't force logout
+        alert('خطأ في استعادة الجلسة: ' + error.message + '\nيرجى تسجيل الدخول مرة أخرى');
+      }
+    }
+  };
+
+  restoreSession();
+}, [authLoading, isAuthenticated, user, currentTree, currentView, restorationAttempted]);
+
+// Reset restoration flag when user logs out
+useEffect(() => {
+  if (!isAuthenticated) {
+    setRestorationAttempted(false);
+  }
+}, [isAuthenticated]);
+
+Part 4: Update handleAuthSuccess to Store Resolved UserId
+const handleAuthSuccess = async (phoneUser = null, authToken = null) => {
+  try {
+    const currentUser = phoneUser || user;
+    if (!currentUser) {
+      console.error('No user found after auth success');
+      return;
+    }
+
+    const userId = currentUser.uid || currentUser.phoneNumber || currentUser.id;
+    const provider = currentUser.providerData?.[0]?.providerId || 
+                     (currentUser.phoneNumber ? 'phone' : 'email');
+    
+    let resolvedUserId = userId;
+    
+    // Get backend token and resolved userId
+    if (authToken) {
+      // Phone login already has token
+      setAuthToken(authToken, userId);
+    } else {
+      // Firebase login - get token
+      let firebaseIdToken = null;
+      if (currentUser.getIdToken) {
+        firebaseIdToken = await currentUser.getIdToken(true);  // force refresh
+      }
+      
+      const tokenResponse = await api.auth.getToken(
+        userId, 
+        provider, 
+        firebaseIdToken, 
+        currentUser.email
+      );
+      
+      resolvedUserId = tokenResponse.userId || userId;
+      setAuthToken(tokenResponse.token, resolvedUserId);  // Store resolved userId
+      console.log('Resolved userId:', resolvedUserId);
+    }
+    
+    // Create/update user
+    const savedUser = await api.users.createOrUpdate({
+      id: resolvedUserId,  // Use resolved userId
+      email: currentUser.email || null,
+      displayName: currentUser.displayName || null,
+      phoneNumber: currentUser.phoneNumber || null,
+      provider: provider
+    });
+    setUserProfile(savedUser);
+
+    // Load trees with resolved userId
+    const userTrees = await api.trees.getAll(resolvedUserId);  // Use resolved userId
+    
+    if (userTrees.length > 0) {
+      setCurrentTree(userTrees[0]);
+      const treePeopleData = await api.people.getAll(userTrees[0].id);
+      const treeRelData = await api.relationships.getAll(userTrees[0].id);
+      setPeople(treePeopleData);
+      setRelationships(treeRelData);
+    } else {
+      const newTree = await api.trees.create({
+        name: "شجرة عائلتي",
+        description: "شجرة العائلة الأولى",
+        createdBy: resolvedUserId  // Use resolved userId
+      });
+      setCurrentTree(newTree);
+      setPeople([]);
+      setRelationships([]);
+    }
+    
+    setCurrentView("tree-builder");
+  } catch (err) {
+    console.error('Error in handleAuthSuccess:', err);
+    alert('خطأ أثناء تسجيل الدخول: ' + err.message);
+  }
+};
+
+Part 5: Update handleLogout to Clear Auth State
+const handleLogout = async () => {
+  try {
+    await logout();
+    clearAuthToken();  // Clear stored auth state
+    setCurrentTree(null);
+    setPeople([]);
+    setRelationships([]);
+    setUserProfile(null);
+    setCurrentView("auth");
+    setRestorationAttempted(false);  // Reset restoration flag
+  } catch (err) {
+    console.error('Logout failed:', err);
+  }
+};
+
+Summary of All Changes
+Files to Modify:
+src/lib/api.js (lines 166-168)
+
+Implement setAuthToken(token, userId) - stores token and resolvedUserId in sessionStorage
+Implement getAuthToken() - retrieves stored auth state
+Implement clearAuthToken() - clears stored auth state
+src/App.jsx (add around line 217)
+
+Add restorationAttempted state
+Add comprehensive session restoration useEffect
+Update handleAuthSuccess to store and use resolvedUserId
+Update handleLogout to clear auth state and reset restoration flag
+Why This Solution Works
+✅ Handles expired cookies - Re-authenticates with Firebase if backend cookie expired
+✅ Uses correct userId - Stores and uses resolvedUserId, not Firebase UID
+✅ Refreshes Firebase tokens - Calls getIdToken(true) to force refresh
+✅ Handles timing - Waits for Firebase auth to finish loading
+✅ Resilient - Tries backend cookie first, only re-authenticates if needed
+✅ Prevents duplicates - Uses restorationAttempted flag
+✅ User-friendly errors - Shows clear messages if restoration fails
+✅ Persists across reloads - Stores auth state in sessionStorage
+✅ Secure - Only stores userId, not sensitive data (JWT stays in httpOnly cookie)

@@ -163,6 +163,56 @@ export const api = {
   },
 };
 
-export function setAuthToken() {}
-export function getAuthToken() { return null; }
-export function clearAuthToken() {}
+// Store authentication state in memory
+let authState = {
+  resolvedUserId: null,
+  token: null,
+  timestamp: null
+};
+
+export function setAuthToken(token, userId) {
+  authState = {
+    resolvedUserId: userId,
+    token: token,
+    timestamp: Date.now()
+  };
+  // Store in sessionStorage for page reload persistence
+  try {
+    sessionStorage.setItem('auth_state', JSON.stringify(authState));
+  } catch (e) {
+    console.error('Failed to store auth state:', e);
+  }
+}
+
+export function getAuthToken() {
+  // Try memory first
+  if (authState.resolvedUserId) {
+    return authState;
+  }
+  
+  // Try sessionStorage
+  try {
+    const stored = sessionStorage.getItem('auth_state');
+    if (stored) {
+      authState = JSON.parse(stored);
+      return authState;
+    }
+  } catch (e) {
+    console.error('Failed to retrieve auth state:', e);
+  }
+  
+  return null;
+}
+
+export function clearAuthToken() {
+  authState = {
+    resolvedUserId: null,
+    token: null,
+    timestamp: null
+  };
+  try {
+    sessionStorage.removeItem('auth_state');
+  } catch (e) {
+    console.error('Failed to clear auth state:', e);
+  }
+}
