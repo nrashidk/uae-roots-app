@@ -70,18 +70,18 @@ export const api = {
       method: 'POST',
       body: JSON.stringify(data),
     }),
-    get: (id) => fetchAPI(`/users/${id}`),
-    update: (id, data) => fetchAPI(`/users/${id}`, {
+    get: (id) => fetchAPI(`/users/${encodeURIComponent(id)}`),
+    update: (id, data) => fetchAPI(`/users/${encodeURIComponent(id)}`, {
       method: 'PUT',
       body: JSON.stringify(data),
     }),
-    delete: (id) => fetchAPI(`/users/${id}`, {
+    delete: (id) => fetchAPI(`/users/${encodeURIComponent(id)}`, {
       method: 'DELETE',
     }),
   },
 
   trees: {
-    getAll: (userId) => fetchAPI(userId ? `/trees?userId=${userId}` : '/trees'),
+    getAll: (userId) => fetchAPI(userId ? `/trees?userId=${encodeURIComponent(userId)}` : '/trees'),
     create: (data) => fetchAPI('/trees', {
       method: 'POST',
       body: JSON.stringify(data),
