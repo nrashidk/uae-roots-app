@@ -1,0 +1,32 @@
+The app saves family trees correctly in the backend, but when Firebase restores a session (after logout/login or app restart) the app does not re-run the same data-load path used during the login flow. handleAuthSuccess() is called only during an explicit login flow, so when Firebase auto-restores the user the app ends up with an authenticated user but no currentTree/people/relationships loaded. The UI shows an empty account.
+In short: missing "on-authenticated" initialization logic to fetch the user's trees and set local state when Firebase restores an existing session.
+Permanent fix (high level)
+
+Extract the data-loading logic used in handleAuthSuccess into a single reusable async function (loadUserTreeData).
+Call loadUserTreeData both from the login flow (handleAuthSuccess) and from a new useEffect that watches authentication state and triggers when Firebase has restored an authenticated user but the app has not yet loaded a tree.
+Ensure backend auth token handling (setAuthToken / getAuthToken / clearAuthToken) is used consistently, and clear local token/state on logout.
+Add minimal retry / error logging and avoid duplicate loads by gating on currentTree and a local loading flag.
+This change is non-invasive: it reuses existing api.* calls and state setters, only adds one small helper and one effect. Functionality remains the same; it just ensures the app initializes correctly when a session is restored.
+
+Code to add
+
+Insert the helper function and new useEffect inside the App component in src/App.jsx (near other useEffect hooks). Also update handleAuthSuccess to call loadUserTreeData (or replace its tree-loading block with a call to the helper). Update handleLogout to clear auth token and local state.
+Proposed patch (additions). Put this inside the App() component in src/App.jsx (after other hooks / near existing auth-related code). The file below shows the new helper, the useEffect, and suggested handleLogout adjustments.
+
+nrashidk / uae-roots-app / src / App.jsx
+// --- Add inside the App() component ---
+
+// small gate to avoid double-loading
+const [treeLoadInProgress, setTreeLoadInProgress] = useState(false);
+
+/**
+Why this fixes the problem
+
+When Firebase auto-restores a session it only updates the auth state (onAuthStateChanged); previously the app didn't run the same load logic handleAuthSuccess used during active sign-in. The new effect runs automatically when auth is ready and a user exists but local tree data is missing. That guarantees the same backend calls occur whether the user signed in actively or was auto-restored, preventing "empty account" behavior.
+Additional recommendations and hardening (optional but suggested)
+
+Add lightweight retry/backoff for api.trees.getAll if you see intermittent network issues.
+Show a transient loader in the UI while loadUserTreeData runs to avoid UI flicker.
+Add a telemetry log when token acquisition fails so backend auth issues can be tracked.
+Consider storing a small "lastLoadedAt" timestamp in localStorage for faster gating and to avoid unnecessary reloads on frequent re-renders.
+If you support multiple trees, consider selecting the most-recently-modified tree instead of the first array item.
