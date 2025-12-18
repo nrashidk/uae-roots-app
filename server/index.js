@@ -97,6 +97,15 @@ const escapeLikePattern = (str) => {
   return str.replace(/[%_\\]/g, '\\$&');
 };
 
+// Normalize photo URLs from legacy /uploads/ to secure /api/photos/
+const normalizePhotoUrl = (url) => {
+  if (!url) return url;
+  if (url.startsWith('/uploads/')) {
+    return url.replace('/uploads/', '/api/photos/');
+  }
+  return url;
+};
+
 // XSS sanitization - escapes HTML special characters to prevent script injection
 const sanitizeText = (text) => {
   if (!text || typeof text !== 'string') return text;
@@ -645,10 +654,7 @@ async function getTwilioCredentials() {
   };
 }
 
-// Legacy static serving (kept for backward compatibility with existing URLs)
-app.use('/uploads', express.static(uploadsDir));
-
-// Phase 2: Authenticated photo access endpoint (more secure)
+// Authenticated photo access endpoint (secure - no public static serving)
 app.get('/api/photos/:filename', authenticateUser, async (req, res) => {
   try {
     const filename = req.params.filename;
@@ -1107,7 +1113,8 @@ app.get('/api/people', authenticateUser, async (req, res) => {
       ...person,
       phone: decryptPII(person.phone),
       email: decryptPII(person.email),
-      identificationNumber: decryptPII(person.identificationNumber)
+      identificationNumber: decryptPII(person.identificationNumber),
+      photoUrl: normalizePhotoUrl(person.photoUrl)
     }));
     
     res.json(decryptedPeople);
@@ -1149,7 +1156,8 @@ app.get('/api/people/search', authenticateUser, async (req, res) => {
       ...person,
       phone: decryptPII(person.phone),
       email: decryptPII(person.email),
-      identificationNumber: decryptPII(person.identificationNumber)
+      identificationNumber: decryptPII(person.identificationNumber),
+      photoUrl: normalizePhotoUrl(person.photoUrl)
     }));
     
     res.json(decryptedResults);
@@ -1347,7 +1355,7 @@ app.post('/api/upload/photo', authenticateUser, upload.single('photo'), async (r
       return res.status(400).json({ error: 'نوع الملف غير صالح. تأكد من أن الملف صورة حقيقية' });
     }
     
-    const photoUrl = `/uploads/${req.file.filename}`;
+    const photoUrl = `/api/photos/${req.file.filename}`;
     
     await logAudit(req.userId, 'upload', 'photo', req.file.filename, { size: req.file.size }, req);
     
@@ -1545,7 +1553,8 @@ app.get('/api/export/:treeId', authenticateUser, async (req, res) => {
       ...p,
       phone: decryptPII(p.phone),
       email: decryptPII(p.email),
-      identificationNumber: decryptPII(p.identificationNumber)
+      identificationNumber: decryptPII(p.identificationNumber),
+      photoUrl: normalizePhotoUrl(p.photoUrl)
     }));
     
     await logAudit(req.userId, 'export', 'tree', treeId, { format }, req);
