@@ -275,14 +275,18 @@ const COOKIE_OPTIONS = {
 const authenticateUser = async (req, res, next) => {
   let token = req.cookies?.auth_token;
   
+  console.log(`[Auth] ${req.method} ${req.path} - Cookie token: ${token ? 'present' : 'missing'}`);
+  
   if (!token) {
     const authHeader = req.headers.authorization;
     if (authHeader && authHeader.startsWith('Bearer ')) {
       token = authHeader.split('Bearer ')[1];
+      console.log('[Auth] Using Bearer token from header');
     }
   }
   
   if (!token) {
+    console.log('[Auth] No token found - returning 401');
     return res.status(401).json({ error: 'Authentication required' });
   }
 
@@ -290,8 +294,10 @@ const authenticateUser = async (req, res, next) => {
     const decoded = jwt.verify(token, JWT_SECRET);
     req.userId = decoded.userId;
     req.userType = decoded.type;
+    console.log(`[Auth] Token valid - userId: ${req.userId}`);
     next();
   } catch (jwtError) {
+    console.log('[Auth] Token invalid or expired:', jwtError.message);
     res.clearCookie('auth_token', COOKIE_OPTIONS);
     return res.status(401).json({ error: 'Invalid or expired token' });
   }
@@ -567,7 +573,10 @@ app.post('/api/users', authenticateUser, async (req, res) => {
   try {
     const validatedData = userCreateSchema.parse(req.body);
     
+    console.log(`[Users] POST - req.userId: "${req.userId}", validatedData.id: "${validatedData.id}"`);
+    
     if (req.userId !== validatedData.id) {
+      console.log(`[Users] Mismatch! req.userId !== validatedData.id`);
       return res.status(403).json({ error: 'غير مصرح: لا يمكن إنشاء أو تعديل مستخدمين آخرين' });
     }
     
@@ -683,11 +692,14 @@ app.get('/api/trees', authenticateUser, async (req, res) => {
   try {
     const { userId } = req.query;
     
+    console.log(`[Trees] GET - req.userId: "${req.userId}", query.userId: "${userId}"`);
+    
     if (!userId) {
       return res.status(400).json({ error: 'User ID is required' });
     }
     
     if (req.userId !== userId) {
+      console.log(`[Trees] Mismatch! req.userId !== query.userId`);
       return res.status(403).json({ error: 'غير مصرح بالوصول' });
     }
     
