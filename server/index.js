@@ -23,6 +23,11 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+const isReplitPreview = process.env.REPL_ID || process.env.REPLIT_DEV_DOMAIN;
+if (isReplitPreview) {
+  app.set('trust proxy', 1);
+}
+
 const JWT_SECRET = process.env.JWT_SECRET;
 if (!JWT_SECRET) {
   console.error('CRITICAL: JWT_SECRET environment variable is required');
@@ -413,8 +418,8 @@ const recordEdit = async (userId, treeId, action, resourceType, resourceId, prev
 
 const COOKIE_OPTIONS = {
   httpOnly: true,
-  secure: isProduction,
-  sameSite: 'lax',
+  secure: isProduction || isReplitPreview,
+  sameSite: isReplitPreview ? 'none' : 'lax',
   maxAge: 7 * 24 * 60 * 60 * 1000,
   path: '/'
 };
