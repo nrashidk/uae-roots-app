@@ -28,8 +28,27 @@ if (!JWT_SECRET) {
   process.exit(1);
 }
 
-const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY || JWT_SECRET;
 const isProduction = process.env.NODE_ENV === 'production';
+
+// Phase 1: JWT secret strength validation
+if (JWT_SECRET.length < 32) {
+  console.warn('WARNING: JWT_SECRET should be at least 32 characters for security');
+  if (isProduction) {
+    console.error('CRITICAL: JWT_SECRET must be at least 32 characters in production');
+    process.exit(1);
+  }
+}
+
+// Phase 1: ENCRYPTION_KEY validation with backward compatibility
+const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY || JWT_SECRET;
+const usingDedicatedEncryptionKey = !!process.env.ENCRYPTION_KEY;
+
+if (!usingDedicatedEncryptionKey) {
+  console.warn('WARNING: ENCRYPTION_KEY not set, falling back to JWT_SECRET. Set a dedicated ENCRYPTION_KEY for better security.');
+  if (isProduction) {
+    console.warn('PRODUCTION WARNING: Consider setting a dedicated ENCRYPTION_KEY environment variable.');
+  }
+}
 
 const encryptPII = (text) => {
   if (!text) return null;
@@ -141,9 +160,10 @@ const upload = multer({
   }
 });
 
+// Phase 1: Adjusted rate limiting (100 → 50 req/min for better security)
 const apiLimiter = rateLimit({
   windowMs: 1 * 60 * 1000,
-  max: 100,
+  max: 50,
   message: { error: 'تم تجاوز الحد الأقصى للطلبات. حاول مرة أخرى لاحقاً' },
   standardHeaders: true,
   legacyHeaders: false,
@@ -217,6 +237,10 @@ const personUpdateSchema = z.object({
   deathDate: z.string().max(20).optional().nullable(),
   isLiving: z.boolean().optional(),
   phone: z.string().max(20).optional().nullable(),
+  birthPlace: z.string().max(200).optional().nullable(),
+  profession: z.string().max(200).optional().nullable(),
+  company: z.string().max(200).optional().nullable(),
+  address: z.string().max(500).optional().nullable(),
   email: z.string().email().max(100).optional().nullable().or(z.literal('')).or(z.null()),
   identificationNumber: z.string().max(50).optional().nullable(),
   birthOrder: z.number().int().optional().nullable(),
@@ -226,6 +250,28 @@ const personUpdateSchema = z.object({
 const birthOrderSchema = z.object({
   birthOrder: z.number().int().nullable().optional()
 });
+
+// Phase 2: Relaxed schema for undo operations (allows encrypted PII fields)
+const personUndoSchema = z.object({
+  treeId: z.number().int().positive().optional(),
+  firstName: z.string().max(100).optional(),
+  lastName: z.string().max(100).optional().nullable(),
+  gender: z.enum(['male', 'female']).optional(),
+  birthDate: z.string().max(20).optional().nullable(),
+  deathDate: z.string().max(20).optional().nullable(),
+  isLiving: z.boolean().optional(),
+  phone: z.string().optional().nullable(),  // Allow encrypted strings (any length)
+  email: z.string().optional().nullable(),   // Allow encrypted strings (any length)
+  identificationNumber: z.string().optional().nullable(),  // Allow encrypted strings
+  birthOrder: z.number().int().optional().nullable(),
+  birthPlace: z.string().max(200).optional().nullable(),
+  profession: z.string().max(200).optional().nullable(),
+  company: z.string().max(200).optional().nullable(),
+  address: z.string().max(500).optional().nullable(),
+  photoUrl: z.string().max(500).optional().nullable()
+}).passthrough();  // Allow additional unknown fields
+
+const relationshipUndoSchema = relationshipSchema.partial().passthrough();
 
 const searchSchema = z.object({
   query: z.string().min(1).max(100).trim(),
@@ -505,7 +551,51 @@ async function getTwilioCredentials() {
   };
 }
 
+// Legacy static serving (kept for backward compatibility with existing URLs)
 app.use('/uploads', express.static(uploadsDir));
+
+// Phase 2: Authenticated photo access endpoint (more secure)
+app.get('/api/photos/:filename', authenticateUser, async (req, res) => {
+  try {
+    const filename = req.params.filename;
+    
+    // Prevent directory traversal attacks
+    if (filename.includes('..') || filename.includes('/') || filename.includes('\\')) {
+      return res.status(400).json({ error: 'اسم ملف غير صالح' });
+    }
+    
+    const filePath = path.join(uploadsDir, filename);
+    
+    // Check if file exists
+    if (!fs.existsSync(filePath)) {
+      return res.status(404).json({ error: 'الصورة غير موجودة' });
+    }
+    
+    // Find person with this photo to verify ownership
+    const personWithPhoto = await db.select().from(people)
+      .where(or(
+        eq(people.photoUrl, `/uploads/${filename}`),
+        eq(people.photoUrl, `/api/photos/${filename}`)
+      ))
+      .limit(1);
+    
+    if (personWithPhoto.length === 0) {
+      // Photo exists but not linked to any person - allow access if user is authenticated
+      // This handles edge cases like recently deleted persons
+      return res.sendFile(filePath);
+    }
+    
+    // Verify tree ownership
+    const ownership = await verifyTreeOwnership(personWithPhoto[0].treeId, req.userId);
+    if (!ownership.valid) {
+      return res.status(403).json({ error: 'غير مصرح بالوصول إلى هذه الصورة' });
+    }
+    
+    res.sendFile(filePath);
+  } catch (error) {
+    handleError(res, error, 'Photo access');
+  }
+});
 
 app.post('/api/sms/send-code', smsLimiter, async (req, res) => {
   try {
@@ -1257,6 +1347,7 @@ app.get('/api/history/:treeId', authenticateUser, async (req, res) => {
   }
 });
 
+// Phase 2: Undo handler with Zod validation for previousData
 app.post('/api/history/undo/:id', authenticateUser, async (req, res) => {
   try {
     const historyId = validateId(req.params.id);
@@ -1278,17 +1369,26 @@ app.post('/api/history/undo/:id', authenticateUser, async (req, res) => {
       await db.delete(people).where(eq(people.id, historyEntry.resourceId));
     } else if (historyEntry.action === 'update' && historyEntry.previousData) {
       if (historyEntry.resourceType === 'person') {
-        await db.update(people).set(historyEntry.previousData).where(eq(people.id, historyEntry.resourceId));
+        // Phase 2: Validate previousData before restoring (uses relaxed schema for encrypted fields)
+        const validatedData = personUndoSchema.parse(historyEntry.previousData);
+        await db.update(people).set(validatedData).where(eq(people.id, historyEntry.resourceId));
       } else if (historyEntry.resourceType === 'relationship') {
-        await db.update(relationships).set(historyEntry.previousData).where(eq(relationships.id, historyEntry.resourceId));
+        // Phase 2: Validate relationship data before restoring
+        const { id, createdAt, ...relData } = historyEntry.previousData;
+        const validatedData = relationshipUndoSchema.parse(relData);
+        await db.update(relationships).set(validatedData).where(eq(relationships.id, historyEntry.resourceId));
       }
     } else if (historyEntry.action === 'delete' && historyEntry.previousData) {
       if (historyEntry.resourceType === 'person') {
-        const { id, ...personData } = historyEntry.previousData;
-        await db.insert(people).values(personData);
+        // Phase 2: Validate person data before restoring (uses relaxed schema for encrypted fields)
+        const { id, createdAt, ...personData } = historyEntry.previousData;
+        const validatedData = personUndoSchema.parse({ ...personData, treeId: historyEntry.treeId });
+        await db.insert(people).values(validatedData);
       } else if (historyEntry.resourceType === 'relationship') {
-        const { id, ...relData } = historyEntry.previousData;
-        await db.insert(relationships).values(relData);
+        // Phase 2: Validate relationship data before restoring
+        const { id, createdAt, ...relData } = historyEntry.previousData;
+        const validatedData = relationshipUndoSchema.parse({ ...relData, treeId: historyEntry.treeId });
+        await db.insert(relationships).values(validatedData);
       }
     }
     
@@ -1296,6 +1396,9 @@ app.post('/api/history/undo/:id', authenticateUser, async (req, res) => {
     
     res.json({ success: true, message: 'تم التراجع بنجاح' });
   } catch (error) {
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({ error: 'لا يمكن التراجع: بيانات غير صالحة', details: error.errors });
+    }
     handleError(res, error, 'Undo operation');
   }
 });

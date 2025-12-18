@@ -48,12 +48,16 @@ Key features include:
       - HttpOnly cookie-based JWT authentication
       - Firebase token verification
       - Ownership validation for all resources
-      - Rate limiting (100 req/min API, 5 req/15min SMS)
+      - Rate limiting (50 req/min API, 5 req/15min SMS)
       - Zod input validation on all endpoints
       - Helmet security headers with CSP
       - CORS configuration (localhost in dev, allowed domains in prod)
       - Audit logging for sensitive operations
       - PII encryption at rest using AES
+      - JWT secret strength validation (32+ chars required in production)
+      - ENCRYPTION_KEY validation with secure warnings
+      - Authenticated photo access endpoint (/api/photos/:filename)
+      - Undo operation data validation to prevent tampering
 
 ## Database Schema
 - **users**: User accounts with authentication info
