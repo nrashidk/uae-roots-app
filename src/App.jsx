@@ -275,7 +275,8 @@ function App() {
         if (!backendAuth?.authenticated || !backendAuth?.userId) {
           console.log('[Cookie Restore] No valid backend session found');
           setSessionRestoreLoading(false);
-          restorationAttemptedRef.current = false; // Allow retry after login
+          // Keep restorationAttemptedRef = true to prevent infinite loop
+          // It will be reset on logout or when user successfully logs in
           return;
         }
         
@@ -305,7 +306,8 @@ function App() {
         setSessionRestoreError('فشل استعادة الجلسة. يرجى تسجيل الدخول مرة أخرى.');
         setSessionRestoreLoading(false);
         clearAuthToken();
-        restorationAttemptedRef.current = false; // Allow retry
+        // Keep restorationAttemptedRef = true to prevent infinite loop
+        // User will need to click login button to try again
       }
     };
     
@@ -726,6 +728,9 @@ function App() {
       setRelationships([]);
       setUserProfile(null);
       setCurrentView("auth");
+      // Reset restoration flag so it can run again on next login
+      restorationAttemptedRef.current = false;
+      setSessionRestoreError(null);
     } catch (err) {
       console.error('Logout failed:', err);
     }
