@@ -1,0 +1,192 @@
+I dug back through the code and the investigation notes in the repo and put together a deeper troubleshooting checklist, concrete diagnostics you can run now, likely root causes (ranked), and specific fixes to try. I focused on the parts that commonly cause "tree saved but not reloaded after logout/login": auth/session restoration, token / userId mismatches, cookies, API shape/ownership checks, and client filtering.
+
+Important: the repo search results I used may be incomplete (limited). You can view more code/search results in the GitHub UI: https://github.com/nrashidk/uae-roots-app/search?q=auth
+
+Summary of what I found (high-level)
+
+Your app already persists trees to the DB (so create/save looks OK).
+The main failure modes are around session restoration and identification of the correct userId when Firebase restores auth: backend JWT cookie may be missing/expired, client may be using the wrong userId to request trees, or the client/server token exchange may be failing silently.
+There are many places in the code that touch the same concerns (src/App.jsx session-restore useEffect, src/lib/api.js token helpers, server /api/auth/token and /api/auth/check, and the trees API). Any one of these can block tree loading.
+Priority list of possible causes (highest→lowest probability) with how to check and how to fix
+
+Cookie not set or not being sent by browser (HttpOnly JWT cookie)
+Why it matters: backend authentication looks for a cookie (auth_token). If the cookie isn't present or not sent on requests, the server will return 401/403 and api.trees.getAll(userId) will fail or return empty.
+How to check (quick):
+In browser DevTools → Network: inspect the response to POST /api/auth/token (or the phone SMS verify route). Do you see Set-Cookie in the response headers?
+In DevTools → Application → Cookies: is auth_token present for your site origin?
+For subsequent API requests (e.g., GET /api/trees?userId=...), inspect Request Headers: is Cookie: auth_token sent?
+Typical root causes & fixes:
+Cookie attributes (COOKIE_OPTIONS): secure:true + sameSite:'none' will prevent cookie on plain http (dev). If running on http://localhost, ensure cookie secure flag is false OR run over https in dev. Make cookie options environment-aware.
+Cookie domain/path mismatch: ensure cookie domain equals the API origin where the browser sends API requests.
+CORS: browser will not include cookies unless the request uses credentials: 'include' and server enables Access-Control-Allow-Credentials: true. You already call fetch with credentials:'include' in api client, but confirm server CORS has credentials allowed and Access-Control-Allow-Origin matches the exact origin (not *).
+Fix examples:
+Server CORS: app.use(cors({ origin: process.env.UI_ORIGIN, credentials: true }))
+For dev, use a local override that sets secure:false for localhost.
+Frontend uses wrong userId when asking for trees (resolvedUserId vs firebase uid)
+Why it matters: backend stores trees.createdBy = resolvedUserId (which may be phone number or a phone-based id). The /api/auth/token endpoint resolves to a "resolvedUserId" (existing DB id) and signs the JWT with that resolved ID. If frontend later calls api.trees.getAll(userId) with Firebase UID instead of resolvedUserId, the backend may return 0 results or 403 because ownership checks compare req.userId (JWT) vs query userId.
+How to check:
+In DevTools Console or by adding logs, print the value returned by api.auth.getToken(...) (tokenResponse) and ensure your code is using tokenResponse.userId (not user.uid) when calling api.trees.getAll.
+Check sessionStorage / whatever you use to persist the "resolved user id" — is it the same ID under which trees were created?
+Fixes:
+Ensure handleAuthSuccess and the session-restore flow call api.auth.getToken(...) and then use tokenResponse.userId to call api.trees.getAll(resolvedUserId).
+Ensure setAuthToken stores resolvedUserId in sessionStorage (and the key used by getAuthToken matches).
+Example diagnostic console logs:
+console.log('tokenResponse', tokenResponse);
+console.log('using resolvedUserId', resolvedUserId);
+Broken/no-op token management functions or inconsistent session key names (stale client code / multiple implementations)
+Why it matters: if setAuthToken/getAuthToken are empty stubs or use a different sessionStorage key than the code expects, the client won't remember resolvedUserId or will use wrong key names.
+How to check:
+Search repo for setAuthToken and getAuthToken usages and definitions. Confirm there's only one implementation and that it writes/reads the same key.
+In the browser console, check sessionStorage keys: sessionStorage.getItem('resolved_user_id') or sessionStorage.getItem('auth_state').
+Fixes:
+Standardize on a single format (I recommend storing JSON in sessionStorage under 'uae_roots_auth' with {resolvedUserId, timestamp}).
+Ensure getAuthToken returns an object { resolvedUserId } and setAuthToken writes the same key.
+/api/auth/token failure due to mismatch between firebaseIdToken and passed userId
+Why it matters: /api/auth/token verifies admin.auth().verifyIdToken(firebaseIdToken) and then checks decodedToken.uid === userId. If frontend passes something other than the firebase UID (e.g., a phone string), the server rejects with 401.
+How to check:
+Inspect network response for POST /api/auth/token: is it 200? If 401, read the JSON error.
+Add console logs before calling api.auth.getToken showing the exact userId and firebase token acquisition.
+Fixes:
+Always call api.auth.getToken(user.uid, provider, await user.getIdToken(true), user.email). Pass the Firebase UID as userId for the token endpoint.
+The server will then look up existingUser by email and return a resolvedUserId that you should store and use.
+Race conditions: session restore code runs too early or not at all
+Why it matters: if the useEffect that restores session runs before Firebase onAuthStateChanged has set user, it will skip. If your guard conditions are too strict (e.g., currentView === 'auth'), they may prevent the loader from running in some UX flows.
+How to check:
+Add console.log at top of the session-restore useEffect with values of authLoading, isAuthenticated, user, currentTree, currentView.
+Fixes:
+Use authLoading (or isLoading) from useAuth to only run after Firebase finishes.
+Relax the check to isAuthenticated && user && !currentTree (don't require currentView === 'auth' unless that is intentional).
+API response shape mismatch (wrapper vs raw array)
+Why it matters: if the backend returns data wrapped (e.g., { success:true, data: [...] }) but frontend expects an array, setCurrentTree will be given the wrong object and currentTree stays nullish.
+How to check:
+Network tab: inspect GET /api/trees?userId=... response body. Is it an array or object with data property?
+Console.log the result of api.trees.getAll(...) before using it.
+Fix:
+Adjust client parsing to use tokenResponse.data or response.data as appropriate. Add a guard and helpful error logs.
+Type mismatches when filtering people/relationships by treeId
+Why it matters: client code often does people.filter(p => p.treeId === currentTree?.id). If one is a string and the other a number, strict equality returns false and you will see 0 people even though they exist.
+How to check:
+Console.log typeof currentTree.id and typeof people[0].treeId (or use Array.map to log sample types).
+Fix:
+Normalize types (parseInt tree IDs or ensure backend returns numbers). Use loose equality or strict but convert: p.treeId === Number(currentTree.id).
+Cookie blocked by browser for privacy or SameSite policy when running inside iframe / preview (Replit preview or embed)
+Why it matters: SameSite:'none' requires secure and proper cross-site headers. Within iframes, extra flags (allow-same-site) may be needed.
+How to check:
+In DevTools → Console you may see cookie warnings. Also check Application → Cookies.
+Fix:
+Adjust cookie and CORS settings for whichever environment (dev, preview, production) you're testing in.
+Backend ownership checks too strict (server requires query userId match req.userId)
+Why it matters: /api/trees checks req.userId !== userId and returns 403. If the frontend passes the wrong userId parameter, it will be rejected even if JWT indicates a different user.
+Fix:
+Prefer server-side ownership using req.userId when the query param is missing or ignore the query param and always return trees for req.userId. Example server change:
+If no userId param, use req.userId.
+If userId param, verify req.userId === userId (existing behavior) — or better: always use req.userId to avoid frontend mistakes.
+Stale build / deployment (frontend code changes not live)
+Why it matters: you may have implemented fixes locally but the served app is still the old build (e.g., replit/gh-pages caching).
+How to check:
+Add a deliberate console.log in the client (e.g., console.log('version 2025-12-19 session-restore loaded')) and load your app. If not present, rebuild/deploy.
+Fix:
+Rebuild and redeploy, clear caches, confirm the running code contains your changes.
+Concrete diagnostics (run these now)
+
+Check cookie set and sent
+Open DevTools → Network → login flow -> click the POST /api/auth/token or /api/auth/verify (whichever sets cookie). Inspect response headers. Look for Set-Cookie: auth_token=...
+After that, navigate to GET /api/trees?userId=... and inspect Request Headers → Cookie: is auth_token included?
+Log token exchange & resolvedUserId
+Add quick debug logs in App.jsx near session restore and handleAuthSuccess:
+
+console.log('[DEBUG] authLoading=', authLoading, 'isAuthenticated=', isAuthenticated, 'user=', user); const tokenResponse = await api.auth.getToken(...); console.log('[DEBUG] tokenResponse from /api/auth/token:', tokenResponse);
+
+Confirm tokenResponse.userId and tokenResponse.token whenever you call getToken.
+
+Call /api/auth/check to see backend cookie validity
+In browser console:
+
+fetch('/api/auth/check', { credentials: 'include' }) .then(r => r.json()) .then(console.log) .catch(console.error);
+
+If { authenticated: true, userId: '...' } → cookie is OK. If { authenticated:false } cookie missing or invalid.
+
+Manual request with fresh firebase token
+In console, get a fresh firebase token and call /api/auth/token to reproduce:
+
+(async () => { const user = firebase.auth().currentUser; // adjust for your auth import const token = await user.getIdToken(true); const res = await fetch('/api/auth/token', { method:'POST', credentials:'include', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ userId: user.uid, provider:'google', firebaseIdToken: token, email: user.email }) }); console.log(await res.json()); })();
+
+If this returns 200 with userId and token, session restore should be able to work.
+
+Inspect GET /api/trees response shape
+Console:
+
+fetch(/api/trees?userId=${encodeURIComponent(resolvedId)}, { credentials:'include' }) .then(r => r.json()) .then(console.log);
+
+Adjust client to match the returned shape.
+
+Small code suggestions / patches to add debug info and harden flows
+
+Insert extra logs at strategic points (handleAuthSuccess, session restore, api.auth.getToken calls). Example (in App.jsx around session restore and handleAuthSuccess) — add console.log for tokenResponse and resolvedUserId before calling api.trees.getAll.
+
+Consider making server /api/trees fallback to req.userId if query param missing:
+
+// server: GET /api/trees const queryUserId = req.query.userId || req.userId; if (req.userId !== queryUserId) return res.status(403)...
+
+Action plan (recommended order)
+
+Immediate quick checks (10–30 min):
+
+Use DevTools to confirm Set-Cookie and Cookie sending.
+Call /api/auth/check in browser to see if backend cookie is valid.
+Log tokenResponse and resolvedUserId on both login and session-restore flows.
+If cookie missing or not sent:
+
+Fix cookie options for current environment (secure flag, sameSite, domain) and CORS credentials server side. Re-test.
+If tokenResponse.userId mismatch or client not using resolvedUserId:
+
+Ensure handleAuthSuccess and session restore use tokenResponse.userId when calling api.trees.getAll and when storing the "resolved user" in sessionStorage via setAuthToken.
+Standardize sessionStorage key for resolvedUserId and verify getAuthToken returns it.
+If backend returns wrapped response:
+
+Update client to extract data correctly.
+If still failing:
+
+Add a temporary server endpoint GET /api/debug/session that returns { jwtUser: req.userId, cookiePresent: boolean } for quick validation in debug.
+Longer-term improvements
+
+Make server ignore or not require query userId for ownership and rely on req.userId from JWT. That reduces frontend mistakes.
+Add explicit network error handling and show user-friendly error when session restore fails.
+Add automated end-to-end tests for login/logout/session-restore flow.
+Add logging/audit events for session failures (already have audit logs — ensure they capture failed token exchanges).
+Examples of targeted logs to add (copy/paste)
+
+In App.jsx, inside session-restore useEffect add:
+
+console.log('[Session Restore] start', { authLoading, isAuthenticated, user, currentTree, currentView });
+
+// after tokenResponse: console.log('[Session Restore] tokenResponse', tokenResponse);
+
+In handleAuthSuccess after api.auth.getToken:
+
+console.log('[handleAuthSuccess] tokenResponse', tokenResponse, 'resolvedUserId', resolvedUserId);
+
+In src/lib/api.js fetchAPI add:
+
+if (!response.ok) { console.error([API] ${endpoint} failed, { status: response.status, text: await response.text() }); }
+
+Checklist you can run now (copy + run)
+
+Confirm cookie was set:
+Login, open DevTools → Network, inspect response to /api/auth/token — look for Set-Cookie auth_token.
+Confirm cookie sent on GET /api/trees:
+In Network tab inspect request headers for Cookie.
+Confirm /api/auth/check:
+In console run:
+
+fetch('/api/auth/check', { credentials:'include' }).then(r=>r.json()).then(console.log)
+
+Confirm the frontend used resolvedUserId:
+In console (while session restore runs) check sessionStorage:
+
+sessionStorage.getItem('resolved_user_id') // or whatever key your code uses
+
+Confirm types for IDs:
+In browser console after people loaded:
+
+console.log('currentTree.id type:', typeof currentTree?.id); console.log('people[0].treeId type:', typeof people[0]?.treeId);
