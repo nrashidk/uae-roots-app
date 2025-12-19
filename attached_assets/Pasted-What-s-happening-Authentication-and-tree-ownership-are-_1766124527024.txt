@@ -1,0 +1,87 @@
+What’s happening
+
+Authentication and tree ownership are tied to the userId embedded in the JWT that comes from each login flow. Phone logins use the normalized phone number, Google logins use the Firebase UID (or an already-linked account), and every tree is keyed to that createdBy value. 
+
+The frontend automatically creates a brand-new default tree whenever it successfully queries /api/trees and receives an empty array for the current resolvedUserId. Any mismatch between the JWT user and the userId passed to the API will therefore result in “no trees found → create a fresh tree,” which looks like the user lost their data. 
+
+Session restore is split across two paths: one for Firebase users and one for “cookie-only” users such as phone logins. If restoration can’t find (or can’t match) the backend session, it falls back to a fresh login and eventually reaches the “no trees found → create default tree” branch. 
+
+Logout only signs out of Firebase and clears local state; it never calls the backend /api/auth/logout, so the previous JWT cookie may linger. Mixing providers or reusing the app after that can leave a stale cookie whose userId doesn’t match the current login attempt, again driving the “new tree” path. 
+
+Most likely root causes
+
+Separate accounts per provider: Phone logins and Google logins are completely independent unless you explicitly link identities. A user who first signs in with Google (trees tied to Google UID) and later signs in with SMS (trees tied to phone number) will see an empty account and trigger a new tree. Nothing in the flows auto-links a phone number to an existing Google account or vice versa. 
+
+JWT/userId mismatches during restore: Restore logic relies on whichever userId it can recover (cookie, cached resolvedUserId, Firebase UID). If the cookie is stale or missing, or if the cached resolvedUserId differs from the JWT, the /api/trees call uses the wrong userId and gets an empty list, so the UI creates a new tree. 
+
+Logout leaves backend session intact: Because the frontend never calls /api/auth/logout, switching accounts or reauthenticating after “logout” can run with an old cookie whose userId belongs to a different account. That can block the correct userId from being used (403 on /api/trees or empty results) and push the app into creating a fresh tree. 
+
+Suggested permanent fixes
+
+Implement explicit account linking/merging
+
+When a phone login succeeds and you detect an existing email/Google account with the same email or phone, link the auth_identities row to the existing userId instead of issuing a separate account, and surface a “link accounts?” prompt. That keeps a single createdBy across providers and prevents empty-tree experiences. 
+
+Always clear backend sessions on logout
+
+Call /api/auth/logout from handleLogout so the JWT cookie is removed alongside the Firebase sign-out. That prevents stale cookies from causing mismatched userId/provider states on the next login. 
+
+Strengthen session restore and userId consistency
+
+Persist the resolved backend userId in durable storage (e.g., localStorage) and require that /api/trees and subsequent calls use the same ID returned by /api/auth/check or /api/auth/token. If the backend userId and the client’s notion ever diverge, halt with an error instead of silently creating a new tree. 
+
+Add logging/alerts when /api/trees returns 0 trees for a user who previously had data, and avoid auto-creating a new tree unless the user explicitly requests it.
+
+Normalize and validate identities consistently
+
+Keep phone normalization on both client and server and reuse the normalized value as the userId everywhere to avoid duplicate records from format differences. Current normalization exists, but enforcing it before tree creation and user creation can remove edge-case splits. 
+
+Offer an account-merge tool
+
+Provide an admin/user-facing flow to merge accounts (e.g., move trees from a phone-number account to a Google account) by reassigning trees.created_by and related rows once the user verifies ownership of both identities. This mitigates legacy duplicates already created.
+
+Next checks to confirm the diagnosis
+
+Inspect the database for the same human owning two users rows (one per provider) and trees tied to only one of them.
+
+Reproduce with: (a) Google-only login/logout/login; (b) phone-only login/logout/login; (c) Google first, then phone, and vice versa—watch which userId comes back from /api/auth/check and what /api/trees returns.
+
+After implementing logout and identity linking, verify that /api/debug/session reports the expected jwtUserId and tree counts across re-logins. 
+
+when a user login using phone or Gmail, both are treated as separate users and user don't have the option to link them both
+Copy
+Quick diagnosis
+
+The backend treats each verified identity as a separate userId unless it finds an already-linked identity. Phone verification issues a JWT whose userId is the normalized phone number; Google verification issues a JWT whose userId is the Firebase UID (or an existing linked account). If there is no auth_identities link between them, they are different accounts, so each login sees its own trees (or none) and the UI creates a fresh tree. 
+
+The frontend loads trees for whatever resolvedUserId it has; if /api/trees returns empty, it auto-creates a new default tree. That makes the “separate accounts” problem look like “data disappeared.” 
+
+Logout only signs out of Firebase and clears local state; it never calls /api/auth/logout, so stale JWT cookies can persist and confuse which account is active on the next login. 
+
+I reviewed the server and client flows to confirm this behavior.
+
+Why phone and Gmail feel separate
+
+Phone login: creates/uses userId = <normalized phone> and only links to an existing account if auth_identities already has that phone value. 
+
+Google login: creates/uses userId = Firebase UID unless it finds an email identity to reuse; phone identity isn’t consulted here. 
+
+Because there is no automatic cross-link between phone and Google identities, the same human ends up with two rows in users and two sets of trees keyed to different createdBy values. 
+
+Suggested permanent fixes
+
+Add explicit account linking/merging: When a phone login succeeds, check for an existing user with the same email/phone and either (a) link the phone identity to that user (update auth_identities) after consent or (b) offer a merge flow that reassigns trees.created_by and related data to the chosen primary account. Do the same in reverse for Google logins that see a matching verified phone identity. 
+
+Harden logout: Call /api/auth/logout before clearing local state so the backend JWT cookie is removed and cannot collide with a different provider on the next login. 
+
+Guard against silent “new tree” creation: If /api/trees returns zero for a user who had trees before, surface a warning and suggest linking/merging instead of auto-creating a new tree. 
+
+Enforce consistent resolvedUserId: Always use the backend-returned userId from /api/auth/check or /api/auth/token for all API calls; if it differs from the cached ID, block the session and prompt the user to reauth/link rather than proceeding with an empty account.
+
+One-time cleanup: Provide an admin or self-service “merge accounts” tool to move existing trees from duplicate accounts (phone vs. Google) into a single primary account by updating auth_identities and trees.created_by, then deactivating the duplicate user. This fixes already-diverged data.
+
+Next validation steps
+
+Check the database for the same person having two users rows (one phone, one Google) and trees tied to only one of them.
+
+Reproduce: log in with Google, create a tree, logout; then log in with phone and observe a new account/empty trees; finally, link/merge and confirm both logins reach the same createdBy and tree list.
