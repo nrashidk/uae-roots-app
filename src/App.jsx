@@ -222,6 +222,96 @@ function App() {
   const [sessionRestoreLoading, setSessionRestoreLoading] = useState(false);
   const [sessionRestoreError, setSessionRestoreError] = useState(null);
 
+  // Cookie-based session restoration (for Phone SMS users who don't have Firebase sessions)
+  // This runs when Firebase says NOT authenticated but a valid JWT cookie exists
+  useEffect(() => {
+    const restoreFromCookie = async () => {
+      // Skip if Firebase says authenticated (Firebase-based restoration will handle it)
+      if (isAuthenticated) {
+        console.log('[Cookie Restore] Skipping - Firebase session exists');
+        return;
+      }
+      
+      // Wait for Firebase auth to finish loading first
+      if (authLoading) {
+        console.log('[Cookie Restore] Waiting for Firebase auth to finish...');
+        return;
+      }
+      
+      // Skip if tree already loaded
+      if (currentTree) {
+        console.log('[Cookie Restore] Skipping - tree already loaded');
+        return;
+      }
+      
+      // Skip if not on auth view (user navigated elsewhere)
+      if (currentView !== 'auth') {
+        console.log('[Cookie Restore] Skipping - not on auth view');
+        return;
+      }
+      
+      // Skip if an interactive login is in progress
+      if (interactiveLoginInProgressRef.current) {
+        console.log('[Cookie Restore] Skipping - interactive login in progress');
+        return;
+      }
+      
+      // Prevent multiple restoration attempts
+      if (restorationAttemptedRef.current) {
+        console.log('[Cookie Restore] Already attempted');
+        return;
+      }
+      
+      console.log('[Cookie Restore] Starting cookie-based restoration (non-Firebase user)...');
+      restorationAttemptedRef.current = true;
+      setSessionRestoreLoading(true);
+      setSessionRestoreError(null);
+      
+      try {
+        // Check if backend cookie is still valid
+        const backendAuth = await api.auth.check();
+        console.log('[Cookie Restore] Backend auth check:', backendAuth);
+        
+        if (!backendAuth?.authenticated || !backendAuth?.userId) {
+          console.log('[Cookie Restore] No valid backend session found');
+          setSessionRestoreLoading(false);
+          restorationAttemptedRef.current = false; // Allow retry after login
+          return;
+        }
+        
+        const resolvedUserId = backendAuth.userId;
+        console.log('[Cookie Restore] Found valid session for userId:', resolvedUserId);
+        
+        // Store the resolved userId in sessionStorage
+        setAuthToken(null, resolvedUserId);
+        
+        // Load user profile
+        try {
+          const savedUser = await api.users.get(resolvedUserId);
+          console.log('[Cookie Restore] User profile loaded:', savedUser?.id);
+          setUserProfile(savedUser);
+        } catch (userError) {
+          console.log('[Cookie Restore] Could not load user profile:', userError.message);
+          // Continue anyway - user profile is optional for tree loading
+        }
+        
+        // Load user's trees using the consolidated helper
+        await loadUserTreeData(resolvedUserId);
+        
+        console.log('[Cookie Restore] Session restored successfully from cookie!');
+        setSessionRestoreLoading(false);
+      } catch (error) {
+        console.error('[Cookie Restore] Failed to restore session:', error);
+        setSessionRestoreError('فشل استعادة الجلسة. يرجى تسجيل الدخول مرة أخرى.');
+        setSessionRestoreLoading(false);
+        clearAuthToken();
+        restorationAttemptedRef.current = false; // Allow retry
+      }
+    };
+    
+    restoreFromCookie();
+  }, [authLoading, isAuthenticated, currentTree, currentView]);
+
   // Robust session restoration when Firebase restores authentication
   useEffect(() => {
     const restoreSession = async () => {

@@ -1,0 +1,242 @@
+Phone SMS login is the root cause. Here's exactly what's happening and how to fix it:
+
+Why Phone SMS Users Can't See Their Trees
+1. You login via Phone SMS (Twilio)
+   ↓
+2. Backend creates JWT cookie ✓
+   Trees are created ✓
+   ↓
+3. You refresh the page / come back later
+   ↓
+4. Firebase checks for session → NOTHING (Twilio ≠ Firebase)
+   ↓
+5. isAuthenticated = FALSE
+   ↓
+6. Session restoration checks: "if (!isAuthenticated) return;"
+   ↓
+7. STOPS HERE - Never loads your trees ❌
+   ↓
+8. You see login screen, trees "disappeared"
+
+Your JWT cookie is still valid, but the app never checks it because Firebase says you're not authenticated!
+
+The Fix: Cookie-Based Session Restoration
+I'll give you the exact code changes needed. No commit, as you requested.
+
+Step 1: Add User Fetch Endpoint
+File: server/index.js
+Add after line 945 (after the POST /api/users endpoint):
+
+// GET user by ID (for session restoration)
+app.get('/api/users/:id', authenticateUser, async (req, res) => {
+  try {
+    const userId = decodeURIComponent(req.params.id);
+    
+    console.log(`[Users] GET - req.userId: "${req.userId}", params.id: "${userId}"`);
+    
+    if (req.userId !== userId) {
+      return res.status(403).json({ error: 'غير مصرح بالوصول' });
+    }
+    
+    const [user] = await db.select().from(users).where(eq(users.id, userId));
+    
+    if (!user) {
+      return res.status(404).json({ error: 'المستخدم غير موجود' });
+    }
+    
+    res.json(user);
+  } catch (error) {
+    handleError(res, error, 'User fetch', req);
+  }
+});
+
+Step 2: Add Cookie-Based Restoration to App.jsx
+File: src/App.jsx
+Add BEFORE line 222 (before the existing Firebase-based restoration useEffect):
+
+  // Cookie-based session restoration (for Phone SMS users who don't have Firebase sessions)
+  useEffect(() => {
+    const restoreFromCookie = async () => {
+      // Only run if Firebase auth says not authenticated (i.e., Phone SMS users)
+      if (isAuthenticated) {
+        console.log('[Cookie Restore] Skipping - Firebase session exists');
+        return;
+      }
+      
+      if (authLoading) {
+        console.log('[Cookie Restore] Waiting for Firebase auth to finish...');
+        return;
+      }
+      
+      if (currentTree) {
+        console.log('[Cookie Restore] Skipping - tree already loaded');
+        return;
+      }
+      
+      if (currentView !== 'auth') {
+        console.log('[Cookie Restore] Skipping - not on auth view');
+        return;
+      }
+      
+      // Prevent multiple attempts
+      if (restorationAttemptedRef.current) {
+        console.log('[Cookie Restore] Already attempted');
+        return;
+      }
+      
+      console.log('[Cookie Restore] Starting cookie-based restoration...');
+      restorationAttemptedRef.current = true;
+      
+      try {
+        // Check if backend cookie is still valid
+        const backendAuth = await api.auth.check();
+        console.log('[Cookie Restore] Backend auth check:', backendAuth);
+        
+        if (!backendAuth?.authenticated || !backendAuth?.userId) {
+          console.log('[Cookie Restore] No valid backend session found');
+          restorationAttemptedRef.current = false; // Allow retry
+          return;
+        }
+        
+        const resolvedUserId = backendAuth.userId;
+        console.log('[Cookie Restore] Found valid session for userId:', resolvedUserId);
+        
+        // Store the resolved userId in sessionStorage
+        setAuthToken(null, resolvedUserId);
+        
+        // Load user profile
+        const savedUser = await api.users.get(resolvedUserId);
+        console.log('[Cookie Restore] User profile loaded:', savedUser);
+        setUserProfile(savedUser);
+        
+        // Load user's trees
+        console.log('[Cookie Restore] Fetching trees for userId:', resolvedUserId);
+        const userTrees = await api.trees.getAll(resolvedUserId);
+        console.log('[Cookie Restore] Found trees:', userTrees.length);
+        
+        if (userTrees.length > 0) {
+          // Load first tree
+          setCurrentTree(userTrees[0]);
+          const treePeopleData = await api.people.getAll(userTrees[0].id);
+          const treeRelData = await api.relationships.getAll(userTrees[0].id);
+          setPeople(treePeopleData);
+          setRelationships(treeRelData);
+          console.log('[Cookie Restore] Loaded tree:', userTrees[0].name, 
+                     'with', treePeopleData.length, 'people');
+          setCurrentView("tree-builder");
+        } else {
+          // No trees - create default tree
+          console.log('[Cookie Restore] No trees found, creating default tree');
+          const newTree = await api.trees.create({
+            name: "شجرة عائلتي",
+            description: "شجرة العائلة الأولى",
+            createdBy: resolvedUserId
+          });
+          setCurrentTree(newTree);
+          setPeople([]);
+          setRelationships([]);
+          setCurrentView("tree-builder");
+        }
+        
+        console.log('[Cookie Restore] Session restored successfully from cookie!');
+      } catch (error) {
+        console.error('[Cookie Restore] Failed to restore session:', error);
+        // Clear auth state and reset flag so user can try logging in again
+        clearAuthToken();
+        restorationAttemptedRef.current = false;
+      }
+    };
+    
+    restoreFromCookie();
+  }, [authLoading, isAuthenticated, currentTree, currentView]);
+
+Step 3: Update api.js to Export users.get
+File: src/lib/api.js
+Find line 68-81 (the users object) and verify it has:
+
+users: {
+  createOrUpdate: (data) => fetchAPI('/users', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  }),
+  get: (id) => fetchAPI(`/users/${encodeURIComponent(id)}`), // ← Make sure this exists
+  update: (id, data) => fetchAPI(`/users/${encodeURIComponent(id)}`, {
+    method: 'PUT',
+    body: JSON.stringify(data),
+  }),
+  delete: (id) => fetchAPI(`/users/${encodeURIComponent(id)}`, {
+    method: 'DELETE',
+  }),
+},
+
+It's already there (line 73), so no changes needed!
+
+How the Fix Works
+Before (Broken for Phone SMS):
+Page loads
+  ↓
+Firebase checks session → None found (Twilio user)
+  ↓
+isAuthenticated = false
+  ↓
+Session restoration: "if (!isAuthenticated) return;" ← STOPS
+  ↓
+User stuck on login screen ❌
+
+After (Fixed):
+Page loads
+  ↓
+Firebase checks session → None found (Twilio user)
+  ↓
+isAuthenticated = false
+  ↓
+NEW: Cookie restoration runs!
+  ↓
+Checks backend cookie → Valid! ✓
+  ↓
+Gets userId from cookie
+  ↓
+Loads user profile, trees, people ✓
+  ↓
+User sees their family tree! ✅
+
+Testing the Fix
+After making these changes:
+
+Clear your browser data (to test fresh)
+Login with Phone SMS
+Create a test family member (or verify existing data)
+Refresh the page or close/reopen the browser
+Check console logs for:
+[Cookie Restore] Starting cookie-based restoration...
+[Cookie Restore] Found valid session for userId: +971XXXXXXXXX
+[Cookie Restore] Found trees: X
+[Cookie Restore] Loaded tree: شجرة عائلتي with X people
+[Cookie Restore] Session restored successfully from cookie!
+
+Verify: You should see your family tree without logging in again!
+Why This Also Helps Other Login Methods
+This fix is a fallback that works even if:
+
+Firebase session expired but JWT cookie is still valid
+Browser blocks Firebase persistence but allows cookies
+User switches between Google/Email/Phone logins with the same account
+Additional Recommendation: Unify Phone Login Identity
+You may also have userId inconsistency for phone users. Check your database:
+
+-- Run this query to see if your phone has multiple userIds
+SELECT * FROM "authIdentities" 
+WHERE "identityType" = 'phone' 
+  AND "identityValue" LIKE '%YOUR_PHONE_NUMBER%';
+
+-- Check which userId owns your trees
+SELECT id, name, "createdBy", "createdAt" 
+FROM trees 
+ORDER BY "createdAt" DESC;
+
+If the createdBy userId doesn't match your current login userId, you have the account linking issue I mentioned. Let me know if you need help fixing that too!
+
+Summary
+✅ Root cause identified: Phone SMS doesn't create Firebase sessions
+✅ Fix provided: Cookie-based restoration for non-Firebase users
+✅ No commit needed: Just apply the code changes above

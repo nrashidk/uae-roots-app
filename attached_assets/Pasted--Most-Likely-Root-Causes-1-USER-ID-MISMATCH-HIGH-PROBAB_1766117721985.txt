@@ -1,0 +1,301 @@
+🚨 Most Likely Root Causes
+1. USER ID MISMATCH (HIGH PROBABILITY)
+The Problem:
+Your backend has account linking logic that can cause different userIds across sessions:
+
+// server/index.js:872-874
+const userEmail = email || decodedToken?.email;
+const existingUser = userEmail ? await findUserByIdentity('email', userEmail) : null;
+const resolvedUserId = existingUser ? existingUser.id : userId;
+
+What happens:
+
+First login (e.g., Google): User creates trees with userId = "googleUser123"
+Second login (same Google account): Account linking finds existing user and returns userId = "linkedUser456"
+Tree query fails: Trees were created with "googleUser123" but query searches for "linkedUser456"
+How to verify:
+Check browser console logs for lines like:
+
+[Session Restore] Fetching trees for userId: <ID_HERE>
+[Trees] GET - req.userId: "<ID1>", query.userId: "<ID2>"
+
+If the userIds don't match what was used during tree creation, this is your issue.
+
+Evidence in code:
+
+Trees are created with createdBy: resolvedUserId (App.jsx:342, 545)
+Trees are fetched with where(eq(trees.createdBy, userId)) (server/index.js:1056)
+Account linking can change the userId between sessions
+2. THIRD-PARTY COOKIE BLOCKING (MEDIUM-HIGH PROBABILITY)
+The Problem:
+Modern browsers (Safari, Firefox, Brave) block third-party cookies by default. Your httpOnly cookie might not be saved/sent.
+
+Your cookie settings:
+
+// server/index.js:419-425
+{
+  httpOnly: true,
+  secure: isProduction || isReplitPreview,
+  sameSite: isReplitPreview ? 'none' : 'lax',
+  maxAge: 7 * 24 * 60 * 60 * 1000,
+  path: '/'
+}
+
+Issues:
+
+If running on Replit preview: sameSite: 'none' requires secure: true (HTTPS)
+If preview URL is in iframe: Third-party cookie policies might block it
+If domain changes between sessions: Cookie won't be sent
+How to verify:
+
+Open browser DevTools → Application/Storage → Cookies
+Check if auth_token cookie exists after login
+Check if it persists after page refresh
+Look for console errors about cookies being blocked
+3. SESSION RESTORATION NOT TRIGGERING (MEDIUM PROBABILITY)
+The Problem:
+The session restoration useEffect has strict conditions (App.jsx:231):
+
+if (!isAuthenticated || !user || currentTree || currentView !== 'auth') {
+  return;
+}
+
+Potential failure scenarios:
+
+Scenario	Why it fails
+React Strict Mode	In development, effects run twice. restorationAttemptedRef might prevent second run.
+Quick state changes	If currentTree gets set somehow before restoration runs, it blocks.
+View changed prematurely	If currentView changes from "auth" before restoration completes.
+authLoading race	If Firebase auth takes too long, user might see login screen.
+How to verify:
+Check console for:
+
+[Session Restore] Starting restoration for user: ...
+
+If this line is MISSING, the useEffect isn't running.
+
+4. SILENT ERROR IN RESTORATION (MEDIUM PROBABILITY)
+The Problem:
+The try-catch in session restoration (App.jsx:351-362) catches all errors, logs out the user, and resets:
+
+catch (error) {
+  console.error('[Session Restore] Failed to restore session:', error);
+  clearAuthToken();
+  await logout(); // ← User gets logged out silently
+  restorationAttemptedRef.current = false;
+}
+
+Possible errors:
+
+Network timeout fetching trees
+403 Forbidden due to userId mismatch
+401 Unauthorized due to expired/invalid token
+Backend server error (500)
+CORS issues
+How to verify:
+Look for console error:
+
+[Session Restore] Failed to restore session: <ERROR_MESSAGE>
+
+5. BACKEND AUTHENTICATION MISMATCH (LOW-MEDIUM PROBABILITY)
+The Problem:
+Your backend validates that req.userId (from JWT) matches query.userId:
+
+// server/index.js:1051-1053
+if (req.userId !== userId) {
+  console.log(`[Trees] Mismatch! req.userId !== query.userId`);
+  return res.status(403).json({ error: 'غير مصرح بالوصول' });
+}
+
+What can go wrong:
+
+JWT contains one userId, but request sends a different userId
+Cached resolvedUserId in sessionStorage is stale
+Account linking changed the userId but sessionStorage wasn't updated
+How to verify:
+Check backend console for:
+
+[Trees] Mismatch! req.userId !== query.userId
+
+6. CACHE INCONSISTENCY (LOW PROBABILITY)
+The Problem:
+The resolvedUserId is cached in sessionStorage (api.js:181), but:
+
+Not cleared when it should be
+Persists across different Firebase accounts
+Becomes stale if account linking happens
+How to verify:
+
+Open DevTools → Application → Session Storage
+Check resolved_user_id value
+Compare with actual userId from Firebase
+📋 Diagnostic Steps (In Order)
+Step 1: Enable Detailed Logging
+Open browser console (F12) and reload the page. Look for:
+
+[Session Restore] Starting restoration for user: ...
+[Session Restore] Backend auth check: ...
+[Session Restore] Fetching trees for userId: ...
+[Session Restore] Found trees: X
+
+What to check:
+
+✅ Does restoration start?
+✅ What userId is being used to fetch trees?
+✅ How many trees are found?
+❌ Are there any errors?
+Step 2: Check Database Directly
+Run this query to see what trees exist and their owners:
+
+SELECT id, name, "createdBy", "createdAt" FROM trees ORDER BY "createdAt" DESC LIMIT 10;
+
+Compare:
+
+Does the createdBy userId match the userId from console logs?
+Step 3: Check Cookies
+DevTools → Application → Cookies
+Find auth_token cookie
+Check:
+✅ Does it exist?
+✅ Does it have HttpOnly flag?
+✅ What's the expiry time?
+✅ Does it persist after refresh?
+Step 4: Test Auth Flow
+Clear all site data (DevTools → Application → Clear site data)
+Log in fresh
+Create a test family member
+Note the console log: [Session Restore] Fetching trees for userId: <COPY_THIS_ID>
+Manually logout
+Log in again
+Check if the userId is the SAME
+Step 5: Check Account Linking
+Look in the database authIdentities table:
+
+SELECT * FROM "authIdentities" WHERE "identityType" = 'email' AND "identityValue" = 'your@email.com';
+
+Check:
+
+How many identities exist for your email/phone?
+Do they point to the same userId?
+🔧 Recommended Solutions (Prioritized)
+Solution 1: Add UserId Consistency Logging (IMMEDIATE)
+Add this to App.jsx after line 322:
+
+console.log('[Session Restore] Fetching trees for userId:', resolvedUserId);
+console.log('[Session Restore] Original Firebase UID:', user.uid);
+console.log('[Session Restore] User email:', user.email);
+console.log('[Session Restore] Cached userId:', getAuthToken()?.resolvedUserId);
+
+This will help you see if there's a userId mismatch.
+
+Solution 2: Verify Database Ownership (IMMEDIATE)
+Run this query to check who owns your trees:
+
+// Add this temporary button to your UI for debugging
+const debugCheckTrees = async () => {
+  const firebaseUid = user.uid;
+  const cachedUserId = getAuthToken()?.resolvedUserId;
+  
+  console.log('Firebase UID:', firebaseUid);
+  console.log('Cached userId:', cachedUserId);
+  
+  // Check trees for both IDs
+  const treesWithFirebaseUid = await api.trees.getAll(firebaseUid);
+  const treesWithCachedId = await api.trees.getAll(cachedUserId);
+  
+  console.log('Trees with Firebase UID:', treesWithFirebaseUid);
+  console.log('Trees with cached userId:', treesWithCachedId);
+};
+
+Solution 3: Add Fallback Tree Search (FIX)
+If userId mismatch is the issue, add fallback logic to search by email/phone:
+
+// In App.jsx session restoration, after line 323:
+let userTrees = await api.trees.getAll(resolvedUserId);
+
+if (userTrees.length === 0 && user.email) {
+  // Fallback: search by email association
+  console.log('[Session Restore] No trees found for userId, trying email lookup...');
+  const linkedUser = await api.users.findByEmail(user.email);
+  if (linkedUser && linkedUser.id !== resolvedUserId) {
+    userTrees = await api.trees.getAll(linkedUser.id);
+    if (userTrees.length > 0) {
+      console.log('[Session Restore] Found trees under linked account:', linkedUser.id);
+    }
+  }
+}
+
+Solution 4: Fix Cookie Issues (CONFIGURATION)
+If cookies aren't persisting, check your environment:
+
+For local development:
+
+sameSite: 'lax'  // Already set correctly
+secure: false     // For HTTP localhost
+
+For production/Replit:
+
+Ensure HTTPS is enabled
+Check domain isn't changing between requests
+Verify trust proxy is set (already done in your code)
+Solution 5: Add Persistent UserId Mapping (LONG-TERM FIX)
+Create a migration to consolidate userIds:
+
+// Migration to link all orphaned trees to correct user
+const migrateOrphanedTrees = async (userEmail) => {
+  // Find all possible userIds for this user
+  const identities = await db.select()
+    .from(authIdentities)
+    .where(eq(authIdentities.identityValue, userEmail));
+  
+  const userIds = identities.map(i => i.userId);
+  const primaryUserId = userIds[0]; // Choose primary
+  
+  // Update all trees to use primary userId
+  for (const oldUserId of userIds.slice(1)) {
+    await db.update(trees)
+      .set({ createdBy: primaryUserId })
+      .where(eq(trees.createdBy, oldUserId));
+  }
+};
+
+Solution 6: Add Session Restoration Debugging (DEBUGGING)
+Add this temporary code to see exactly what's happening:
+
+// In App.jsx, before line 222, add:
+useEffect(() => {
+  console.log('[DEBUG] State check:', {
+    authLoading,
+    isAuthenticated,
+    hasUser: !!user,
+    userUid: user?.uid,
+    userEmail: user?.email,
+    currentTree: !!currentTree,
+    currentView,
+    restorationAttempted: restorationAttemptedRef.current
+  });
+}, [authLoading, isAuthenticated, user, currentTree, currentView]);
+
+🎯 What I Recommend You Do RIGHT NOW
+Open browser console (F12)
+Refresh the page
+Copy and share the console logs with me, especially:
+Lines starting with [Session Restore]
+Lines starting with [Trees]
+Lines starting with [Auth]
+Any errors in red
+This will tell us EXACTLY what's happening and which of the above issues is the culprit.
+
+Summary of Possible Causes
+Issue	Probability	Impact	How to Detect
+UserId Mismatch	HIGH	Critical	Console logs show different userId values
+Cookie Blocking	MEDIUM-HIGH	Critical	Cookie missing in DevTools
+Restoration Not Triggering	MEDIUM	Critical	No "[Session Restore]" logs
+Silent Error	MEDIUM	High	Error in console, user logged out
+Backend Auth Mismatch	LOW-MEDIUM	High	403 error in network tab
+Cache Inconsistency	LOW	Medium	sessionStorage userId ≠ Firebase UID
+The most likely culprit is either:
+
+UserId mismatch due to account linking
+Cookie not persisting due to browser settings
+Silent error causing logout before tree loads
