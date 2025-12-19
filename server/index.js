@@ -509,9 +509,15 @@ const normalizeEmail = (email) => {
 const normalizePhone = (phone) => {
   if (!phone) return null;
   let formatted = phone.trim();
-  if (!formatted.startsWith('+')) {
+  
+  if (formatted.startsWith('00971')) {
+    formatted = '+971' + formatted.slice(5);
+  } else if (formatted.startsWith('971') && !formatted.startsWith('+')) {
+    formatted = '+' + formatted;
+  } else if (!formatted.startsWith('+')) {
     formatted = '+971' + formatted.replace(/^0/, '');
   }
+  
   return formatted;
 };
 

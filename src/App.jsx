@@ -967,7 +967,19 @@ function App() {
       }
       
       if (data.verified) {
-        const formattedPhone = phoneInput.startsWith('+') ? phoneInput : '+971' + phoneInput.replace(/^0/, '');
+        const normalizePhoneClient = (phone) => {
+          if (!phone) return null;
+          let formatted = phone.trim();
+          if (formatted.startsWith('00971')) {
+            return '+971' + formatted.slice(5);
+          } else if (formatted.startsWith('971') && !formatted.startsWith('+')) {
+            return '+' + formatted;
+          } else if (!formatted.startsWith('+')) {
+            return '+971' + formatted.replace(/^0/, '');
+          }
+          return formatted;
+        };
+        const formattedPhone = normalizePhoneClient(phoneInput);
         const resolvedUserId = data.userId || formattedPhone;
         const phoneUser = {
           uid: resolvedUserId,
