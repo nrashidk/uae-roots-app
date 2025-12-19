@@ -34,6 +34,8 @@ I prefer simple language and detailed explanations. I want iterative development
   - Race condition prevention: interactiveLoginInProgressRef prevents session restore from conflicting with interactive logins
   - Debug endpoint /api/debug/session for diagnosing authentication state
   - Consolidated loadUserTreeData helper function for consistent tree loading across all auth flows
+  - Cookie-based session restoration for Phone SMS users (who don't have Firebase sessions)
+  - Dual restoration path: Firebase-based for Google/Microsoft/Email, Cookie-based for Phone SMS
 
 ## System Architecture
 The application utilizes React 19.1.0 with Vite 6.3.6 for the frontend, styled with Radix UI components and Tailwind CSS. It supports Arabic (RTL) with specific fonts (Sakkal Majalla) for proper rendering. State management is handled with React hooks, and routing with React Router DOM 7.6.1.

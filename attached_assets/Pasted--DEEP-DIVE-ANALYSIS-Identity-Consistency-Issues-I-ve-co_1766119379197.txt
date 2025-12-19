@@ -1,0 +1,411 @@
+ DEEP DIVE ANALYSIS: Identity Consistency Issues
+I've completed a comprehensive code review and found CRITICAL INCONSISTENCIES that are likely causing your data persistence issues. Here's the detailed breakdown:
+
+🚨 CRITICAL ISSUE #1: Inconsistent Phone Number Normalization
+You have THREE DIFFERENT phone normalization implementations across your codebase:
+
+Location 1: normalizePhone() Function (server/index.js:509-516)
+Used by: findUserByIdentity(), linkIdentityToUser()
+
+const normalizePhone = (phone) => {
+  if (!phone) return null;
+  let formatted = phone.trim();
+  if (!formatted.startsWith('+')) {
+    formatted = '+971' + formatted.replace(/^0/, '');
+  }
+  return formatted;
+};
+
+Handles:
+
+✅ 501234567 → +971501234567
+✅ 0501234567 → +971501234567
+❌ 00971501234567 → NOT HANDLED (returns as-is: 00971501234567)
+❌ 971501234567 → NOT HANDLED (returns as-is: 971501234567)
+✅ +971501234567 → +971501234567
+Location 2: SMS Endpoints Inline Normalization (server/index.js:713-720, 769-776)
+Used by: /api/sms/send-code, /api/sms/verify-code
+
+let formattedPhone = phoneNumber.trim();
+if (formattedPhone.startsWith('00971')) {
+  formattedPhone = '+971' + formattedPhone.slice(5);
+} else if (formattedPhone.startsWith('971') && !formattedPhone.startsWith('+')) {
+  formattedPhone = '+' + formattedPhone;
+} else if (!formattedPhone.startsWith('+')) {
+  formattedPhone = '+971' + formattedPhone.replace(/^0/, '');
+}
+
+Handles:
+
+✅ 501234567 → +971501234567
+✅ 0501234567 → +971501234567
+✅ 00971501234567 → +971501234567 ✓
+✅ 971501234567 → +971501234567 ✓
+✅ +971501234567 → +971501234567
+Location 3: Client-Side Normalization (App.jsx:847)
+Used by: SMS login success handler
+
+const formattedPhone = phoneInput.startsWith('+') ? phoneInput : '+971' + phoneInput.replace(/^0/, '');
+
+Handles:
+
+✅ 501234567 → +971501234567
+✅ 0501234567 → +971501234567
+❌ 00971501234567 → +97100971501234567 WRONG!
+❌ 971501234567 → +971971501234567 WRONG!
+✅ +971501234567 → +971501234567
+🔴 THE PROBLEM:
+If a user enters their phone number in different formats across sessions:
+
+Scenario 1:
+
+First login:  User enters "971501234567"
+              SMS endpoint normalizes to "+971501234567"
+              Client sends "+971501234567" to backend
+              userId = "+971501234567" ✓
+              Tree created with createdBy = "+971501234567"
+
+Second login: User enters "00971501234567" (same number!)
+              SMS endpoint normalizes to "+971501234567" ✓
+              BUT client uses: "+97100971501234567" ❌ WRONG!
+              userId mismatch!
+              
+OR
+
+Second login: Backend searches authIdentities using normalizePhone()
+              normalizePhone("00971501234567") = "00971501234567" (not normalized!)
+              No match found in authIdentities
+              Creates NEW userId instead of finding existing one!
+              Trees not found because createdBy doesn't match!
+
+This is a CRITICAL BUG causing data loss!
+
+🚨 CRITICAL ISSUE #2: UserId Creation Inconsistency
+Different login methods create userIds differently:
+
+Phone SMS Login (server/index.js:802-812):
+let existingUser = await findUserByIdentity('phone', formattedPhone);
+
+if (!existingUser) {
+  // Fallback: Direct lookup by phone as userId
+  const [directUser] = await db.select().from(users).where(eq(users.id, formattedPhone));
+  if (directUser) {
+    existingUser = directUser;
+    await linkIdentityToUser(directUser.id, 'phone', formattedPhone, null, true);
+  }
+}
+
+const userId = existingUser ? existingUser.id : formattedPhone; // ← Phone becomes userId!
+
+Flow:
+
+First checks authIdentities table with normalized phone
+If not found, checks users table directly with phone as ID
+If STILL not found, uses formattedPhone as NEW userId
+Possible userIds:
+
+First time: userId = "+971501234567" (phone number)
+If account linked: userId = "existingUser.id" (could be Firebase UID)
+Google/Microsoft/Email Login (server/index.js:872-874):
+const userEmail = email || decodedToken?.email;
+const existingUser = userEmail ? await findUserByIdentity('email', userEmail) : null;
+const resolvedUserId = existingUser ? existingUser.id : userId; // ← Firebase UID
+
+Flow:
+
+Checks if email exists in authIdentities
+If exists, uses the linked userId
+If not, uses Firebase UID as userId
+Possible userIds:
+
+First time: userId = "firebase_uid_abc123" (Firebase UID)
+If account linked: userId = "existingUser.id"
+🔴 THE PROBLEM:
+Cross-login account linking can create userId mismatches:
+
+Day 1: User logs in with Phone SMS
+       → userId = "+971501234567"
+       → Creates tree with createdBy = "+971501234567"
+       → authIdentities: {type: 'phone', value: '+971501234567', userId: '+971501234567'}
+
+Day 2: Same user logs in with Google (same email registered to that phone)
+       → Firebase UID = "google_uid_xyz789"
+       → Backend checks: Does this email exist in authIdentities?
+       → If YES: resolvedUserId = "+971501234567" ✓ (finds trees)
+       → If NO: resolvedUserId = "google_uid_xyz789" ❌ (NO trees found!)
+
+Day 3: User logs in with Phone SMS again
+       → Checks authIdentities for phone
+       → If normalization fails (Issue #1), might not find existing identity
+       → Creates NEW user with userId = "+971501234567" again
+       → But session storage might have cached "google_uid_xyz789"
+       → userId MISMATCH!
+
+🚨 CRITICAL ISSUE #3: Account Linking Gaps
+The account linking logic has coverage gaps:
+
+What's Linked:
+Login Method	Identity Created in authIdentities	When
+Phone SMS	✅ {type: 'phone', value: normalized}	/api/sms/verify-code (line 802-808)
+Email/Pass	✅ {type: 'email', value: normalized}	/api/users POST (line 941-942)
+Google OAuth	✅ {type: 'google', value: email}	/api/users POST (line 947-949)
+Microsoft OAuth	✅ {type: 'microsoft', value: email}	/api/users POST (line 947-949)
+🔴 THE PROBLEM:
+Phone users who then login via OAuth may not get linked:
+
+// POST /api/users (line 911-950) - Creates identities AFTER user created
+if (validatedData.email) {
+  await linkIdentityToUser(validatedData.id, 'email', validatedData.email, null, true);
+}
+if (validatedData.phoneNumber) {
+  await linkIdentityToUser(validatedData.id, 'phone', validatedData.phoneNumber, null, true);
+}
+
+But linkIdentityToUser returns null if identity already exists with DIFFERENT userId (line 573-577):
+
+if (existingIdentity.length > 0) {
+  if (existingIdentity[0].userId === userId) {
+    return existingIdentity[0]; // ✓ Same user
+  }
+  return null; // ❌ Different user - DOES NOT LINK!
+}
+
+Scenario:
+
+1. User creates account via Phone SMS
+   → userId = "+971501234567"
+   → authIdentities: {phone: "+971501234567", userId: "+971501234567"}
+
+2. User logs in via Google with email that has SAME phone number
+   → Firebase UID = "google_xyz"
+   → /api/auth/token checks email, finds NO existing user (no email identity yet!)
+   → resolvedUserId = "google_xyz" (NEW userId)
+   → Calls POST /api/users with phoneNumber = "+971501234567"
+   → linkIdentityToUser tries to link phone
+   → BUT phone identity already exists with userId = "+971501234567"
+   → Returns NULL - NO LINK CREATED!
+   → User now has TWO accounts, can't see old trees!
+
+🚨 CRITICAL ISSUE #4: Session Storage Cache Can Become Stale
+The client caches resolvedUserId in sessionStorage (api.js:179-221):
+
+export function setAuthToken(token, userId) {
+  authState = { resolvedUserId: userId, timestamp: Date.now() };
+  try {
+    sessionStorage.setItem('resolved_user_id', userId);
+  } catch (e) {
+    console.error('Failed to store user id:', e);
+  }
+}
+
+🔴 THE PROBLEM:
+
+sessionStorage persists across tabs but NOT across different login sessions:
+
+Tab 1: User logs in with Phone → resolvedUserId = "+971501234567" cached
+       User logs out (clears sessionStorage)
+
+Tab 2: User logs in with Google → resolvedUserId = "google_xyz" cached
+       Session restore uses "google_xyz"
+       Trees created with "+971501234567" NOT FOUND!
+
+OR
+
+Tab 1: User logs in with Phone → resolvedUserId = "+971501234567" cached
+       User closes browser WITHOUT logging out (sessionStorage NOT cleared!)
+
+Next session:
+       Cookie expires, but sessionStorage STILL has "+971501234567"
+       Session restoration uses cached userId
+       Backend cookie has DIFFERENT userId
+       MISMATCH!
+
+🚨 CRITICAL ISSUE #5: Client-Side UserId Derivation
+The client derives userId differently in different places:
+
+Location 1: Session Restoration (App.jsx:241)
+const fallbackUserId = user.uid || user.phoneNumber || user.id;
+
+Location 2: handleAuthSuccess (App.jsx:498)
+const userId = currentUser.uid || currentUser.phoneNumber || currentUser.id;
+
+Location 3: Phone SMS handler (App.jsx:848)
+const resolvedUserId = data.userId || formattedPhone;
+
+🔴 THE PROBLEM:
+
+For Firebase users: user.uid exists → userId = Firebase UID
+For phone users: NO user.uid → userId = user.phoneNumber
+
+But user.phoneNumber might not be normalized!
+
+Phone login returns: {uid: "+971501234567", phoneNumber: "+971501234567"}
+BUT if phone was entered as "0501234567":
+  formattedPhone = "+971501234567"
+  BUT user object might have phoneNumber = "0501234567" (not normalized!)
+  userId derivation: user.uid || user.phoneNumber
+  Could get "0501234567" instead of "+971501234567"!
+
+📊 SUMMARY OF ISSUES
+Issue	Severity	Impact	Affected Users
+#1: Inconsistent phone normalization	🔴 CRITICAL	Data loss, duplicate accounts	Phone SMS users
+#2: UserId creation inconsistency	🔴 CRITICAL	Trees not found across logins	Multi-method users
+#3: Account linking gaps	🔴 CRITICAL	Duplicate accounts created	Users switching login methods
+#4: Stale sessionStorage cache	🟠 HIGH	Wrong userId used after re-login	All users
+#5: Client-side userId derivation	🟠 HIGH	UserId mismatch	Phone SMS users
+🎯 ROOT CAUSE OF YOUR SPECIFIC ISSUE
+Based on you using Phone SMS login, here's what likely happened:
+
+Session 1 (Creating tree):
+  ✅ You enter phone: "501234567"
+  ✅ SMS endpoint normalizes: "+971501234567"
+  ✅ Client creates phoneUser: {uid: "+971501234567"}
+  ✅ Tree created: {createdBy: "+971501234567"}
+  ✅ authIdentities: {type: 'phone', value: '+971501234567', userId: '+971501234567'}
+
+Session 2 (Tree missing):
+  ❌ You enter phone: "0501234567" OR "00971501234567" OR "971501234567"
+  ❌ SMS endpoint normalizes: "+971501234567" ✓
+  ❌ BUT findUserByIdentity uses broken normalizePhone()
+      → If you entered "00971501234567": normalizePhone returns "00971501234567" ❌
+      → No match in authIdentities!
+  ❌ Direct user lookup: No user with id="00971501234567"
+  ❌ Creates NEW userId = "00971501234567" (different from "+971501234567"!)
+  ❌ Searches for trees with createdBy = "00971501234567"
+  ❌ NO TREES FOUND (they were created with "+971501234567")!
+
+🔧 REQUIRED FIXES (Priority Order)
+FIX #1: Unify Phone Normalization (CRITICAL)
+Replace the normalizePhone() function with the comprehensive version:
+
+File: server/index.js:509-516
+
+const normalizePhone = (phone) => {
+  if (!phone) return null;
+  let formatted = phone.trim();
+  
+  // Handle all UAE phone number formats
+  if (formatted.startsWith('00971')) {
+    formatted = '+971' + formatted.slice(5);
+  } else if (formatted.startsWith('971') && !formatted.startsWith('+')) {
+    formatted = '+' + formatted;
+  } else if (!formatted.startsWith('+')) {
+    formatted = '+971' + formatted.replace(/^0/, '');
+  }
+  
+  return formatted;
+};
+
+FIX #2: Fix Client-Side Phone Normalization
+File: src/App.jsx:847
+
+// OLD (WRONG):
+const formattedPhone = phoneInput.startsWith('+') ? phoneInput : '+971' + phoneInput.replace(/^0/, '');
+
+// NEW (CORRECT):
+const normalizePhoneClient = (phone) => {
+  if (!phone) return null;
+  let formatted = phone.trim();
+  if (formatted.startsWith('00971')) {
+    return '+971' + formatted.slice(5);
+  } else if (formatted.startsWith('971') && !formatted.startsWith('+')) {
+    return '+' + formatted;
+  } else if (!formatted.startsWith('+')) {
+    return '+971' + formatted.replace(/^0/, '');
+  }
+  return formatted;
+};
+
+const formattedPhone = normalizePhoneClient(phoneInput);
+
+FIX #3: Add Database Migration to Fix Orphaned Data
+Create a migration to consolidate orphaned trees under the correct userId:
+
+File: server/migrate-phone-users.js (NEW FILE)
+
+import { db } from './db.js';
+import { users, trees, authIdentities } from '../shared/schema.js';
+import { eq } from 'drizzle-orm';
+
+// Find all phone-number userIds that might be duplicates
+const phoneUserIds = await db.select().from(users)
+  .where(sql`id LIKE '+971%' OR id LIKE '00971%' OR id LIKE '971%' OR id ~ '^0?[0-9]{9}$'`);
+
+for (const user of phoneUserIds) {
+  // Normalize the userId
+  const normalized = normalizePhone(user.id);
+  
+  if (normalized !== user.id) {
+    console.log(`Found unnormalized userId: ${user.id} → should be: ${normalized}`);
+    
+    // Check if normalized version exists
+    const [normalizedUser] = await db.select().from(users).where(eq(users.id, normalized));
+    
+    if (normalizedUser) {
+      // Merge: Move trees from old userId to normalized userId
+      await db.update(trees)
+        .set({ createdBy: normalized })
+        .where(eq(trees.createdBy, user.id));
+      
+      // Delete old user
+      await db.delete(users).where(eq(users.id, user.id));
+      
+      console.log(`✅ Merged ${user.id} into ${normalized}`);
+    } else {
+      // Rename userId
+      await db.update(users)
+        .set({ id: normalized })
+        .where(eq(users.id, user.id));
+      
+      await db.update(trees)
+        .set({ createdBy: normalized })
+        .where(eq(trees.createdBy, user.id));
+      
+      console.log(`✅ Renamed ${user.id} to ${normalized}`);
+    }
+  }
+}
+
+FIX #4: Add Defensive UserId Validation
+Add this to session restoration to validate cached userId:
+
+File: src/App.jsx (in session restoration, after line 265)
+
+// Validate cached userId matches backend
+if (cachedAuth?.resolvedUserId && backendAuth?.userId) {
+  if (cachedAuth.resolvedUserId !== backendAuth.userId) {
+    console.warn('[Session Restore] Cached userId mismatch! Clearing cache.');
+    console.warn('  Cached:', cachedAuth.resolvedUserId);
+    console.warn('  Backend:', backendAuth.userId);
+    clearAuthToken();
+    resolvedUserId = backendAuth.userId; // Trust backend
+  }
+}
+
+🔍 DIAGNOSTIC QUERY
+Run this to check YOUR specific data:
+
+-- Check if you have duplicate phone users
+SELECT id, email, "phoneNumber", provider, "createdAt" 
+FROM users 
+WHERE id LIKE '+971%' OR id LIKE '00971%' OR id LIKE '971%'
+ORDER BY "createdAt";
+
+-- Check your trees and their owners
+SELECT t.id, t.name, t."createdBy", t."createdAt",
+       u.id as user_id, u."phoneNumber", u.email
+FROM trees t
+LEFT JOIN users u ON t."createdBy" = u.id
+ORDER BY t."createdAt" DESC;
+
+-- Check your authIdentities
+SELECT * FROM "authIdentities" 
+WHERE "identityType" = 'phone'
+ORDER BY "createdAt";
+
+This will show you:
+
+If you have duplicate userIds due to normalization issues
+Which userId owns your trees
+Whether identities are correctly linked
+Share the results and I can tell you exactly which fix will recover your data!
