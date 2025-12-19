@@ -37,6 +37,8 @@ I prefer simple language and detailed explanations. I want iterative development
   - Cookie-based session restoration for Phone SMS users (who don't have Firebase sessions)
   - Dual restoration path: Firebase-based for Google/Microsoft/Email, Cookie-based for Phone SMS
   - Unified phone number normalization across server and client (handles 00971, 971, 0, +971 formats)
+  - Logout now properly clears backend JWT cookie (prevents stale session issues)
+  - "No Trees Found" warning screen for authenticated users (prevents silent tree creation and guides users to try different login methods if needed)
 
 ## System Architecture
 The application utilizes React 19.1.0 with Vite 6.3.6 for the frontend, styled with Radix UI components and Tailwind CSS. It supports Arabic (RTL) with specific fonts (Sakkal Majalla) for proper rendering. State management is handled with React hooks, and routing with React Router DOM 7.6.1.
