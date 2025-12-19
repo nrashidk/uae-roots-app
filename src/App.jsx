@@ -221,6 +221,8 @@ function App() {
   const interactiveLoginInProgressRef = useRef(false);
   const [sessionRestoreLoading, setSessionRestoreLoading] = useState(false);
   const [sessionRestoreError, setSessionRestoreError] = useState(null);
+  const [showNoTreesWarning, setShowNoTreesWarning] = useState(false);
+  const [noTreesUserId, setNoTreesUserId] = useState(null);
 
   // Cookie-based session restoration (for Phone SMS users who don't have Firebase sessions)
   // This runs when Firebase says NOT authenticated but a valid JWT cookie exists
@@ -432,19 +434,14 @@ function App() {
           setRelationships(treeRelData);
           console.log('[Session Restore] Loaded tree:', userTrees[0].name, 
                      'with', treePeopleData.length, 'people');
+          setShowNoTreesWarning(false);
+          setCurrentView("tree-builder");
         } else {
-          console.log('[Session Restore] No trees found, creating default tree');
-          const newTree = await api.trees.create({
-            name: "شجرة عائلتي",
-            description: "شجرة العائلة الأولى",
-            createdBy: resolvedUserId
-          });
-          setCurrentTree(newTree);
-          setPeople([]);
-          setRelationships([]);
+          console.log('[Session Restore] No trees found - showing warning');
+          setNoTreesUserId(resolvedUserId);
+          setShowNoTreesWarning(true);
+          setCurrentView("auth");
         }
-        
-        setCurrentView("tree-builder");
         console.log('[Session Restore] Session restored successfully');
         setSessionRestoreLoading(false);
       } catch (error) {
@@ -588,7 +585,7 @@ function App() {
   }, [relationshipType, editingPerson, selectedPerson, treePeople]);
 
   // Reusable helper to load user's trees and navigate to tree-builder
-  const loadUserTreeData = async (resolvedUserId) => {
+  const loadUserTreeData = async (resolvedUserId, autoCreateIfEmpty = false) => {
     console.log('[loadUserTreeData] Loading trees for userId:', resolvedUserId);
     const userTrees = await api.trees.getAll(resolvedUserId);
     console.log('[loadUserTreeData] Found trees:', userTrees.length);
@@ -600,7 +597,9 @@ function App() {
       setPeople(treePeopleData);
       setRelationships(treeRelData);
       console.log('[loadUserTreeData] Loaded tree:', userTrees[0].name, 'with', treePeopleData.length, 'people');
-    } else {
+      setShowNoTreesWarning(false);
+      setCurrentView("tree-builder");
+    } else if (autoCreateIfEmpty) {
       console.log('[loadUserTreeData] No trees found, creating default tree');
       const newTree = await api.trees.create({
         name: "شجرة عائلتي",
@@ -610,9 +609,48 @@ function App() {
       setCurrentTree(newTree);
       setPeople([]);
       setRelationships([]);
+      setShowNoTreesWarning(false);
+      setCurrentView("tree-builder");
+    } else {
+      console.log('[loadUserTreeData] No trees found - showing warning');
+      setNoTreesUserId(resolvedUserId);
+      setShowNoTreesWarning(true);
+      setCurrentView("auth");
     }
-    
-    setCurrentView("tree-builder");
+  };
+
+  // Handler for creating a new tree from the no-trees warning
+  const handleCreateNewTree = async () => {
+    if (!noTreesUserId) return;
+    try {
+      const newTree = await api.trees.create({
+        name: "شجرة عائلتي",
+        description: "شجرة العائلة الأولى",
+        createdBy: noTreesUserId
+      });
+      setCurrentTree(newTree);
+      setPeople([]);
+      setRelationships([]);
+      setShowNoTreesWarning(false);
+      setCurrentView("tree-builder");
+    } catch (err) {
+      console.error('Failed to create new tree:', err);
+    }
+  };
+
+  // Handler for trying a different login method
+  const handleTryDifferentLogin = async () => {
+    try {
+      await api.auth.logout();
+    } catch (e) {
+      console.log('[TryDifferentLogin] Backend logout failed:', e.message);
+    }
+    await logout();
+    clearAuthToken();
+    setShowNoTreesWarning(false);
+    setNoTreesUserId(null);
+    restorationAttemptedRef.current = false;
+    setCurrentView("auth");
   };
 
   const handleAuthSuccess = async (phoneUser = null, authToken = null) => {
@@ -721,6 +759,12 @@ function App() {
 
   const handleLogout = async () => {
     try {
+      try {
+        await api.auth.logout();
+        console.log('[Logout] Backend cookie cleared');
+      } catch (backendErr) {
+        console.log('[Logout] Backend logout failed (may already be logged out):', backendErr.message);
+      }
       await logout();
       clearAuthToken();
       setCurrentTree(null);
@@ -728,9 +772,10 @@ function App() {
       setRelationships([]);
       setUserProfile(null);
       setCurrentView("auth");
-      // Reset restoration flag so it can run again on next login
       restorationAttemptedRef.current = false;
       setSessionRestoreError(null);
+      setShowNoTreesWarning(false);
+      setNoTreesUserId(null);
     } catch (err) {
       console.error('Logout failed:', err);
     }
@@ -1587,6 +1632,48 @@ function App() {
         <div className="bg-white rounded-2xl shadow-xl p-8 w-full max-w-md text-center">
           <Loader2 className="w-12 h-12 animate-spin mx-auto text-purple-600" />
           <p className="mt-4 text-gray-600">جاري استعادة بيانات العائلة...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (showNoTreesWarning && (isAuthenticated || userProfile)) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-purple-400 via-purple-500 to-purple-600 flex items-center justify-center p-4">
+        <div className="bg-white rounded-2xl shadow-xl p-8 w-full max-w-lg" dir="rtl">
+          <div className="text-center mb-6">
+            <div className="inline-flex items-center justify-center w-16 h-16 bg-amber-100 rounded-full mb-4">
+              <svg className="w-8 h-8 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+              </svg>
+            </div>
+            <h2 className="text-2xl font-bold text-gray-800 mb-2">لم يتم العثور على شجرة عائلة</h2>
+            <p className="text-gray-600">
+              لم نجد أي شجرة عائلة مرتبطة بهذا الحساب.
+            </p>
+          </div>
+          
+          <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-6">
+            <p className="text-amber-700 text-sm">
+              إذا كنت قد أنشأت شجرة عائلة سابقاً باستخدام طريقة تسجيل دخول مختلفة (مثل Google أو رقم الهاتف)، يرجى تجربة تلك الطريقة للوصول إلى بياناتك.
+            </p>
+          </div>
+          
+          <div className="space-y-3">
+            <Button
+              onClick={handleCreateNewTree}
+              className="w-full bg-purple-600 hover:bg-purple-700 text-white py-3"
+            >
+              إنشاء شجرة عائلة جديدة
+            </Button>
+            <Button
+              onClick={handleTryDifferentLogin}
+              variant="outline"
+              className="w-full border-gray-300 text-gray-700 hover:bg-gray-50 py-3"
+            >
+              تجربة طريقة تسجيل دخول أخرى
+            </Button>
+          </div>
         </div>
       </div>
     );
