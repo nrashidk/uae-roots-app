@@ -36,6 +36,7 @@ I prefer simple language and detailed explanations. I want iterative development
   - Consolidated loadUserTreeData helper function for consistent tree loading across all auth flows
   - Cookie-based session restoration for Phone SMS users (who don't have Firebase sessions)
   - Dual restoration path: Firebase-based for Google/Microsoft/Email, Cookie-based for Phone SMS
+  - Unified phone number normalization across server and client (handles 00971, 971, 0, +971 formats)
 
 ## System Architecture
 The application utilizes React 19.1.0 with Vite 6.3.6 for the frontend, styled with Radix UI components and Tailwind CSS. It supports Arabic (RTL) with specific fonts (Sakkal Majalla) for proper rendering. State management is handled with React hooks, and routing with React Router DOM 7.6.1.
