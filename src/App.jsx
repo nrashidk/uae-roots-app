@@ -217,6 +217,10 @@ function App() {
 
   // Track if session restoration has been attempted (persists across re-renders)
   const restorationAttemptedRef = useRef(false);
+  // Track if an interactive login is in progress (prevents race with session restore)
+  const interactiveLoginInProgressRef = useRef(false);
+  const [sessionRestoreLoading, setSessionRestoreLoading] = useState(false);
+  const [sessionRestoreError, setSessionRestoreError] = useState(null);
 
   // Robust session restoration when Firebase restores authentication
   useEffect(() => {
@@ -224,16 +228,21 @@ function App() {
       // Prevent multiple restoration attempts
       if (restorationAttemptedRef.current) return;
       
+      // Skip if an interactive login is happening (handleAuthSuccess will handle it)
+      if (interactiveLoginInProgressRef.current) return;
+      
       // Wait for Firebase auth to finish loading
       if (authLoading) return;
       
       // Only proceed if authenticated but no tree loaded
-      if (!isAuthenticated || !user || currentTree || currentView !== 'auth') {
+      if (!isAuthenticated || !user || currentTree) {
         return;
       }
 
       // Mark as attempted immediately to prevent re-entry
       restorationAttemptedRef.current = true;
+      setSessionRestoreLoading(true);
+      setSessionRestoreError(null);
       console.log('[Session Restore] Starting restoration for user:', user.uid || user.phoneNumber);
 
       try {
@@ -318,13 +327,12 @@ function App() {
         console.log('[Session Restore] User record updated:', savedUser);
         setUserProfile(savedUser);
 
-        // STEP 5: Load user's trees using the RESOLVED userId
+        // STEP 5: Load user's trees using the RESOLVED userId (inline to avoid hoisting issues)
         console.log('[Session Restore] Fetching trees for userId:', resolvedUserId);
         const userTrees = await api.trees.getAll(resolvedUserId);
         console.log('[Session Restore] Found trees:', userTrees.length);
 
         if (userTrees.length > 0) {
-          // Load first tree
           setCurrentTree(userTrees[0]);
           const treePeopleData = await api.people.getAll(userTrees[0].id);
           const treeRelData = await api.relationships.getAll(userTrees[0].id);
@@ -332,9 +340,7 @@ function App() {
           setRelationships(treeRelData);
           console.log('[Session Restore] Loaded tree:', userTrees[0].name, 
                      'with', treePeopleData.length, 'people');
-          setCurrentView("tree-builder");
         } else {
-          // No trees - create default tree
           console.log('[Session Restore] No trees found, creating default tree');
           const newTree = await api.trees.create({
             name: "شجرة عائلتي",
@@ -344,12 +350,15 @@ function App() {
           setCurrentTree(newTree);
           setPeople([]);
           setRelationships([]);
-          setCurrentView("tree-builder");
         }
-
+        
+        setCurrentView("tree-builder");
         console.log('[Session Restore] Session restored successfully');
+        setSessionRestoreLoading(false);
       } catch (error) {
         console.error('[Session Restore] Failed to restore session:', error);
+        setSessionRestoreLoading(false);
+        setSessionRestoreError(error.message || 'فشل في استعادة الجلسة');
         // Clear auth state and log out so user can try again
         clearAuthToken();
         try {
@@ -363,7 +372,7 @@ function App() {
     };
 
     restoreSession();
-  }, [authLoading, isAuthenticated, user, currentTree, currentView, logout]);
+  }, [authLoading, isAuthenticated, user, currentTree, logout]);
 
   // Reset restoration flag when user logs out
   useEffect(() => {
@@ -486,6 +495,34 @@ function App() {
     return "";
   }, [relationshipType, editingPerson, selectedPerson, treePeople]);
 
+  // Reusable helper to load user's trees and navigate to tree-builder
+  const loadUserTreeData = async (resolvedUserId) => {
+    console.log('[loadUserTreeData] Loading trees for userId:', resolvedUserId);
+    const userTrees = await api.trees.getAll(resolvedUserId);
+    console.log('[loadUserTreeData] Found trees:', userTrees.length);
+    
+    if (userTrees.length > 0) {
+      setCurrentTree(userTrees[0]);
+      const treePeopleData = await api.people.getAll(userTrees[0].id);
+      const treeRelData = await api.relationships.getAll(userTrees[0].id);
+      setPeople(treePeopleData);
+      setRelationships(treeRelData);
+      console.log('[loadUserTreeData] Loaded tree:', userTrees[0].name, 'with', treePeopleData.length, 'people');
+    } else {
+      console.log('[loadUserTreeData] No trees found, creating default tree');
+      const newTree = await api.trees.create({
+        name: "شجرة عائلتي",
+        description: "شجرة العائلة الأولى",
+        createdBy: resolvedUserId
+      });
+      setCurrentTree(newTree);
+      setPeople([]);
+      setRelationships([]);
+    }
+    
+    setCurrentView("tree-builder");
+  };
+
   const handleAuthSuccess = async (phoneUser = null, authToken = null) => {
     try {
       const currentUser = phoneUser || user;
@@ -530,27 +567,7 @@ function App() {
       console.log('User saved:', savedUser);
       setUserProfile(savedUser);
 
-      const userTrees = await api.trees.getAll(resolvedUserId);
-      
-      if (userTrees.length > 0) {
-        setCurrentTree(userTrees[0]);
-        const treePeopleData = await api.people.getAll(userTrees[0].id);
-        const treeRelData = await api.relationships.getAll(userTrees[0].id);
-        setPeople(treePeopleData);
-        setRelationships(treeRelData);
-      } else {
-        const newTree = await api.trees.create({
-          name: "شجرة عائلتي",
-          description: "شجرة العائلة الأولى",
-          createdBy: resolvedUserId
-        });
-        setCurrentTree(newTree);
-        setPeople([]);
-        setRelationships([]);
-      }
-      
-      console.log('Setting view to tree-builder');
-      setCurrentView("tree-builder");
+      await loadUserTreeData(resolvedUserId);
     } catch (err) {
       console.error('Error in handleAuthSuccess:', err);
       alert('خطأ أثناء تسجيل الدخول: ' + err.message);
@@ -559,6 +576,8 @@ function App() {
 
   const handleGoogleLogin = async () => {
     try {
+      interactiveLoginInProgressRef.current = true;
+      restorationAttemptedRef.current = true;
       setAuthProcessing(true);
       const loggedInUser = await loginWithGoogle();
       await handleAuthSuccess(loggedInUser);
@@ -566,11 +585,14 @@ function App() {
       console.error('Google login failed:', err);
     } finally {
       setAuthProcessing(false);
+      interactiveLoginInProgressRef.current = false;
     }
   };
 
   const handleMicrosoftLogin = async () => {
     try {
+      interactiveLoginInProgressRef.current = true;
+      restorationAttemptedRef.current = true;
       setAuthProcessing(true);
       const loggedInUser = await loginWithMicrosoft();
       await handleAuthSuccess(loggedInUser);
@@ -578,6 +600,7 @@ function App() {
       console.error('Microsoft login failed:', err);
     } finally {
       setAuthProcessing(false);
+      interactiveLoginInProgressRef.current = false;
     }
   };
 
@@ -586,6 +609,8 @@ function App() {
     if (!emailInput || !passwordInput) return;
     
     try {
+      interactiveLoginInProgressRef.current = true;
+      restorationAttemptedRef.current = true;
       setAuthProcessing(true);
       let loggedInUser;
       if (authMode === 'login') {
@@ -598,6 +623,7 @@ function App() {
       console.error('Email auth failed:', err);
     } finally {
       setAuthProcessing(false);
+      interactiveLoginInProgressRef.current = false;
     }
   };
 
@@ -821,6 +847,8 @@ function App() {
     }
     
     try {
+      interactiveLoginInProgressRef.current = true;
+      restorationAttemptedRef.current = true;
       setAuthProcessing(true);
       setSmsError('');
       
@@ -862,6 +890,7 @@ function App() {
       setSmsError(err.message);
     } finally {
       setAuthProcessing(false);
+      interactiveLoginInProgressRef.current = false;
     }
   };
 
@@ -1440,6 +1469,17 @@ function App() {
         <div className="bg-white rounded-2xl shadow-xl p-8 w-full max-w-md text-center">
           <Loader2 className="w-12 h-12 animate-spin mx-auto text-purple-600" />
           <p className="mt-4 text-gray-600">جاري التحميل...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (sessionRestoreLoading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-purple-400 via-purple-500 to-purple-600 flex items-center justify-center p-4">
+        <div className="bg-white rounded-2xl shadow-xl p-8 w-full max-w-md text-center">
+          <Loader2 className="w-12 h-12 animate-spin mx-auto text-purple-600" />
+          <p className="mt-4 text-gray-600">جاري استعادة بيانات العائلة...</p>
         </div>
       </div>
     );

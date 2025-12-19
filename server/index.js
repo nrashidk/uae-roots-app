@@ -903,6 +903,29 @@ app.get('/api/auth/check', optionalAuth, (req, res) => {
   }
 });
 
+app.get('/api/debug/session', optionalAuth, async (req, res) => {
+  try {
+    const cookiePresent = !!req.cookies?.auth_token;
+    const jwtUser = req.userId || null;
+    
+    let treesCount = 0;
+    if (jwtUser) {
+      const userTrees = await db.select().from(trees).where(eq(trees.createdBy, jwtUser));
+      treesCount = userTrees.length;
+    }
+    
+    res.json({
+      cookiePresent,
+      authenticated: !!jwtUser,
+      jwtUserId: jwtUser,
+      treesForUser: treesCount,
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    res.json({ error: error.message });
+  }
+});
+
 app.use('/api/users', apiLimiter);
 app.use('/api/trees', apiLimiter);
 app.use('/api/people', apiLimiter);
