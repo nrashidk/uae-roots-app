@@ -52,6 +52,8 @@ function App() {
   const [smsCode, setSmsCode] = useState('');
   const [smsStep, setSmsStep] = useState('phone');
   const [smsError, setSmsError] = useState('');
+  const [emailError, setEmailError] = useState('');
+  const [passwordError, setPasswordError] = useState('');
   const [currentView, setCurrentView] = useState("auth");
   const [currentTree, setCurrentTree] = useState(null);
   const [people, setPeople] = useState([]);
@@ -696,9 +698,41 @@ function App() {
     }
   };
 
+  // Email validation function
+  const validateEmail = (email) => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(email);
+  };
+
+  // Password validation function
+  const validatePassword = (password) => {
+    return password.length >= 6;
+  };
+
   const handleEmailAuth = async (e) => {
     e.preventDefault();
-    if (!emailInput || !passwordInput) return;
+    setEmailError('');
+    setPasswordError('');
+    
+    // Validate email
+    if (!emailInput.trim()) {
+      setEmailError('يرجى إدخال البريد الإلكتروني');
+      return;
+    }
+    if (!validateEmail(emailInput)) {
+      setEmailError('يرجى إدخال بريد إلكتروني صحيح');
+      return;
+    }
+    
+    // Validate password
+    if (!passwordInput) {
+      setPasswordError('يرجى إدخال كلمة المرور');
+      return;
+    }
+    if (!validatePassword(passwordInput)) {
+      setPasswordError('يجب أن تكون كلمة المرور 6 أحرف على الأقل');
+      return;
+    }
     
     try {
       interactiveLoginInProgressRef.current = true;
@@ -898,15 +932,26 @@ function App() {
     );
   };
 
+  // UAE phone validation function
+  const validateUAEPhone = (phone) => {
+    // UAE mobile numbers: 50, 52, 54, 55, 56, 58 (9 digits without country code)
+    const uaePhoneRegex = /^(50|52|54|55|56|58)\d{7}$/;
+    return uaePhoneRegex.test(phone);
+  };
+
   const handleSendSmsCode = async () => {
+    setSmsError('');
     if (!phoneInput) {
-      setSmsError('الرجاء إدخال رقم الهاتف');
+      setSmsError('يرجى إدخال رقم الهاتف');
+      return;
+    }
+    if (!validateUAEPhone(phoneInput)) {
+      setSmsError('يرجى إدخال رقم هاتف إماراتي صحيح (يبدأ بـ 50، 52، 54، 55، 56، أو 58)');
       return;
     }
     
     try {
       setAuthProcessing(true);
-      setSmsError('');
       
       const response = await fetch('/api/sms/send-code', {
         method: 'POST',
@@ -1002,7 +1047,7 @@ function App() {
   };
 
   // Add person using the data transformation utility
-  const addPerson = (personData) => {
+  const addPerson = async (personData) => {
     // Enforce living spouse limit when adding a spouse
     if (relationshipType === "spouse" && selectedPerson) {
       const spouseRels = relationships.filter(
@@ -1030,70 +1075,148 @@ function App() {
       }
     }
 
-    const result = addPersonWithRelationship(
-      people,
-      relationships,
-      personData,
-      relationshipType,
-      selectedPerson,
-      currentTree?.id,
-    );
+    try {
+      // First add to backend API
+      const newPerson = await api.people.create({
+        treeId: currentTree?.id,
+        firstName: personData.firstName,
+        lastName: personData.lastName,
+        gender: personData.gender,
+        birthDate: personData.birthDate,
+        birthPlace: personData.birthPlace,
+        deathDate: personData.deathDate,
+        isLiving: personData.isLiving,
+        phone: personData.phone,
+        email: personData.email,
+        address: personData.address,
+        profession: personData.profession,
+        company: personData.company,
+        photoUrl: personData.photoUrl,
+      });
 
-    setPeople(result.updatedPeople);
-    setRelationships(result.updatedRelationships);
-    setShowPersonForm(false);
-    setRelationshipType(null);
-    setEditingPerson(null);
-    // Preserve focused person selection; tooltip/menu will be hidden via sidebar close
-  };
+      // Then update local state with the server-generated ID
+      const personWithServerId = { ...personData, id: newPerson.id, treeId: currentTree?.id };
+      
+      const result = addPersonWithRelationship(
+        people,
+        relationships,
+        personWithServerId,
+        relationshipType,
+        selectedPerson,
+        currentTree?.id,
+      );
 
-  const updatePerson = (personData) => {
-    setPeople((prev) =>
-      prev.map((p) => (p.id === editingPerson ? { ...p, ...personData } : p)),
-    );
+      // Create relationships in backend if needed
+      if (result.updatedRelationships.length > relationships.length) {
+        const newRelationships = result.updatedRelationships.filter(
+          (rel) => !relationships.find((r) => r.id === rel.id)
+        );
+        for (const rel of newRelationships) {
+          try {
+            await api.relationships.create({
+              treeId: currentTree?.id,
+              type: rel.type,
+              person1Id: rel.person1Id,
+              person2Id: rel.person2Id,
+              childId: rel.childId,
+              parentId: rel.parentId,
+            });
+          } catch (relErr) {
+            console.error('Failed to create relationship:', relErr);
+          }
+        }
+      }
 
-    if (pendingSecondParent) {
-      const nextId = pendingSecondParent;
-      setPendingSecondParent(null);
-      // Switch to editing the second parent (mother)
-      setEditingPerson(nextId);
-      setSelectedPerson(nextId);
-      setFormKey((prev) => prev + 1);
-      setShowPersonForm(true);
-    } else if (pendingSiblingId) {
-      const nextSib = pendingSiblingId;
-      setPendingSiblingId(null);
-      // After parents, edit the newly created sibling
-      setEditingPerson(nextSib);
-      setSelectedPerson(nextSib);
-      setFormKey((prev) => prev + 1);
-      setShowPersonForm(true);
-    } else {
+      setPeople(result.updatedPeople);
+      setRelationships(result.updatedRelationships);
       setShowPersonForm(false);
+      setRelationshipType(null);
       setEditingPerson(null);
+    } catch (error) {
+      console.error('Failed to add person:', error);
+      alert('فشل في إضافة الشخص: ' + error.message);
     }
   };
 
-  const deletePerson = (personId) => {
-    if (window.confirm(t.deleteConfirm)) {
-      setPeople((prev) => {
-        const updated = prev.filter((p) => p.id !== personId);
-        if (updated.filter((p) => p.treeId === currentTree?.id).length === 0) {
-          setCurrentView("dashboard");
-        }
-        return updated;
+  const updatePerson = async (personData) => {
+    try {
+      // Update in backend API
+      await api.people.update(editingPerson, {
+        firstName: personData.firstName,
+        lastName: personData.lastName,
+        gender: personData.gender,
+        birthDate: personData.birthDate,
+        birthPlace: personData.birthPlace,
+        deathDate: personData.deathDate,
+        isLiving: personData.isLiving,
+        phone: personData.phone,
+        email: personData.email,
+        address: personData.address,
+        profession: personData.profession,
+        company: personData.company,
+        photoUrl: personData.photoUrl,
       });
-      setRelationships((prev) =>
-        prev.filter(
-          (r) =>
-            r.person1Id !== personId &&
-            r.person2Id !== personId &&
-            r.parentId !== personId &&
-            r.childId !== personId,
-        ),
+
+      // Update local state
+      setPeople((prev) =>
+        prev.map((p) => (p.id === editingPerson ? { ...p, ...personData } : p)),
       );
-      setSelectedPerson(null);
-      setShowActionMenu(false);
+
+      if (pendingSecondParent) {
+        const nextId = pendingSecondParent;
+        setPendingSecondParent(null);
+        // Switch to editing the second parent (mother)
+        setEditingPerson(nextId);
+        setSelectedPerson(nextId);
+        setFormKey((prev) => prev + 1);
+        setShowPersonForm(true);
+      } else if (pendingSiblingId) {
+        const nextSib = pendingSiblingId;
+        setPendingSiblingId(null);
+        // After parents, edit the newly created sibling
+        setEditingPerson(nextSib);
+        setSelectedPerson(nextSib);
+        setFormKey((prev) => prev + 1);
+        setShowPersonForm(true);
+      } else {
+        setShowPersonForm(false);
+        setEditingPerson(null);
+      }
+    } catch (error) {
+      console.error('Failed to update person:', error);
+      alert('فشل في تحديث البيانات: ' + error.message);
+    }
+  };
+
+  const deletePerson = async (personId) => {
+    if (window.confirm(t.deleteConfirm)) {
+      try {
+        // Delete from backend API
+        await api.people.delete(personId);
+
+        // Update local state
+        setPeople((prev) => {
+          const updated = prev.filter((p) => p.id !== personId);
+          if (updated.filter((p) => p.treeId === currentTree?.id).length === 0) {
+            setCurrentView("dashboard");
+          }
+          return updated;
+        });
+        setRelationships((prev) =>
+          prev.filter(
+            (r) =>
+              r.person1Id !== personId &&
+              r.person2Id !== personId &&
+              r.parentId !== personId &&
+              r.childId !== personId,
+          ),
+        );
+        setSelectedPerson(null);
+        setShowActionMenu(false);
+      } catch (error) {
+        console.error('Failed to delete person:', error);
+        alert('فشل في حذف الشخص: ' + error.message);
+      }
     }
   };
 
@@ -1611,20 +1734,33 @@ function App() {
               <input
                 type="email"
                 value={emailInput}
-                onChange={(e) => setEmailInput(e.target.value)}
+                onChange={(e) => {
+                  setEmailInput(e.target.value);
+                  setEmailError('');
+                }}
                 placeholder="البريد الإلكتروني"
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent text-right"
+                className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent text-right ${
+                  emailError ? 'border-red-500' : 'border-gray-300'
+                }`}
                 dir="rtl"
                 disabled={authProcessing}
               />
+              {emailError && (
+                <p className="text-red-500 text-sm mt-1 text-right">{emailError}</p>
+              )}
             </div>
             <div className="relative">
               <input
                 type={showPassword ? "text" : "password"}
                 value={passwordInput}
-                onChange={(e) => setPasswordInput(e.target.value)}
-                placeholder="كلمة المرور"
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent text-right pr-12"
+                onChange={(e) => {
+                  setPasswordInput(e.target.value);
+                  setPasswordError('');
+                }}
+                placeholder="كلمة المرور (6 أحرف على الأقل)"
+                className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent text-right pr-12 ${
+                  passwordError ? 'border-red-500' : 'border-gray-300'
+                }`}
                 dir="rtl"
                 disabled={authProcessing}
               />
@@ -1635,6 +1771,9 @@ function App() {
               >
                 {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
               </button>
+              {passwordError && (
+                <p className="text-red-500 text-sm mt-1 text-right">{passwordError}</p>
+              )}
             </div>
             <Button
               type="submit"
@@ -2651,6 +2790,8 @@ function PersonForm({
     company: person?.company || "",
   });
 
+  const [errors, setErrors] = useState({});
+
   // Reset form when person prop changes
   useEffect(() => {
     setFormData({
@@ -2669,12 +2810,78 @@ function PersonForm({
     });
   }, [person]);
 
+  // Validation functions
+  const validateEmail = (email) => {
+    if (!email) return true; // Email is optional
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(email);
+  };
+
+  const validatePhone = (phone) => {
+    if (!phone) return true; // Phone is optional
+    const phoneRegex = /^[+]?[0-9]{10,15}$/;
+    return phoneRegex.test(phone.replace(/[\s()-]/g, ''));
+  };
+
+  const validateDate = (date) => {
+    if (!date) return true;
+    const dateObj = new Date(date);
+    const today = new Date();
+    return dateObj <= today;
+  };
+
   const handleSubmit = (e) => {
     e.preventDefault();
+    const newErrors = {};
+
+    // Required field validation
     if (!formData.firstName.trim()) {
-      alert("يرجى إدخال الاسم الأول");
+      newErrors.firstName = "الاسم الأول مطلوب";
+    }
+
+    if (!formData.gender) {
+      newErrors.gender = "الجنس مطلوب";
+    }
+
+    if (!formData.birthDate) {
+      newErrors.birthDate = "تاريخ الميلاد مطلوب";
+    }
+
+    // Email validation
+    if (formData.email && !validateEmail(formData.email)) {
+      newErrors.email = "البريد الإلكتروني غير صحيح";
+    }
+
+    // Phone validation
+    if (formData.phone && !validatePhone(formData.phone)) {
+      newErrors.phone = "رقم الهاتف غير صحيح";
+    }
+
+    // Birth date validation
+    if (formData.birthDate && !validateDate(formData.birthDate)) {
+      newErrors.birthDate = "تاريخ الميلاد لا يمكن أن يكون في المستقبل";
+    }
+
+    // Death date validation
+    if (!formData.isLiving && formData.deathDate) {
+      if (!validateDate(formData.deathDate)) {
+        newErrors.deathDate = "تاريخ الوفاة لا يمكن أن يكون في المستقبل";
+      }
+      if (formData.birthDate && formData.deathDate) {
+        const birthDate = new Date(formData.birthDate);
+        const deathDate = new Date(formData.deathDate);
+        if (deathDate < birthDate) {
+          newErrors.deathDate = "تاريخ الوفاة لا يمكن أن يكون قبل تاريخ الميلاد";
+        }
+      }
+    }
+
+    if (Object.keys(newErrors).length > 0) {
+      setErrors(newErrors);
       return;
     }
+
+    setErrors({});
     onSave(formData);
   };
 
@@ -2682,16 +2889,24 @@ function PersonForm({
     <form onSubmit={handleSubmit} className="space-y-3">
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <label className="block text-sm font-bold mb-1">{t.firstName}</label>
+          <label className="block text-sm font-bold mb-1">
+            {t.firstName} <span className="text-red-500">*</span>
+          </label>
           <input
             type="text"
             value={formData.firstName}
-            onChange={(e) =>
-              setFormData((prev) => ({ ...prev, firstName: e.target.value }))
-            }
-            className="w-full px-3 py-2 border rounded-md"
+            onChange={(e) => {
+              setFormData((prev) => ({ ...prev, firstName: e.target.value }));
+              setErrors((prev) => ({ ...prev, firstName: undefined }));
+            }}
+            className={`w-full px-3 py-2 border rounded-md ${
+              errors.firstName ? 'border-red-500' : ''
+            }`}
             dir="rtl"
           />
+          {errors.firstName && (
+            <p className="text-red-500 text-xs mt-1">{errors.firstName}</p>
+          )}
         </div>
         <div>
           <label className="block text-sm font-bold mb-1">{t.lastName}</label>
@@ -2708,30 +2923,47 @@ function PersonForm({
       </div>
 
       <div>
-        <label className="block text-sm font-bold mb-1">{t.gender}</label>
+        <label className="block text-sm font-bold mb-1">
+          {t.gender} <span className="text-red-500">*</span>
+        </label>
         <select
           value={formData.gender}
-          onChange={(e) =>
-            setFormData((prev) => ({ ...prev, gender: e.target.value }))
-          }
-          className="w-full px-3 py-2 border rounded-md"
+          onChange={(e) => {
+            setFormData((prev) => ({ ...prev, gender: e.target.value }));
+            setErrors((prev) => ({ ...prev, gender: undefined }));
+          }}
+          className={`w-full px-3 py-2 border rounded-md ${
+            errors.gender ? 'border-red-500' : ''
+          }`}
         >
           <option value="">اختر الجنس</option>
           <option value="male">{t.male}</option>
           <option value="female">{t.female}</option>
         </select>
+        {errors.gender && (
+          <p className="text-red-500 text-xs mt-1">{errors.gender}</p>
+        )}
       </div>
 
       <div>
-        <label className="block text-sm font-bold mb-1">{t.birthDate}</label>
+        <label className="block text-sm font-bold mb-1">
+          {t.birthDate} <span className="text-red-500">*</span>
+        </label>
         <input
           type="date"
           value={formData.birthDate}
-          onChange={(e) =>
-            setFormData((prev) => ({ ...prev, birthDate: e.target.value }))
-          }
-          className="w-full px-3 py-2 border rounded-md"
+          onChange={(e) => {
+            setFormData((prev) => ({ ...prev, birthDate: e.target.value }));
+            setErrors((prev) => ({ ...prev, birthDate: undefined }));
+          }}
+          max={new Date().toISOString().split('T')[0]}
+          className={`w-full px-3 py-2 border rounded-md ${
+            errors.birthDate ? 'border-red-500' : ''
+          }`}
         />
+        {errors.birthDate && (
+          <p className="text-red-500 text-xs mt-1">{errors.birthDate}</p>
+        )}
       </div>
 
       <div>
@@ -2768,11 +3000,19 @@ function PersonForm({
           <input
             type="date"
             value={formData.deathDate}
-            onChange={(e) =>
-              setFormData((prev) => ({ ...prev, deathDate: e.target.value }))
-            }
-            className="w-full px-3 py-2 border rounded-md"
+            onChange={(e) => {
+              setFormData((prev) => ({ ...prev, deathDate: e.target.value }));
+              setErrors((prev) => ({ ...prev, deathDate: undefined }));
+            }}
+            max={new Date().toISOString().split('T')[0]}
+            min={formData.birthDate || undefined}
+            className={`w-full px-3 py-2 border rounded-md ${
+              errors.deathDate ? 'border-red-500' : ''
+            }`}
           />
+          {errors.deathDate && (
+            <p className="text-red-500 text-xs mt-1">{errors.deathDate}</p>
+          )}
         </div>
       )}
 
@@ -2782,22 +3022,36 @@ function PersonForm({
           <input
             type="tel"
             value={formData.phone}
-            onChange={(e) =>
-              setFormData((prev) => ({ ...prev, phone: e.target.value }))
-            }
-            className="w-full px-3 py-2 border rounded-md"
+            onChange={(e) => {
+              setFormData((prev) => ({ ...prev, phone: e.target.value }));
+              setErrors((prev) => ({ ...prev, phone: undefined }));
+            }}
+            placeholder="+971501234567"
+            className={`w-full px-3 py-2 border rounded-md ${
+              errors.phone ? 'border-red-500' : ''
+            }`}
           />
+          {errors.phone && (
+            <p className="text-red-500 text-xs mt-1">{errors.phone}</p>
+          )}
         </div>
         <div>
           <label className="block text-sm font-bold mb-1">{t.email}</label>
           <input
             type="email"
             value={formData.email}
-            onChange={(e) =>
-              setFormData((prev) => ({ ...prev, email: e.target.value }))
-            }
-            className="w-full px-3 py-2 border rounded-md"
+            onChange={(e) => {
+              setFormData((prev) => ({ ...prev, email: e.target.value }));
+              setErrors((prev) => ({ ...prev, email: undefined }));
+            }}
+            placeholder="example@email.com"
+            className={`w-full px-3 py-2 border rounded-md ${
+              errors.email ? 'border-red-500' : ''
+            }`}
           />
+          {errors.email && (
+            <p className="text-red-500 text-xs mt-1">{errors.email}</p>
+          )}
         </div>
       </div>
 
