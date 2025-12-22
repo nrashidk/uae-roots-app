@@ -142,7 +142,6 @@ function App() {
     showTelephone: "الهاتف",
     showAddress: "العنوان",
   };
-
   const t = {
     welcome: "مرحباً بكم في جذور الإمارات",
     continueWithGoogle: "التسجيل عبر البريد الإلكتروني",
@@ -755,8 +754,22 @@ function App() {
 
   const handleLogout = async () => {
     try {
-      await logout();
+      // Call backend logout API to clear session cookie
+      try {
+        await api.auth.logout();
+      } catch (apiErr) {
+        console.error('Backend logout error:', apiErr);
+      }
+      
+      // Clear auth token
       clearAuthToken();
+      
+      // Firebase logout (only if user is from Firebase)
+      if (user) {
+        await logout();
+      }
+      
+      // Reset all state
       setCurrentTree(null);
       setPeople([]);
       setRelationships([]);
@@ -767,6 +780,15 @@ function App() {
       setSessionRestoreError(null);
     } catch (err) {
       console.error('Logout failed:', err);
+      // Even if there's an error, still try to reset the UI
+      clearAuthToken();
+      setCurrentTree(null);
+      setPeople([]);
+      setRelationships([]);
+      setUserProfile(null);
+      setCurrentView("auth");
+      restorationAttemptedRef.current = false;
+      setSessionRestoreError(null);
     }
   };
 
