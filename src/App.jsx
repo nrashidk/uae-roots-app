@@ -2155,8 +2155,9 @@ function App() {
               selectedPerson={selectedPerson}
               onPersonClick={(personId) => {
                 setSelectedPerson(personId);
+                setEditingPerson(personId);
+                setShowPersonForm(true);
                 setShowActionMenu(true);
-                // Don't open edit form automatically - let user choose action
               }}
               onBackgroundClick={() => {
                 setShowActionMenu(false);
@@ -2279,6 +2280,21 @@ function App() {
                     }}
                   >
                     <div className="flex gap-1">
+                      <Button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          console.log('[Edit] Clicked, selectedPerson:', selectedPerson);
+                          setEditingPerson(selectedPerson);
+                          setShowPersonForm(true);
+                          setShowActionMenu(false);
+                        }}
+                        size="sm"
+                        variant="ghost"
+                        className="w-8 h-8 p-0"
+                        title="تعديل"
+                      >
+                        <User className="w-4 h-4" />
+                      </Button>
                       <Button
                         onClick={(e) => {
                           e.stopPropagation();
@@ -2466,7 +2482,7 @@ function App() {
         {showPersonForm && (
           <div
             data-person-form
-            className="fixed right-4 top-1/2 transform -translate-y-1/2 bg-white shadow-2xl border rounded-lg z-50"
+            className="fixed right-4 top-1/2 transform -translate-y-1/2 bg-white shadow-2xl border rounded-lg z-50 pointer-events-auto"
             style={{ width: "380px", maxHeight: "min(800px, 85vh)", overflow: "hidden" }}
           >
             <div className="flex flex-col h-full" style={{ maxHeight: "inherit" }}>
