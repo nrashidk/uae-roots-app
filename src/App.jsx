@@ -1098,7 +1098,7 @@ function App() {
     }
 
     try {
-      // First add to backend API
+      // Step 1: Create person in backend API
       const newPerson = await api.people.create({
         treeId: currentTree?.id,
         firstName: personData.firstName,
@@ -1116,44 +1116,117 @@ function App() {
         photoUrl: personData.photoUrl,
       });
 
-      // Then update local state with the server-generated ID
-      const personWithServerId = { ...personData, id: newPerson.id, treeId: currentTree?.id };
-      
-      const result = addPersonWithRelationship(
-        people,
-        relationships,
-        personWithServerId,
-        relationshipType,
-        selectedPerson,
-        currentTree?.id,
-      );
+      console.log('[addPerson] Created person with ID:', newPerson.id, 'RelationType:', relationshipType);
 
-      // Create relationships in backend if needed
-      if (result.updatedRelationships.length > relationships.length) {
-        const newRelationships = result.updatedRelationships.filter(
-          (rel) => !relationships.find((r) => r.id === rel.id)
-        );
-        for (const rel of newRelationships) {
+      // Step 2: Update local people state with server-generated ID
+      const updatedPeople = [...people, { ...newPerson, treeId: currentTree?.id }];
+
+      // Step 3: Create relationships in backend using actual IDs
+      const updatedRelationships = [...relationships];
+      
+      if (relationshipType && selectedPerson) {
+        let relationshipData = {
+          treeId: currentTree?.id,
+          type: relationshipType === 'spouse' ? 'partner' : 
+                relationshipType === 'child' ? 'parent-child' :
+                relationshipType === 'parent' ? 'parent-child' :
+                relationshipType === 'sibling' ? 'parent-child' : relationshipType,
+        };
+
+        if (relationshipType === 'spouse') {
+          // Partner relationship (both directions)
+          relationshipData.person1Id = selectedPerson;
+          relationshipData.person2Id = newPerson.id;
+        } else if (relationshipType === 'child') {
+          // Parent-child relationship (selectedPerson is parent)
+          relationshipData.parentId = selectedPerson;
+          relationshipData.childId = newPerson.id;
+        } else if (relationshipType === 'parent') {
+          // Parent-child relationship (selectedPerson is child, newPerson is parent)
+          relationshipData.parentId = newPerson.id;
+          relationshipData.childId = selectedPerson;
+        } else if (relationshipType === 'sibling') {
+          // For siblings - find ALL parents and link to each
+          const parentRels = relationships.filter(
+            (r) =>
+              r.treeId === currentTree?.id &&
+              r.type === "parent-child" &&
+              r.childId === selectedPerson,
+          );
+          
+          if (parentRels.length > 0) {
+            // Link to ALL parents (both father and mother if they exist)
+            for (const parentRel of parentRels) {
+              const siblingRelData = {
+                treeId: currentTree?.id,
+                type: 'parent-child',
+                parentId: parentRel.parentId,
+                childId: newPerson.id,
+              };
+              
+              try {
+                const createdRel = await api.relationships.create(siblingRelData);
+                updatedRelationships.push(createdRel);
+                console.log('[addPerson] Created sibling relationship to parent:', parentRel.parentId);
+              } catch (relErr) {
+                console.error('[addPerson] Failed to create sibling relationship:', relErr);
+              }
+            }
+          } else {
+            console.warn('[addPerson] No parent found for sibling relationship');
+            alert('تحذير: لا يوجد والدين لهذا الشخص. يرجى إضافة والدين أولاً.');
+          }
+          // Skip the regular relationship creation for siblings (handled above)
+          relationshipData = null;
+        }
+
+        // Create relationship (unless it's a sibling - already handled above)
+        if (relationshipData) {
           try {
-            await api.relationships.create({
-              treeId: currentTree?.id,
-              type: rel.type,
-              person1Id: rel.person1Id,
-              person2Id: rel.person2Id,
-              childId: rel.childId,
-              parentId: rel.parentId,
-            });
+            const createdRel = await api.relationships.create(relationshipData);
+            updatedRelationships.push(createdRel);
+            console.log('[addPerson] Created relationship:', createdRel.type);
           } catch (relErr) {
-            console.error('Failed to create relationship:', relErr);
+            console.error('[addPerson] Failed to create relationship:', relErr);
+            alert('تحذير: تم إضافة الشخص لكن فشل في إنشاء العلاقة. الرجاء المحاولة يدويًا.');
           }
         }
       }
 
-      setPeople(result.updatedPeople);
-      setRelationships(result.updatedRelationships);
+      // Step 4: Update local state with server data
+      setPeople(updatedPeople);
+      setRelationships(updatedRelationships);
+      
+      // Handle both parents flow
+      if (relationshipType === 'parent') {
+        if (pendingSecondParent === 'create_mother') {
+          // Just added father, save ID and prepare for mother
+          setFirstParentId(newPerson.id);
+          console.log('[addPerson] Saved first parent (father) ID:', newPerson.id);
+        } else if (firstParentId) {
+          // Just added mother, now link father and mother as partners
+          console.log('[addPerson] Linking parents as partners:', firstParentId, newPerson.id);
+          try {
+            const partnerRel = await api.relationships.create({
+              treeId: currentTree?.id,
+              type: 'partner',
+              person1Id: firstParentId,
+              person2Id: newPerson.id,
+            });
+            setRelationships(prev => [...prev, partnerRel]);
+            console.log('[addPerson] Parents linked as partners');
+          } catch (err) {
+            console.error('[addPerson] Failed to link parents as partners:', err);
+          }
+          setFirstParentId(null); // Reset after linking
+        }
+      }
+      
       setShowPersonForm(false);
       setRelationshipType(null);
       setEditingPerson(null);
+      
+      console.log('[addPerson] Complete - person added with relationships');
     } catch (error) {
       console.error('Failed to add person:', error);
       alert('فشل في إضافة الشخص: ' + error.message);
@@ -1184,7 +1257,14 @@ function App() {
         prev.map((p) => (p.id === editingPerson ? { ...p, ...personData } : p)),
       );
 
-      if (pendingSecondParent) {
+      if (pendingSecondParent === "create_mother") {
+        // Switch to creating mother after father
+        setPendingSecondParent(null);
+        setEditingPerson(null);
+        setRelationshipType("parent");
+        setFormKey((prev) => prev + 1);
+        setShowPersonForm(true);
+      } else if (pendingSecondParent && pendingSecondParent !== "create_mother") {
         const nextId = pendingSecondParent;
         setPendingSecondParent(null);
         // Switch to editing the second parent (mother)
@@ -1203,6 +1283,7 @@ function App() {
       } else {
         setShowPersonForm(false);
         setEditingPerson(null);
+        setRelationshipType(null);
       }
     } catch (error) {
       console.error('Failed to update person:', error);
@@ -1247,6 +1328,8 @@ function App() {
 
   // Add both parents in one action and open father's form first
   const [pendingSecondParent, setPendingSecondParent] = useState(null);
+  const [firstParentId, setFirstParentId] = useState(null); // Track first parent for linking
+  
   const handleAddBothParents = (childId) => {
     const child = people.find((p) => p.id === childId);
     if (!child) return;
@@ -1267,58 +1350,12 @@ function App() {
       return;
     }
 
-    const childDisplay =
-      child.firstName || child.lastName || `Person ${child.id}`;
-
-    // Create father
-    const fatherData = {
-      firstName: `${t.fatherOf} ${childDisplay}`,
-      lastName: "",
-      gender: "male",
-      isLiving: true,
-    };
-    const resFather = addPersonWithRelationship(
-      people,
-      relationships,
-      fatherData,
-      "parent",
-      childId,
-      currentTree?.id,
-    );
-
-    // Create mother
-    const motherData = {
-      firstName: `${t.motherOf} ${childDisplay}`,
-      lastName: "",
-      gender: "female",
-      isLiving: true,
-    };
-    const resMother = addPersonWithRelationship(
-      resFather.updatedPeople,
-      resFather.updatedRelationships,
-      motherData,
-      "parent",
-      childId,
-      currentTree?.id,
-    );
-
-    // Link parents as partners
-    const partnerRel = {
-      id: Date.now() + 3,
-      type: "partner",
-      person1Id: resFather.newPersonId,
-      person2Id: resMother.newPersonId,
-      treeId: currentTree?.id,
-    };
-
-    setPeople(resMother.updatedPeople);
-    setRelationships([...resMother.updatedRelationships, partnerRel]);
-
-    // Open father's form first, then queue mother
-    setEditingPerson(resFather.newPersonId);
-    setSelectedPerson(resFather.newPersonId);
-    setPendingSecondParent(resMother.newPersonId);
-    setRelationshipType(null);
+    // Set selected person to open parent form
+    setSelectedPerson(childId);
+    setRelationshipType("parent");
+    setEditingPerson(null);
+    setPendingSecondParent("create_mother"); // Signal to create mother after father
+    setFirstParentId(null); // Reset first parent tracker
     setFormKey((prev) => prev + 1);
     setShowPersonForm(true);
   };
@@ -1361,209 +1398,36 @@ function App() {
           ? "male"
           : "";
 
-    const res = addPersonWithRelationship(
-      people,
-      relationships,
-      {
-        firstName: `${t.spouseOf} ${display}`,
-        lastName: "",
-        gender: defaultGender,
-        isLiving: true,
-      },
-      "spouse",
-      personId,
-      currentTree?.id,
-    );
-
-    setPeople(res.updatedPeople);
-    setRelationships(res.updatedRelationships);
-
-    // Open form to edit the new spouse
-    setEditingPerson(res.newPersonId);
+    // Set as new person (no server ID yet)
+    setEditingPerson(null);
+    setSelectedPerson(personId);
+    setRelationshipType("spouse");
     setFormKey((prev) => prev + 1);
     setShowPersonForm(true);
-    setRelationshipType(null);
-    // Keep selected person as original so the action menu stays anchored
   };
 
   const handleQuickCreateChild = (personId) => {
     const selected = people.find((p) => p.id === personId);
     if (!selected) return;
-    const display =
-      selected.firstName || selected.lastName || `Person ${selected.id}`;
 
-    const res = addPersonWithRelationship(
-      people,
-      relationships,
-      {
-        firstName: `${t.childOf} ${display}`,
-        lastName: "",
-        gender: "",
-        isLiving: true,
-      },
-      "child",
-      personId,
-      currentTree?.id,
-    );
-
-    setPeople(res.updatedPeople);
-    setRelationships(res.updatedRelationships);
-
-    // Open form to edit the new child
-    setEditingPerson(res.newPersonId);
+    // Set as new person with relationship type
+    setEditingPerson(null);
+    setSelectedPerson(personId);
+    setRelationshipType("child");
     setFormKey((prev) => prev + 1);
     setShowPersonForm(true);
-    setRelationshipType(null);
   };
 
   const handleQuickCreateSibling = (personId) => {
     const selected = people.find((p) => p.id === personId);
     if (!selected) return;
-    const display =
-      selected.firstName || selected.lastName || `Person ${selected.id}`;
 
-    // Find existing parents of the selected person
-    const parentRels = relationships.filter(
-      (r) =>
-        r.treeId === currentTree?.id &&
-        r.type === "parent-child" &&
-        r.childId === personId,
-    );
-    const parentIds = parentRels.map((r) => r.parentId);
-    const parentPeople = people.filter((p) => parentIds.includes(p.id));
-    const father = parentPeople.find((p) => p?.gender === "male");
-    const mother = parentPeople.find((p) => p?.gender === "female");
-
-    const siblingData = {
-      firstName: `${t.siblingOf} ${display}`,
-      lastName: "",
-      gender: "",
-      isLiving: true,
-    };
-
-    if (!father && !mother) {
-      // No parents yet: auto-create father and mother, then create sibling as their child
-      const fatherData = {
-        firstName: `${t.fatherOf} ${display}`,
-        lastName: "",
-        gender: "male",
-        isLiving: true,
-      };
-      const resFather = addPersonWithRelationship(
-        people,
-        relationships,
-        fatherData,
-        "parent",
-        personId,
-        currentTree?.id,
-      );
-
-      const motherData = {
-        firstName: `${t.motherOf} ${display}`,
-        lastName: "",
-        gender: "female",
-        isLiving: true,
-      };
-      const resMother = addPersonWithRelationship(
-        resFather.updatedPeople,
-        resFather.updatedRelationships,
-        motherData,
-        "parent",
-        personId,
-        currentTree?.id,
-      );
-
-      // Link the parents as partners
-      const partnerRel = {
-        id: Date.now() + 3,
-        type: "partner",
-        person1Id: resFather.newPersonId,
-        person2Id: resMother.newPersonId,
-        treeId: currentTree?.id,
-      };
-
-      const withPartnerRels = [...resMother.updatedRelationships, partnerRel];
-
-      // Create the sibling as a child of the father
-      const resSib = addPersonWithRelationship(
-        resMother.updatedPeople,
-        withPartnerRels,
-        siblingData,
-        "child",
-        resFather.newPersonId,
-        currentTree?.id,
-      );
-
-      // Also add the mother as a parent of the new sibling
-      const motherLink = {
-        id: Date.now() + 10,
-        type: "parent-child",
-        parentId: resMother.newPersonId,
-        childId: resSib.newPersonId,
-        treeId: currentTree?.id,
-      };
-
-      setPeople(resSib.updatedPeople);
-      setRelationships([...resSib.updatedRelationships, motherLink]);
-
-      // Queue edit forms: father -> mother -> sibling
-      setEditingPerson(resFather.newPersonId);
-      setSelectedPerson(resFather.newPersonId);
-      setPendingSecondParent(resMother.newPersonId);
-      setPendingSiblingId(resSib.newPersonId);
-      setRelationshipType(null);
-      setFormKey((prev) => prev + 1);
-      setShowPersonForm(true);
-    } else {
-      // Parents exist: create sibling as child of the existing parent(s)
-      const firstParentId = father?.id || mother?.id || parentIds[0];
-      const resSib = addPersonWithRelationship(
-        people,
-        relationships,
-        siblingData,
-        "child",
-        firstParentId,
-        currentTree?.id,
-      );
-
-      let updatedRels = resSib.updatedRelationships;
-      const sibId = resSib.newPersonId;
-
-      // Attach to the second parent too if present
-      if (father?.id && father.id !== firstParentId) {
-        updatedRels = [
-          ...updatedRels,
-          {
-            id: Date.now() + 11,
-            type: "parent-child",
-            parentId: father.id,
-            childId: sibId,
-            treeId: currentTree?.id,
-          },
-        ];
-      }
-      if (mother?.id && mother.id !== firstParentId) {
-        updatedRels = [
-          ...updatedRels,
-          {
-            id: Date.now() + 12,
-            type: "parent-child",
-            parentId: mother.id,
-            childId: sibId,
-            treeId: currentTree?.id,
-          },
-        ];
-      }
-
-      setPeople(resSib.updatedPeople);
-      setRelationships(updatedRels);
-
-      // Open the sibling form
-      setEditingPerson(sibId);
-      setFormKey((prev) => prev + 1);
-      setShowPersonForm(true);
-      setRelationshipType(null);
-    }
+    // Set as new person with relationship type
+    setEditingPerson(null);
+    setSelectedPerson(personId);
+    setRelationshipType("sibling");
+    setFormKey((prev) => prev + 1);
+    setShowPersonForm(true);
   };
 
   // Get siblings for a person (people who share at least one parent)
