@@ -2155,13 +2155,12 @@ function App() {
               selectedPerson={selectedPerson}
               onPersonClick={(personId) => {
                 setSelectedPerson(personId);
-                setEditingPerson(personId);
-                setRelationshipType(null);
-                setShowPersonForm(true);
                 setShowActionMenu(true);
+                // Don't open edit form automatically - let user choose action
               }}
               onBackgroundClick={() => {
                 setShowActionMenu(false);
+                setSelectedPerson(null);
               }}
               zoom={zoom}
               panOffset={panOffset}
