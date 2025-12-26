@@ -2287,6 +2287,9 @@ function App() {
                               const personToReorder = selectedPerson;
                               setShowActionMenu(false);
                               await handleReorderSibling(personToReorder, "older");
+                              // Deselect and reselect to force tree update
+                              setSelectedPerson(null);
+                              setTimeout(() => setSelectedPerson(personToReorder), 50);
                             }}
                             disabled={!canMoveOlder}
                             size="sm"
@@ -2302,6 +2305,9 @@ function App() {
                               const personToReorder = selectedPerson;
                               setShowActionMenu(false);
                               await handleReorderSibling(personToReorder, "younger");
+                              // Deselect and reselect to force tree update
+                              setSelectedPerson(null);
+                              setTimeout(() => setSelectedPerson(personToReorder), 50);
                             }}
                             disabled={!canMoveYounger}
                             size="sm"
