@@ -1,20 +1,22 @@
-const API_BASE_URL = '/api';
+const API_BASE_URL = "/api";
 
 async function fetchAPI(endpoint, options = {}) {
   try {
     const headers = {
-      'Content-Type': 'application/json',
+      "Content-Type": "application/json",
       ...options.headers,
     };
-    
+
     const response = await fetch(`${API_BASE_URL}${endpoint}`, {
       headers,
-      credentials: 'include',
+      credentials: "include",
       ...options,
     });
 
     if (!response.ok) {
-      const error = await response.json().catch(() => ({ error: 'An error occurred' }));
+      const error = await response
+        .json()
+        .catch(() => ({ error: "An error occurred" }));
       throw new Error(error.error || `HTTP error! status: ${response.status}`);
     }
 
@@ -28,13 +30,15 @@ async function fetchAPI(endpoint, options = {}) {
 async function fetchAPIWithFile(endpoint, formData) {
   try {
     const response = await fetch(`${API_BASE_URL}${endpoint}`, {
-      method: 'POST',
-      credentials: 'include',
+      method: "POST",
+      credentials: "include",
       body: formData,
     });
 
     if (!response.ok) {
-      const error = await response.json().catch(() => ({ error: 'An error occurred' }));
+      const error = await response
+        .json()
+        .catch(() => ({ error: "An error occurred" }));
       throw new Error(error.error || `HTTP error! status: ${response.status}`);
     }
 
@@ -47,118 +51,142 @@ async function fetchAPIWithFile(endpoint, formData) {
 
 export const api = {
   auth: {
-    getToken: (userId, provider, firebaseIdToken, email) => fetchAPI('/auth/token', {
-      method: 'POST',
-      body: JSON.stringify({ userId, provider, firebaseIdToken, email }),
-    }),
-    sendSmsCode: (phoneNumber) => fetchAPI('/sms/send-code', {
-      method: 'POST',
-      body: JSON.stringify({ phoneNumber }),
-    }),
-    verifySmsCode: (phoneNumber, code) => fetchAPI('/sms/verify-code', {
-      method: 'POST',
-      body: JSON.stringify({ phoneNumber, code }),
-    }),
-    logout: () => fetchAPI('/auth/logout', {
-      method: 'POST',
-    }),
-    check: () => fetchAPI('/auth/check'),
+    getToken: (userId, provider, firebaseIdToken, email) =>
+      fetchAPI("/auth/token", {
+        method: "POST",
+        body: JSON.stringify({ userId, provider, firebaseIdToken, email }),
+      }),
+    sendSmsCode: (phoneNumber) =>
+      fetchAPI("/sms/send-code", {
+        method: "POST",
+        body: JSON.stringify({ phoneNumber }),
+      }),
+    verifySmsCode: (phoneNumber, code) =>
+      fetchAPI("/sms/verify-code", {
+        method: "POST",
+        body: JSON.stringify({ phoneNumber, code }),
+      }),
+    logout: () =>
+      fetchAPI("/auth/logout", {
+        method: "POST",
+      }),
+    check: () => fetchAPI("/auth/check"),
   },
 
   users: {
-    createOrUpdate: (data) => fetchAPI('/users', {
-      method: 'POST',
-      body: JSON.stringify(data),
-    }),
+    createOrUpdate: (data) =>
+      fetchAPI("/users", {
+        method: "POST",
+        body: JSON.stringify(data),
+      }),
     get: (id) => fetchAPI(`/users/${encodeURIComponent(id)}`),
-    update: (id, data) => fetchAPI(`/users/${encodeURIComponent(id)}`, {
-      method: 'PUT',
-      body: JSON.stringify(data),
-    }),
-    delete: (id) => fetchAPI(`/users/${encodeURIComponent(id)}`, {
-      method: 'DELETE',
-    }),
+    update: (id, data) =>
+      fetchAPI(`/users/${encodeURIComponent(id)}`, {
+        method: "PUT",
+        body: JSON.stringify(data),
+      }),
+    delete: (id) =>
+      fetchAPI(`/users/${encodeURIComponent(id)}`, {
+        method: "DELETE",
+      }),
   },
 
   trees: {
-    getAll: (userId) => fetchAPI(userId ? `/trees?userId=${encodeURIComponent(userId)}` : '/trees'),
-    create: (data) => fetchAPI('/trees', {
-      method: 'POST',
-      body: JSON.stringify(data),
-    }),
-    delete: (id) => fetchAPI(`/trees/${id}`, {
-      method: 'DELETE',
-    }),
+    getAll: (userId) =>
+      fetchAPI(
+        userId ? `/trees?userId=${encodeURIComponent(userId)}` : "/trees",
+      ),
+    create: (data) =>
+      fetchAPI("/trees", {
+        method: "POST",
+        body: JSON.stringify(data),
+      }),
+    delete: (id) =>
+      fetchAPI(`/trees/${id}`, {
+        method: "DELETE",
+      }),
   },
 
   people: {
     getAll: (treeId) => fetchAPI(`/people?treeId=${treeId}`),
-    search: (treeId, query) => fetchAPI(`/people/search?treeId=${treeId}&query=${encodeURIComponent(query)}`),
-    create: (data) => fetchAPI('/people', {
-      method: 'POST',
-      body: JSON.stringify(data),
-    }),
-    update: (id, data) => fetchAPI(`/people/${id}`, {
-      method: 'PUT',
-      body: JSON.stringify(data),
-    }),
-    delete: (id) => fetchAPI(`/people/${id}`, {
-      method: 'DELETE',
-    }),
-    updateBirthOrder: (id, birthOrder) => fetchAPI(`/people/${id}/birthOrder`, {
-      method: 'PATCH',
-      body: JSON.stringify({ birthOrder }),
-    }),
+    search: (treeId, query) =>
+      fetchAPI(
+        `/people/search?treeId=${treeId}&query=${encodeURIComponent(query)}`,
+      ),
+    create: (data) =>
+      fetchAPI("/people", {
+        method: "POST",
+        body: JSON.stringify(data),
+      }),
+    update: (id, data) =>
+      fetchAPI(`/people/${id}`, {
+        method: "PUT",
+        body: JSON.stringify(data),
+      }),
+    delete: (id) =>
+      fetchAPI(`/people/${id}`, {
+        method: "DELETE",
+      }),
+    updateBirthOrder: (id, birthOrder) =>
+      fetchAPI(`/people/${id}/birthOrder`, {
+        method: "PATCH",
+        body: JSON.stringify({ birthOrder }),
+      }),
   },
 
   relationships: {
     getAll: (treeId) => fetchAPI(`/relationships?treeId=${treeId}`),
-    create: (data) => fetchAPI('/relationships', {
-      method: 'POST',
-      body: JSON.stringify(data),
-    }),
-    delete: (id) => fetchAPI(`/relationships/${id}`, {
-      method: 'DELETE',
-    }),
+    create: (data) =>
+      fetchAPI("/relationships", {
+        method: "POST",
+        body: JSON.stringify(data),
+      }),
+    delete: (id) =>
+      fetchAPI(`/relationships/${id}`, {
+        method: "DELETE",
+      }),
   },
 
   upload: {
     photo: (file) => {
       const formData = new FormData();
-      formData.append('photo', file);
-      return fetchAPIWithFile('/upload/photo', formData);
+      formData.append("photo", file);
+      return fetchAPIWithFile("/upload/photo", formData);
     },
   },
 
   history: {
     get: (treeId) => fetchAPI(`/history/${treeId}`),
-    undo: (historyId) => fetchAPI(`/history/undo/${historyId}`, {
-      method: 'POST',
-    }),
+    undo: (historyId) =>
+      fetchAPI(`/history/undo/${historyId}`, {
+        method: "POST",
+      }),
   },
 
   export: {
-    tree: (treeId, format = 'json') => {
+    tree: (treeId, format = "json") => {
       const url = `${API_BASE_URL}/export/${treeId}?format=${format}`;
-      
-      if (format === 'json') {
+
+      if (format === "json") {
         return fetchAPI(`/export/${treeId}?format=${format}`);
       }
-      
+
       return fetch(url, {
-        credentials: 'include',
-      }).then(res => {
-        if (!res.ok) throw new Error('Export failed');
-        return res.blob();
-      }).then(blob => {
-        const extension = format === 'gedcom' ? 'ged' : format;
-        const link = document.createElement('a');
-        link.href = URL.createObjectURL(blob);
-        link.download = `family-tree.${extension}`;
-        link.click();
-        URL.revokeObjectURL(link.href);
-        return { success: true };
-      });
+        credentials: "include",
+      })
+        .then((res) => {
+          if (!res.ok) throw new Error("Export failed");
+          return res.blob();
+        })
+        .then((blob) => {
+          const extension = format === "gedcom" ? "ged" : format;
+          const link = document.createElement("a");
+          link.href = URL.createObjectURL(blob);
+          link.download = `family-tree.${extension}`;
+          link.click();
+          URL.revokeObjectURL(link.href);
+          return { success: true };
+        });
     },
   },
 };
@@ -166,7 +194,7 @@ export const api = {
 // Store only resolvedUserId in memory (JWT stays in httpOnly cookie for security)
 let authState = {
   resolvedUserId: null,
-  timestamp: null
+  timestamp: null,
 };
 
 export function setAuthToken(token, userId) {
@@ -174,13 +202,13 @@ export function setAuthToken(token, userId) {
   if (userId) {
     authState = {
       resolvedUserId: userId,
-      timestamp: Date.now()
+      timestamp: Date.now(),
     };
     // Store resolvedUserId in sessionStorage for page reload persistence
     try {
-      sessionStorage.setItem('resolved_user_id', userId);
+      sessionStorage.setItem("resolved_user_id", userId);
     } catch (e) {
-      console.error('Failed to store user id:', e);
+      console.error("Failed to store user id:", e);
     }
   }
 }
@@ -190,32 +218,32 @@ export function getAuthToken() {
   if (authState.resolvedUserId) {
     return authState;
   }
-  
+
   // Try sessionStorage for resolvedUserId only
   try {
-    const storedUserId = sessionStorage.getItem('resolved_user_id');
+    const storedUserId = sessionStorage.getItem("resolved_user_id");
     if (storedUserId) {
       authState = {
         resolvedUserId: storedUserId,
-        timestamp: Date.now()
+        timestamp: Date.now(),
       };
       return authState;
     }
   } catch (e) {
-    console.error('Failed to retrieve user id:', e);
+    console.error("Failed to retrieve user id:", e);
   }
-  
+
   return null;
 }
 
 export function clearAuthToken() {
   authState = {
     resolvedUserId: null,
-    timestamp: null
+    timestamp: null,
   };
   try {
-    sessionStorage.removeItem('resolved_user_id');
+    sessionStorage.removeItem("resolved_user_id");
   } catch (e) {
-    console.error('Failed to clear user id:', e);
+    console.error("Failed to clear user id:", e);
   }
 }
