@@ -1066,33 +1066,6 @@ function App() {
 
   // Add person using the data transformation utility
   const addPerson = async (personData) => {
-    // Enforce living spouse limit when adding a spouse
-    if (relationshipType === "spouse" && selectedPerson) {
-      const spouseRels = relationships.filter(
-        (r) =>
-          r.treeId === currentTree?.id &&
-          r.type === "partner" &&
-          (r.person1Id === selectedPerson || r.person2Id === selectedPerson),
-      );
-      const spouseIds = spouseRels.map((rel) =>
-        rel.person1Id === selectedPerson ? rel.person2Id : rel.person1Id,
-      );
-      const livingSpousesCount = spouseIds.reduce((count, sid) => {
-        const sp = people.find((p) => p.id === sid);
-        return sp && sp.isLiving !== false ? count + 1 : count;
-      }, 0);
-      const selected = people.find((p) => p.id === selectedPerson);
-      const spouseLimit = selected?.gender === "male" ? 4 : 1;
-      const limitMessage =
-        spouseLimit === 1
-          ? "Maximum of 1 spouse allowed"
-          : "Maximum of 4 living spouses allowed";
-      if (livingSpousesCount >= spouseLimit && personData.isLiving !== false) {
-        window.alert(limitMessage);
-        return;
-      }
-    }
-
     try {
       // Step 1: Create person in backend API
       const newPerson = await api.people.create({
@@ -1361,40 +1334,7 @@ function App() {
     const selected = people.find((p) => p.id === personId);
     if (!selected) return;
 
-    // Enforce living spouse limit per gender
-    const spouseRels = relationships.filter(
-      (r) =>
-        r.treeId === currentTree?.id &&
-        r.type === "partner" &&
-        (r.person1Id === personId || r.person2Id === personId),
-    );
-    const spouseIds = spouseRels.map((rel) =>
-      rel.person1Id === personId ? rel.person2Id : rel.person1Id,
-    );
-    const livingSpousesCount = spouseIds.reduce((count, sid) => {
-      const sp = people.find((pp) => pp.id === sid);
-      return sp && sp.isLiving !== false ? count + 1 : count;
-    }, 0);
-    const spouseLimit = selected.gender === "male" ? 4 : 1;
-    const limitMessage =
-      spouseLimit === 1
-        ? "Maximum of 1 spouse allowed"
-        : "Maximum of 4 living spouses allowed";
-    if (livingSpousesCount >= spouseLimit) {
-      window.alert(limitMessage);
-      return;
-    }
-
-    const display =
-      selected.firstName || selected.lastName || `Person ${selected.id}`;
-    const defaultGender =
-      selected.gender === "male"
-        ? "female"
-        : selected.gender === "female"
-          ? "male"
-          : "";
-
-    // Set as new person (no server ID yet)
+    // Open form to add spouse (will be created on save)
     setEditingPerson(null);
     setSelectedPerson(personId);
     setRelationshipType("spouse");
@@ -1406,7 +1346,7 @@ function App() {
     const selected = people.find((p) => p.id === personId);
     if (!selected) return;
 
-    // Set as new person with relationship type
+    // Open form to add child (will be created on save)
     setEditingPerson(null);
     setSelectedPerson(personId);
     setRelationshipType("child");
@@ -1418,7 +1358,7 @@ function App() {
     const selected = people.find((p) => p.id === personId);
     if (!selected) return;
 
-    // Set as new person with relationship type
+    // Open form to add sibling (will be created on save)
     setEditingPerson(null);
     setSelectedPerson(personId);
     setRelationshipType("sibling");
@@ -2501,6 +2441,11 @@ function App() {
                       ? treePeople.find((p) => p.id === editingPerson)
                       : null
                   }
+                  selectedPerson={
+                    selectedPerson
+                      ? treePeople.find((p) => p.id === selectedPerson)
+                      : null
+                  }
                   onSave={editingPerson ? updatePerson : addPerson}
                   onCancel={() => {
                     setShowPersonForm(false);
@@ -2659,16 +2604,38 @@ function App() {
 
 function PersonForm({
   person,
+  selectedPerson,
   onSave,
   onCancel,
   relationshipType,
   t,
   defaultGender,
 }) {
+  // Calculate default firstName based on relationship type
+  const getDefaultFirstName = () => {
+    if (person?.firstName) return person.firstName; // If editing, use existing name
+    if (!relationshipType || !selectedPerson) return "";
+    
+    const display = selectedPerson.firstName || selectedPerson.lastName || `Person ${selectedPerson.id}`;
+    
+    switch (relationshipType) {
+      case "spouse":
+        return `${t.spouseOf} ${display}`;
+      case "child":
+        return `${t.childOf} ${display}`;
+      case "parent":
+        return `${t.fatherOf} ${display}`; // Will show father by default
+      case "sibling":
+        return `${t.siblingOf} ${display}`;
+      default:
+        return "";
+    }
+  };
+
   const [formData, setFormData] = useState({
-    firstName: person?.firstName || "",
+    firstName: getDefaultFirstName(),
     lastName: person?.lastName || "",
-    gender: person?.gender || defaultGender || "",
+    gender: person?.gender || defaultGender || "male",
     birthDate: person?.birthDate || "",
     birthPlace: person?.birthPlace || "",
     isLiving: person?.isLiving !== false,
@@ -2682,12 +2649,32 @@ function PersonForm({
 
   const [errors, setErrors] = useState({});
 
-  // Reset form when person prop changes
+  // Reset form when person or relationshipType changes
   useEffect(() => {
+    const getDefaultFirstName = () => {
+      if (person?.firstName) return person.firstName;
+      if (!relationshipType || !selectedPerson) return "";
+      
+      const display = selectedPerson.firstName || selectedPerson.lastName || `Person ${selectedPerson.id}`;
+      
+      switch (relationshipType) {
+        case "spouse":
+          return `${t.spouseOf} ${display}`;
+        case "child":
+          return `${t.childOf} ${display}`;
+        case "parent":
+          return `${t.fatherOf} ${display}`;
+        case "sibling":
+          return `${t.siblingOf} ${display}`;
+        default:
+          return "";
+      }
+    };
+
     setFormData({
-      firstName: person?.firstName || "",
+      firstName: getDefaultFirstName(),
       lastName: person?.lastName || "",
-      gender: person?.gender || defaultGender || "",
+      gender: person?.gender || defaultGender || "male",
       birthDate: person?.birthDate || "",
       birthPlace: person?.birthPlace || "",
       isLiving: person?.isLiving !== false,
@@ -2698,7 +2685,7 @@ function PersonForm({
       profession: person?.profession || "",
       company: person?.company || "",
     });
-  }, [person]);
+  }, [person, relationshipType, selectedPerson, defaultGender, t]);
 
   // Validation functions
   const validateEmail = (email) => {
@@ -2724,19 +2711,6 @@ function PersonForm({
     e.preventDefault();
     const newErrors = {};
 
-    // Required field validation
-    if (!formData.firstName.trim()) {
-      newErrors.firstName = "الاسم الأول مطلوب";
-    }
-
-    if (!formData.gender) {
-      newErrors.gender = "الجنس مطلوب";
-    }
-
-    // if (!formData.birthDate) {
-    //   newErrors.birthDate = "تاريخ الميلاد مطلوب";
-    // }
-
     // Email validation
     if (formData.email && !validateEmail(formData.email)) {
       newErrors.email = "البريد الإلكتروني غير صحيح";
@@ -2746,11 +2720,6 @@ function PersonForm({
     if (formData.phone && !validatePhone(formData.phone)) {
       newErrors.phone = "رقم الهاتف غير صحيح";
     }
-
-    // Birth date validation
-    // if (formData.birthDate && !validateDate(formData.birthDate)) {
-    //   newErrors.birthDate = "تاريخ الميلاد لا يمكن أن يكون في المستقبل";
-    // }
 
     // Death date validation
     if (!formData.isLiving && formData.deathDate) {
@@ -2780,7 +2749,7 @@ function PersonForm({
       <div className="grid grid-cols-2 gap-3">
         <div>
           <label className="block text-sm font-bold mb-1">
-            {t.firstName} <span className="text-red-500">*</span>
+            {t.firstName}
           </label>
           <input
             type="text"
@@ -2814,7 +2783,7 @@ function PersonForm({
 
       <div>
         <label className="block text-sm font-bold mb-1">
-          {t.gender} <span className="text-red-500">*</span>
+          {t.gender}
         </label>
         <select
           value={formData.gender}
