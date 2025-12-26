@@ -1188,16 +1188,60 @@ function App() {
           if (relationshipType === "spouse") {
             relData.person1Id = selectedPerson;
             relData.person2Id = newPerson.id;
+            const newRel = await api.relationships.create(relData);
+            setRelationships((prev) => [...prev, newRel]);
           } else if (relationshipType === "child") {
-            relData.parentId = selectedPerson;
-            relData.childId = newPerson.id;
+            // Child should be linked to BOTH parents if they exist
+            const selectedPerson_obj = people.find(
+              (p) => p.id === selectedPerson,
+            );
+
+            // Find all parents of the selected parent
+            const parentRels = relationships.filter(
+              (r) =>
+                r.treeId === currentTree?.id &&
+                r.type === "parent-child" &&
+                r.childId === selectedPerson,
+            );
+
+            // Get all parent IDs (both direct and spouse)
+            let allParentIds = parentRels.map((r) => r.parentId);
+
+            // Also add the spouse(s) of the selected person as co-parents
+            const spouseRels = relationships.filter(
+              (r) =>
+                r.treeId === currentTree?.id &&
+                r.type === "partner" &&
+                (r.person1Id === selectedPerson ||
+                  r.person2Id === selectedPerson),
+            );
+            const spouseIds = spouseRels.map((r) =>
+              r.person1Id === selectedPerson ? r.person2Id : r.person1Id,
+            );
+
+            // Combine: parents + spouses
+            allParentIds = [
+              ...new Set([...allParentIds, selectedPerson, ...spouseIds]),
+            ];
+
+            // Create parent-child relationship for each parent
+            const createdRels = await Promise.all(
+              allParentIds.map((parentId) =>
+                api.relationships.create({
+                  treeId: currentTree?.id,
+                  type: "parent-child",
+                  parentId: parentId,
+                  childId: newPerson.id,
+                }),
+              ),
+            );
+            setRelationships((prev) => [...prev, ...createdRels]);
           } else if (relationshipType === "parent") {
             relData.parentId = newPerson.id;
             relData.childId = selectedPerson;
+            const newRel = await api.relationships.create(relData);
+            setRelationships((prev) => [...prev, newRel]);
           }
-
-          const newRel = await api.relationships.create(relData);
-          setRelationships((prev) => [...prev, newRel]);
         }
       }
 
@@ -1488,7 +1532,7 @@ function App() {
   };
 
   // Reorder sibling: swap birthOrder with adjacent sibling
-  // direction: 'older' (أكبر - move right) or 'younger' (أصغر - move left)
+  // direction: 'older' (أكبر - move left) or 'younger' (أصغر - move right)
   const handleReorderSibling = async (personId, direction) => {
     const person = people.find((p) => p.id === personId);
     if (!person) return;
@@ -1507,14 +1551,13 @@ function App() {
     if (currentIndex === -1) return;
 
     // Determine swap target index
-    // In Arabic RTL: older = right = lower index, younger = left = higher index
-    // So 'older' means swap with the one BEFORE (lower birthOrder)
-    // And 'younger' means swap with the one AFTER (higher birthOrder)
+    // 'older' means move to earlier position in sorted list (lower birthOrder)
+    // 'younger' means move to later position in sorted list (higher birthOrder)
     let targetIndex;
     if (direction === "older") {
-      targetIndex = currentIndex - 1;
+      targetIndex = currentIndex + 1; // Swap with next (younger) sibling
     } else {
-      targetIndex = currentIndex + 1;
+      targetIndex = currentIndex - 1; // Swap with previous (older) sibling
     }
 
     // Check bounds
@@ -2353,8 +2396,10 @@ function App() {
                   const currentIndex = allSiblings.findIndex(
                     (s) => s.id === selectedPerson,
                   );
-                  canMoveOlder = currentIndex > 0;
-                  canMoveYounger = currentIndex < allSiblings.length - 1;
+                  // "older" moves right/down in tree (swap with younger sibling at higher index)
+                  canMoveOlder = currentIndex < allSiblings.length - 1;
+                  // "younger" moves left/up in tree (swap with older sibling at lower index)
+                  canMoveYounger = currentIndex > 0;
                 }
 
                 return (
@@ -2442,6 +2487,12 @@ function App() {
                                 personToReorder,
                                 "older",
                               );
+                              // Deselect and reselect to force tree update
+                              setSelectedPerson(null);
+                              setTimeout(
+                                () => setSelectedPerson(personToReorder),
+                                50,
+                              );
                             }}
                             disabled={!canMoveOlder}
                             size="sm"
@@ -2459,6 +2510,12 @@ function App() {
                               await handleReorderSibling(
                                 personToReorder,
                                 "younger",
+                              );
+                              // Deselect and reselect to force tree update
+                              setSelectedPerson(null);
+                              setTimeout(
+                                () => setSelectedPerson(personToReorder),
+                                50,
                               );
                             }}
                             disabled={!canMoveYounger}
