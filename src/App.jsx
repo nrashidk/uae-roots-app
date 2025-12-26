@@ -1053,27 +1053,62 @@ function App() {
 
       // If there's a relationship, create it
       if (relationshipType && selectedPerson) {
-        const relData = {
-          treeId: currentTree?.id,
-          type: relationshipType === "spouse" ? "partner" : relationshipType === "child" ? "parent-child" : relationshipType === "parent" ? "parent-child" : "sibling",
-        };
+        if (relationshipType === "sibling") {
+          // Prefer linking the new sibling to the same parents (parent-child relations)
+          const parentRels = relationships.filter(
+            (r) =>
+              r.treeId === currentTree?.id &&
+              r.type === "parent-child" &&
+              r.childId === selectedPerson,
+          );
 
-        if (relationshipType === "spouse") {
-          relData.person1Id = selectedPerson;
-          relData.person2Id = newPerson.id;
-        } else if (relationshipType === "child") {
-          relData.parentId = selectedPerson;
-          relData.childId = newPerson.id;
-        } else if (relationshipType === "parent") {
-          relData.parentId = newPerson.id;
-          relData.childId = selectedPerson;
-        } else if (relationshipType === "sibling") {
-          relData.person1Id = selectedPerson;
-          relData.person2Id = newPerson.id;
+          if (parentRels.length > 0) {
+            const createdRels = await Promise.all(
+              parentRels.map((r) =>
+                api.relationships.create({
+                  treeId: currentTree?.id,
+                  type: "parent-child",
+                  parentId: r.parentId,
+                  childId: newPerson.id,
+                }),
+              ),
+            );
+            setRelationships((prev) => [...prev, ...createdRels]);
+          } else {
+            // Fallback: direct sibling relation if no parents exist yet
+            const siblingRel = await api.relationships.create({
+              treeId: currentTree?.id,
+              type: "sibling",
+              person1Id: selectedPerson,
+              person2Id: newPerson.id,
+            });
+            setRelationships((prev) => [...prev, siblingRel]);
+          }
+        } else {
+          const relData = {
+            treeId: currentTree?.id,
+            type:
+              relationshipType === "spouse"
+                ? "partner"
+                : relationshipType === "child"
+                  ? "parent-child"
+                  : /* parent */ "parent-child",
+          };
+
+          if (relationshipType === "spouse") {
+            relData.person1Id = selectedPerson;
+            relData.person2Id = newPerson.id;
+          } else if (relationshipType === "child") {
+            relData.parentId = selectedPerson;
+            relData.childId = newPerson.id;
+          } else if (relationshipType === "parent") {
+            relData.parentId = newPerson.id;
+            relData.childId = selectedPerson;
+          }
+
+          const newRel = await api.relationships.create(relData);
+          setRelationships((prev) => [...prev, newRel]);
         }
-
-        const newRel = await api.relationships.create(relData);
-        setRelationships((prev) => [...prev, newRel]);
       }
 
       // Update local state
@@ -1309,26 +1344,39 @@ function App() {
 
   // Get siblings for a person (people who share at least one parent)
   const getSiblings = (personId) => {
-    // Find all parents of this person
+    // Primary path: siblings via shared parents
     const parentRels = relationships.filter(
       (r) =>
         r.treeId === currentTree?.id &&
         r.type === "parent-child" &&
         r.childId === personId,
     );
+    console.log('[getSiblings] parentRels for personId', personId, ':', parentRels);
     const parentIds = parentRels.map((r) => r.parentId);
-    if (parentIds.length === 0) return [];
+    if (parentIds.length > 0) {
+      console.log('[getSiblings] parentIds for personId', personId, ':', parentIds);
+      const siblingRels = relationships.filter(
+        (r) =>
+          r.treeId === currentTree?.id &&
+          r.type === "parent-child" &&
+          parentIds.includes(r.parentId) &&
+          r.childId !== personId,
+      );
+      const siblingIds = [...new Set(siblingRels.map((r) => r.childId))];
+      return people.filter((p) => siblingIds.includes(p.id));
+    }
 
-    // Find all children of these parents (siblings)
-    const siblingRels = relationships.filter(
+    // Fallback path: direct sibling relationships (when no parents exist yet)
+    const directSiblingRels = relationships.filter(
       (r) =>
         r.treeId === currentTree?.id &&
-        r.type === "parent-child" &&
-        parentIds.includes(r.parentId) &&
-        r.childId !== personId,
+        r.type === "sibling" &&
+        (r.person1Id === personId || r.person2Id === personId),
     );
-    const siblingIds = [...new Set(siblingRels.map((r) => r.childId))];
-    return people.filter((p) => siblingIds.includes(p.id));
+    const directSiblingIds = [...new Set(
+      directSiblingRels.map((r) => (r.person1Id === personId ? r.person2Id : r.person1Id)),
+    )];
+    return people.filter((p) => directSiblingIds.includes(p.id));
   };
 
   // Reorder sibling: swap birthOrder with adjacent sibling
@@ -2100,6 +2148,7 @@ function App() {
 
                 // Check if person has siblings for reorder buttons
                 const siblings = getSiblings(selectedPerson);
+                console.log("Siblings for", selectedPerson, siblings);
                 const hasSiblings = siblings.length > 0;
 
                 // Determine if can move older/younger based on current position
