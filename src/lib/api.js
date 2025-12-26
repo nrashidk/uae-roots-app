@@ -6,7 +6,7 @@ async function fetchAPI(endpoint, options = {}) {
       'Content-Type': 'application/json',
       ...options.headers,
     };
-    
+
     const response = await fetch(`${API_BASE_URL}${endpoint}`, {
       headers,
       credentials: 'include',
@@ -140,11 +140,11 @@ export const api = {
   export: {
     tree: (treeId, format = 'json') => {
       const url = `${API_BASE_URL}/export/${treeId}?format=${format}`;
-      
+
       if (format === 'json') {
         return fetchAPI(`/export/${treeId}?format=${format}`);
       }
-      
+
       return fetch(url, {
         credentials: 'include',
       }).then(res => {
@@ -190,7 +190,7 @@ export function getAuthToken() {
   if (authState.resolvedUserId) {
     return authState;
   }
-  
+
   // Try sessionStorage for resolvedUserId only
   try {
     const storedUserId = sessionStorage.getItem('resolved_user_id');
@@ -204,7 +204,7 @@ export function getAuthToken() {
   } catch (e) {
     console.error('Failed to retrieve user id:', e);
   }
-  
+
   return null;
 }
 

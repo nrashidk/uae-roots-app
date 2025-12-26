@@ -163,8 +163,8 @@ export function convertToAlgorithmFormat(people, relationships, treeId) {
                 person.gender === "male"
                     ? "m"
                     : person.gender === "female"
-                      ? "f"
-                      : "o",
+                        ? "f"
+                        : "o",
 
             // Birth date (convert to YYYYMMDD format if available)
             b: person.birthDate
@@ -194,8 +194,8 @@ export function convertToAlgorithmFormat(people, relationships, treeId) {
             pc:
                 spouses.length > 0
                     ? Object.fromEntries(
-                          spouses.map((sid) => [`P${sid}`, true]),
-                      )
+                        spouses.map((sid) => [`P${sid}`, true]),
+                    )
                     : {},
 
             // Flag properties (from data-large.js)
@@ -220,8 +220,8 @@ export function convertToAlgorithmFormat(people, relationships, treeId) {
             ai: person.id,
 
             // Order field for custom ordering (used by layout algorithm for sibling ordering)
-            O: person.birthOrder !== undefined && person.birthOrder !== null 
-                ? person.birthOrder 
+            O: person.birthOrder !== undefined && person.birthOrder !== null
+                ? person.birthOrder
                 : undefined,
 
             // Partner count - MUST be present (0 if no partners)

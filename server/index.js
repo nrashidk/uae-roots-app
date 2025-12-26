@@ -16,8 +16,6 @@ import { users, trees, people, relationships, auditLogs, editHistory, authIdenti
 import { eq, and, or, ilike, desc, lt } from 'drizzle-orm';
 import { z } from 'zod';
 import fs from 'fs';
-import 'dotenv/config';
-
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -35,8 +33,6 @@ if (!JWT_SECRET) {
   console.error('CRITICAL: JWT_SECRET environment variable is required');
   process.exit(1);
 }
-
-console.log(`Running in ${process.env.NODE_ENV || 'development'} mode`);
 
 const isProduction = process.env.NODE_ENV === 'production';
 

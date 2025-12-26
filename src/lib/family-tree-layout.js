@@ -1313,13 +1313,13 @@ var FamilyTreeLayoutModule;
                         if (ac.length) {
                             cx = sr
                                 ? Math.max(
-                                      g,
-                                      d.r + (ds.tw - ds.fl - ds.lr) / 2 + 0.5,
-                                  )
+                                    g,
+                                    d.r + (ds.tw - ds.fl - ds.lr) / 2 + 0.5,
+                                )
                                 : Math.min(
-                                      -g,
-                                      d.l - (ds.tw + ds.lr + ds.fl) / 2 - 0.5,
-                                  );
+                                    -g,
+                                    d.l - (ds.tw + ds.lr + ds.fl) / 2 - 0.5,
+                                );
                             cx = sr ? cx - 0.5 : cx + 0.5;
                         } else {
                             cx = sr ? sx - g / 2 : sx + g / 2;
