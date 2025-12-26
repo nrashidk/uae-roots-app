@@ -61,6 +61,8 @@ function App() {
   const [editingPerson, setEditingPerson] = useState(null);
   const [relationshipType, setRelationshipType] = useState(null);
   const [formKey, setFormKey] = useState(0); // Key to force form remount
+  const [pendingFatherId, setPendingFatherId] = useState(null);
+  const [pendingMotherId, setPendingMotherId] = useState(null);
   const [zoom, setZoom] = useState(1);
   const [panOffset, setPanOffset] = useState({ x: 0, y: 0 });
   const [isDragging, setIsDragging] = useState(false);
@@ -1076,6 +1078,64 @@ function App() {
 
       // Update local state
       setPeople((prev) => [...prev, newPerson]);
+
+      // Special handling for parent relationship - auto-add second parent
+      if (relationshipType === "parent" && selectedPerson) {
+        // Check if both parents exist now
+        const childId = selectedPerson;
+        const parentRels = relationships.filter(
+          (r) =>
+            r.treeId === currentTree?.id &&
+            r.type === "parent-child" &&
+            r.childId === childId,
+        );
+        // Include the newly created relationship
+        const allParentRels = [...parentRels, { parentId: newPerson.id }];
+        const allParentIds = allParentRels.map((r) => r.parentId);
+        const allParents = people.filter((p) => allParentIds.includes(p.id)).concat([newPerson]);
+        
+        const hasFather = allParents.some((p) => p?.gender === "male");
+        const hasMother = allParents.some((p) => p?.gender === "female");
+
+        if (hasFather && !hasMother) {
+          // Father added, now add mother
+          // Create partner relationship between father and the mother we're about to add
+          setPendingFatherId(newPerson.id);
+          setRelationshipType("parent");
+          setFormKey((prev) => prev + 1);
+          setShowPersonForm(true);
+          return;
+        } else if (hasMother && !hasFather) {
+          // Mother added, now add father
+          setPendingMotherId(newPerson.id);
+          setRelationshipType("parent");
+          setFormKey((prev) => prev + 1);
+          setShowPersonForm(true);
+          return;
+        }
+        
+        // If we have pending father/mother, create the partner relationship
+        if (pendingFatherId) {
+          const partnerRel = await api.relationships.create({
+            treeId: currentTree?.id,
+            type: "partner",
+            person1Id: pendingFatherId,
+            person2Id: newPerson.id,
+          });
+          setRelationships((prev) => [...prev, partnerRel]);
+          setPendingFatherId(null);
+        } else if (pendingMotherId) {
+          const partnerRel = await api.relationships.create({
+            treeId: currentTree?.id,
+            type: "partner",
+            person1Id: newPerson.id,
+            person2Id: pendingMotherId,
+          });
+          setRelationships((prev) => [...prev, partnerRel]);
+          setPendingMotherId(null);
+        }
+      }
+
       setShowPersonForm(false);
       setRelationshipType(null);
       setEditingPerson(null);
@@ -2290,9 +2350,21 @@ function App() {
                     setShowPersonForm(false);
                     setEditingPerson(null);
                     setRelationshipType(null);
+                    setPendingFatherId(null);
+                    setPendingMotherId(null);
                   }}
                   relationshipType={relationshipType}
                   defaultGender={defaultSpouseGender}
+                  pendingFatherId={pendingFatherId}
+                  pendingMotherId={pendingMotherId}
+                  selectedPersonName={
+                    selectedPerson
+                      ? (() => {
+                          const selected = treePeople.find((p) => p.id === selectedPerson);
+                          return selected?.firstName || selected?.lastName || `Person ${selectedPerson}`;
+                        })()
+                      : ""
+                  }
                   t={t}
                 />
               </div>
@@ -2448,11 +2520,49 @@ function PersonForm({
   relationshipType,
   t,
   defaultGender,
+  defaultFirstName,
+  selectedPersonName,
+  pendingFatherId,
+  pendingMotherId,
 }) {
+  const getDefaultFirstName = () => {
+    if (person?.firstName) return person.firstName;
+    if (defaultFirstName) return defaultFirstName;
+    if (relationshipType && selectedPersonName) {
+      if (relationshipType === 'spouse') return `${t.spouseOf} ${selectedPersonName}`;
+      if (relationshipType === 'child') return `${t.childOf} ${selectedPersonName}`;
+      if (relationshipType === 'parent') {
+        // If we have pendingFatherId, we're adding mother (second parent)
+        // If we have pendingMotherId, we're adding father (second parent)
+        // Otherwise, check gender or default to father
+        if (pendingFatherId) {
+          return `${t.motherOf} ${selectedPersonName}`;
+        } else if (pendingMotherId) {
+          return `${t.fatherOf} ${selectedPersonName}`;
+        } else if (defaultGender === 'female') {
+          return `${t.motherOf} ${selectedPersonName}`;
+        } else {
+          return `${t.fatherOf} ${selectedPersonName}`;
+        }
+      }
+      if (relationshipType === 'sibling') return `${t.siblingOf} ${selectedPersonName}`;
+    }
+    return "";
+  };
+
+  const getDefaultGender = () => {
+    if (person?.gender) return person.gender;
+    if (relationshipType === 'parent') {
+      if (pendingFatherId) return 'female'; // Adding mother after father
+      if (pendingMotherId) return 'male'; // Adding father after mother
+    }
+    return defaultGender || "";
+  };
+
   const [formData, setFormData] = useState({
-    firstName: person?.firstName || "",
+    firstName: getDefaultFirstName(),
     lastName: person?.lastName || "",
-    gender: person?.gender || defaultGender || "",
+    gender: getDefaultGender(),
     birthDate: person?.birthDate || "",
     birthPlace: person?.birthPlace || "",
     isLiving: person?.isLiving !== false,
@@ -2467,9 +2577,9 @@ function PersonForm({
   // Reset form when person prop changes
   useEffect(() => {
     setFormData({
-      firstName: person?.firstName || "",
+      firstName: getDefaultFirstName(),
       lastName: person?.lastName || "",
-      gender: person?.gender || defaultGender || "",
+      gender: getDefaultGender(),
       birthDate: person?.birthDate || "",
       birthPlace: person?.birthPlace || "",
       isLiving: person?.isLiving !== false,
@@ -2480,7 +2590,7 @@ function PersonForm({
       profession: person?.profession || "",
       company: person?.company || "",
     });
-  }, [person]);
+  }, [person, defaultFirstName, relationshipType, selectedPersonName, pendingFatherId, pendingMotherId]);
 
   const handleSubmit = (e) => {
     e.preventDefault();
