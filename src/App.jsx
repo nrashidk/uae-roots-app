@@ -1098,16 +1098,55 @@ function App() {
           if (relationshipType === "spouse") {
             relData.person1Id = selectedPerson;
             relData.person2Id = newPerson.id;
+            const newRel = await api.relationships.create(relData);
+            setRelationships((prev) => [...prev, newRel]);
           } else if (relationshipType === "child") {
-            relData.parentId = selectedPerson;
-            relData.childId = newPerson.id;
+            // Child should be linked to BOTH parents if they exist
+            const selectedPerson_obj = people.find((p) => p.id === selectedPerson);
+            
+            // Find all parents of the selected parent
+            const parentRels = relationships.filter(
+              (r) =>
+                r.treeId === currentTree?.id &&
+                r.type === "parent-child" &&
+                r.childId === selectedPerson,
+            );
+            
+            // Get all parent IDs (both direct and spouse)
+            let allParentIds = parentRels.map((r) => r.parentId);
+            
+            // Also add the spouse(s) of the selected person as co-parents
+            const spouseRels = relationships.filter(
+              (r) =>
+                r.treeId === currentTree?.id &&
+                r.type === "partner" &&
+                (r.person1Id === selectedPerson || r.person2Id === selectedPerson),
+            );
+            const spouseIds = spouseRels.map((r) =>
+              r.person1Id === selectedPerson ? r.person2Id : r.person1Id,
+            );
+            
+            // Combine: parents + spouses
+            allParentIds = [...new Set([...allParentIds, selectedPerson, ...spouseIds])];
+            
+            // Create parent-child relationship for each parent
+            const createdRels = await Promise.all(
+              allParentIds.map((parentId) =>
+                api.relationships.create({
+                  treeId: currentTree?.id,
+                  type: "parent-child",
+                  parentId: parentId,
+                  childId: newPerson.id,
+                }),
+              ),
+            );
+            setRelationships((prev) => [...prev, ...createdRels]);
           } else if (relationshipType === "parent") {
             relData.parentId = newPerson.id;
             relData.childId = selectedPerson;
+            const newRel = await api.relationships.create(relData);
+            setRelationships((prev) => [...prev, newRel]);
           }
-
-          const newRel = await api.relationships.create(relData);
-          setRelationships((prev) => [...prev, newRel]);
         }
       }
 
