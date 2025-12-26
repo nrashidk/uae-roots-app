@@ -1168,11 +1168,16 @@ function App() {
       
       // Handle both parents flow
       if (relationshipType === 'parent') {
-        if (pendingSecondParent === 'create_mother') {
-          // Just added father, save ID and prepare for mother
+        if (pendingSecondParent === 'create_mother' && !firstParentId) {
+          // Just added father, now open form for mother
+          console.log('[addPerson] Father created, saving ID and opening mother form');
           setFirstParentId(newPerson.id);
-          console.log('[addPerson] Saved first parent (father) ID:', newPerson.id);
-        } else if (firstParentId) {
+          // Keep pendingSecondParent set so PersonForm knows we're creating mother
+          setEditingPerson(null);
+          setFormKey((prev) => prev + 1);
+          setShowPersonForm(true);
+          console.log('[addPerson] Mother form should now be visible');
+        } else if (firstParentId && pendingSecondParent === 'create_mother') {
           // Just added mother, now link father and mother as partners
           console.log('[addPerson] Linking parents as partners:', firstParentId, newPerson.id);
           try {
@@ -1188,12 +1193,16 @@ function App() {
             console.error('[addPerson] Failed to link parents as partners:', err);
           }
           setFirstParentId(null); // Reset after linking
+          setPendingSecondParent(null);
+          setShowPersonForm(false);
+          setEditingPerson(null);
+          setRelationshipType(null);
         }
+      } else {
+        setShowPersonForm(false);
+        setRelationshipType(null);
+        setEditingPerson(null);
       }
-      
-      setShowPersonForm(false);
-      setRelationshipType(null);
-      setEditingPerson(null);
       
       console.log('[addPerson] Complete - person added with relationships');
     } catch (error) {
@@ -2454,6 +2463,7 @@ function App() {
                   }}
                   relationshipType={relationshipType}
                   defaultGender={defaultSpouseGender}
+                  firstParentId={firstParentId}
                   t={t}
                 />
               </div>
@@ -2610,6 +2620,7 @@ function PersonForm({
   relationshipType,
   t,
   defaultGender,
+  firstParentId,
 }) {
   // Calculate default firstName based on relationship type
   const getDefaultFirstName = () => {
@@ -2624,13 +2635,16 @@ function PersonForm({
       case "child":
         return `${t.childOf} ${display}`;
       case "parent":
-        return `${t.fatherOf} ${display}`; // Will show father by default
+        // If firstParentId exists, we're creating the mother (second parent)
+        return firstParentId ? `${t.motherOf} ${display}` : `${t.fatherOf} ${display}`;
       case "sibling":
         return `${t.siblingOf} ${display}`;
       default:
         return "";
     }
   };
+
+  console.log('[PersonForm] Initial render - relationshipType:', relationshipType, 'firstParentId:', firstParentId, 'person:', person?.id);
 
   const [formData, setFormData] = useState({
     firstName: getDefaultFirstName(),
@@ -2663,7 +2677,10 @@ function PersonForm({
         case "child":
           return `${t.childOf} ${display}`;
         case "parent":
-          return `${t.fatherOf} ${display}`;
+          // If firstParentId exists, we're creating the mother (second parent)
+          const name = firstParentId ? `${t.motherOf} ${display}` : `${t.fatherOf} ${display}`;
+          console.log('[PersonForm] Parent form - firstParentId:', firstParentId, 'name:', name);
+          return name;
         case "sibling":
           return `${t.siblingOf} ${display}`;
         default:
@@ -2671,10 +2688,11 @@ function PersonForm({
       }
     };
 
+    console.log('[PersonForm] useEffect triggered - relationshipType:', relationshipType, 'firstParentId:', firstParentId);
     setFormData({
       firstName: getDefaultFirstName(),
       lastName: person?.lastName || "",
-      gender: person?.gender || defaultGender || "male",
+      gender: person?.gender || defaultGender || (firstParentId ? "female" : "male"),
       birthDate: person?.birthDate || "",
       birthPlace: person?.birthPlace || "",
       isLiving: person?.isLiving !== false,
@@ -2685,7 +2703,7 @@ function PersonForm({
       profession: person?.profession || "",
       company: person?.company || "",
     });
-  }, [person, relationshipType, selectedPerson, defaultGender, t]);
+  }, [person, relationshipType, selectedPerson, defaultGender, firstParentId, t]);
 
   // Validation functions
   const validateEmail = (email) => {
