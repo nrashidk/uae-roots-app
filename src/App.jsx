@@ -52,6 +52,8 @@ function App() {
   const [smsCode, setSmsCode] = useState('');
   const [smsStep, setSmsStep] = useState('phone');
   const [smsError, setSmsError] = useState('');
+  const [emailError, setEmailError] = useState('');
+  const [passwordError, setPasswordError] = useState('');
   const [currentView, setCurrentView] = useState("auth");
   const [currentTree, setCurrentTree] = useState(null);
   const [people, setPeople] = useState([]);
@@ -140,7 +142,6 @@ function App() {
     showTelephone: "الهاتف",
     showAddress: "العنوان",
   };
-
   const t = {
     welcome: "مرحباً بكم في جذور الإمارات",
     continueWithGoogle: "التسجيل عبر البريد الإلكتروني",
@@ -734,9 +735,41 @@ function App() {
     }
   };
 
+  // Email validation function
+  const validateEmail = (email) => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(email);
+  };
+
+  // Password validation function
+  const validatePassword = (password) => {
+    return password.length >= 6;
+  };
+
   const handleEmailAuth = async (e) => {
     e.preventDefault();
-    if (!emailInput || !passwordInput) return;
+    setEmailError('');
+    setPasswordError('');
+    
+    // Validate email
+    if (!emailInput.trim()) {
+      setEmailError('يرجى إدخال البريد الإلكتروني');
+      return;
+    }
+    if (!validateEmail(emailInput)) {
+      setEmailError('يرجى إدخال بريد إلكتروني صحيح');
+      return;
+    }
+    
+    // Validate password
+    if (!passwordInput) {
+      setPasswordError('يرجى إدخال كلمة المرور');
+      return;
+    }
+    if (!validatePassword(passwordInput)) {
+      setPasswordError('يجب أن تكون كلمة المرور 6 أحرف على الأقل');
+      return;
+    }
     
     try {
       interactiveLoginInProgressRef.current = true;
@@ -759,14 +792,22 @@ function App() {
 
   const handleLogout = async () => {
     try {
+      // Call backend logout API to clear session cookie
       try {
         await api.auth.logout();
-        console.log('[Logout] Backend cookie cleared');
-      } catch (backendErr) {
-        console.log('[Logout] Backend logout failed (may already be logged out):', backendErr.message);
+      } catch (apiErr) {
+        console.error('Backend logout error:', apiErr);
       }
-      await logout();
+      
+      // Clear auth token
       clearAuthToken();
+      
+      // Firebase logout (only if user is from Firebase)
+      if (user) {
+        await logout();
+      }
+      
+      // Reset all state
       setCurrentTree(null);
       setPeople([]);
       setRelationships([]);
@@ -778,6 +819,15 @@ function App() {
       setNoTreesUserId(null);
     } catch (err) {
       console.error('Logout failed:', err);
+      // Even if there's an error, still try to reset the UI
+      clearAuthToken();
+      setCurrentTree(null);
+      setPeople([]);
+      setRelationships([]);
+      setUserProfile(null);
+      setCurrentView("auth");
+      restorationAttemptedRef.current = false;
+      setSessionRestoreError(null);
     }
   };
 
@@ -943,15 +993,26 @@ function App() {
     );
   };
 
+  // UAE phone validation function
+  const validateUAEPhone = (phone) => {
+    // UAE mobile numbers: 50, 52, 54, 55, 56, 58 (9 digits without country code)
+    const uaePhoneRegex = /^(50|52|54|55|56|58)\d{7}$/;
+    return uaePhoneRegex.test(phone);
+  };
+
   const handleSendSmsCode = async () => {
+    setSmsError('');
     if (!phoneInput) {
-      setSmsError('الرجاء إدخال رقم الهاتف');
+      setSmsError('يرجى إدخال رقم الهاتف');
+      return;
+    }
+    if (!validateUAEPhone(phoneInput)) {
+      setSmsError('يرجى إدخال رقم هاتف إماراتي صحيح (يبدأ بـ 50، 52، 54، 55، 56، أو 58)');
       return;
     }
     
     try {
       setAuthProcessing(true);
-      setSmsError('');
       
       const response = await fetch('/api/sms/send-code', {
         method: 'POST',
@@ -1047,7 +1108,7 @@ function App() {
   };
 
   // Add person using the data transformation utility
-  const addPerson = (personData) => {
+  const addPerson = async (personData) => {
     // Enforce living spouse limit when adding a spouse
     if (relationshipType === "spouse" && selectedPerson) {
       const spouseRels = relationships.filter(
@@ -1075,70 +1136,229 @@ function App() {
       }
     }
 
-    const result = addPersonWithRelationship(
-      people,
-      relationships,
-      personData,
-      relationshipType,
-      selectedPerson,
-      currentTree?.id,
-    );
+    try {
+      // Step 1: Create person in backend API
+      const newPerson = await api.people.create({
+        treeId: currentTree?.id,
+        firstName: personData.firstName,
+        lastName: personData.lastName,
+        gender: personData.gender,
+        birthDate: personData.birthDate,
+        birthPlace: personData.birthPlace,
+        deathDate: personData.deathDate,
+        isLiving: personData.isLiving,
+        phone: personData.phone,
+        email: personData.email,
+        address: personData.address,
+        profession: personData.profession,
+        company: personData.company,
+        photoUrl: personData.photoUrl,
+      });
 
-    setPeople(result.updatedPeople);
-    setRelationships(result.updatedRelationships);
-    setShowPersonForm(false);
-    setRelationshipType(null);
-    setEditingPerson(null);
-    // Preserve focused person selection; tooltip/menu will be hidden via sidebar close
-  };
+      console.log('[addPerson] Created person with ID:', newPerson.id, 'RelationType:', relationshipType);
 
-  const updatePerson = (personData) => {
-    setPeople((prev) =>
-      prev.map((p) => (p.id === editingPerson ? { ...p, ...personData } : p)),
-    );
+      // Step 2: Update local people state with server-generated ID
+      const updatedPeople = [...people, { ...newPerson, treeId: currentTree?.id }];
 
-    if (pendingSecondParent) {
-      const nextId = pendingSecondParent;
-      setPendingSecondParent(null);
-      // Switch to editing the second parent (mother)
-      setEditingPerson(nextId);
-      setSelectedPerson(nextId);
-      setFormKey((prev) => prev + 1);
-      setShowPersonForm(true);
-    } else if (pendingSiblingId) {
-      const nextSib = pendingSiblingId;
-      setPendingSiblingId(null);
-      // After parents, edit the newly created sibling
-      setEditingPerson(nextSib);
-      setSelectedPerson(nextSib);
-      setFormKey((prev) => prev + 1);
-      setShowPersonForm(true);
-    } else {
+      // Step 3: Create relationships in backend using actual IDs
+      const updatedRelationships = [...relationships];
+      
+      if (relationshipType && selectedPerson) {
+        let relationshipData = {
+          treeId: currentTree?.id,
+          type: relationshipType === 'spouse' ? 'partner' : 
+                relationshipType === 'child' ? 'parent-child' :
+                relationshipType === 'parent' ? 'parent-child' :
+                relationshipType === 'sibling' ? 'parent-child' : relationshipType,
+        };
+
+        if (relationshipType === 'spouse') {
+          // Partner relationship (both directions)
+          relationshipData.person1Id = selectedPerson;
+          relationshipData.person2Id = newPerson.id;
+        } else if (relationshipType === 'child') {
+          // Parent-child relationship (selectedPerson is parent)
+          relationshipData.parentId = selectedPerson;
+          relationshipData.childId = newPerson.id;
+        } else if (relationshipType === 'parent') {
+          // Parent-child relationship (selectedPerson is child, newPerson is parent)
+          relationshipData.parentId = newPerson.id;
+          relationshipData.childId = selectedPerson;
+        } else if (relationshipType === 'sibling') {
+          // For siblings - find ALL parents and link to each
+          const parentRels = relationships.filter(
+            (r) =>
+              r.treeId === currentTree?.id &&
+              r.type === "parent-child" &&
+              r.childId === selectedPerson,
+          );
+          
+          if (parentRels.length > 0) {
+            // Link to ALL parents (both father and mother if they exist)
+            for (const parentRel of parentRels) {
+              const siblingRelData = {
+                treeId: currentTree?.id,
+                type: 'parent-child',
+                parentId: parentRel.parentId,
+                childId: newPerson.id,
+              };
+              
+              try {
+                const createdRel = await api.relationships.create(siblingRelData);
+                updatedRelationships.push(createdRel);
+                console.log('[addPerson] Created sibling relationship to parent:', parentRel.parentId);
+              } catch (relErr) {
+                console.error('[addPerson] Failed to create sibling relationship:', relErr);
+              }
+            }
+          } else {
+            console.warn('[addPerson] No parent found for sibling relationship');
+            alert('تحذير: لا يوجد والدين لهذا الشخص. يرجى إضافة والدين أولاً.');
+          }
+          // Skip the regular relationship creation for siblings (handled above)
+          relationshipData = null;
+        }
+
+        // Create relationship (unless it's a sibling - already handled above)
+        if (relationshipData) {
+          try {
+            const createdRel = await api.relationships.create(relationshipData);
+            updatedRelationships.push(createdRel);
+            console.log('[addPerson] Created relationship:', createdRel.type);
+          } catch (relErr) {
+            console.error('[addPerson] Failed to create relationship:', relErr);
+            alert('تحذير: تم إضافة الشخص لكن فشل في إنشاء العلاقة. الرجاء المحاولة يدويًا.');
+          }
+        }
+      }
+
+      // Step 4: Update local state with server data
+      setPeople(updatedPeople);
+      setRelationships(updatedRelationships);
+      
+      // Handle both parents flow
+      if (relationshipType === 'parent') {
+        if (pendingSecondParent === 'create_mother') {
+          // Just added father, save ID and prepare for mother
+          setFirstParentId(newPerson.id);
+          console.log('[addPerson] Saved first parent (father) ID:', newPerson.id);
+        } else if (firstParentId) {
+          // Just added mother, now link father and mother as partners
+          console.log('[addPerson] Linking parents as partners:', firstParentId, newPerson.id);
+          try {
+            const partnerRel = await api.relationships.create({
+              treeId: currentTree?.id,
+              type: 'partner',
+              person1Id: firstParentId,
+              person2Id: newPerson.id,
+            });
+            setRelationships(prev => [...prev, partnerRel]);
+            console.log('[addPerson] Parents linked as partners');
+          } catch (err) {
+            console.error('[addPerson] Failed to link parents as partners:', err);
+          }
+          setFirstParentId(null); // Reset after linking
+        }
+      }
+      
       setShowPersonForm(false);
+      setRelationshipType(null);
       setEditingPerson(null);
+      
+      console.log('[addPerson] Complete - person added with relationships');
+    } catch (error) {
+      console.error('Failed to add person:', error);
+      alert('فشل في إضافة الشخص: ' + error.message);
     }
   };
 
-  const deletePerson = (personId) => {
-    if (window.confirm(t.deleteConfirm)) {
-      setPeople((prev) => {
-        const updated = prev.filter((p) => p.id !== personId);
-        if (updated.filter((p) => p.treeId === currentTree?.id).length === 0) {
-          setCurrentView("dashboard");
-        }
-        return updated;
+  const updatePerson = async (personData) => {
+    try {
+      // Update in backend API
+      await api.people.update(editingPerson, {
+        firstName: personData.firstName,
+        lastName: personData.lastName,
+        gender: personData.gender,
+        birthDate: personData.birthDate,
+        birthPlace: personData.birthPlace,
+        deathDate: personData.deathDate,
+        isLiving: personData.isLiving,
+        phone: personData.phone,
+        email: personData.email,
+        address: personData.address,
+        profession: personData.profession,
+        company: personData.company,
+        photoUrl: personData.photoUrl,
       });
-      setRelationships((prev) =>
-        prev.filter(
-          (r) =>
-            r.person1Id !== personId &&
-            r.person2Id !== personId &&
-            r.parentId !== personId &&
-            r.childId !== personId,
-        ),
+
+      // Update local state
+      setPeople((prev) =>
+        prev.map((p) => (p.id === editingPerson ? { ...p, ...personData } : p)),
       );
-      setSelectedPerson(null);
-      setShowActionMenu(false);
+
+      if (pendingSecondParent === "create_mother") {
+        // Switch to creating mother after father
+        setPendingSecondParent(null);
+        setEditingPerson(null);
+        setRelationshipType("parent");
+        setFormKey((prev) => prev + 1);
+        setShowPersonForm(true);
+      } else if (pendingSecondParent && pendingSecondParent !== "create_mother") {
+        const nextId = pendingSecondParent;
+        setPendingSecondParent(null);
+        // Switch to editing the second parent (mother)
+        setEditingPerson(nextId);
+        setSelectedPerson(nextId);
+        setFormKey((prev) => prev + 1);
+        setShowPersonForm(true);
+      } else if (pendingSiblingId) {
+        const nextSib = pendingSiblingId;
+        setPendingSiblingId(null);
+        // After parents, edit the newly created sibling
+        setEditingPerson(nextSib);
+        setSelectedPerson(nextSib);
+        setFormKey((prev) => prev + 1);
+        setShowPersonForm(true);
+      } else {
+        setShowPersonForm(false);
+        setEditingPerson(null);
+        setRelationshipType(null);
+      }
+    } catch (error) {
+      console.error('Failed to update person:', error);
+      alert('فشل في تحديث البيانات: ' + error.message);
+    }
+  };
+
+  const deletePerson = async (personId) => {
+    if (window.confirm(t.deleteConfirm)) {
+      try {
+        // Delete from backend API
+        await api.people.delete(personId);
+
+        // Update local state
+        setPeople((prev) => {
+          const updated = prev.filter((p) => p.id !== personId);
+          if (updated.filter((p) => p.treeId === currentTree?.id).length === 0) {
+            setCurrentView("dashboard");
+          }
+          return updated;
+        });
+        setRelationships((prev) =>
+          prev.filter(
+            (r) =>
+              r.person1Id !== personId &&
+              r.person2Id !== personId &&
+              r.parentId !== personId &&
+              r.childId !== personId,
+          ),
+        );
+        setSelectedPerson(null);
+        setShowActionMenu(false);
+      } catch (error) {
+        console.error('Failed to delete person:', error);
+        alert('فشل في حذف الشخص: ' + error.message);
+      }
     }
   };
 
@@ -1147,6 +1367,8 @@ function App() {
 
   // Add both parents in one action and open father's form first
   const [pendingSecondParent, setPendingSecondParent] = useState(null);
+  const [firstParentId, setFirstParentId] = useState(null); // Track first parent for linking
+  
   const handleAddBothParents = (childId) => {
     const child = people.find((p) => p.id === childId);
     if (!child) return;
@@ -1167,58 +1389,12 @@ function App() {
       return;
     }
 
-    const childDisplay =
-      child.firstName || child.lastName || `Person ${child.id}`;
-
-    // Create father
-    const fatherData = {
-      firstName: `${t.fatherOf} ${childDisplay}`,
-      lastName: "",
-      gender: "male",
-      isLiving: true,
-    };
-    const resFather = addPersonWithRelationship(
-      people,
-      relationships,
-      fatherData,
-      "parent",
-      childId,
-      currentTree?.id,
-    );
-
-    // Create mother
-    const motherData = {
-      firstName: `${t.motherOf} ${childDisplay}`,
-      lastName: "",
-      gender: "female",
-      isLiving: true,
-    };
-    const resMother = addPersonWithRelationship(
-      resFather.updatedPeople,
-      resFather.updatedRelationships,
-      motherData,
-      "parent",
-      childId,
-      currentTree?.id,
-    );
-
-    // Link parents as partners
-    const partnerRel = {
-      id: Date.now() + 3,
-      type: "partner",
-      person1Id: resFather.newPersonId,
-      person2Id: resMother.newPersonId,
-      treeId: currentTree?.id,
-    };
-
-    setPeople(resMother.updatedPeople);
-    setRelationships([...resMother.updatedRelationships, partnerRel]);
-
-    // Open father's form first, then queue mother
-    setEditingPerson(resFather.newPersonId);
-    setSelectedPerson(resFather.newPersonId);
-    setPendingSecondParent(resMother.newPersonId);
-    setRelationshipType(null);
+    // Set selected person to open parent form
+    setSelectedPerson(childId);
+    setRelationshipType("parent");
+    setEditingPerson(null);
+    setPendingSecondParent("create_mother"); // Signal to create mother after father
+    setFirstParentId(null); // Reset first parent tracker
     setFormKey((prev) => prev + 1);
     setShowPersonForm(true);
   };
@@ -1261,209 +1437,36 @@ function App() {
           ? "male"
           : "";
 
-    const res = addPersonWithRelationship(
-      people,
-      relationships,
-      {
-        firstName: `${t.spouseOf} ${display}`,
-        lastName: "",
-        gender: defaultGender,
-        isLiving: true,
-      },
-      "spouse",
-      personId,
-      currentTree?.id,
-    );
-
-    setPeople(res.updatedPeople);
-    setRelationships(res.updatedRelationships);
-
-    // Open form to edit the new spouse
-    setEditingPerson(res.newPersonId);
+    // Set as new person (no server ID yet)
+    setEditingPerson(null);
+    setSelectedPerson(personId);
+    setRelationshipType("spouse");
     setFormKey((prev) => prev + 1);
     setShowPersonForm(true);
-    setRelationshipType(null);
-    // Keep selected person as original so the action menu stays anchored
   };
 
   const handleQuickCreateChild = (personId) => {
     const selected = people.find((p) => p.id === personId);
     if (!selected) return;
-    const display =
-      selected.firstName || selected.lastName || `Person ${selected.id}`;
 
-    const res = addPersonWithRelationship(
-      people,
-      relationships,
-      {
-        firstName: `${t.childOf} ${display}`,
-        lastName: "",
-        gender: "",
-        isLiving: true,
-      },
-      "child",
-      personId,
-      currentTree?.id,
-    );
-
-    setPeople(res.updatedPeople);
-    setRelationships(res.updatedRelationships);
-
-    // Open form to edit the new child
-    setEditingPerson(res.newPersonId);
+    // Set as new person with relationship type
+    setEditingPerson(null);
+    setSelectedPerson(personId);
+    setRelationshipType("child");
     setFormKey((prev) => prev + 1);
     setShowPersonForm(true);
-    setRelationshipType(null);
   };
 
   const handleQuickCreateSibling = (personId) => {
     const selected = people.find((p) => p.id === personId);
     if (!selected) return;
-    const display =
-      selected.firstName || selected.lastName || `Person ${selected.id}`;
 
-    // Find existing parents of the selected person
-    const parentRels = relationships.filter(
-      (r) =>
-        r.treeId === currentTree?.id &&
-        r.type === "parent-child" &&
-        r.childId === personId,
-    );
-    const parentIds = parentRels.map((r) => r.parentId);
-    const parentPeople = people.filter((p) => parentIds.includes(p.id));
-    const father = parentPeople.find((p) => p?.gender === "male");
-    const mother = parentPeople.find((p) => p?.gender === "female");
-
-    const siblingData = {
-      firstName: `${t.siblingOf} ${display}`,
-      lastName: "",
-      gender: "",
-      isLiving: true,
-    };
-
-    if (!father && !mother) {
-      // No parents yet: auto-create father and mother, then create sibling as their child
-      const fatherData = {
-        firstName: `${t.fatherOf} ${display}`,
-        lastName: "",
-        gender: "male",
-        isLiving: true,
-      };
-      const resFather = addPersonWithRelationship(
-        people,
-        relationships,
-        fatherData,
-        "parent",
-        personId,
-        currentTree?.id,
-      );
-
-      const motherData = {
-        firstName: `${t.motherOf} ${display}`,
-        lastName: "",
-        gender: "female",
-        isLiving: true,
-      };
-      const resMother = addPersonWithRelationship(
-        resFather.updatedPeople,
-        resFather.updatedRelationships,
-        motherData,
-        "parent",
-        personId,
-        currentTree?.id,
-      );
-
-      // Link the parents as partners
-      const partnerRel = {
-        id: Date.now() + 3,
-        type: "partner",
-        person1Id: resFather.newPersonId,
-        person2Id: resMother.newPersonId,
-        treeId: currentTree?.id,
-      };
-
-      const withPartnerRels = [...resMother.updatedRelationships, partnerRel];
-
-      // Create the sibling as a child of the father
-      const resSib = addPersonWithRelationship(
-        resMother.updatedPeople,
-        withPartnerRels,
-        siblingData,
-        "child",
-        resFather.newPersonId,
-        currentTree?.id,
-      );
-
-      // Also add the mother as a parent of the new sibling
-      const motherLink = {
-        id: Date.now() + 10,
-        type: "parent-child",
-        parentId: resMother.newPersonId,
-        childId: resSib.newPersonId,
-        treeId: currentTree?.id,
-      };
-
-      setPeople(resSib.updatedPeople);
-      setRelationships([...resSib.updatedRelationships, motherLink]);
-
-      // Queue edit forms: father -> mother -> sibling
-      setEditingPerson(resFather.newPersonId);
-      setSelectedPerson(resFather.newPersonId);
-      setPendingSecondParent(resMother.newPersonId);
-      setPendingSiblingId(resSib.newPersonId);
-      setRelationshipType(null);
-      setFormKey((prev) => prev + 1);
-      setShowPersonForm(true);
-    } else {
-      // Parents exist: create sibling as child of the existing parent(s)
-      const firstParentId = father?.id || mother?.id || parentIds[0];
-      const resSib = addPersonWithRelationship(
-        people,
-        relationships,
-        siblingData,
-        "child",
-        firstParentId,
-        currentTree?.id,
-      );
-
-      let updatedRels = resSib.updatedRelationships;
-      const sibId = resSib.newPersonId;
-
-      // Attach to the second parent too if present
-      if (father?.id && father.id !== firstParentId) {
-        updatedRels = [
-          ...updatedRels,
-          {
-            id: Date.now() + 11,
-            type: "parent-child",
-            parentId: father.id,
-            childId: sibId,
-            treeId: currentTree?.id,
-          },
-        ];
-      }
-      if (mother?.id && mother.id !== firstParentId) {
-        updatedRels = [
-          ...updatedRels,
-          {
-            id: Date.now() + 12,
-            type: "parent-child",
-            parentId: mother.id,
-            childId: sibId,
-            treeId: currentTree?.id,
-          },
-        ];
-      }
-
-      setPeople(resSib.updatedPeople);
-      setRelationships(updatedRels);
-
-      // Open the sibling form
-      setEditingPerson(sibId);
-      setFormKey((prev) => prev + 1);
-      setShowPersonForm(true);
-      setRelationshipType(null);
-    }
+    // Set as new person with relationship type
+    setEditingPerson(null);
+    setSelectedPerson(personId);
+    setRelationshipType("sibling");
+    setFormKey((prev) => prev + 1);
+    setShowPersonForm(true);
   };
 
   // Get siblings for a person (people who share at least one parent)
@@ -1698,20 +1701,33 @@ function App() {
               <input
                 type="email"
                 value={emailInput}
-                onChange={(e) => setEmailInput(e.target.value)}
+                onChange={(e) => {
+                  setEmailInput(e.target.value);
+                  setEmailError('');
+                }}
                 placeholder="البريد الإلكتروني"
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent text-right"
+                className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent text-right ${
+                  emailError ? 'border-red-500' : 'border-gray-300'
+                }`}
                 dir="rtl"
                 disabled={authProcessing}
               />
+              {emailError && (
+                <p className="text-red-500 text-sm mt-1 text-right">{emailError}</p>
+              )}
             </div>
             <div className="relative">
               <input
                 type={showPassword ? "text" : "password"}
                 value={passwordInput}
-                onChange={(e) => setPasswordInput(e.target.value)}
-                placeholder="كلمة المرور"
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent text-right pr-12"
+                onChange={(e) => {
+                  setPasswordInput(e.target.value);
+                  setPasswordError('');
+                }}
+                placeholder="كلمة المرور (6 أحرف على الأقل)"
+                className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent text-right pr-12 ${
+                  passwordError ? 'border-red-500' : 'border-gray-300'
+                }`}
                 dir="rtl"
                 disabled={authProcessing}
               />
@@ -1722,6 +1738,9 @@ function App() {
               >
                 {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
               </button>
+              {passwordError && (
+                <p className="text-red-500 text-sm mt-1 text-right">{passwordError}</p>
+              )}
             </div>
             <Button
               type="submit"
@@ -2218,12 +2237,12 @@ function App() {
               onPersonClick={(personId) => {
                 setSelectedPerson(personId);
                 setEditingPerson(personId);
-                setRelationshipType(null);
                 setShowPersonForm(true);
                 setShowActionMenu(true);
               }}
               onBackgroundClick={() => {
                 setShowActionMenu(false);
+                setSelectedPerson(null);
               }}
               zoom={zoom}
               panOffset={panOffset}
@@ -2342,6 +2361,21 @@ function App() {
                     }}
                   >
                     <div className="flex gap-1">
+                      <Button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          console.log('[Edit] Clicked, selectedPerson:', selectedPerson);
+                          setEditingPerson(selectedPerson);
+                          setShowPersonForm(true);
+                          setShowActionMenu(false);
+                        }}
+                        size="sm"
+                        variant="ghost"
+                        className="w-8 h-8 p-0"
+                        title="تعديل"
+                      >
+                        <User className="w-4 h-4" />
+                      </Button>
                       <Button
                         onClick={(e) => {
                           e.stopPropagation();
@@ -2529,7 +2563,7 @@ function App() {
         {showPersonForm && (
           <div
             data-person-form
-            className="fixed right-4 top-1/2 transform -translate-y-1/2 bg-white shadow-2xl border rounded-lg z-50"
+            className="fixed right-4 top-1/2 transform -translate-y-1/2 bg-white shadow-2xl border rounded-lg z-50 pointer-events-auto"
             style={{ width: "380px", maxHeight: "min(800px, 85vh)", overflow: "hidden" }}
           >
             <div className="flex flex-col h-full" style={{ maxHeight: "inherit" }}>
@@ -2738,6 +2772,8 @@ function PersonForm({
     company: person?.company || "",
   });
 
+  const [errors, setErrors] = useState({});
+
   // Reset form when person prop changes
   useEffect(() => {
     setFormData({
@@ -2756,12 +2792,78 @@ function PersonForm({
     });
   }, [person]);
 
+  // Validation functions
+  const validateEmail = (email) => {
+    if (!email) return true; // Email is optional
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(email);
+  };
+
+  const validatePhone = (phone) => {
+    if (!phone) return true; // Phone is optional
+    const phoneRegex = /^[+]?[0-9]{10,15}$/;
+    return phoneRegex.test(phone.replace(/[\s()-]/g, ''));
+  };
+
+  const validateDate = (date) => {
+    if (!date) return true;
+    const dateObj = new Date(date);
+    const today = new Date();
+    return dateObj <= today;
+  };
+
   const handleSubmit = (e) => {
     e.preventDefault();
+    const newErrors = {};
+
+    // Required field validation
     if (!formData.firstName.trim()) {
-      alert("يرجى إدخال الاسم الأول");
+      newErrors.firstName = "الاسم الأول مطلوب";
+    }
+
+    if (!formData.gender) {
+      newErrors.gender = "الجنس مطلوب";
+    }
+
+    if (!formData.birthDate) {
+      newErrors.birthDate = "تاريخ الميلاد مطلوب";
+    }
+
+    // Email validation
+    if (formData.email && !validateEmail(formData.email)) {
+      newErrors.email = "البريد الإلكتروني غير صحيح";
+    }
+
+    // Phone validation
+    if (formData.phone && !validatePhone(formData.phone)) {
+      newErrors.phone = "رقم الهاتف غير صحيح";
+    }
+
+    // Birth date validation
+    if (formData.birthDate && !validateDate(formData.birthDate)) {
+      newErrors.birthDate = "تاريخ الميلاد لا يمكن أن يكون في المستقبل";
+    }
+
+    // Death date validation
+    if (!formData.isLiving && formData.deathDate) {
+      if (!validateDate(formData.deathDate)) {
+        newErrors.deathDate = "تاريخ الوفاة لا يمكن أن يكون في المستقبل";
+      }
+      if (formData.birthDate && formData.deathDate) {
+        const birthDate = new Date(formData.birthDate);
+        const deathDate = new Date(formData.deathDate);
+        if (deathDate < birthDate) {
+          newErrors.deathDate = "تاريخ الوفاة لا يمكن أن يكون قبل تاريخ الميلاد";
+        }
+      }
+    }
+
+    if (Object.keys(newErrors).length > 0) {
+      setErrors(newErrors);
       return;
     }
+
+    setErrors({});
     onSave(formData);
   };
 
@@ -2769,16 +2871,24 @@ function PersonForm({
     <form onSubmit={handleSubmit} className="space-y-3">
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <label className="block text-sm font-bold mb-1">{t.firstName}</label>
+          <label className="block text-sm font-bold mb-1">
+            {t.firstName} <span className="text-red-500">*</span>
+          </label>
           <input
             type="text"
             value={formData.firstName}
-            onChange={(e) =>
-              setFormData((prev) => ({ ...prev, firstName: e.target.value }))
-            }
-            className="w-full px-3 py-2 border rounded-md"
+            onChange={(e) => {
+              setFormData((prev) => ({ ...prev, firstName: e.target.value }));
+              setErrors((prev) => ({ ...prev, firstName: undefined }));
+            }}
+            className={`w-full px-3 py-2 border rounded-md ${
+              errors.firstName ? 'border-red-500' : ''
+            }`}
             dir="rtl"
           />
+          {errors.firstName && (
+            <p className="text-red-500 text-xs mt-1">{errors.firstName}</p>
+          )}
         </div>
         <div>
           <label className="block text-sm font-bold mb-1">{t.lastName}</label>
@@ -2795,30 +2905,47 @@ function PersonForm({
       </div>
 
       <div>
-        <label className="block text-sm font-bold mb-1">{t.gender}</label>
+        <label className="block text-sm font-bold mb-1">
+          {t.gender} <span className="text-red-500">*</span>
+        </label>
         <select
           value={formData.gender}
-          onChange={(e) =>
-            setFormData((prev) => ({ ...prev, gender: e.target.value }))
-          }
-          className="w-full px-3 py-2 border rounded-md"
+          onChange={(e) => {
+            setFormData((prev) => ({ ...prev, gender: e.target.value }));
+            setErrors((prev) => ({ ...prev, gender: undefined }));
+          }}
+          className={`w-full px-3 py-2 border rounded-md ${
+            errors.gender ? 'border-red-500' : ''
+          }`}
         >
           <option value="">اختر الجنس</option>
           <option value="male">{t.male}</option>
           <option value="female">{t.female}</option>
         </select>
+        {errors.gender && (
+          <p className="text-red-500 text-xs mt-1">{errors.gender}</p>
+        )}
       </div>
 
       <div>
-        <label className="block text-sm font-bold mb-1">{t.birthDate}</label>
+        <label className="block text-sm font-bold mb-1">
+          {t.birthDate} <span className="text-red-500">*</span>
+        </label>
         <input
           type="date"
           value={formData.birthDate}
-          onChange={(e) =>
-            setFormData((prev) => ({ ...prev, birthDate: e.target.value }))
-          }
-          className="w-full px-3 py-2 border rounded-md"
+          onChange={(e) => {
+            setFormData((prev) => ({ ...prev, birthDate: e.target.value }));
+            setErrors((prev) => ({ ...prev, birthDate: undefined }));
+          }}
+          max={new Date().toISOString().split('T')[0]}
+          className={`w-full px-3 py-2 border rounded-md ${
+            errors.birthDate ? 'border-red-500' : ''
+          }`}
         />
+        {errors.birthDate && (
+          <p className="text-red-500 text-xs mt-1">{errors.birthDate}</p>
+        )}
       </div>
 
       <div>
@@ -2855,11 +2982,19 @@ function PersonForm({
           <input
             type="date"
             value={formData.deathDate}
-            onChange={(e) =>
-              setFormData((prev) => ({ ...prev, deathDate: e.target.value }))
-            }
-            className="w-full px-3 py-2 border rounded-md"
+            onChange={(e) => {
+              setFormData((prev) => ({ ...prev, deathDate: e.target.value }));
+              setErrors((prev) => ({ ...prev, deathDate: undefined }));
+            }}
+            max={new Date().toISOString().split('T')[0]}
+            min={formData.birthDate || undefined}
+            className={`w-full px-3 py-2 border rounded-md ${
+              errors.deathDate ? 'border-red-500' : ''
+            }`}
           />
+          {errors.deathDate && (
+            <p className="text-red-500 text-xs mt-1">{errors.deathDate}</p>
+          )}
         </div>
       )}
 
@@ -2869,22 +3004,36 @@ function PersonForm({
           <input
             type="tel"
             value={formData.phone}
-            onChange={(e) =>
-              setFormData((prev) => ({ ...prev, phone: e.target.value }))
-            }
-            className="w-full px-3 py-2 border rounded-md"
+            onChange={(e) => {
+              setFormData((prev) => ({ ...prev, phone: e.target.value }));
+              setErrors((prev) => ({ ...prev, phone: undefined }));
+            }}
+            placeholder="+971501234567"
+            className={`w-full px-3 py-2 border rounded-md ${
+              errors.phone ? 'border-red-500' : ''
+            }`}
           />
+          {errors.phone && (
+            <p className="text-red-500 text-xs mt-1">{errors.phone}</p>
+          )}
         </div>
         <div>
           <label className="block text-sm font-bold mb-1">{t.email}</label>
           <input
             type="email"
             value={formData.email}
-            onChange={(e) =>
-              setFormData((prev) => ({ ...prev, email: e.target.value }))
-            }
-            className="w-full px-3 py-2 border rounded-md"
+            onChange={(e) => {
+              setFormData((prev) => ({ ...prev, email: e.target.value }));
+              setErrors((prev) => ({ ...prev, email: undefined }));
+            }}
+            placeholder="example@email.com"
+            className={`w-full px-3 py-2 border rounded-md ${
+              errors.email ? 'border-red-500' : ''
+            }`}
           />
+          {errors.email && (
+            <p className="text-red-500 text-xs mt-1">{errors.email}</p>
+          )}
         </div>
       </div>
 

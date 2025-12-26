@@ -16,6 +16,8 @@ import { users, trees, people, relationships, auditLogs, editHistory, authIdenti
 import { eq, and, or, ilike, desc, lt } from 'drizzle-orm';
 import { z } from 'zod';
 import fs from 'fs';
+import 'dotenv/config';
+
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -33,6 +35,8 @@ if (!JWT_SECRET) {
   console.error('CRITICAL: JWT_SECRET environment variable is required');
   process.exit(1);
 }
+
+console.log(`Running in ${process.env.NODE_ENV || 'development'} mode`);
 
 const isProduction = process.env.NODE_ENV === 'production';
 
@@ -148,15 +152,15 @@ const verifyImageMagicBytes = (buffer, mimeType) => {
     if (buffer.length < 12) return false;
     const riffHeader = buffer.slice(0, 4);
     const webpMarker = buffer.slice(8, 12);
-    return riffHeader[0] === 0x52 && riffHeader[1] === 0x49 && 
-           riffHeader[2] === 0x46 && riffHeader[3] === 0x46 &&
-           webpMarker[0] === 0x57 && webpMarker[1] === 0x45 && 
-           webpMarker[2] === 0x42 && webpMarker[3] === 0x50; // "WEBP"
+    return riffHeader[0] === 0x52 && riffHeader[1] === 0x49 &&
+      riffHeader[2] === 0x46 && riffHeader[3] === 0x46 &&
+      webpMarker[0] === 0x57 && webpMarker[1] === 0x45 &&
+      webpMarker[2] === 0x42 && webpMarker[3] === 0x50; // "WEBP"
   }
-  
+
   const signatures = IMAGE_SIGNATURES[mimeType];
   if (!signatures) return false;
-  
+
   return signatures.some(sig => {
     if (buffer.length < sig.length) return false;
     return sig.every((byte, i) => buffer[i] === byte);
@@ -170,21 +174,21 @@ const developmentOrigins = [
   'http://127.0.0.1:3000'
 ];
 
-const productionOrigins = process.env.ALLOWED_ORIGINS 
-  ? process.env.ALLOWED_ORIGINS.split(',') 
+const productionOrigins = process.env.ALLOWED_ORIGINS
+  ? process.env.ALLOWED_ORIGINS.split(',')
   : [
-      'https://uaeroots.com',
-      'https://www.uaeroots.com',
-      /\.replit\.dev$/,
-      /\.repl\.co$/
-    ];
+    'https://uaeroots.com',
+    'https://www.uaeroots.com',
+    /\.replit\.dev$/,
+    /\.repl\.co$/
+  ];
 
 const allowedOrigins = isProduction ? productionOrigins : [...developmentOrigins, ...productionOrigins];
 
 app.use(cors({
   origin: (origin, callback) => {
     if (!origin) return callback(null, true);
-    
+
     const isAllowed = allowedOrigins.some(allowed => {
       if (allowed instanceof RegExp) return allowed.test(origin);
       if (typeof allowed === 'string' && allowed.includes('*')) {
@@ -193,7 +197,7 @@ app.use(cors({
       }
       return allowed === origin;
     });
-    
+
     if (isAllowed) {
       callback(null, true);
     } else {
@@ -427,9 +431,9 @@ const COOKIE_OPTIONS = {
 const authenticateUser = async (req, res, next) => {
   const rid = req.requestId || '';
   let token = req.cookies?.auth_token;
-  
+
   console.log(`[${rid}][Auth] ${req.method} ${req.path} - Cookie token: ${token ? 'present' : 'missing'}`);
-  
+
   if (!token) {
     const authHeader = req.headers.authorization;
     if (authHeader && authHeader.startsWith('Bearer ')) {
@@ -437,7 +441,7 @@ const authenticateUser = async (req, res, next) => {
       console.log(`[${rid}][Auth] Using Bearer token from header`);
     }
   }
-  
+
   if (!token) {
     console.log(`[${rid}][Auth] No token found - returning 401`);
     return res.status(401).json({ error: 'Authentication required' });
@@ -458,14 +462,14 @@ const authenticateUser = async (req, res, next) => {
 
 const optionalAuth = async (req, res, next) => {
   let token = req.cookies?.auth_token;
-  
+
   if (!token) {
     const authHeader = req.headers.authorization;
     if (authHeader && authHeader.startsWith('Bearer ')) {
       token = authHeader.split('Bearer ')[1];
     }
   }
-  
+
   if (token) {
     try {
       const decoded = jwt.verify(token, JWT_SECRET);
@@ -488,7 +492,7 @@ const verifyTreeOwnership = async (treeId, userId) => {
 const handleError = (res, error, context = 'Operation', req = null) => {
   const rid = req?.requestId || '';
   console.error(`[${rid}] ${context} error:`, error);
-  
+
   if (isProduction) {
     res.status(500).json({ error: 'حدث خطأ. يرجى المحاولة مرة أخرى' });
   } else {
@@ -509,7 +513,7 @@ const normalizeEmail = (email) => {
 const normalizePhone = (phone) => {
   if (!phone) return null;
   let formatted = phone.trim();
-  
+
   if (formatted.startsWith('00971')) {
     formatted = '+971' + formatted.slice(5);
   } else if (formatted.startsWith('971') && !formatted.startsWith('+')) {
@@ -517,19 +521,19 @@ const normalizePhone = (phone) => {
   } else if (!formatted.startsWith('+')) {
     formatted = '+971' + formatted.replace(/^0/, '');
   }
-  
+
   return formatted;
 };
 
 const findUserByIdentity = async (identityType, identityValue) => {
   if (!identityValue) return null;
-  
-  const normalized = identityType === 'phone' 
-    ? normalizePhone(identityValue) 
+
+  const normalized = identityType === 'phone'
+    ? normalizePhone(identityValue)
     : normalizeEmail(identityValue);
-  
+
   if (!normalized) return null;
-  
+
   const [identity] = await db.select()
     .from(authIdentities)
     .where(and(
@@ -537,12 +541,12 @@ const findUserByIdentity = async (identityType, identityValue) => {
       eq(authIdentities.identityValue, normalized),
       eq(authIdentities.isVerified, true)
     ));
-  
+
   if (identity) {
     const [user] = await db.select().from(users).where(eq(users.id, identity.userId));
     return user || null;
   }
-  
+
   return null;
 };
 
@@ -551,38 +555,38 @@ const findUserByEmailOrPhone = async (email, phone) => {
     const user = await findUserByIdentity('email', email);
     if (user) return user;
   }
-  
+
   if (phone) {
     const user = await findUserByIdentity('phone', phone);
     if (user) return user;
   }
-  
+
   return null;
 };
 
 const linkIdentityToUser = async (userId, identityType, identityValue, providerUserId = null, isVerified = true) => {
   if (!identityValue) return null;
-  
-  const normalized = identityType === 'phone' 
-    ? normalizePhone(identityValue) 
+
+  const normalized = identityType === 'phone'
+    ? normalizePhone(identityValue)
     : normalizeEmail(identityValue);
-  
+
   if (!normalized) return null;
-  
+
   const existingIdentity = await db.select()
     .from(authIdentities)
     .where(and(
       eq(authIdentities.identityType, identityType),
       eq(authIdentities.identityValue, normalized)
     ));
-  
+
   if (existingIdentity.length > 0) {
     if (existingIdentity[0].userId === userId) {
       return existingIdentity[0];
     }
     return null;
   }
-  
+
   const [newIdentity] = await db.insert(authIdentities).values({
     userId,
     identityType,
@@ -590,7 +594,7 @@ const linkIdentityToUser = async (userId, identityType, identityValue, providerU
     providerUserId,
     isVerified
   }).returning();
-  
+
   return newIdentity;
 };
 
@@ -602,29 +606,29 @@ const createUserWithIdentities = async (userId, email, phone, displayName, provi
     phoneNumber: phone || null,
     provider: provider || 'unknown'
   }).returning();
-  
+
   if (email) {
     await linkIdentityToUser(userId, 'email', email, null, true);
   }
-  
+
   if (phone) {
     await linkIdentityToUser(userId, 'phone', phone, null, true);
   }
-  
+
   if (provider && provider !== 'phone') {
     await linkIdentityToUser(userId, provider, email || userId, userId, true);
   }
-  
+
   return user;
 };
 
 async function getTwilioCredentials() {
   const hostname = process.env.REPLIT_CONNECTORS_HOSTNAME;
-  const xReplitToken = process.env.REPL_IDENTITY 
-    ? 'repl ' + process.env.REPL_IDENTITY 
-    : process.env.WEB_REPL_RENEWAL 
-    ? 'depl ' + process.env.WEB_REPL_RENEWAL 
-    : null;
+  const xReplitToken = process.env.REPL_IDENTITY
+    ? 'repl ' + process.env.REPL_IDENTITY
+    : process.env.WEB_REPL_RENEWAL
+      ? 'depl ' + process.env.WEB_REPL_RENEWAL
+      : null;
 
   if (!xReplitToken) {
     throw new Error('X_REPLIT_TOKEN not found');
@@ -639,18 +643,18 @@ async function getTwilioCredentials() {
       }
     }
   );
-  
+
   if (!response.ok) {
     const text = await response.text();
     console.error('Twilio connector response:', text);
     throw new Error('Failed to get Twilio credentials: ' + response.status);
   }
-  
+
   const text = await response.text();
   if (!text) {
     throw new Error('Empty response from Twilio connector');
   }
-  
+
   const data = JSON.parse(text);
   const connectionSettings = data.items?.[0];
 
@@ -669,19 +673,19 @@ async function getTwilioCredentials() {
 app.get('/api/photos/:filename', authenticateUser, async (req, res) => {
   try {
     const filename = req.params.filename;
-    
+
     // Prevent directory traversal attacks
     if (filename.includes('..') || filename.includes('/') || filename.includes('\\')) {
       return res.status(400).json({ error: 'اسم ملف غير صالح' });
     }
-    
+
     const filePath = path.join(uploadsDir, filename);
-    
+
     // Check if file exists
     if (!fs.existsSync(filePath)) {
       return res.status(404).json({ error: 'الصورة غير موجودة' });
     }
-    
+
     // Find person with this photo to verify ownership
     const personWithPhoto = await db.select().from(people)
       .where(or(
@@ -689,19 +693,19 @@ app.get('/api/photos/:filename', authenticateUser, async (req, res) => {
         eq(people.photoUrl, `/api/photos/${filename}`)
       ))
       .limit(1);
-    
+
     if (personWithPhoto.length === 0) {
       // Photo exists but not linked to any person - allow access if user is authenticated
       // This handles edge cases like recently deleted persons
       return res.sendFile(filePath);
     }
-    
+
     // Verify tree ownership
     const ownership = await verifyTreeOwnership(personWithPhoto[0].treeId, req.userId);
     if (!ownership.valid) {
       return res.status(403).json({ error: 'غير مصرح بالوصول إلى هذه الصورة' });
     }
-    
+
     res.sendFile(filePath);
   } catch (error) {
     handleError(res, error, 'Photo access');
@@ -711,7 +715,7 @@ app.get('/api/photos/:filename', authenticateUser, async (req, res) => {
 app.post('/api/sms/send-code', smsLimiter, async (req, res) => {
   try {
     const { phoneNumber } = req.body;
-    
+
     if (!phoneNumber) {
       return res.status(400).json({ error: 'Phone number is required' });
     }
@@ -724,16 +728,16 @@ app.post('/api/sms/send-code', smsLimiter, async (req, res) => {
     } else if (!formattedPhone.startsWith('+')) {
       formattedPhone = '+971' + formattedPhone.replace(/^0/, '');
     }
-    
+
     try {
       phoneSchema.parse(formattedPhone);
     } catch (validationError) {
       return res.status(400).json({ error: 'رقم الهاتف غير صالح' });
     }
-    
+
     const { accountSid, apiKey, apiKeySecret } = await getTwilioCredentials();
     const client = twilio(apiKey, apiKeySecret, { accountSid });
-    
+
     const verifySid = process.env.TWILIO_VERIFY_SID;
     if (!verifySid) {
       throw new Error('Twilio Verify Service not configured');
@@ -767,7 +771,7 @@ app.post('/api/sms/send-code', smsLimiter, async (req, res) => {
 app.post('/api/sms/verify-code', smsLimiter, async (req, res) => {
   try {
     const { phoneNumber, code } = req.body;
-    
+
     if (!phoneNumber || !code) {
       return res.status(400).json({ error: 'Phone number and code are required' });
     }
@@ -780,17 +784,17 @@ app.post('/api/sms/verify-code', smsLimiter, async (req, res) => {
     } else if (!formattedPhone.startsWith('+')) {
       formattedPhone = '+971' + formattedPhone.replace(/^0/, '');
     }
-    
+
     try {
       phoneSchema.parse(formattedPhone);
       codeSchema.parse(code);
     } catch (validationError) {
       return res.status(400).json({ error: 'بيانات غير صالحة' });
     }
-    
+
     const { accountSid, apiKey, apiKeySecret } = await getTwilioCredentials();
     const client = twilio(apiKey, apiKeySecret, { accountSid });
-    
+
     const verifySid = process.env.TWILIO_VERIFY_SID;
     if (!verifySid) {
       throw new Error('Twilio Verify Service not configured');
@@ -799,14 +803,14 @@ app.post('/api/sms/verify-code', smsLimiter, async (req, res) => {
     const verification = await client.verify.v2.services(verifySid)
       .verificationChecks
       .create({ to: formattedPhone, code: code });
-    
+
     if (verification.status !== 'approved') {
       await logAudit(formattedPhone, 'login_failed', 'auth', null, { reason: 'invalid_code' }, req);
       return res.status(400).json({ error: 'رمز التحقق غير صحيح' });
     }
-    
+
     let existingUser = await findUserByIdentity('phone', formattedPhone);
-    
+
     if (!existingUser) {
       const [directUser] = await db.select().from(users).where(eq(users.id, formattedPhone));
       if (directUser) {
@@ -814,21 +818,21 @@ app.post('/api/sms/verify-code', smsLimiter, async (req, res) => {
         await linkIdentityToUser(directUser.id, 'phone', formattedPhone, null, true);
       }
     }
-    
+
     const userId = existingUser ? existingUser.id : formattedPhone;
-    
+
     const token = jwt.sign(
       { userId: userId, type: 'phone' },
       JWT_SECRET,
       { expiresIn: '7d' }
     );
-    
+
     res.cookie('auth_token', token, COOKIE_OPTIONS);
-    
+
     await logAudit(userId, 'login', 'auth', null, { provider: 'phone', linkedAccount: !!existingUser }, req);
-    
-    res.json({ 
-      success: true, 
+
+    res.json({
+      success: true,
       verified: true,
       phoneNumber: formattedPhone,
       userId: userId,
@@ -844,27 +848,27 @@ app.post('/api/sms/verify-code', smsLimiter, async (req, res) => {
 app.post('/api/auth/token', async (req, res) => {
   try {
     const { userId, provider, firebaseIdToken, email } = req.body;
-    
+
     if (!userId) {
       return res.status(400).json({ error: 'User ID is required' });
     }
-    
+
     if (!firebaseIdToken) {
       return res.status(401).json({ error: 'Firebase ID token required for authentication' });
     }
-    
+
     let decodedToken;
     try {
       const admin = (await import('firebase-admin')).default;
-      
+
       if (!admin.apps.length) {
         admin.initializeApp({
           projectId: process.env.VITE_FIREBASE_PROJECT_ID
         });
       }
-      
+
       decodedToken = await admin.auth().verifyIdToken(firebaseIdToken);
-      
+
       if (decodedToken.uid !== userId) {
         await logAudit(userId, 'login_failed', 'auth', null, { reason: 'token_mismatch' }, req);
         return res.status(401).json({ error: 'Token does not match user ID' });
@@ -874,21 +878,21 @@ app.post('/api/auth/token', async (req, res) => {
       await logAudit(userId, 'login_failed', 'auth', null, { reason: 'invalid_firebase_token' }, req);
       return res.status(401).json({ error: 'Invalid Firebase token' });
     }
-    
+
     const userEmail = email || decodedToken?.email;
     const existingUser = userEmail ? await findUserByIdentity('email', userEmail) : null;
     const resolvedUserId = existingUser ? existingUser.id : userId;
-    
+
     const token = jwt.sign(
       { userId: resolvedUserId, type: provider || 'firebase' },
       JWT_SECRET,
       { expiresIn: '7d' }
     );
-    
+
     res.cookie('auth_token', token, COOKIE_OPTIONS);
-    
+
     await logAudit(resolvedUserId, 'login', 'auth', null, { provider, linkedAccount: !!existingUser }, req);
-    
+
     res.json({ token, userId: resolvedUserId, isLinkedAccount: !!existingUser });
   } catch (error) {
     handleError(res, error, 'Token generation');
@@ -913,13 +917,13 @@ app.get('/api/debug/session', optionalAuth, async (req, res) => {
   try {
     const cookiePresent = !!req.cookies?.auth_token;
     const jwtUser = req.userId || null;
-    
+
     let treesCount = 0;
     if (jwtUser) {
       const userTrees = await db.select().from(trees).where(eq(trees.createdBy, jwtUser));
       treesCount = userTrees.length;
     }
-    
+
     res.json({
       cookiePresent,
       authenticated: !!jwtUser,
@@ -940,25 +944,25 @@ app.use('/api/relationships', apiLimiter);
 app.post('/api/users', authenticateUser, async (req, res) => {
   try {
     const validatedData = userCreateSchema.parse(req.body);
-    
+
     console.log(`[Users] POST - req.userId: "${req.userId}", validatedData.id: "${validatedData.id}"`);
-    
+
     if (req.userId !== validatedData.id) {
       console.log(`[Users] Mismatch! req.userId !== validatedData.id`);
       return res.status(403).json({ error: 'غير مصرح: لا يمكن إنشاء أو تعديل مستخدمين آخرين' });
     }
-    
+
     const existingUser = await db.select().from(users).where(eq(users.id, validatedData.id));
-    
+
     if (existingUser.length > 0) {
       const [updatedUser] = await db.update(users)
         .set({ lastLoginAt: new Date(), displayName: validatedData.displayName, email: validatedData.email })
         .where(eq(users.id, validatedData.id))
         .returning();
-      
+
       return res.json(updatedUser);
     }
-    
+
     const [user] = await db.insert(users).values({
       id: validatedData.id,
       email: validatedData.email || null,
@@ -966,7 +970,7 @@ app.post('/api/users', authenticateUser, async (req, res) => {
       phoneNumber: validatedData.phoneNumber || null,
       provider: validatedData.provider || 'unknown'
     }).returning();
-    
+
     if (validatedData.email) {
       await linkIdentityToUser(validatedData.id, 'email', validatedData.email, null, true);
     }
@@ -976,9 +980,9 @@ app.post('/api/users', authenticateUser, async (req, res) => {
     if (validatedData.provider && validatedData.provider !== 'phone') {
       await linkIdentityToUser(validatedData.id, validatedData.provider, validatedData.email || validatedData.id, validatedData.id, true);
     }
-    
+
     await logAudit(validatedData.id, 'create', 'user', validatedData.id, null, req);
-    
+
     res.json(user);
   } catch (error) {
     if (error instanceof z.ZodError) {
@@ -991,11 +995,11 @@ app.post('/api/users', authenticateUser, async (req, res) => {
 app.get('/api/users/:id', authenticateUser, async (req, res) => {
   try {
     const userId = req.params.id;
-    
+
     if (req.userId !== userId) {
       return res.status(403).json({ error: 'غير مصرح بالوصول' });
     }
-    
+
     const [user] = await db.select().from(users).where(eq(users.id, userId));
     if (!user) {
       return res.status(404).json({ error: 'User not found' });
@@ -1009,27 +1013,27 @@ app.get('/api/users/:id', authenticateUser, async (req, res) => {
 app.put('/api/users/:id', authenticateUser, async (req, res) => {
   try {
     const userId = req.params.id;
-    
+
     if (req.userId !== userId) {
       return res.status(403).json({ error: 'غير مصرح بالوصول' });
     }
-    
+
     const validatedData = userUpdateSchema.parse(req.body);
     const [updatedUser] = await db.update(users)
-      .set({ 
+      .set({
         email: validatedData.email || null,
         phoneNumber: validatedData.phoneNumber || null,
         displayName: validatedData.displayName || null
       })
       .where(eq(users.id, userId))
       .returning();
-    
+
     if (!updatedUser) {
       return res.status(404).json({ error: 'User not found' });
     }
-    
+
     await logAudit(userId, 'update', 'user', userId, null, req);
-    
+
     res.json(updatedUser);
   } catch (error) {
     if (error instanceof z.ZodError) {
@@ -1042,24 +1046,24 @@ app.put('/api/users/:id', authenticateUser, async (req, res) => {
 app.delete('/api/users/:id', authenticateUser, async (req, res) => {
   try {
     const userId = req.params.id;
-    
+
     if (req.userId !== userId) {
       return res.status(403).json({ error: 'غير مصرح بالوصول' });
     }
-    
+
     const userTrees = await db.select().from(trees).where(eq(trees.createdBy, userId));
-    
+
     for (const tree of userTrees) {
       await db.delete(relationships).where(eq(relationships.treeId, tree.id));
       await db.delete(people).where(eq(people.treeId, tree.id));
       await db.delete(editHistory).where(eq(editHistory.treeId, tree.id));
       await db.delete(trees).where(eq(trees.id, tree.id));
     }
-    
+
     await db.delete(users).where(eq(users.id, userId));
-    
+
     await logAudit(userId, 'delete', 'user', userId, { deletedTrees: userTrees.length }, req);
-    
+
     res.clearCookie('auth_token', COOKIE_OPTIONS);
     res.json({ success: true, message: 'Account deleted successfully' });
   } catch (error) {
@@ -1070,18 +1074,18 @@ app.delete('/api/users/:id', authenticateUser, async (req, res) => {
 app.get('/api/trees', authenticateUser, async (req, res) => {
   try {
     const { userId } = req.query;
-    
+
     console.log(`[Trees] GET - req.userId: "${req.userId}", query.userId: "${userId}"`);
-    
+
     if (!userId) {
       return res.status(400).json({ error: 'User ID is required' });
     }
-    
+
     if (req.userId !== userId) {
       console.log(`[Trees] Mismatch! req.userId !== query.userId`);
       return res.status(403).json({ error: 'غير مصرح بالوصول' });
     }
-    
+
     const userTrees = await db.select().from(trees).where(eq(trees.createdBy, userId));
     res.json(userTrees);
   } catch (error) {
@@ -1092,22 +1096,22 @@ app.get('/api/trees', authenticateUser, async (req, res) => {
 app.post('/api/trees', authenticateUser, async (req, res) => {
   try {
     const validatedData = treeSchema.parse(req.body);
-    
+
     if (req.userId !== validatedData.createdBy) {
       return res.status(403).json({ error: 'غير مصرح بالوصول' });
     }
-    
+
     // Sanitize text fields to prevent XSS
     const sanitizedData = sanitizeUserInput(validatedData, ['name', 'description']);
-    
+
     const [tree] = await db.insert(trees).values({
       name: sanitizedData.name,
       description: sanitizedData.description || null,
       createdBy: sanitizedData.createdBy
     }).returning();
-    
+
     await logAudit(req.userId, 'create', 'tree', tree.id, { name: tree.name }, req);
-    
+
     res.json(tree);
   } catch (error) {
     if (error instanceof z.ZodError) {
@@ -1123,23 +1127,23 @@ app.delete('/api/trees/:id', authenticateUser, async (req, res) => {
     if (!treeId) {
       return res.status(400).json({ error: 'Invalid tree ID' });
     }
-    
+
     const [tree] = await db.select().from(trees).where(eq(trees.id, treeId));
     if (!tree) {
       return res.status(404).json({ error: 'Tree not found' });
     }
-    
+
     if (req.userId !== tree.createdBy) {
       return res.status(403).json({ error: 'غير مصرح بالوصول' });
     }
-    
+
     await db.delete(relationships).where(eq(relationships.treeId, treeId));
     await db.delete(people).where(eq(people.treeId, treeId));
     await db.delete(editHistory).where(eq(editHistory.treeId, treeId));
     await db.delete(trees).where(eq(trees.id, treeId));
-    
+
     await logAudit(req.userId, 'delete', 'tree', treeId, { name: tree.name }, req);
-    
+
     res.json({ success: true });
   } catch (error) {
     handleError(res, error, 'Tree delete');
@@ -1149,23 +1153,23 @@ app.delete('/api/trees/:id', authenticateUser, async (req, res) => {
 app.get('/api/people', authenticateUser, async (req, res) => {
   try {
     const { treeId } = req.query;
-    
+
     if (!treeId) {
       return res.status(400).json({ error: 'Tree ID is required' });
     }
-    
+
     const parsedTreeId = validateId(treeId);
     if (!parsedTreeId) {
       return res.status(400).json({ error: 'Invalid tree ID' });
     }
-    
+
     const ownership = await verifyTreeOwnership(parsedTreeId, req.userId);
     if (!ownership.valid) {
       return res.status(403).json({ error: ownership.error });
     }
-    
+
     const allPeople = await db.select().from(people).where(eq(people.treeId, parsedTreeId));
-    
+
     const decryptedPeople = allPeople.map(person => ({
       ...person,
       phone: decryptPII(person.phone),
@@ -1173,7 +1177,7 @@ app.get('/api/people', authenticateUser, async (req, res) => {
       identificationNumber: decryptPII(person.identificationNumber),
       photoUrl: normalizePhotoUrl(person.photoUrl)
     }));
-    
+
     res.json(decryptedPeople);
   } catch (error) {
     handleError(res, error, 'People fetch');
@@ -1183,21 +1187,21 @@ app.get('/api/people', authenticateUser, async (req, res) => {
 app.get('/api/people/search', authenticateUser, async (req, res) => {
   try {
     const { query, treeId } = req.query;
-    
+
     if (!query || !treeId) {
       return res.status(400).json({ error: 'Query and tree ID are required' });
     }
-    
+
     const parsedTreeId = validateId(treeId);
     if (!parsedTreeId) {
       return res.status(400).json({ error: 'Invalid tree ID' });
     }
-    
+
     const ownership = await verifyTreeOwnership(parsedTreeId, req.userId);
     if (!ownership.valid) {
       return res.status(403).json({ error: ownership.error });
     }
-    
+
     const escapedQuery = escapeLikePattern(query);
     const searchResults = await db.select().from(people).where(
       and(
@@ -1208,7 +1212,7 @@ app.get('/api/people/search', authenticateUser, async (req, res) => {
         )
       )
     );
-    
+
     const decryptedResults = searchResults.map(person => ({
       ...person,
       phone: decryptPII(person.phone),
@@ -1216,7 +1220,7 @@ app.get('/api/people/search', authenticateUser, async (req, res) => {
       identificationNumber: decryptPII(person.identificationNumber),
       photoUrl: normalizePhotoUrl(person.photoUrl)
     }));
-    
+
     res.json(decryptedResults);
   } catch (error) {
     handleError(res, error, 'People search');
@@ -1226,15 +1230,15 @@ app.get('/api/people/search', authenticateUser, async (req, res) => {
 app.post('/api/people', authenticateUser, async (req, res) => {
   try {
     const validatedData = personSchema.parse(req.body);
-    
+
     const ownership = await verifyTreeOwnership(validatedData.treeId, req.userId);
     if (!ownership.valid) {
       return res.status(403).json({ error: ownership.error });
     }
-    
+
     // Sanitize text fields to prevent XSS
     const sanitizedData = sanitizeUserInput(validatedData, ['firstName', 'lastName']);
-    
+
     const personData = {
       treeId: sanitizedData.treeId,
       firstName: sanitizedData.firstName,
@@ -1250,17 +1254,17 @@ app.post('/api/people', authenticateUser, async (req, res) => {
       photoUrl: sanitizedData.photoUrl || null
     };
     const [person] = await db.insert(people).values(personData).returning();
-    
+
     await recordEdit(req.userId, validatedData.treeId, 'create', 'person', person.id, null, person);
     await logAudit(req.userId, 'create', 'person', person.id, { name: person.firstName }, req);
-    
+
     const decryptedPerson = {
       ...person,
       phone: decryptPII(person.phone),
       email: decryptPII(person.email),
       identificationNumber: decryptPII(person.identificationNumber)
     };
-    
+
     res.json(decryptedPerson);
   } catch (error) {
     if (error instanceof z.ZodError) {
@@ -1276,22 +1280,22 @@ app.put('/api/people/:id', authenticateUser, async (req, res) => {
     if (!personId) {
       return res.status(400).json({ error: 'Invalid person ID' });
     }
-    
+
     const validatedData = personUpdateSchema.parse(req.body);
-    
+
     // Sanitize text fields to prevent XSS
     const sanitizedData = sanitizeUserInput(validatedData, ['firstName', 'lastName', 'birthPlace', 'profession', 'company', 'address']);
-    
+
     const [existingPerson] = await db.select().from(people).where(eq(people.id, personId));
     if (!existingPerson) {
       return res.status(404).json({ error: 'Person not found' });
     }
-    
+
     const ownership = await verifyTreeOwnership(existingPerson.treeId, req.userId);
     if (!ownership.valid) {
       return res.status(403).json({ error: ownership.error });
     }
-    
+
     const personData = {};
     if (sanitizedData.firstName !== undefined) personData.firstName = sanitizedData.firstName;
     if (sanitizedData.lastName !== undefined) personData.lastName = sanitizedData.lastName || null;
@@ -1308,22 +1312,22 @@ app.put('/api/people/:id', authenticateUser, async (req, res) => {
     if (sanitizedData.profession !== undefined) personData.profession = sanitizedData.profession || null;
     if (sanitizedData.company !== undefined) personData.company = sanitizedData.company || null;
     if (sanitizedData.address !== undefined) personData.address = sanitizedData.address || null;
-    
+
     const [person] = await db.update(people)
       .set(personData)
       .where(eq(people.id, personId))
       .returning();
-    
+
     await recordEdit(req.userId, existingPerson.treeId, 'update', 'person', personId, existingPerson, person);
     await logAudit(req.userId, 'update', 'person', personId, null, req);
-    
+
     const decryptedPerson = {
       ...person,
       phone: decryptPII(person.phone),
       email: decryptPII(person.email),
       identificationNumber: decryptPII(person.identificationNumber)
     };
-    
+
     res.json(decryptedPerson);
   } catch (error) {
     if (error instanceof z.ZodError) {
@@ -1339,23 +1343,23 @@ app.delete('/api/people/:id', authenticateUser, async (req, res) => {
     if (!personId) {
       return res.status(400).json({ error: 'Invalid person ID' });
     }
-    
+
     const [existingPerson] = await db.select().from(people).where(eq(people.id, personId));
     if (!existingPerson) {
       return res.status(404).json({ error: 'Person not found' });
     }
-    
+
     const ownership = await verifyTreeOwnership(existingPerson.treeId, req.userId);
     if (!ownership.valid) {
       return res.status(403).json({ error: ownership.error });
     }
-    
+
     await recordEdit(req.userId, existingPerson.treeId, 'delete', 'person', personId, existingPerson, null);
-    
+
     await db.delete(people).where(eq(people.id, personId));
-    
+
     await logAudit(req.userId, 'delete', 'person', personId, { name: existingPerson.firstName }, req);
-    
+
     res.json({ success: true });
   } catch (error) {
     handleError(res, error, 'Person delete');
@@ -1368,19 +1372,19 @@ app.patch('/api/people/:id/birthOrder', authenticateUser, async (req, res) => {
     if (!personId) {
       return res.status(400).json({ error: 'Invalid person ID' });
     }
-    
+
     const validatedData = birthOrderSchema.parse(req.body);
-    
+
     const [existingPerson] = await db.select().from(people).where(eq(people.id, personId));
     if (!existingPerson) {
       return res.status(404).json({ error: 'Person not found' });
     }
-    
+
     const ownership = await verifyTreeOwnership(existingPerson.treeId, req.userId);
     if (!ownership.valid) {
       return res.status(403).json({ error: ownership.error });
     }
-    
+
     const [person] = await db.update(people)
       .set({ birthOrder: validatedData.birthOrder })
       .where(eq(people.id, personId))
@@ -1399,23 +1403,23 @@ app.post('/api/upload/photo', authenticateUser, upload.single('photo'), async (r
     if (!req.file) {
       return res.status(400).json({ error: 'No file uploaded' });
     }
-    
+
     // Verify magic bytes match claimed MIME type
     const filePath = path.join(uploadsDir, req.file.filename);
     const fileBuffer = fs.readFileSync(filePath);
     const headerBytes = fileBuffer.slice(0, 12);
-    
+
     if (!verifyImageMagicBytes(headerBytes, req.file.mimetype)) {
       // Delete the invalid file
       fs.unlinkSync(filePath);
       console.warn(`[${req.requestId}] Rejected file with mismatched magic bytes: ${req.file.mimetype}`);
       return res.status(400).json({ error: 'نوع الملف غير صالح. تأكد من أن الملف صورة حقيقية' });
     }
-    
+
     const photoUrl = `/api/photos/${req.file.filename}`;
-    
+
     await logAudit(req.userId, 'upload', 'photo', req.file.filename, { size: req.file.size }, req);
-    
+
     res.json({ success: true, photoUrl });
   } catch (error) {
     handleError(res, error, 'Photo upload');
@@ -1425,21 +1429,21 @@ app.post('/api/upload/photo', authenticateUser, upload.single('photo'), async (r
 app.get('/api/relationships', authenticateUser, async (req, res) => {
   try {
     const { treeId } = req.query;
-    
+
     if (!treeId) {
       return res.status(400).json({ error: 'Tree ID is required' });
     }
-    
+
     const parsedTreeId = validateId(treeId);
     if (!parsedTreeId) {
       return res.status(400).json({ error: 'Invalid tree ID' });
     }
-    
+
     const ownership = await verifyTreeOwnership(parsedTreeId, req.userId);
     if (!ownership.valid) {
       return res.status(403).json({ error: ownership.error });
     }
-    
+
     const allRelationships = await db.select().from(relationships).where(eq(relationships.treeId, parsedTreeId));
     res.json(allRelationships);
   } catch (error) {
@@ -1450,12 +1454,12 @@ app.get('/api/relationships', authenticateUser, async (req, res) => {
 app.post('/api/relationships', authenticateUser, async (req, res) => {
   try {
     const validatedData = relationshipSchema.parse(req.body);
-    
+
     const ownership = await verifyTreeOwnership(validatedData.treeId, req.userId);
     if (!ownership.valid) {
       return res.status(403).json({ error: ownership.error });
     }
-    
+
     const relationshipData = {
       treeId: validatedData.treeId,
       type: validatedData.type,
@@ -1467,10 +1471,10 @@ app.post('/api/relationships', authenticateUser, async (req, res) => {
       isDotted: validatedData.isDotted || false
     };
     const [relationship] = await db.insert(relationships).values(relationshipData).returning();
-    
+
     await recordEdit(req.userId, validatedData.treeId, 'create', 'relationship', relationship.id, null, relationship);
     await logAudit(req.userId, 'create', 'relationship', relationship.id, { type: relationship.type }, req);
-    
+
     res.json(relationship);
   } catch (error) {
     if (error instanceof z.ZodError) {
@@ -1486,23 +1490,23 @@ app.delete('/api/relationships/:id', authenticateUser, async (req, res) => {
     if (!relId) {
       return res.status(400).json({ error: 'Invalid relationship ID' });
     }
-    
+
     const [existingRel] = await db.select().from(relationships).where(eq(relationships.id, relId));
     if (!existingRel) {
       return res.status(404).json({ error: 'Relationship not found' });
     }
-    
+
     const ownership = await verifyTreeOwnership(existingRel.treeId, req.userId);
     if (!ownership.valid) {
       return res.status(403).json({ error: ownership.error });
     }
-    
+
     await recordEdit(req.userId, existingRel.treeId, 'delete', 'relationship', relId, existingRel, null);
-    
+
     await db.delete(relationships).where(eq(relationships.id, relId));
-    
+
     await logAudit(req.userId, 'delete', 'relationship', relId, { type: existingRel.type }, req);
-    
+
     res.json({ success: true });
   } catch (error) {
     handleError(res, error, 'Relationship delete');
@@ -1515,17 +1519,17 @@ app.get('/api/history/:treeId', authenticateUser, async (req, res) => {
     if (!treeId) {
       return res.status(400).json({ error: 'Invalid tree ID' });
     }
-    
+
     const ownership = await verifyTreeOwnership(treeId, req.userId);
     if (!ownership.valid) {
       return res.status(403).json({ error: ownership.error });
     }
-    
+
     const history = await db.select().from(editHistory)
       .where(eq(editHistory.treeId, treeId))
       .orderBy(desc(editHistory.createdAt))
       .limit(100);
-    
+
     res.json(history);
   } catch (error) {
     handleError(res, error, 'History fetch');
@@ -1539,17 +1543,17 @@ app.post('/api/history/undo/:id', authenticateUser, async (req, res) => {
     if (!historyId) {
       return res.status(400).json({ error: 'Invalid history ID' });
     }
-    
+
     const [historyEntry] = await db.select().from(editHistory).where(eq(editHistory.id, historyId));
     if (!historyEntry) {
       return res.status(404).json({ error: 'History entry not found' });
     }
-    
+
     const ownership = await verifyTreeOwnership(historyEntry.treeId, req.userId);
     if (!ownership.valid) {
       return res.status(403).json({ error: ownership.error });
     }
-    
+
     if (historyEntry.action === 'create' && historyEntry.resourceType === 'person') {
       await db.delete(people).where(eq(people.id, historyEntry.resourceId));
     } else if (historyEntry.action === 'update' && historyEntry.previousData) {
@@ -1576,9 +1580,9 @@ app.post('/api/history/undo/:id', authenticateUser, async (req, res) => {
         await db.insert(relationships).values(validatedData);
       }
     }
-    
+
     await logAudit(req.userId, 'undo', historyEntry.resourceType, historyEntry.resourceId, { action: historyEntry.action }, req);
-    
+
     res.json({ success: true, message: 'تم التراجع بنجاح' });
   } catch (error) {
     if (error instanceof z.ZodError) {
@@ -1592,20 +1596,20 @@ app.get('/api/export/:treeId', authenticateUser, async (req, res) => {
   try {
     const treeId = validateId(req.params.treeId);
     const format = req.query.format || 'json';
-    
+
     if (!treeId) {
       return res.status(400).json({ error: 'Invalid tree ID' });
     }
-    
+
     const ownership = await verifyTreeOwnership(treeId, req.userId);
     if (!ownership.valid) {
       return res.status(403).json({ error: ownership.error });
     }
-    
+
     const [tree] = await db.select().from(trees).where(eq(trees.id, treeId));
     const allPeople = await db.select().from(people).where(eq(people.treeId, treeId));
     const allRelationships = await db.select().from(relationships).where(eq(relationships.treeId, treeId));
-    
+
     const decryptedPeople = allPeople.map(p => ({
       ...p,
       phone: decryptPII(p.phone),
@@ -1613,12 +1617,12 @@ app.get('/api/export/:treeId', authenticateUser, async (req, res) => {
       identificationNumber: decryptPII(p.identificationNumber),
       photoUrl: normalizePhotoUrl(p.photoUrl)
     }));
-    
+
     await logAudit(req.userId, 'export', 'tree', treeId, { format }, req);
-    
+
     if (format === 'gedcom') {
       let gedcom = '0 HEAD\n1 SOUR UAE Roots\n1 GEDC\n2 VERS 5.5.1\n1 CHAR UTF-8\n';
-      
+
       decryptedPeople.forEach(p => {
         gedcom += `0 @I${p.id}@ INDI\n`;
         gedcom += `1 NAME ${p.firstName} /${p.lastName || ''}/\n`;
@@ -1626,7 +1630,7 @@ app.get('/api/export/:treeId', authenticateUser, async (req, res) => {
         if (p.birthDate) gedcom += `1 BIRT\n2 DATE ${p.birthDate}\n`;
         if (p.deathDate) gedcom += `1 DEAT\n2 DATE ${p.deathDate}\n`;
       });
-      
+
       let famId = 1;
       const partnerRels = allRelationships.filter(r => r.type === 'partner');
       partnerRels.forEach(r => {
@@ -1635,26 +1639,26 @@ app.get('/api/export/:treeId', authenticateUser, async (req, res) => {
         if (r.person2Id) gedcom += `1 WIFE @I${r.person2Id}@\n`;
         famId++;
       });
-      
+
       gedcom += '0 TRLR\n';
-      
+
       res.setHeader('Content-Type', 'text/plain; charset=utf-8');
       res.setHeader('Content-Disposition', `attachment; filename="${tree.name}.ged"`);
       return res.send(gedcom);
     }
-    
+
     if (format === 'csv') {
       let csv = 'الاسم الأول,اسم العائلة,الجنس,تاريخ الميلاد,تاريخ الوفاة,على قيد الحياة,الهاتف,البريد الإلكتروني\n';
-      
+
       decryptedPeople.forEach(p => {
         csv += `"${p.firstName}","${p.lastName || ''}","${p.gender === 'male' ? 'ذكر' : 'أنثى'}","${p.birthDate || ''}","${p.deathDate || ''}","${p.isLiving ? 'نعم' : 'لا'}","${p.phone || ''}","${p.email || ''}"\n`;
       });
-      
+
       res.setHeader('Content-Type', 'text/csv; charset=utf-8');
       res.setHeader('Content-Disposition', `attachment; filename="${tree.name}.csv"`);
       return res.send('\uFEFF' + csv);
     }
-    
+
     if (format === 'html') {
       let html = `<!DOCTYPE html>
 <html dir="rtl" lang="ar">
@@ -1675,7 +1679,7 @@ app.get('/api/export/:treeId', authenticateUser, async (req, res) => {
   <h1>${tree.name}</h1>
   <p style="text-align:center">${tree.description || ''}</p>
   <div style="display: flex; flex-wrap: wrap; justify-content: center;">`;
-      
+
       decryptedPeople.forEach(p => {
         html += `
     <div class="person ${p.gender}">
@@ -1685,24 +1689,24 @@ app.get('/api/export/:treeId', authenticateUser, async (req, res) => {
       ${p.deathDate ? `<div class="info">الوفاة: ${p.deathDate}</div>` : ''}
     </div>`;
       });
-      
+
       html += `
   </div>
   <p style="text-align:center; margin-top: 40px; color: #888;">تم التصدير من جذور الإمارات</p>
 </body>
 </html>`;
-      
+
       res.setHeader('Content-Type', 'text/html; charset=utf-8');
       res.setHeader('Content-Disposition', `attachment; filename="${tree.name}.html"`);
       return res.send(html);
     }
-    
+
     if (format === 'text') {
       let text = `${tree.name}\n${'='.repeat(tree.name.length)}\n\n`;
       if (tree.description) text += `${tree.description}\n\n`;
-      
+
       text += `أفراد العائلة (${decryptedPeople.length}):\n${'─'.repeat(30)}\n\n`;
-      
+
       decryptedPeople.forEach((p, i) => {
         text += `${i + 1}. ${p.firstName} ${p.lastName || ''}\n`;
         text += `   الجنس: ${p.gender === 'male' ? 'ذكر' : 'أنثى'}\n`;
@@ -1710,12 +1714,12 @@ app.get('/api/export/:treeId', authenticateUser, async (req, res) => {
         if (p.deathDate) text += `   تاريخ الوفاة: ${p.deathDate}\n`;
         text += `   الحالة: ${p.isLiving ? 'على قيد الحياة' : 'متوفى'}\n\n`;
       });
-      
+
       res.setHeader('Content-Type', 'text/plain; charset=utf-8');
       res.setHeader('Content-Disposition', `attachment; filename="${tree.name}.txt"`);
       return res.send(text);
     }
-    
+
     res.json({ tree, people: decryptedPeople, relationships: allRelationships });
   } catch (error) {
     handleError(res, error, 'Export');
@@ -1728,7 +1732,7 @@ const cleanupAuditLogs = async () => {
   try {
     const cutoffDate = new Date();
     cutoffDate.setDate(cutoffDate.getDate() - AUDIT_LOG_RETENTION_DAYS);
-    
+
     const result = await db.delete(auditLogs).where(lt(auditLogs.createdAt, cutoffDate));
     console.log(`[Audit Cleanup] Removed audit logs older than ${AUDIT_LOG_RETENTION_DAYS} days`);
   } catch (error) {
@@ -1743,7 +1747,7 @@ setInterval(cleanupAuditLogs, 24 * 60 * 60 * 1000);
 if (isProduction) {
   const distPath = path.join(__dirname, '..', 'dist');
   app.use(express.static(distPath));
-  
+
   app.get('/{*path}', (req, res) => {
     if (!req.path.startsWith('/api')) {
       res.sendFile(path.join(distPath, 'index.html'));
