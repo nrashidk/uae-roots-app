@@ -1431,6 +1431,15 @@ function App() {
         api.people.updateBirthOrder(personId, targetOrder),
         api.people.updateBirthOrder(targetPerson.id, currentOrder),
       ]);
+
+      // Refresh people to ensure latest birthOrder from server
+      try {
+        const refreshed = await api.people.getAll(currentTree?.id);
+        setPeople(refreshed);
+      } catch (refreshErr) {
+        console.error("Failed to refresh people after birthOrder update:", refreshErr);
+        // Keep optimistic state if refresh fails
+      }
     } catch (error) {
       console.error("Failed to persist birthOrder swap:", error);
       // Rollback on error
