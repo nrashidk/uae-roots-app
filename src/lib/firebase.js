@@ -13,7 +13,7 @@ const firebaseConfig = {
   storageBucket: `${import.meta.env.VITE_FIREBASE_PROJECT_ID}.firebasestorage.app`,
   appId: import.meta.env.VITE_FIREBASE_APP_ID,
 };
-console.log(firebaseConfig, ": firebaseConfig");
+console.log(firebaseConfig, ": firebaseConfig11111");
 const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 
