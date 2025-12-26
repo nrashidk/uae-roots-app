@@ -2744,9 +2744,9 @@ function PersonForm({
       newErrors.gender = "الجنس مطلوب";
     }
 
-    if (!formData.birthDate) {
-      newErrors.birthDate = "تاريخ الميلاد مطلوب";
-    }
+    // if (!formData.birthDate) {
+    //   newErrors.birthDate = "تاريخ الميلاد مطلوب";
+    // }
 
     // Email validation
     if (formData.email && !validateEmail(formData.email)) {
@@ -2759,9 +2759,9 @@ function PersonForm({
     }
 
     // Birth date validation
-    if (formData.birthDate && !validateDate(formData.birthDate)) {
-      newErrors.birthDate = "تاريخ الميلاد لا يمكن أن يكون في المستقبل";
-    }
+    // if (formData.birthDate && !validateDate(formData.birthDate)) {
+    //   newErrors.birthDate = "تاريخ الميلاد لا يمكن أن يكون في المستقبل";
+    // }
 
     // Death date validation
     if (!formData.isLiving && formData.deathDate) {
@@ -2848,7 +2848,7 @@ function PersonForm({
 
       <div>
         <label className="block text-sm font-bold mb-1">
-          {t.birthDate} <span className="text-red-500">*</span>
+          {t.birthDate} <span className="text-red-500"></span>
         </label>
         <input
           type="date"
