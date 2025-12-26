@@ -2152,9 +2152,10 @@ function App() {
               selectedPerson={selectedPerson}
               onPersonClick={(personId) => {
                 setSelectedPerson(personId);
+                setShowActionMenu(true);
                 setEditingPerson(personId);
+                setRelationshipType(null);
                 setShowPersonForm(true);
-                setShowActionMenu(false); // Close action menu when opening form
               }}
               onBackgroundClick={() => {
                 setShowActionMenu(false);
