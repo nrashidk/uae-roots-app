@@ -7,7 +7,7 @@ integrations = ["github:1.0.0", "javascript_database:1.0.0"]
 channel = "stable-25_05"
 
 [workflows]
-runButton = "Project"
+runButton = "Development Server"
 
 [[workflows.workflow]]
 name = "Project"
