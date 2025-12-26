@@ -491,12 +491,9 @@ function App() {
       currentTree?.id,
     );
 
-    // Choose root person: prefer currently selected person if present in this tree
-    const preferredRoot = selectedPerson ? `P${selectedPerson}` : null;
-    const rootPerson =
-      preferredRoot && familyData[preferredRoot]
-        ? preferredRoot
-        : findRootPerson(familyData);
+    // Choose root person: use the original root, not the selected person
+    // This keeps the tree layout stable when clicking on different people
+    const rootPerson = findRootPerson(familyData);
 
     // Generate layout
 
@@ -506,13 +503,12 @@ function App() {
       siblingDepth: 10,
       flipLayout: false,
       displayOptions: {},
-      markedPersonId:
-        preferredRoot && familyData[preferredRoot] ? preferredRoot : null,
+      markedPersonId: selectedPerson ? `P${selectedPerson}` : null,
     });
 
     // Return both layout and familyData so TreeCanvas can access person data
     return { layout, familyData };
-  }, [people, relationships, currentTree?.id, selectedPerson]);
+  }, [people, relationships, currentTree?.id]);
 
   // Compute auto-pan for single-entity centering (to keep overlays aligned with canvas)
   const autoPan = useMemo(() => {
@@ -2152,12 +2148,13 @@ function App() {
               layout={treeLayout.layout}
               familyData={treeLayout.familyData}
               people={treePeople}
+              relationships={relationships.filter(r => r.treeId === currentTree?.id)}
               selectedPerson={selectedPerson}
               onPersonClick={(personId) => {
                 setSelectedPerson(personId);
                 setEditingPerson(personId);
                 setShowPersonForm(true);
-                setShowActionMenu(true);
+                setShowActionMenu(false); // Close action menu when opening form
               }}
               onBackgroundClick={() => {
                 setShowActionMenu(false);
