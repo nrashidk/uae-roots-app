@@ -1419,7 +1419,7 @@ function App() {
   };
 
   // Reorder sibling: swap birthOrder with adjacent sibling
-  // direction: 'older' (أكبر - move right) or 'younger' (أصغر - move left)
+  // direction: 'older' (أكبر - move left) or 'younger' (أصغر - move right)
   const handleReorderSibling = async (personId, direction) => {
     const person = people.find((p) => p.id === personId);
     if (!person) return;
@@ -1438,14 +1438,13 @@ function App() {
     if (currentIndex === -1) return;
 
     // Determine swap target index
-    // In Arabic RTL: older = right = lower index, younger = left = higher index
-    // So 'older' means swap with the one BEFORE (lower birthOrder)
-    // And 'younger' means swap with the one AFTER (higher birthOrder)
+    // 'older' means move to earlier position in sorted list (lower birthOrder)
+    // 'younger' means move to later position in sorted list (higher birthOrder)
     let targetIndex;
     if (direction === "older") {
-      targetIndex = currentIndex - 1;
+      targetIndex = currentIndex + 1;  // Swap with next (younger) sibling
     } else {
-      targetIndex = currentIndex + 1;
+      targetIndex = currentIndex - 1;  // Swap with previous (older) sibling
     }
 
     // Check bounds
@@ -2201,8 +2200,10 @@ function App() {
                     return orderA - orderB;
                   });
                   const currentIndex = allSiblings.findIndex((s) => s.id === selectedPerson);
-                  canMoveOlder = currentIndex > 0;
-                  canMoveYounger = currentIndex < allSiblings.length - 1;
+                  // "older" moves right/down in tree (swap with younger sibling at higher index)
+                  canMoveOlder = currentIndex < allSiblings.length - 1;
+                  // "younger" moves left/up in tree (swap with older sibling at lower index)
+                  canMoveYounger = currentIndex > 0;
                 }
 
                 return (
