@@ -1292,7 +1292,7 @@ function App() {
 
   // Add both parents in one action and open father's form first
   const [pendingSecondParent, setPendingSecondParent] = useState(null);
-  const handleAddBothParents = (childId) => {
+  const handleAddBothParents = async (childId) => {
     const child = people.find((p) => p.id === childId);
     if (!child) return;
 
@@ -1312,12 +1312,57 @@ function App() {
       return;
     }
 
-    // Just open the form for adding a parent
-    setSelectedPerson(childId);
-    setRelationshipType("parent");
-    setEditingPerson(null);
-    setFormKey((prev) => prev + 1);
-    setShowPersonForm(true);
+    try {
+      // Create father
+      const father = await api.people.create({
+        treeId: currentTree?.id,
+        firstName: `والد ${child.firstName}`,
+        lastName: child.lastName || "",
+        gender: "male",
+        isLiving: true,
+      });
+
+      // Create mother
+      const mother = await api.people.create({
+        treeId: currentTree?.id,
+        firstName: `والدة ${child.firstName}`,
+        lastName: child.lastName || "",
+        gender: "female",
+        isLiving: true,
+      });
+
+      // Create parent-child relationships
+      const fatherChildRel = await api.relationships.create({
+        treeId: currentTree?.id,
+        type: "parent-child",
+        parentId: father.id,
+        childId: childId,
+      });
+
+      const motherChildRel = await api.relationships.create({
+        treeId: currentTree?.id,
+        type: "parent-child",
+        parentId: mother.id,
+        childId: childId,
+      });
+
+      // Create partner relationship between father and mother
+      const partnerRel = await api.relationships.create({
+        treeId: currentTree?.id,
+        type: "partner",
+        person1Id: father.id,
+        person2Id: mother.id,
+      });
+
+      // Update local state
+      setPeople((prev) => [...prev, father, mother]);
+      setRelationships((prev) => [...prev, fatherChildRel, motherChildRel, partnerRel]);
+
+      console.log("Both parents created successfully:", father, mother);
+    } catch (error) {
+      console.error("Failed to create parents:", error);
+      alert("فشل في إضافة الوالدين: " + error.message);
+    }
   };
 
   // Quick-create relationship helpers (open form for adding related person)
