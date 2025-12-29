@@ -293,11 +293,13 @@ const personSchema = z.object({
   lastName: z.string().max(100).trim().optional().nullable(),
   gender: z.enum(['male', 'female']),
   birthDate: z.string().max(20).optional().nullable(),
+  birthPlace: z.string().max(200).optional().nullable(),
   deathDate: z.string().max(20).optional().nullable(),
   isLiving: z.boolean().optional().default(true),
   phone: z.string().max(20).optional().nullable(),
   email: z.string().email().max(100).optional().nullable().or(z.literal('')).or(z.null()),
   identificationNumber: z.string().max(50).optional().nullable(),
+  profession: z.string().max(100).optional().nullable(),
   birthOrder: z.number().int().optional().nullable(),
   photoUrl: z.string().max(500).optional().nullable()
 });
@@ -339,13 +341,11 @@ const personUpdateSchema = z.object({
   lastName: z.string().max(100).trim().optional().nullable(),
   gender: z.enum(['male', 'female']).optional(),
   birthDate: z.string().max(20).optional().nullable(),
+  birthPlace: z.string().max(200).optional().nullable(),
   deathDate: z.string().max(20).optional().nullable(),
   isLiving: z.boolean().optional(),
   phone: z.string().max(20).optional().nullable(),
-  birthPlace: z.string().max(200).optional().nullable(),
-  profession: z.string().max(200).optional().nullable(),
-  company: z.string().max(200).optional().nullable(),
-  address: z.string().max(500).optional().nullable(),
+  profession: z.string().max(100).optional().nullable(),
   email: z.string().email().max(100).optional().nullable().or(z.literal('')).or(z.null()),
   identificationNumber: z.string().max(50).optional().nullable(),
   birthOrder: z.number().int().optional().nullable(),
@@ -1225,7 +1225,9 @@ app.get('/api/people/search', authenticateUser, async (req, res) => {
 
 app.post('/api/people', authenticateUser, async (req, res) => {
   try {
+    console.log("POST /api/people received data:", req.body);
     const validatedData = personSchema.parse(req.body);
+    console.log("After validation:", validatedData);
 
     const ownership = await verifyTreeOwnership(validatedData.treeId, req.userId);
     if (!ownership.valid) {
@@ -1241,14 +1243,17 @@ app.post('/api/people', authenticateUser, async (req, res) => {
       lastName: sanitizedData.lastName || null,
       gender: sanitizedData.gender,
       birthDate: sanitizedData.birthDate || null,
+      birthPlace: sanitizedData.birthPlace || null,
       deathDate: sanitizedData.deathDate || null,
       isLiving: sanitizedData.isLiving !== undefined ? sanitizedData.isLiving : true,
       phone: encryptPII(sanitizedData.phone),
       email: encryptPII(sanitizedData.email),
       identificationNumber: encryptPII(sanitizedData.identificationNumber),
+      profession: sanitizedData.profession || null,
       birthOrder: sanitizedData.birthOrder || null,
       photoUrl: sanitizedData.photoUrl || null
     };
+    console.log("Saving to DB:", personData);
     const [person] = await db.insert(people).values(personData).returning();
 
     await recordEdit(req.userId, validatedData.treeId, 'create', 'person', person.id, null, person);
@@ -1272,15 +1277,17 @@ app.post('/api/people', authenticateUser, async (req, res) => {
 
 app.put('/api/people/:id', authenticateUser, async (req, res) => {
   try {
+    console.log("PUT /api/people/:id received data:", req.body);
     const personId = validateId(req.params.id);
     if (!personId) {
       return res.status(400).json({ error: 'Invalid person ID' });
     }
 
     const validatedData = personUpdateSchema.parse(req.body);
+    console.log("After validation:", validatedData);
 
     // Sanitize text fields to prevent XSS
-    const sanitizedData = sanitizeUserInput(validatedData, ['firstName', 'lastName', 'birthPlace', 'profession', 'company', 'address']);
+    const sanitizedData = sanitizeUserInput(validatedData, ['firstName', 'lastName', 'birthPlace', 'profession']);
 
     const [existingPerson] = await db.select().from(people).where(eq(people.id, personId));
     if (!existingPerson) {
@@ -1297,18 +1304,17 @@ app.put('/api/people/:id', authenticateUser, async (req, res) => {
     if (sanitizedData.lastName !== undefined) personData.lastName = sanitizedData.lastName || null;
     if (sanitizedData.gender !== undefined) personData.gender = sanitizedData.gender;
     if (sanitizedData.birthDate !== undefined) personData.birthDate = sanitizedData.birthDate || null;
+    if (sanitizedData.birthPlace !== undefined) personData.birthPlace = sanitizedData.birthPlace || null;
     if (sanitizedData.deathDate !== undefined) personData.deathDate = sanitizedData.deathDate || null;
     if (sanitizedData.isLiving !== undefined) personData.isLiving = sanitizedData.isLiving;
     if (sanitizedData.phone !== undefined) personData.phone = encryptPII(sanitizedData.phone);
     if (sanitizedData.email !== undefined) personData.email = encryptPII(sanitizedData.email);
     if (sanitizedData.identificationNumber !== undefined) personData.identificationNumber = encryptPII(sanitizedData.identificationNumber);
+    if (sanitizedData.profession !== undefined) personData.profession = sanitizedData.profession || null;
     if (sanitizedData.birthOrder !== undefined) personData.birthOrder = sanitizedData.birthOrder;
     if (sanitizedData.photoUrl !== undefined) personData.photoUrl = sanitizedData.photoUrl;
-    if (sanitizedData.birthPlace !== undefined) personData.birthPlace = sanitizedData.birthPlace || null;
-    if (sanitizedData.profession !== undefined) personData.profession = sanitizedData.profession || null;
-    if (sanitizedData.company !== undefined) personData.company = sanitizedData.company || null;
-    if (sanitizedData.address !== undefined) personData.address = sanitizedData.address || null;
 
+    console.log("Updating in DB with:", personData);
     const [person] = await db.update(people)
       .set(personData)
       .where(eq(people.id, personId))
