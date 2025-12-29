@@ -1104,11 +1104,18 @@ function App() {
 
     try {
       // Create person via API
-      console.log("Adding person with data:", personData);
+      console.log("=== ADDING PERSON ===");
+      console.log("Person data:", personData);
+      console.log("Relationship type:", relationshipType);
+      console.log("Selected person:", selectedPerson);
+      console.log("Tree ID:", currentTree?.id);
+      
       const newPerson = await api.people.create({
         ...personData,
         treeId: currentTree?.id,
       });
+      
+      console.log("New person created:", newPerson);
 
       // If there's a relationship, create it
       if (relationshipType && selectedPerson) {
@@ -1160,33 +1167,29 @@ function App() {
             const newRel = await api.relationships.create(relData);
             setRelationships((prev) => [...prev, newRel]);
           } else if (relationshipType === "child") {
-            // Child should be linked to BOTH parents if they exist
+            // Child should be linked to BOTH parents (selected person + spouse)
+            console.log("=== CREATING CHILD RELATIONSHIPS ===");
             const selectedPerson_obj = people.find((p) => p.id === selectedPerson);
+            console.log("Selected parent:", selectedPerson_obj);
             
-            // Find all parents of the selected parent
-            const parentRels = relationships.filter(
-              (r) =>
-                r.treeId === currentTree?.id &&
-                r.type === "parent-child" &&
-                r.childId === selectedPerson,
-            );
-            
-            // Get all parent IDs (both direct and spouse)
-            let allParentIds = parentRels.map((r) => r.parentId);
-            
-            // Also add the spouse(s) of the selected person as co-parents
+            // Find the spouse(s) of the selected person
             const spouseRels = relationships.filter(
               (r) =>
                 r.treeId === currentTree?.id &&
                 r.type === "partner" &&
                 (r.person1Id === selectedPerson || r.person2Id === selectedPerson),
             );
+            console.log("Spouse relationships found:", spouseRels);
             const spouseIds = spouseRels.map((r) =>
               r.person1Id === selectedPerson ? r.person2Id : r.person1Id,
             );
             
-            // Combine: parents + spouses
-            allParentIds = [...new Set([...allParentIds, selectedPerson, ...spouseIds])];
+            // Create parent-child relationships for selected person + spouse(s)
+            // Do NOT include grandparents
+            const allParentIds = [selectedPerson, ...spouseIds];
+            console.log("All parent IDs:", allParentIds);
+            console.log("New child ID:", newPerson.id);
+            console.log("New child gender:", newPerson.gender);
             
             // Create parent-child relationship for each parent
             const createdRels = await Promise.all(
@@ -1199,6 +1202,7 @@ function App() {
                 }),
               ),
             );
+            console.log("Created relationships:", createdRels);
             setRelationships((prev) => [...prev, ...createdRels]);
           } else if (relationshipType === "parent") {
             relData.parentId = newPerson.id;
@@ -1272,6 +1276,7 @@ function App() {
       setShowPersonForm(false);
       setRelationshipType(null);
       setEditingPerson(null);
+      setSelectedPerson(null);
     } catch (error) {
       console.error('Failed to add person:', error);
       alert('فشل في إضافة الشخص: ' + error.message);
@@ -2792,6 +2797,11 @@ function PersonForm({
       alert("يرجى إدخال الاسم الأول");
       return;
     }
+    if (!formData.gender || formData.gender === "") {
+      alert("يرجى اختيار الجنس");
+      return;
+    }
+    console.log("Form data being submitted:", formData);
     onSave(formData);
   };
 
