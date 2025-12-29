@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo, useLayoutEffect } from "react";
+import { useState, useEffect, useRef, useMemo, useLayoutEffect,useCallback  } from "react";
 import { Button } from "@/components/ui/button.jsx";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog.jsx";
 import {
@@ -556,6 +556,44 @@ function App() {
     );
   }, [treeLayout]);
 
+  // Calculate center offset for the tree (for reset functionality)
+  const calculateCenterOffset = useCallback(() => {
+    if (!treeLayout?.layout?.e) return { x: 0, y: 0 };
+    
+    const BOX_WIDTH = stylingOptions?.boxWidth || CARD.w;
+    const BOX_HEIGHT = CARD.h;
+    const entities = Object.values(treeLayout.layout.e);
+    
+    if (entities.length === 0) return { x: 0, y: 0 };
+    
+    // Find bounds of all entities
+    let minX = Infinity, maxX = -Infinity;
+    let minY = Infinity, maxY = -Infinity;
+    
+    entities.forEach(entity => {
+      const x = entity.x * BOX_WIDTH;
+      const y = entity.y * BOX_HEIGHT;
+      minX = Math.min(minX, x);
+      maxX = Math.max(maxX, x);
+      minY = Math.min(minY, y);
+      maxY = Math.max(maxY, y);
+    });
+    
+    // Calculate center of the tree
+    const treeCenterX = (minX + maxX) / 2;
+    const treeCenterY = (minY + maxY) / 2;
+    
+    // Calculate viewport center
+    const viewportCenterX = canvasDimensions.width / 2;
+    const viewportCenterY = canvasDimensions.height / 2;
+    
+    // Return offset to center the tree in viewport
+    return {
+      x: viewportCenterX - treeCenterX,
+      y: viewportCenterY - treeCenterY
+    };
+  }, [treeLayout, stylingOptions, CARD, canvasDimensions]);
+
   // Preserve viewport when switching from single-entity auto-center to multi-entity
   const wasSingleRef = useRef(false);
   const combinedPanRef = useRef({ x: 0, y: 0 });
@@ -577,6 +615,20 @@ function App() {
 
   // When not single-entity, TreeCanvas receives zero auto-pan; panOffset already includes the combined value
   const effectiveAutoPan = isSingleLayout ? autoPan : { x: 0, y: 0 };
+
+  // Center the tree when it first loads or when switching to tree-builder view
+  const hasInitializedCenter = useRef(false);
+  useEffect(() => {
+    if (currentView === 'tree-builder' && treeLayout && !hasInitializedCenter.current && canvasDimensions.width > 0) {
+      // Center the tree on initial load
+      setPanOffset(calculateCenterOffset());
+      hasInitializedCenter.current = true;
+    }
+    // Reset flag when leaving tree-builder view
+    if (currentView !== 'tree-builder') {
+      hasInitializedCenter.current = false;
+    }
+  }, [currentView, treeLayout, calculateCenterOffset, canvasDimensions]);
 
   // Get people for the current tree
   const treePeople = useMemo(() => {
@@ -2165,7 +2217,7 @@ function App() {
                 panOffset.x + (effectiveAutoPan?.x || 0)
               }px, ${
                 panOffset.y + (effectiveAutoPan?.y || 0)
-              }px) scale(${zoom})`,
+              }px)`,
               transformOrigin: "0 0",
               pointerEvents: "none",
             }}
@@ -2259,8 +2311,8 @@ function App() {
                     data-action-button
                     className="absolute bg-white border rounded-lg shadow-lg p-2 z-20 transition-opacity transition-transform duration-200"
                     style={{
-                      left: x - 90,
-                      top: y + h / 2 + 10,
+                      left: (x - 90) * zoom,
+                      top: (y + h / 2 + 10) * zoom,
                       pointerEvents: "auto",
                     }}
                   >
@@ -2433,7 +2485,7 @@ function App() {
           <Button
             onClick={() => {
               setZoom(1);
-              setPanOffset({ x: 0, y: 0 });
+              setPanOffset(calculateCenterOffset());
             }}
             size="sm"
             variant="outline"
