@@ -201,12 +201,51 @@ const TreeCanvas = ({
             yOffset += 12;
           }
 
+          if (displayOptions?.showDeathDate && person.deathDate) {
+            ctx.fillText(`† ${person.deathDate}`, x, y + yOffset);
+            yOffset += 12;
+          }
+
           if (displayOptions?.showBirthPlace && person.birthPlace) {
             const placeText =
               person.birthPlace.length > 15
                 ? person.birthPlace.substring(0, 12) + "..."
                 : person.birthPlace;
             ctx.fillText(placeText, x, y + yOffset);
+            yOffset += 12;
+          }
+
+          if (displayOptions?.showAge && person.birthDate && isLiving) {
+            const birthYear = new Date(person.birthDate).getFullYear();
+            const currentYear = new Date().getFullYear();
+            const age = currentYear - birthYear;
+            if (age > 0) {
+              ctx.fillText(`${age} سنة`, x, y + yOffset);
+              yOffset += 12;
+            }
+          }
+
+          if (displayOptions?.showProfession && person.profession) {
+            const profText =
+              person.profession.length > 15
+                ? person.profession.substring(0, 12) + "..."
+                : person.profession;
+            ctx.fillText(profText, x, y + yOffset);
+            yOffset += 12;
+          }
+
+          if (displayOptions?.showTelephone && person.phone) {
+            ctx.fillText(person.phone, x, y + yOffset);
+            yOffset += 12;
+          }
+
+          if (displayOptions?.showEmail && person.email) {
+            const emailText =
+              person.email.length > 20
+                ? person.email.substring(0, 17) + "..."
+                : person.email;
+            ctx.fillText(emailText, x, y + yOffset);
+            yOffset += 12;
           }
         }
       });

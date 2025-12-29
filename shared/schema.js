@@ -83,11 +83,13 @@ export const people = pgTable("people", {
   lastName: text("last_name"),
   gender: text("gender").notNull(), // 'male' | 'female'
   birthDate: text("birth_date"),
+  birthPlace: text("birth_place"),
   deathDate: text("death_date"),
   isLiving: boolean("is_living").default(true),
   phone: text("phone"),
   email: text("email"),
   identificationNumber: text("identification_number"),
+  profession: text("profession"),
   birthOrder: integer("birth_order"),
   photoUrl: text("photo_url"), // URL to uploaded photo
   createdAt: timestamp("created_at").defaultNow().notNull(),

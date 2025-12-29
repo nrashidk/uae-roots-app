@@ -100,7 +100,8 @@ function App() {
   const [profileMessage, setProfileMessage] = useState("");
   const [userProfile, setUserProfile] = useState(null);
 
-  const [displayOptions, setDisplayOptions] = useState({
+  // Default values for options
+  const DEFAULT_DISPLAY_OPTIONS = {
     showName: true,
     showSurname: true,
     showBirthDate: false,
@@ -108,13 +109,11 @@ function App() {
     showAge: false,
     showDeathDate: false,
     showProfession: false,
-    showCompany: false,
     showEmail: false,
     showTelephone: false,
-    showAddress: false,
-  });
+  };
 
-  const [stylingOptions, setStylingOptions] = useState({
+  const DEFAULT_STYLING_OPTIONS = {
     backgroundColor: "#f8fafc",
     maleBoxColor: "#e6f3ff",
     femaleBoxColor: "#ffe4e1",
@@ -123,7 +122,16 @@ function App() {
     boxWidth: 140,
     textSize: 14,
     lineColor: "#8b8b8b",
-  });
+  };
+
+  const [displayOptions, setDisplayOptions] = useState(DEFAULT_DISPLAY_OPTIONS);
+  const [stylingOptions, setStylingOptions] = useState(DEFAULT_STYLING_OPTIONS);
+
+  // Reset options to default
+  const handleResetOptions = () => {
+    setDisplayOptions(DEFAULT_DISPLAY_OPTIONS);
+    setStylingOptions(DEFAULT_STYLING_OPTIONS);
+  };
 
   useEffect(() => {
     if (!showPersonForm) {
@@ -153,10 +161,8 @@ function App() {
     showAge: "العمر",
     showDeathDate: "تاريخ الوفاة",
     showProfession: "المهنة",
-    showCompany: "جهة العمل",
     showEmail: "البريد الإلكتروني",
     showTelephone: "الهاتف",
-    showAddress: "العنوان",
   };
 
   const t = {
@@ -1136,6 +1142,7 @@ function App() {
 
     try {
       // Create person via API
+      console.log("Adding person with data:", personData);
       const newPerson = await api.people.create({
         ...personData,
         treeId: currentTree?.id,
@@ -1391,7 +1398,7 @@ function App() {
 
   // Add both parents in one action and open father's form first
   const [pendingSecondParent, setPendingSecondParent] = useState(null);
-  const handleAddBothParents = (childId) => {
+  const handleAddBothParents = async (childId) => {
     const child = people.find((p) => p.id === childId);
     if (!child) return;
 
@@ -1411,12 +1418,60 @@ function App() {
       return;
     }
 
-    // Just open the form for adding a parent
-    setSelectedPerson(childId);
-    setRelationshipType("parent");
-    setEditingPerson(null);
-    setFormKey((prev) => prev + 1);
-    setShowPersonForm(true);
+    try {
+      // Create father
+      const father = await api.people.create({
+        treeId: currentTree?.id,
+        firstName: `والد ${child.firstName}`,
+        lastName: child.lastName || "",
+        gender: "male",
+        isLiving: true,
+      });
+
+      // Create mother
+      const mother = await api.people.create({
+        treeId: currentTree?.id,
+        firstName: `والدة ${child.firstName}`,
+        lastName: child.lastName || "",
+        gender: "female",
+        isLiving: true,
+      });
+
+      // Create parent-child relationships
+      const fatherChildRel = await api.relationships.create({
+        treeId: currentTree?.id,
+        type: "parent-child",
+        parentId: father.id,
+        childId: childId,
+      });
+
+      const motherChildRel = await api.relationships.create({
+        treeId: currentTree?.id,
+        type: "parent-child",
+        parentId: mother.id,
+        childId: childId,
+      });
+
+      // Create partner relationship between father and mother
+      const partnerRel = await api.relationships.create({
+        treeId: currentTree?.id,
+        type: "partner",
+        person1Id: father.id,
+        person2Id: mother.id,
+      });
+
+      // Update local state
+      setPeople((prev) => [...prev, father, mother]);
+      setRelationships((prev) => [
+        ...prev,
+        fatherChildRel,
+        motherChildRel,
+        partnerRel,
+      ]);
+    } catch (error) {
+      console.error("Failed to create parents:", error);
+      alert("فشل في إضافة الوالدين: " + error.message);
+    }
   };
 
   // Quick-create relationship helpers (open form for adding related person)
@@ -1489,20 +1544,8 @@ function App() {
         r.type === "parent-child" &&
         r.childId === personId,
     );
-    console.log(
-      "[getSiblings] parentRels for personId",
-      personId,
-      ":",
-      parentRels,
-    );
     const parentIds = parentRels.map((r) => r.parentId);
     if (parentIds.length > 0) {
-      console.log(
-        "[getSiblings] parentIds for personId",
-        personId,
-        ":",
-        parentIds,
-      );
       const siblingRels = relationships.filter(
         (r) =>
           r.treeId === currentTree?.id &&
@@ -2376,7 +2419,6 @@ function App() {
 
                 // Check if person has siblings for reorder buttons
                 const siblings = getSiblings(selectedPerson);
-                console.log("Siblings for", selectedPerson, siblings);
                 const hasSiblings = siblings.length > 0;
 
                 // Determine if can move older/younger based on current position
@@ -2817,7 +2859,10 @@ function App() {
                   </div>
                 </div>
               </div>
-              <div className="flex justify-end mt-4">
+              <div className="flex justify-between mt-4">
+                <Button onClick={handleResetOptions} variant="outline">
+                  إعادة تعيين
+                </Button>
                 <Button onClick={() => setShowOptions(false)}>{t.save}</Button>
               </div>
             </div>
@@ -2888,9 +2933,7 @@ function PersonForm({
     deathDate: person?.deathDate || "",
     phone: person?.phone || "",
     email: person?.email || "",
-    address: person?.address || "",
     profession: person?.profession || "",
-    company: person?.company || "",
   });
 
   // Reset form when person prop changes
@@ -2905,9 +2948,7 @@ function PersonForm({
       deathDate: person?.deathDate || "",
       phone: person?.phone || "",
       email: person?.email || "",
-      address: person?.address || "",
       profession: person?.profession || "",
-      company: person?.company || "",
     });
   }, [
     person,
