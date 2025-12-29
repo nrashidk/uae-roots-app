@@ -119,11 +119,33 @@ const TreeCanvas = ({
         const personId = parseInt(entityId.replace("P", ""));
         const person = people.find((p) => p.id === personId);
 
+        // Calculate how many lines of text will be shown
+        let lineCount = 1; // Name line
+        const isLiving = person?.isLiving !== false;
+        const lineHeight = 12; // Line height for text rendering
+
+        if (person) {
+          if (displayOptions?.showBirthDate && person.birthDate) lineCount++;
+          if (displayOptions?.showDeathDate && person.deathDate) lineCount++;
+          if (displayOptions?.showBirthPlace && person.birthPlace) lineCount++;
+          if (displayOptions?.showAge && person.birthDate && isLiving)
+            lineCount++;
+          if (displayOptions?.showProfession && person.profession) lineCount++;
+          if (displayOptions?.showTelephone && person.phone) lineCount++;
+          if (displayOptions?.showEmail && person.email) lineCount++;
+        }
+
+        // Calculate dynamic height based on content
+        const baseHeight = 30; // Minimum height for name
+        const contentHeight = (lineCount - 1) * lineHeight; // Additional lines
+        const padding = 10;
+        const calculatedHeight = baseHeight + contentHeight + padding;
+
         // Convert grid units to pixels
         const x = entity.x * BOX_WIDTH;
         const y = entity.y * BOX_HEIGHT;
         const w = BOX_WIDTH * 0.8; // 80% of grid width for box
-        const h = BOX_HEIGHT * 0.6; // 60% of grid height for box
+        const h = Math.max(calculatedHeight, BOX_HEIGHT * 0.6); // Use dynamic height or minimum
 
         // Center the box on the grid position
         const boxX = x - w / 2;
@@ -153,13 +175,26 @@ const TreeCanvas = ({
         ctx.strokeRect(boxX, boxY, w, h);
 
         // Draw text
-        const isLiving = person?.isLiving !== false; // default to living if not specified
         ctx.fillStyle = isLiving
           ? stylingOptions?.livingTextColor || "#000000"
           : stylingOptions?.deceasedTextColor || "#6b7280";
         ctx.font = `bold ${stylingOptions?.textSize || 14}px sans-serif`;
         ctx.textAlign = "center";
         ctx.textBaseline = "middle";
+
+        // Calculate starting position - center if only a few lines, otherwise top-align
+        let yOffset;
+        const isCentered = lineCount <= 2;
+
+        if (isCentered) {
+          // Center the text when only showing name/surname
+          yOffset = boxY + h / 2 - lineHeight / 2;
+          ctx.textBaseline = "middle";
+        } else {
+          // Top-align when showing multiple fields
+          yOffset = boxY + 15;
+          ctx.textBaseline = "top";
+        }
 
         // Draw name (use personData.p from algorithm or construct from person)
         let nameText = personData.p || "";
@@ -188,22 +223,22 @@ const TreeCanvas = ({
             displayText += "...";
           }
 
-          ctx.fillText(displayText, x, y);
+          ctx.fillText(displayText, x, yOffset);
+          yOffset += lineHeight;
         }
 
         // Draw additional info (birth date, etc.) - only if person data is available
         if (person) {
-          let yOffset = 15;
           ctx.font = `${(stylingOptions?.textSize || 14) - 2}px sans-serif`;
 
           if (displayOptions?.showBirthDate && person.birthDate) {
-            ctx.fillText(person.birthDate, x, y + yOffset);
-            yOffset += 12;
+            ctx.fillText(person.birthDate, x, yOffset);
+            yOffset += lineHeight;
           }
 
           if (displayOptions?.showDeathDate && person.deathDate) {
-            ctx.fillText(`† ${person.deathDate}`, x, y + yOffset);
-            yOffset += 12;
+            ctx.fillText(`† ${person.deathDate}`, x, yOffset);
+            yOffset += lineHeight;
           }
 
           if (displayOptions?.showBirthPlace && person.birthPlace) {
@@ -211,8 +246,8 @@ const TreeCanvas = ({
               person.birthPlace.length > 15
                 ? person.birthPlace.substring(0, 12) + "..."
                 : person.birthPlace;
-            ctx.fillText(placeText, x, y + yOffset);
-            yOffset += 12;
+            ctx.fillText(placeText, x, yOffset);
+            yOffset += lineHeight;
           }
 
           if (displayOptions?.showAge && person.birthDate && isLiving) {
@@ -220,8 +255,8 @@ const TreeCanvas = ({
             const currentYear = new Date().getFullYear();
             const age = currentYear - birthYear;
             if (age > 0) {
-              ctx.fillText(`${age} سنة`, x, y + yOffset);
-              yOffset += 12;
+              ctx.fillText(`${age} سنة`, x, yOffset);
+              yOffset += lineHeight;
             }
           }
 
@@ -230,13 +265,17 @@ const TreeCanvas = ({
               person.profession.length > 15
                 ? person.profession.substring(0, 12) + "..."
                 : person.profession;
-            ctx.fillText(profText, x, y + yOffset);
-            yOffset += 12;
+            ctx.fillText(profText, x, yOffset);
+            yOffset += lineHeight;
           }
 
           if (displayOptions?.showTelephone && person.phone) {
-            ctx.fillText(person.phone, x, y + yOffset);
-            yOffset += 12;
+            const phoneText =
+              person.phone.length > 15
+                ? person.phone.substring(0, 12) + "..."
+                : person.phone;
+            ctx.fillText(phoneText, x, yOffset);
+            yOffset += lineHeight;
           }
 
           if (displayOptions?.showEmail && person.email) {
@@ -244,8 +283,8 @@ const TreeCanvas = ({
               person.email.length > 20
                 ? person.email.substring(0, 17) + "..."
                 : person.email;
-            ctx.fillText(emailText, x, y + yOffset);
-            yOffset += 12;
+            ctx.fillText(emailText, x, yOffset);
+            yOffset += lineHeight;
           }
         }
       });
