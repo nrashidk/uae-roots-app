@@ -68,6 +68,8 @@ function App() {
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
   const [dragStartOffset, setDragStartOffset] = useState({ x: 0, y: 0 });
+  const [lastTouchDistance, setLastTouchDistance] = useState(null);
+  const [isPinching, setIsPinching] = useState(false);
   const canvasRef = useRef(null);
   const [canvasDimensions, setCanvasDimensions] = useState({
     width: 1200,
@@ -1637,12 +1639,109 @@ function App() {
     }
   }, [isDragging, dragStart, dragStartOffset]);
 
+  // Add touch event listeners with passive: false to allow preventDefault
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const options = { passive: false };
+    
+    canvas.addEventListener('touchstart', handleTouchStart, options);
+    canvas.addEventListener('touchmove', handleTouchMove, options);
+    canvas.addEventListener('touchend', handleTouchEnd, options);
+    canvas.addEventListener('wheel', handleWheel, options);
+
+    return () => {
+      canvas.removeEventListener('touchstart', handleTouchStart, options);
+      canvas.removeEventListener('touchmove', handleTouchMove, options);
+      canvas.removeEventListener('touchend', handleTouchEnd, options);
+      canvas.removeEventListener('wheel', handleWheel, options);
+    };
+  }, [isPinching, isDragging, lastTouchDistance, dragStart, dragStartOffset, panOffset, showPersonForm]);
+
   const handleWheel = (e) => {
     e.preventDefault();
     e.stopPropagation(); // Prevent event from bubbling up
     setZoom((prev) =>
       Math.max(0.3, Math.min(3, prev * (e.deltaY > 0 ? 0.9 : 1.1))),
     );
+  };
+
+  // Calculate distance between two touch points
+  const getTouchDistance = (touch1, touch2) => {
+    const dx = touch1.clientX - touch2.clientX;
+    const dy = touch1.clientY - touch2.clientY;
+    return Math.sqrt(dx * dx + dy * dy);
+  };
+
+  const handleTouchStart = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    if (e.touches.length === 2) {
+      // Pinch zoom start
+      setIsPinching(true);
+      setIsDragging(false);
+      const distance = getTouchDistance(e.touches[0], e.touches[1]);
+      setLastTouchDistance(distance);
+    } else if (e.touches.length === 1) {
+      // Single touch for panning
+      setIsPinching(false);
+      const isBackground =
+        e.target === canvasRef.current ||
+        e.target.closest("svg") &&
+        !e.target.closest("[data-person-card]") &&
+        !e.target.closest("[data-person-form]");
+      
+      if (isBackground) {
+        setIsDragging(true);
+        setDragStart({ x: e.touches[0].clientX, y: e.touches[0].clientY });
+        setDragStartOffset({ ...panOffset });
+        if (showPersonForm) {
+          setShowPersonForm(false);
+        }
+      }
+    }
+  };
+
+  const handleTouchMove = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    if (e.touches.length === 2 && isPinching) {
+      // Pinch zoom
+      const distance = getTouchDistance(e.touches[0], e.touches[1]);
+      if (lastTouchDistance) {
+        const scale = distance / lastTouchDistance;
+        setZoom((prev) => Math.max(0.3, Math.min(3, prev * scale)));
+      }
+      setLastTouchDistance(distance);
+    } else if (e.touches.length === 1 && isDragging && !isPinching) {
+      // Panning
+      setPanOffset({
+        x: Math.max(
+          -5000,
+          Math.min(5000, dragStartOffset.x + e.touches[0].clientX - dragStart.x),
+        ),
+        y: Math.max(
+          -200,
+          Math.min(1000, dragStartOffset.y + e.touches[0].clientY - dragStart.y),
+        ),
+      });
+    }
+  };
+
+  const handleTouchEnd = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    if (e.touches.length < 2) {
+      setIsPinching(false);
+      setLastTouchDistance(null);
+    }
+    if (e.touches.length === 0) {
+      setIsDragging(false);
+    }
   };
 
   if (authLoading) {
@@ -2194,9 +2293,6 @@ function App() {
           className="w-full h-full cursor-grab active:cursor-grabbing"
           style={{ backgroundColor: stylingOptions.backgroundColor, touchAction: 'none' }}
           onMouseDown={handleMouseDown}
-          onWheel={handleWheel}
-          onTouchStart={(e) => e.preventDefault()}
-          onTouchMove={(e) => e.preventDefault()}
         >
           {/* TreeCanvas component renders the family tree layout */}
           {treeLayout && (
