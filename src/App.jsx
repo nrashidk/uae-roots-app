@@ -103,6 +103,7 @@ function App() {
     backgroundColor: "#f8fafc",
     maleBoxColor: "#e6f3ff",
     femaleBoxColor: "#ffe4e1",
+    breastfedBoxColor: "#d1fae5",
     livingTextColor: "#000000",
     deceasedTextColor: "#6b7280",
     boxWidth: 140,
@@ -171,7 +172,7 @@ function App() {
     birthDate: "تاريخ الميلاد",
     birthPlace: "مكان الميلاد",
     isLiving: "على قيد الحياة",
-    breastfed: "الرضاعة الطبيعية",
+    breastfed: "مُرضَع طبيعيًا",
     deathDate: "تاريخ الوفاة",
     phone: "الهاتف",
     email: "البريد الإلكتروني",
@@ -2791,6 +2792,20 @@ function App() {
                           setStylingOptions((prev) => ({
                             ...prev,
                             femaleBoxColor: e.target.value,
+                          }))
+                        }
+                        className="w-12 h-8 rounded cursor-pointer"
+                      />
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <label className="text-sm w-32">لون الرضاعة</label>
+                      <input
+                        type="color"
+                        value={stylingOptions.breastfedBoxColor}
+                        onChange={(e) =>
+                          setStylingOptions((prev) => ({
+                            ...prev,
+                            breastfedBoxColor: e.target.value,
                           }))
                         }
                         className="w-12 h-8 rounded cursor-pointer"
