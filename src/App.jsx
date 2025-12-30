@@ -91,6 +91,8 @@ function App() {
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
   const [dragStartOffset, setDragStartOffset] = useState({ x: 0, y: 0 });
+  const [lastTouchDistance, setLastTouchDistance] = useState(null);
+  const [isPinching, setIsPinching] = useState(false);
   const canvasRef = useRef(null);
   const [canvasDimensions, setCanvasDimensions] = useState({
     width: 1200,
@@ -109,7 +111,7 @@ function App() {
 
   // Default values for options
   const DEFAULT_DISPLAY_OPTIONS = {
-    showName: true,
+    // showName: true,
     showSurname: true,
     showBirthDate: false,
     showBirthPlace: false,
@@ -661,12 +663,12 @@ function App() {
     const viewportCenterX = canvasDimensions.width / 2;
     const viewportCenterY = canvasDimensions.height / 2;
 
-    // Return offset to center the tree in viewport
+    // Return offset to center the tree in viewport (accounting for zoom)
     return {
-      x: viewportCenterX - treeCenterX,
-      y: viewportCenterY - treeCenterY,
+      x: viewportCenterX / zoom - treeCenterX,
+      y: viewportCenterY / zoom - treeCenterY,
     };
-  }, [treeLayout, stylingOptions, CARD, canvasDimensions]);
+  }, [treeLayout, stylingOptions, CARD, canvasDimensions, zoom]);
 
   // Preserve viewport when switching from single-entity auto-center to multi-entity
   const wasSingleRef = useRef(false);
@@ -697,11 +699,16 @@ function App() {
       currentView === "tree-builder" &&
       treeLayout &&
       !hasInitializedCenter.current &&
-      canvasDimensions.width > 0
+      canvasDimensions.width > 0 &&
+      canvasDimensions.height > 0
     ) {
-      // Center the tree on initial load
-      setPanOffset(calculateCenterOffset());
-      hasInitializedCenter.current = true;
+      // Center the tree on initial load - use a small timeout to ensure layout is ready
+      const timer = setTimeout(() => {
+        setZoom(1); // Reset zoom to 1 for centered view
+        setPanOffset(calculateCenterOffset());
+        hasInitializedCenter.current = true;
+      }, 0);
+      return () => clearTimeout(timer);
     }
     // Reset flag when leaving tree-builder view
     if (currentView !== "tree-builder") {
@@ -945,7 +952,7 @@ function App() {
       } catch (authErr) {
         if (authErr.code === "auth/requires-recent-login") {
           alert(
-            "ير �ى تسجيل الخروج وإعادة تسجيل الدخول ثم المحاولة مرة أخرى لحذف حساب Firebase",
+            "يرجى تسجيل الخروج وإعادة تسجيل الدخول ثم المحاولة مرة أخرى لحذف حساب Firebase",
           );
         }
         console.error("Firebase delete error (non-blocking):", authErr);
@@ -1712,11 +1719,16 @@ function App() {
     const isBackground =
       !e.target.closest("[data-person-box]") &&
       !e.target.closest("[data-action-button]") &&
-      !e.target.closest("[data-add-person-button]");
+      !e.target.closest("[data-add-person-button]") &&
+      !e.target.closest("[data-person-form]");
     if (isBackground) {
       setIsDragging(true);
       setDragStart({ x: e.clientX, y: e.clientY });
       setDragStartOffset({ ...panOffset });
+      // Close the form if it's open
+      if (showPersonForm) {
+        setShowPersonForm(false);
+      }
     }
   };
 
@@ -1748,11 +1760,123 @@ function App() {
     }
   }, [isDragging, dragStart, dragStartOffset]);
 
+  // Add touch event listeners with passive: false to allow preventDefault
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const options = { passive: false };
+
+    canvas.addEventListener("touchstart", handleTouchStart, options);
+    canvas.addEventListener("touchmove", handleTouchMove, options);
+    canvas.addEventListener("touchend", handleTouchEnd, options);
+    canvas.addEventListener("wheel", handleWheel, options);
+
+    return () => {
+      canvas.removeEventListener("touchstart", handleTouchStart, options);
+      canvas.removeEventListener("touchmove", handleTouchMove, options);
+      canvas.removeEventListener("touchend", handleTouchEnd, options);
+      canvas.removeEventListener("wheel", handleWheel, options);
+    };
+  }, [
+    isPinching,
+    isDragging,
+    lastTouchDistance,
+    dragStart,
+    dragStartOffset,
+    panOffset,
+    showPersonForm,
+  ]);
+
   const handleWheel = (e) => {
     e.preventDefault();
+    e.stopPropagation(); // Prevent event from bubbling up
     setZoom((prev) =>
       Math.max(0.3, Math.min(3, prev * (e.deltaY > 0 ? 0.9 : 1.1))),
     );
+  };
+
+  // Calculate distance between two touch points
+  const getTouchDistance = (touch1, touch2) => {
+    const dx = touch1.clientX - touch2.clientX;
+    const dy = touch1.clientY - touch2.clientY;
+    return Math.sqrt(dx * dx + dy * dy);
+  };
+
+  const handleTouchStart = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    if (e.touches.length === 2) {
+      // Pinch zoom start
+      setIsPinching(true);
+      setIsDragging(false);
+      const distance = getTouchDistance(e.touches[0], e.touches[1]);
+      setLastTouchDistance(distance);
+    } else if (e.touches.length === 1) {
+      // Single touch for panning
+      setIsPinching(false);
+      const isBackground =
+        e.target === canvasRef.current ||
+        (e.target.closest("svg") &&
+          !e.target.closest("[data-person-card]") &&
+          !e.target.closest("[data-person-form]"));
+
+      if (isBackground) {
+        setIsDragging(true);
+        setDragStart({ x: e.touches[0].clientX, y: e.touches[0].clientY });
+        setDragStartOffset({ ...panOffset });
+        if (showPersonForm) {
+          setShowPersonForm(false);
+        }
+      }
+    }
+  };
+
+  const handleTouchMove = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    if (e.touches.length === 2 && isPinching) {
+      // Pinch zoom
+      const distance = getTouchDistance(e.touches[0], e.touches[1]);
+      if (lastTouchDistance) {
+        const scale = distance / lastTouchDistance;
+        setZoom((prev) => Math.max(0.3, Math.min(3, prev * scale)));
+      }
+      setLastTouchDistance(distance);
+    } else if (e.touches.length === 1 && isDragging && !isPinching) {
+      // Panning
+      setPanOffset({
+        x: Math.max(
+          -5000,
+          Math.min(
+            5000,
+            dragStartOffset.x + e.touches[0].clientX - dragStart.x,
+          ),
+        ),
+        y: Math.max(
+          -200,
+          Math.min(
+            1000,
+            dragStartOffset.y + e.touches[0].clientY - dragStart.y,
+          ),
+        ),
+      });
+    }
+  };
+
+  const handleTouchEnd = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    if (e.touches.length < 2) {
+      setIsPinching(false);
+      setLastTouchDistance(null);
+    }
+    if (e.touches.length === 0) {
+      setIsDragging(false);
+    }
   };
 
   if (authLoading) {
@@ -2378,9 +2502,11 @@ function App() {
         <div
           ref={canvasRef}
           className="w-full h-full cursor-grab active:cursor-grabbing"
-          style={{ backgroundColor: stylingOptions.backgroundColor }}
+          style={{
+            backgroundColor: stylingOptions.backgroundColor,
+            touchAction: "none",
+          }}
           onMouseDown={handleMouseDown}
-          onWheel={handleWheel}
         >
           {/* TreeCanvas component renders the family tree layout */}
           {treeLayout && (
@@ -2484,6 +2610,13 @@ function App() {
                   ? t.addParent
                   : "Both parents already exist";
 
+                // Check if person has parents - required for adding siblings
+                const hasParents = hasFather || hasMother;
+                const canAddSibling = hasParents;
+                const addSiblingTooltip = canAddSibling
+                  ? t.addSibling
+                  : "أضف الوالدين أولاً";
+
                 // Check if person has siblings for reorder buttons
                 const siblings = getSiblings(selectedPerson);
                 const hasSiblings = siblings.length > 0;
@@ -2575,13 +2708,18 @@ function App() {
                       <Button
                         onClick={(e) => {
                           e.stopPropagation();
+                          if (!canAddSibling) {
+                            window.alert("أضف الوالدين أولاً");
+                            return;
+                          }
                           handleQuickCreateSibling(selectedPerson);
                           setShowActionMenu(false);
                         }}
+                        disabled={!canAddSibling}
                         size="sm"
                         variant="ghost"
                         className="w-8 h-8 p-0"
-                        title={t.addSibling}
+                        title={addSiblingTooltip}
                       >
                         <UserPlus className="w-4 h-4" />
                       </Button>
@@ -2701,8 +2839,42 @@ function App() {
           </Button>
           <Button
             onClick={() => {
-              setZoom(1);
-              setPanOffset(calculateCenterOffset());
+              // Reset to centered view with zoom=1
+              // Calculate center offset without zoom factor since we're resetting to zoom=1
+              if (treeLayout?.layout?.e) {
+                const BOX_WIDTH = stylingOptions?.boxWidth || CARD.w;
+                const BOX_HEIGHT = CARD.h;
+                const entities = Object.values(treeLayout.layout.e);
+
+                if (entities.length > 0) {
+                  let minX = Infinity,
+                    maxX = -Infinity;
+                  let minY = Infinity,
+                    maxY = -Infinity;
+
+                  entities.forEach((entity) => {
+                    const x = entity.x * BOX_WIDTH;
+                    const y = entity.y * BOX_HEIGHT;
+                    minX = Math.min(minX, x);
+                    maxX = Math.max(maxX, x);
+                    minY = Math.min(minY, y);
+                    maxY = Math.max(maxY, y);
+                  });
+
+                  const treeCenterX = (minX + maxX) / 2;
+                  const treeCenterY = (minY + maxY) / 2;
+
+                  const viewportCenterX = canvasDimensions.width / 2;
+                  const viewportCenterY = canvasDimensions.height / 2;
+
+                  // Center offset for zoom=1 (no division by zoom)
+                  setZoom(1);
+                  setPanOffset({
+                    x: viewportCenterX - treeCenterX,
+                    y: viewportCenterY - treeCenterY,
+                  });
+                }
+              }
             }}
             size="sm"
             variant="outline"
@@ -2877,6 +3049,20 @@ function App() {
                           setStylingOptions((prev) => ({
                             ...prev,
                             backgroundColor: e.target.value,
+                          }))
+                        }
+                        className="w-12 h-8 rounded cursor-pointer"
+                      />
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <label className="text-sm w-32">لون النص للمتوفين</label>
+                      <input
+                        type="color"
+                        value={stylingOptions.deceasedTextColor}
+                        onChange={(e) =>
+                          setStylingOptions((prev) => ({
+                            ...prev,
+                            deceasedTextColor: e.target.value,
                           }))
                         }
                         className="w-12 h-8 rounded cursor-pointer"

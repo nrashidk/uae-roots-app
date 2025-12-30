@@ -3,7 +3,13 @@ export interface User {
   email: string | null;
   displayName: string | null;
   phoneNumber: string | null;
-  provider: 'google.com' | 'microsoft.com' | 'phone' | 'email' | 'password' | 'unknown';
+  provider:
+    | "google.com"
+    | "microsoft.com"
+    | "phone"
+    | "email"
+    | "password"
+    | "unknown";
   createdAt: Date;
   lastLoginAt: Date;
 }
@@ -21,10 +27,11 @@ export interface Person {
   treeId: number;
   firstName: string;
   lastName: string | null;
-  gender: 'male' | 'female';
+  gender: "male" | "female";
   birthDate: string | null;
   deathDate: string | null;
   isLiving: boolean;
+  isBreastfed: boolean;
   phone: string | null;
   email: string | null;
   identificationNumber: string | null;
@@ -36,7 +43,7 @@ export interface Person {
 export interface Relationship {
   id: number;
   treeId: number;
-  type: 'partner' | 'parent-child' | 'sibling';
+  type: "partner" | "parent-child" | "sibling";
   person1Id: number | null;
   person2Id: number | null;
   childId: number | null;
@@ -49,8 +56,16 @@ export interface Relationship {
 export interface AuditLog {
   id: number;
   userId: string;
-  action: 'login' | 'logout' | 'create' | 'update' | 'delete' | 'export' | 'upload' | 'undo';
-  resourceType: 'user' | 'tree' | 'person' | 'relationship' | 'auth' | 'photo';
+  action:
+    | "login"
+    | "logout"
+    | "create"
+    | "update"
+    | "delete"
+    | "export"
+    | "upload"
+    | "undo";
+  resourceType: "user" | "tree" | "person" | "relationship" | "auth" | "photo";
   resourceId: string | null;
   details: Record<string, unknown> | null;
   ipAddress: string | null;
@@ -62,8 +77,8 @@ export interface EditHistory {
   id: number;
   userId: string;
   treeId: number;
-  action: 'create' | 'update' | 'delete';
-  resourceType: 'person' | 'relationship';
+  action: "create" | "update" | "delete";
+  resourceType: "person" | "relationship";
   resourceId: number;
   previousData: Record<string, unknown> | null;
   newData: Record<string, unknown> | null;
@@ -76,4 +91,4 @@ export interface ApiResponse<T> {
   error?: string;
 }
 
-export type ExportFormat = 'json' | 'gedcom' | 'csv' | 'html' | 'text';
+export type ExportFormat = "json" | "gedcom" | "csv" | "html" | "text";

@@ -361,6 +361,7 @@ const personSchema = z.object({
   birthPlace: z.string().max(200).optional().nullable(),
   deathDate: z.string().max(20).optional().nullable(),
   isLiving: z.boolean().optional().default(true),
+  isBreastfed: z.boolean().optional().default(false),
   phone: z.string().max(20).optional().nullable(),
   email: z
     .string()
@@ -439,6 +440,7 @@ const personUpdateSchema = z.object({
   birthPlace: z.string().max(200).optional().nullable(),
   deathDate: z.string().max(20).optional().nullable(),
   isLiving: z.boolean().optional(),
+  isBreastfed: z.boolean().optional(),
   phone: z.string().max(20).optional().nullable(),
   profession: z.string().max(100).optional().nullable(),
   email: z
@@ -468,6 +470,7 @@ const personUndoSchema = z
     birthDate: z.string().max(20).optional().nullable(),
     deathDate: z.string().max(20).optional().nullable(),
     isLiving: z.boolean().optional(),
+    isBreastfed: z.boolean().optional(),
     phone: z.string().optional().nullable(), // Allow encrypted strings (any length)
     email: z.string().optional().nullable(), // Allow encrypted strings (any length)
     identificationNumber: z.string().optional().nullable(), // Allow encrypted strings
@@ -1573,6 +1576,10 @@ app.post("/api/people", authenticateUser, async (req, res) => {
       deathDate: sanitizedData.deathDate || null,
       isLiving:
         sanitizedData.isLiving !== undefined ? sanitizedData.isLiving : true,
+      isBreastfed:
+        sanitizedData.isBreastfed !== undefined
+          ? sanitizedData.isBreastfed
+          : false,
       phone: encryptPII(sanitizedData.phone),
       email: encryptPII(sanitizedData.email),
       identificationNumber: encryptPII(sanitizedData.identificationNumber),
@@ -1669,6 +1676,8 @@ app.put("/api/people/:id", authenticateUser, async (req, res) => {
       personData.deathDate = sanitizedData.deathDate || null;
     if (sanitizedData.isLiving !== undefined)
       personData.isLiving = sanitizedData.isLiving;
+    if (sanitizedData.isBreastfed !== undefined)
+      personData.isBreastfed = sanitizedData.isBreastfed;
     if (sanitizedData.phone !== undefined)
       personData.phone = encryptPII(sanitizedData.phone);
     if (sanitizedData.email !== undefined)

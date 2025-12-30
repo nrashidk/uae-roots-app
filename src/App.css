@@ -121,8 +121,8 @@ body {
 }
 
 .tree-canvas {
-  background: 
-    radial-gradient(circle at 1px 1px, rgba(0,0,0,0.1) 1px, transparent 0);
+  background:
+    radial-gradient(circle at 1px 1px, rgba(0, 0, 0, 0.1) 1px, transparent 0);
   background-size: 20px 20px;
   cursor: grab;
   position: relative;
@@ -135,11 +135,13 @@ body {
 
 /* SVG Line Styling for Tree Connections */
 .tree-canvas svg line {
-  stroke-linejoin: miter; /* Sharp corners for bars */
+  stroke-linejoin: miter;
+  /* Sharp corners for bars */
 }
 
 .tree-canvas svg text {
-  dominant-baseline: middle; /* Vertical centering for labels */
+  dominant-baseline: middle;
+  /* Vertical centering for labels */
 }
 
 /* Floating Controls */
@@ -310,17 +312,17 @@ body {
   .person-form-sidebar {
     width: 100vw;
   }
-  
+
   .floating-zoom-controls {
     left: 1rem;
   }
-  
+
   .floating-options {
     bottom: 1rem;
     flex-direction: column;
     gap: 0.5rem;
   }
-  
+
   .dashboard-grid {
     grid-template-columns: 1fr;
     padding: 1rem;
@@ -337,6 +339,7 @@ body {
     opacity: 0;
     transform: translateY(10px);
   }
+
   to {
     opacity: 1;
     transform: translateY(0);
@@ -351,6 +354,7 @@ body {
   from {
     transform: translateX(100%);
   }
+
   to {
     transform: translateX(0);
   }

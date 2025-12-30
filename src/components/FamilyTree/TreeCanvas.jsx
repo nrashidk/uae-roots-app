@@ -122,6 +122,7 @@ const TreeCanvas = ({
         // Calculate how many lines of text will be shown
         let lineCount = 1; // Name line
         const isLiving = person?.isLiving !== false;
+        const isBreastfed = person?.isBreastfed === true;
         const lineHeight = 12; // Line height for text rendering
 
         if (person) {
@@ -154,7 +155,9 @@ const TreeCanvas = ({
         // Determine box color based on gender (from personData or person)
         const gender = personData.g || person?.gender;
         let boxColor = "#e5e7eb"; // default gray
-        if (gender === "m" || gender === "male") {
+        if (isBreastfed) {
+          boxColor = "#d1fae5"; // light green highlight for breastfed flag
+        } else if (gender === "m" || gender === "male") {
           boxColor = stylingOptions?.maleBoxColor || "#e6f3ff";
         } else if (gender === "f" || gender === "female") {
           boxColor = stylingOptions?.femaleBoxColor || "#ffe4e1";
@@ -231,7 +234,7 @@ const TreeCanvas = ({
           }
 
           if (displayOptions?.showDeathDate && person.deathDate) {
-            ctx.fillText(`† ${person.deathDate}`, x, yOffset);
+            ctx.fillText(` ${person.deathDate}`, x, yOffset);
             yOffset += lineHeight;
           }
 
