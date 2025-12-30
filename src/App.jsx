@@ -86,7 +86,7 @@ function App() {
 
   // Default values for options
   const DEFAULT_DISPLAY_OPTIONS = {
-    showName: true,
+    // showName: true,
     showSurname: true,
     showBirthDate: false,
     showBirthPlace: false,
@@ -587,12 +587,12 @@ function App() {
     const viewportCenterX = canvasDimensions.width / 2;
     const viewportCenterY = canvasDimensions.height / 2;
     
-    // Return offset to center the tree in viewport
+    // Return offset to center the tree in viewport (accounting for zoom)
     return {
-      x: viewportCenterX - treeCenterX,
-      y: viewportCenterY - treeCenterY
+      x: viewportCenterX / zoom - treeCenterX,
+      y: viewportCenterY / zoom - treeCenterY
     };
-  }, [treeLayout, stylingOptions, CARD, canvasDimensions]);
+  }, [treeLayout, stylingOptions, CARD, canvasDimensions, zoom]);
 
   // Preserve viewport when switching from single-entity auto-center to multi-entity
   const wasSingleRef = useRef(false);
@@ -619,10 +619,14 @@ function App() {
   // Center the tree when it first loads or when switching to tree-builder view
   const hasInitializedCenter = useRef(false);
   useEffect(() => {
-    if (currentView === 'tree-builder' && treeLayout && !hasInitializedCenter.current && canvasDimensions.width > 0) {
-      // Center the tree on initial load
-      setPanOffset(calculateCenterOffset());
-      hasInitializedCenter.current = true;
+    if (currentView === 'tree-builder' && treeLayout && !hasInitializedCenter.current && canvasDimensions.width > 0 && canvasDimensions.height > 0) {
+      // Center the tree on initial load - use a small timeout to ensure layout is ready
+      const timer = setTimeout(() => {
+        setZoom(1); // Reset zoom to 1 for centered view
+        setPanOffset(calculateCenterOffset());
+        hasInitializedCenter.current = true;
+      }, 0);
+      return () => clearTimeout(timer);
     }
     // Reset flag when leaving tree-builder view
     if (currentView !== 'tree-builder') {
@@ -2489,8 +2493,40 @@ function App() {
           </Button>
           <Button
             onClick={() => {
-              setZoom(1);
-              setPanOffset(calculateCenterOffset());
+              // Reset to centered view with zoom=1
+              // Calculate center offset without zoom factor since we're resetting to zoom=1
+              if (treeLayout?.layout?.e) {
+                const BOX_WIDTH = stylingOptions?.boxWidth || CARD.w;
+                const BOX_HEIGHT = CARD.h;
+                const entities = Object.values(treeLayout.layout.e);
+                
+                if (entities.length > 0) {
+                  let minX = Infinity, maxX = -Infinity;
+                  let minY = Infinity, maxY = -Infinity;
+                  
+                  entities.forEach(entity => {
+                    const x = entity.x * BOX_WIDTH;
+                    const y = entity.y * BOX_HEIGHT;
+                    minX = Math.min(minX, x);
+                    maxX = Math.max(maxX, x);
+                    minY = Math.min(minY, y);
+                    maxY = Math.max(maxY, y);
+                  });
+                  
+                  const treeCenterX = (minX + maxX) / 2;
+                  const treeCenterY = (minY + maxY) / 2;
+                  
+                  const viewportCenterX = canvasDimensions.width / 2;
+                  const viewportCenterY = canvasDimensions.height / 2;
+                  
+                  // Center offset for zoom=1 (no division by zoom)
+                  setZoom(1);
+                  setPanOffset({
+                    x: viewportCenterX - treeCenterX,
+                    y: viewportCenterY - treeCenterY
+                  });
+                }
+              }
             }}
             size="sm"
             variant="outline"
