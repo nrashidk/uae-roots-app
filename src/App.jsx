@@ -1639,6 +1639,7 @@ function App() {
 
   const handleWheel = (e) => {
     e.preventDefault();
+    e.stopPropagation(); // Prevent event from bubbling up
     setZoom((prev) =>
       Math.max(0.3, Math.min(3, prev * (e.deltaY > 0 ? 0.9 : 1.1))),
     );
@@ -2191,9 +2192,11 @@ function App() {
         <div
           ref={canvasRef}
           className="w-full h-full cursor-grab active:cursor-grabbing"
-          style={{ backgroundColor: stylingOptions.backgroundColor }}
+          style={{ backgroundColor: stylingOptions.backgroundColor, touchAction: 'none' }}
           onMouseDown={handleMouseDown}
           onWheel={handleWheel}
+          onTouchStart={(e) => e.preventDefault()}
+          onTouchMove={(e) => e.preventDefault()}
         >
           {/* TreeCanvas component renders the family tree layout */}
           {treeLayout && (
