@@ -230,7 +230,7 @@ const TreeCanvas = ({
           }
 
           if (displayOptions?.showDeathDate && person.deathDate) {
-            ctx.fillText(`† ${person.deathDate}`, x, yOffset);
+            ctx.fillText(` ${person.deathDate}`, x, yOffset);
             yOffset += lineHeight;
           }
 
