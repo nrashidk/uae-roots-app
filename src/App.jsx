@@ -1596,11 +1596,16 @@ function App() {
     const isBackground =
       !e.target.closest("[data-person-box]") &&
       !e.target.closest("[data-action-button]") &&
-      !e.target.closest("[data-add-person-button]");
+      !e.target.closest("[data-add-person-button]") &&
+      !e.target.closest("[data-person-form]");
     if (isBackground) {
       setIsDragging(true);
       setDragStart({ x: e.clientX, y: e.clientY });
       setDragStartOffset({ ...panOffset });
+      // Close the form if it's open
+      if (showPersonForm) {
+        setShowPersonForm(false);
+      }
     }
   };
 
