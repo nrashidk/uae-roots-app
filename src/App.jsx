@@ -126,6 +126,7 @@ function App() {
     backgroundColor: "#f8fafc",
     maleBoxColor: "#e6f3ff",
     femaleBoxColor: "#ffe4e1",
+    breastfedBoxColor: "#d1fae5",
     livingTextColor: "#000000",
     deceasedTextColor: "#6b7280",
     boxWidth: 140,
@@ -194,6 +195,7 @@ function App() {
     birthDate: "تاريخ الميلاد",
     birthPlace: "مكان الميلاد",
     isLiving: "على قيد الحياة",
+    breastfed: "مُرضَع طبيعيًا",
     deathDate: "تاريخ الوفاة",
     phone: "الهاتف",
     email: "البريد الإلكتروني",
@@ -3041,6 +3043,20 @@ function App() {
                       />
                     </div>
                     <div className="flex items-center gap-2">
+                      <label className="text-sm w-32">لون الرضاعة</label>
+                      <input
+                        type="color"
+                        value={stylingOptions.breastfedBoxColor}
+                        onChange={(e) =>
+                          setStylingOptions((prev) => ({
+                            ...prev,
+                            breastfedBoxColor: e.target.value,
+                          }))
+                        }
+                        className="w-12 h-8 rounded cursor-pointer"
+                      />
+                    </div>
+                    <div className="flex items-center gap-2">
                       <label className="text-sm w-32">لون الخلفية</label>
                       <input
                         type="color"
@@ -3183,6 +3199,7 @@ function PersonForm({
     birthDate: person?.birthDate || "",
     birthPlace: person?.birthPlace || "",
     isLiving: person?.isLiving !== false,
+    isBreastfed: person?.isBreastfed === true,
     deathDate: person?.deathDate || "",
     phone: person?.phone || "",
     email: person?.email || "",
@@ -3198,6 +3215,7 @@ function PersonForm({
       birthDate: person?.birthDate || "",
       birthPlace: person?.birthPlace || "",
       isLiving: person?.isLiving !== false,
+      isBreastfed: person?.isBreastfed === true,
       deathDate: person?.deathDate || "",
       phone: person?.phone || "",
       email: person?.email || "",
@@ -3295,19 +3313,39 @@ function PersonForm({
         />
       </div>
 
-      <div className="flex items-center gap-2">
-        <input
-          type="checkbox"
-          id="isLiving"
-          checked={formData.isLiving}
-          onChange={(e) =>
-            setFormData((prev) => ({ ...prev, isLiving: e.target.checked }))
-          }
-          className="rounded"
-        />
-        <label htmlFor="isLiving" className="text-sm font-bold">
-          {t.isLiving}
-        </label>
+      <div className="flex items-center gap-6">
+        <div className="flex items-center gap-2">
+          <input
+            type="checkbox"
+            id="isLiving"
+            checked={formData.isLiving}
+            onChange={(e) =>
+              setFormData((prev) => ({ ...prev, isLiving: e.target.checked }))
+            }
+            className="rounded"
+          />
+          <label htmlFor="isLiving" className="text-sm font-bold">
+            {t.isLiving}
+          </label>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <input
+            type="checkbox"
+            id="isBreastfed"
+            checked={formData.isBreastfed}
+            onChange={(e) =>
+              setFormData((prev) => ({
+                ...prev,
+                isBreastfed: e.target.checked,
+              }))
+            }
+            className="rounded"
+          />
+          <label htmlFor="isBreastfed" className="text-sm font-bold">
+            {t.breastfed}
+          </label>
+        </div>
       </div>
 
       {!formData.isLiving && (

@@ -156,7 +156,7 @@ const TreeCanvas = ({
         const gender = personData.g || person?.gender;
         let boxColor = "#e5e7eb"; // default gray
         if (isBreastfed) {
-          boxColor = "#d1fae5"; // light green highlight for breastfed flag
+          boxColor = stylingOptions?.breastfedBoxColor || "#d1fae5"; // light green highlight for breastfed flag
         } else if (gender === "m" || gender === "male") {
           boxColor = stylingOptions?.maleBoxColor || "#e6f3ff";
         } else if (gender === "f" || gender === "female") {
