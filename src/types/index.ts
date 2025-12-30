@@ -25,6 +25,7 @@ export interface Person {
   birthDate: string | null;
   deathDate: string | null;
   isLiving: boolean;
+  isBreastfed: boolean;
   phone: string | null;
   email: string | null;
   identificationNumber: string | null;

@@ -171,6 +171,7 @@ function App() {
     birthDate: "تاريخ الميلاد",
     birthPlace: "مكان الميلاد",
     isLiving: "على قيد الحياة",
+    breastfed: "الرضاعة الطبيعية",
     deathDate: "تاريخ الوفاة",
     phone: "الهاتف",
     email: "البريد الإلكتروني",
@@ -2935,6 +2936,7 @@ function PersonForm({
     birthDate: person?.birthDate || "",
     birthPlace: person?.birthPlace || "",
     isLiving: person?.isLiving !== false,
+    isBreastfed: person?.isBreastfed === true,
     deathDate: person?.deathDate || "",
     phone: person?.phone || "",
     email: person?.email || "",
@@ -2950,6 +2952,7 @@ function PersonForm({
       birthDate: person?.birthDate || "",
       birthPlace: person?.birthPlace || "",
       isLiving: person?.isLiving !== false,
+      isBreastfed: person?.isBreastfed === true,
       deathDate: person?.deathDate || "",
       phone: person?.phone || "",
       email: person?.email || "",
@@ -3040,19 +3043,36 @@ function PersonForm({
         />
       </div>
 
-      <div className="flex items-center gap-2">
-        <input
-          type="checkbox"
-          id="isLiving"
-          checked={formData.isLiving}
-          onChange={(e) =>
-            setFormData((prev) => ({ ...prev, isLiving: e.target.checked }))
-          }
-          className="rounded"
-        />
-        <label htmlFor="isLiving" className="text-sm font-bold">
-          {t.isLiving}
-        </label>
+      <div className="flex items-center gap-6">
+        <div className="flex items-center gap-2">
+          <input
+            type="checkbox"
+            id="isLiving"
+            checked={formData.isLiving}
+            onChange={(e) =>
+              setFormData((prev) => ({ ...prev, isLiving: e.target.checked }))
+            }
+            className="rounded"
+          />
+          <label htmlFor="isLiving" className="text-sm font-bold">
+            {t.isLiving}
+          </label>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <input
+            type="checkbox"
+            id="isBreastfed"
+            checked={formData.isBreastfed}
+            onChange={(e) =>
+              setFormData((prev) => ({ ...prev, isBreastfed: e.target.checked }))
+            }
+            className="rounded"
+          />
+          <label htmlFor="isBreastfed" className="text-sm font-bold">
+            {t.breastfed}
+          </label>
+        </div>
       </div>
 
       {!formData.isLiving && (

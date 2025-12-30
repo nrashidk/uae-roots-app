@@ -72,6 +72,7 @@ export const people = pgTable('people', {
   birthPlace: text('birth_place'),
   deathDate: text('death_date'),
   isLiving: boolean('is_living').default(true),
+  isBreastfed: boolean('is_breastfed').default(false),
   phone: text('phone'),
   email: text('email'),
   identificationNumber: text('identification_number'),

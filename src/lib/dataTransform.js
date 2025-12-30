@@ -233,6 +233,9 @@ export function convertToAlgorithmFormat(people, relationships, treeId) {
             // Flag property (from data-large.js)
             nf: person.gender === "male" ? false : true, // false for males, true for females
 
+            // Breastfed flag for downstream rendering
+            isBreastfed: person.isBreastfed || false,
+
             // Additional fields (only include if present)
             photo: person.photo || undefined,
             notes: person.notes || undefined,
