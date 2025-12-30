@@ -2302,6 +2302,13 @@ function App() {
                   ? t.addParent
                   : "Both parents already exist";
 
+                // Check if person has parents - required for adding siblings
+                const hasParents = hasFather || hasMother;
+                const canAddSibling = hasParents;
+                const addSiblingTooltip = canAddSibling
+                  ? t.addSibling
+                  : "أضف الوالدين أولاً";
+
                 // Check if person has siblings for reorder buttons
                 const siblings = getSiblings(selectedPerson);
                 const hasSiblings = siblings.length > 0;
@@ -2387,13 +2394,18 @@ function App() {
                       <Button
                         onClick={(e) => {
                           e.stopPropagation();
+                          if (!canAddSibling) {
+                            window.alert("أضف الوالدين أولاً");
+                            return;
+                          }
                           handleQuickCreateSibling(selectedPerson);
                           setShowActionMenu(false);
                         }}
+                        disabled={!canAddSibling}
                         size="sm"
                         variant="ghost"
                         className="w-8 h-8 p-0"
-                        title={t.addSibling}
+                        title={addSiblingTooltip}
                       >
                         <UserPlus className="w-4 h-4" />
                       </Button>
