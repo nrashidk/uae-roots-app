@@ -182,19 +182,13 @@ const TreeCanvas = ({
         ctx.textAlign = "center";
         ctx.textBaseline = "middle";
 
-        // Calculate starting position - center if only a few lines, otherwise top-align
+        // Calculate starting position - center vertically based on total content
         let yOffset;
-        const isCentered = lineCount <= 2;
+        const totalContentHeight = lineCount * lineHeight;
 
-        if (isCentered) {
-          // Center the text when only showing name/surname
-          yOffset = boxY + h / 2 - lineHeight / 2;
-          ctx.textBaseline = "middle";
-        } else {
-          // Top-align when showing multiple fields
-          yOffset = boxY + 15;
-          ctx.textBaseline = "top";
-        }
+        // Always center the text block vertically
+        yOffset = boxY + (h - totalContentHeight) / 2 + lineHeight / 2;
+        ctx.textBaseline = "middle";
 
         // Draw name (use personData.p from algorithm or construct from person)
         let nameText = personData.p || "";

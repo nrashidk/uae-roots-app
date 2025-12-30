@@ -1,4 +1,11 @@
-import { useState, useEffect, useRef, useMemo, useLayoutEffect } from "react";
+import {
+  useState,
+  useEffect,
+  useRef,
+  useMemo,
+  useLayoutEffect,
+  useCallback,
+} from "react";
 import { Button } from "@/components/ui/button.jsx";
 import {
   Dialog,
@@ -621,6 +628,46 @@ function App() {
     );
   }, [treeLayout]);
 
+  // Calculate center offset for the tree (for reset functionality)
+  const calculateCenterOffset = useCallback(() => {
+    if (!treeLayout?.layout?.e) return { x: 0, y: 0 };
+
+    const BOX_WIDTH = stylingOptions?.boxWidth || CARD.w;
+    const BOX_HEIGHT = CARD.h;
+    const entities = Object.values(treeLayout.layout.e);
+
+    if (entities.length === 0) return { x: 0, y: 0 };
+
+    // Find bounds of all entities
+    let minX = Infinity,
+      maxX = -Infinity;
+    let minY = Infinity,
+      maxY = -Infinity;
+
+    entities.forEach((entity) => {
+      const x = entity.x * BOX_WIDTH;
+      const y = entity.y * BOX_HEIGHT;
+      minX = Math.min(minX, x);
+      maxX = Math.max(maxX, x);
+      minY = Math.min(minY, y);
+      maxY = Math.max(maxY, y);
+    });
+
+    // Calculate center of the tree
+    const treeCenterX = (minX + maxX) / 2;
+    const treeCenterY = (minY + maxY) / 2;
+
+    // Calculate viewport center
+    const viewportCenterX = canvasDimensions.width / 2;
+    const viewportCenterY = canvasDimensions.height / 2;
+
+    // Return offset to center the tree in viewport
+    return {
+      x: viewportCenterX - treeCenterX,
+      y: viewportCenterY - treeCenterY,
+    };
+  }, [treeLayout, stylingOptions, CARD, canvasDimensions]);
+
   // Preserve viewport when switching from single-entity auto-center to multi-entity
   const wasSingleRef = useRef(false);
   const combinedPanRef = useRef({ x: 0, y: 0 });
@@ -642,6 +689,25 @@ function App() {
 
   // When not single-entity, TreeCanvas receives zero auto-pan; panOffset already includes the combined value
   const effectiveAutoPan = isSingleLayout ? autoPan : { x: 0, y: 0 };
+
+  // Center the tree when it first loads or when switching to tree-builder view
+  const hasInitializedCenter = useRef(false);
+  useEffect(() => {
+    if (
+      currentView === "tree-builder" &&
+      treeLayout &&
+      !hasInitializedCenter.current &&
+      canvasDimensions.width > 0
+    ) {
+      // Center the tree on initial load
+      setPanOffset(calculateCenterOffset());
+      hasInitializedCenter.current = true;
+    }
+    // Reset flag when leaving tree-builder view
+    if (currentView !== "tree-builder") {
+      hasInitializedCenter.current = false;
+    }
+  }, [currentView, treeLayout, calculateCenterOffset, canvasDimensions]);
 
   // Get people for the current tree
   const treePeople = useMemo(() => {
@@ -879,7 +945,7 @@ function App() {
       } catch (authErr) {
         if (authErr.code === "auth/requires-recent-login") {
           alert(
-            "يرجى تسجيل الخروج وإعادة تسجيل الدخول ثم المحاولة مرة أخرى لحذف حساب Firebase",
+            "ير �ى تسجيل الخروج وإعادة تسجيل الدخول ثم المحاولة مرة أخرى لحذف حساب Firebase",
           );
         }
         console.error("Firebase delete error (non-blocking):", authErr);
@@ -1142,11 +1208,18 @@ function App() {
 
     try {
       // Create person via API
-      console.log("Adding person with data:", personData);
+      console.log("=== ADDING PERSON ===");
+      console.log("Person data:", personData);
+      console.log("Relationship type:", relationshipType);
+      console.log("Selected person:", selectedPerson);
+      console.log("Tree ID:", currentTree?.id);
+
       const newPerson = await api.people.create({
         ...personData,
         treeId: currentTree?.id,
       });
+
+      console.log("New person created:", newPerson);
 
       // If there's a relationship, create it
       if (relationshipType && selectedPerson) {
@@ -1198,23 +1271,14 @@ function App() {
             const newRel = await api.relationships.create(relData);
             setRelationships((prev) => [...prev, newRel]);
           } else if (relationshipType === "child") {
-            // Child should be linked to BOTH parents if they exist
+            // Child should be linked to BOTH parents (selected person + spouse)
+            console.log("=== CREATING CHILD RELATIONSHIPS ===");
             const selectedPerson_obj = people.find(
               (p) => p.id === selectedPerson,
             );
+            console.log("Selected parent:", selectedPerson_obj);
 
-            // Find all parents of the selected parent
-            const parentRels = relationships.filter(
-              (r) =>
-                r.treeId === currentTree?.id &&
-                r.type === "parent-child" &&
-                r.childId === selectedPerson,
-            );
-
-            // Get all parent IDs (both direct and spouse)
-            let allParentIds = parentRels.map((r) => r.parentId);
-
-            // Also add the spouse(s) of the selected person as co-parents
+            // Find the spouse(s) of the selected person
             const spouseRels = relationships.filter(
               (r) =>
                 r.treeId === currentTree?.id &&
@@ -1222,14 +1286,17 @@ function App() {
                 (r.person1Id === selectedPerson ||
                   r.person2Id === selectedPerson),
             );
+            console.log("Spouse relationships found:", spouseRels);
             const spouseIds = spouseRels.map((r) =>
               r.person1Id === selectedPerson ? r.person2Id : r.person1Id,
             );
 
-            // Combine: parents + spouses
-            allParentIds = [
-              ...new Set([...allParentIds, selectedPerson, ...spouseIds]),
-            ];
+            // Create parent-child relationships for selected person + spouse(s)
+            // Do NOT include grandparents
+            const allParentIds = [selectedPerson, ...spouseIds];
+            console.log("All parent IDs:", allParentIds);
+            console.log("New child ID:", newPerson.id);
+            console.log("New child gender:", newPerson.gender);
 
             // Create parent-child relationship for each parent
             const createdRels = await Promise.all(
@@ -1242,6 +1309,7 @@ function App() {
                 }),
               ),
             );
+            console.log("Created relationships:", createdRels);
             setRelationships((prev) => [...prev, ...createdRels]);
           } else if (relationshipType === "parent") {
             relData.parentId = newPerson.id;
@@ -1317,6 +1385,7 @@ function App() {
       setShowPersonForm(false);
       setRelationshipType(null);
       setEditingPerson(null);
+      setSelectedPerson(null);
     } catch (error) {
       console.error("Failed to add person:", error);
       alert("فشل في إضافة الشخص: " + error.message);
@@ -2347,9 +2416,7 @@ function App() {
             style={{
               transform: `translate(${
                 panOffset.x + (effectiveAutoPan?.x || 0)
-              }px, ${
-                panOffset.y + (effectiveAutoPan?.y || 0)
-              }px) scale(${zoom})`,
+              }px, ${panOffset.y + (effectiveAutoPan?.y || 0)}px)`,
               transformOrigin: "0 0",
               pointerEvents: "none",
             }}
@@ -2449,8 +2516,8 @@ function App() {
                     data-action-button
                     className="absolute bg-white border rounded-lg shadow-lg p-2 z-20 transition-opacity transition-transform duration-200"
                     style={{
-                      left: x - 90,
-                      top: y + h / 2 + 10,
+                      left: (x - 90) * zoom,
+                      top: (y + h / 2 + 10) * zoom,
                       pointerEvents: "auto",
                     }}
                   >
@@ -2635,7 +2702,7 @@ function App() {
           <Button
             onClick={() => {
               setZoom(1);
-              setPanOffset({ x: 0, y: 0 });
+              setPanOffset(calculateCenterOffset());
             }}
             size="sm"
             variant="outline"
@@ -2965,6 +3032,11 @@ function PersonForm({
       alert("يرجى إدخال الاسم الأول");
       return;
     }
+    if (!formData.gender || formData.gender === "") {
+      alert("يرجى اختيار الجنس");
+      return;
+    }
+    console.log("Form data being submitted:", formData);
     onSave(formData);
   };
 
