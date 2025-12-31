@@ -2055,6 +2055,8 @@ function App() {
 
   if (currentView === "family-members") {
     const treePeople = people.filter(p => p.treeId === currentTree?.id);
+
+    console.log("Rendering family members view with people:", treePeople);
     
     return (
       <div className="min-h-screen bg-gray-50">
@@ -2970,9 +2972,13 @@ function PersonForm({
 
   // Reset form when person prop changes
   useEffect(() => {
+    // When adding a spouse, don't auto-fill lastName from the selected spouse
+    // Only keep lastName when editing an existing person or when person has their own lastName
+    const lastName = person?.lastName || (relationshipType === 'spouse' ? "" : "");
+    
     setFormData({
       firstName: getDefaultFirstName(),
-      lastName: person?.lastName || "",
+      lastName: lastName,
       gender: getDefaultGender(),
       birthDate: person?.birthDate || "",
       birthPlace: person?.birthPlace || "",
