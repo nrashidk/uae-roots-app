@@ -103,6 +103,7 @@ const decryptPII = (encrypted) => {
         "aes-256-gcm",
         DERIVED_KEY,
         Buffer.from(ivHex, "hex"),
+        { authTagLength: 16 },
       );
       decipher.setAuthTag(Buffer.from(tagHex, "hex"));
       let decrypted = decipher.update(data, "hex", "utf8");
