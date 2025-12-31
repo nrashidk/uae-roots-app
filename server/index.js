@@ -551,10 +551,6 @@ const authenticateUser = async (req, res, next) => {
   const rid = req.requestId || "";
   let token = req.cookies?.auth_token;
 
-  console.log(
-    `[${rid}][Auth] ${req.method} ${req.path} - Cookie token: ${token ? "present" : "missing"}`,
-  );
-
   if (!token) {
     const authHeader = req.headers.authorization;
     if (authHeader && authHeader.startsWith("Bearer ")) {

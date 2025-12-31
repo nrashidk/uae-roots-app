@@ -1316,7 +1316,6 @@ function App() {
             const allParentIds = [selectedPerson, ...spouseIds];
             console.log("All parent IDs:", allParentIds);
             console.log("New child ID:", newPerson.id);
-            console.log("New child gender:", newPerson.gender);
 
             // Create parent-child relationship for each parent
             const createdRels = await Promise.all(
