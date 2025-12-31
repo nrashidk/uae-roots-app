@@ -193,16 +193,21 @@ const TreeCanvas = ({
         yOffset = boxY + (h - totalContentHeight) / 2 + lineHeight / 2;
         ctx.textBaseline = "middle";
 
-        // Draw name (use personData.p from algorithm or construct from person)
-        let nameText = personData.p || "";
-        if (!nameText && person) {
-          if (displayOptions?.showName && person.firstName) {
-            nameText += person.firstName;
+        // Build name text based on display options
+        let nameText = "";
+        if (person) {
+          // Always show firstName
+          if (person.firstName) {
+            nameText = person.firstName;
           }
+          // Show lastName only if showSurname option is enabled
           if (displayOptions?.showSurname && person.lastName) {
             if (nameText) nameText += " ";
             nameText += person.lastName;
           }
+        } else if (personData.p) {
+          // Fallback to algorithm's person name if person data not available
+          nameText = personData.p;
         }
 
         if (nameText) {
