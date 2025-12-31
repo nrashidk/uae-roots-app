@@ -543,8 +543,8 @@ function App() {
       const w = canvasDimensions.width || 0;
       const h = canvasDimensions.height || 0;
       return {
-        x: w / (2 * zoom) - px,
-        y: h / (2 * zoom) - py,
+        x: w / (2 * zoom) - px - BOX_WIDTH / 2,
+        y: h / (2 * zoom) - py - BOX_HEIGHT / 2,
       };
     } catch (e) {
       return { x: 0, y: 0 };
@@ -578,9 +578,9 @@ function App() {
       const x = entity.x * BOX_WIDTH;
       const y = entity.y * BOX_HEIGHT;
       minX = Math.min(minX, x);
-      maxX = Math.max(maxX, x);
+      maxX = Math.max(maxX, x + BOX_WIDTH);
       minY = Math.min(minY, y);
-      maxY = Math.max(maxY, y);
+      maxY = Math.max(maxY, y + BOX_HEIGHT);
     });
     
     // Calculate center of the tree
@@ -627,7 +627,12 @@ function App() {
       // Center the tree on initial load - use a small timeout to ensure layout is ready
       const timer = setTimeout(() => {
         setZoom(1); // Reset zoom to 1 for centered view
-        setPanOffset(calculateCenterOffset());
+        // For single-entity layouts, autoPan handles centering, so keep panOffset at 0
+        if (!isSingleLayout) {
+          setPanOffset(calculateCenterOffset());
+        } else {
+          setPanOffset({ x: 0, y: 0 });
+        }
         hasInitializedCenter.current = true;
       }, 0);
       return () => clearTimeout(timer);
@@ -636,7 +641,7 @@ function App() {
     if (currentView !== 'tree-builder') {
       hasInitializedCenter.current = false;
     }
-  }, [currentView, treeLayout, calculateCenterOffset, canvasDimensions]);
+  }, [currentView, treeLayout, calculateCenterOffset, canvasDimensions, isSingleLayout]);
 
   // Get people for the current tree
   const treePeople = useMemo(() => {
@@ -2612,37 +2617,42 @@ function App() {
           <Button
             onClick={() => {
               // Reset to centered view with zoom=1
-              // Calculate center offset without zoom factor since we're resetting to zoom=1
-              if (treeLayout?.layout?.e) {
-                const BOX_WIDTH = stylingOptions?.boxWidth || CARD.w;
-                const BOX_HEIGHT = CARD.h;
-                const entities = Object.values(treeLayout.layout.e);
-                
-                if (entities.length > 0) {
-                  let minX = Infinity, maxX = -Infinity;
-                  let minY = Infinity, maxY = -Infinity;
+              setZoom(1);
+              
+              // For single-entity layouts, autoPan handles centering, so reset panOffset to 0
+              if (isSingleLayout) {
+                setPanOffset({ x: 0, y: 0 });
+              } else {
+                // Calculate center offset without zoom factor since we're resetting to zoom=1
+                if (treeLayout?.layout?.e) {
+                  const BOX_WIDTH = stylingOptions?.boxWidth || CARD.w;
+                  const BOX_HEIGHT = CARD.h;
+                  const entities = Object.values(treeLayout.layout.e);
                   
-                  entities.forEach(entity => {
-                    const x = entity.x * BOX_WIDTH;
-                    const y = entity.y * BOX_HEIGHT;
-                    minX = Math.min(minX, x);
-                    maxX = Math.max(maxX, x);
-                    minY = Math.min(minY, y);
-                    maxY = Math.max(maxY, y);
-                  });
-                  
-                  const treeCenterX = (minX + maxX) / 2;
-                  const treeCenterY = (minY + maxY) / 2;
-                  
-                  const viewportCenterX = canvasDimensions.width / 2;
-                  const viewportCenterY = canvasDimensions.height / 2;
-                  
-                  // Center offset for zoom=1 (no division by zoom)
-                  setZoom(1);
-                  setPanOffset({
-                    x: viewportCenterX - treeCenterX,
-                    y: viewportCenterY - treeCenterY
-                  });
+                  if (entities.length > 0) {
+                    let minX = Infinity, maxX = -Infinity;
+                    let minY = Infinity, maxY = -Infinity;
+                    
+                    entities.forEach(entity => {
+                      const x = entity.x * BOX_WIDTH;
+                      const y = entity.y * BOX_HEIGHT;
+                      minX = Math.min(minX, x);
+                      maxX = Math.max(maxX, x + BOX_WIDTH);
+                      minY = Math.min(minY, y);
+                      maxY = Math.max(maxY, y + BOX_HEIGHT);
+                    });
+                    
+                    const treeCenterX = (minX + maxX) / 2;
+                    const treeCenterY = (minY + maxY) / 2;
+                    
+                    const viewportCenterX = canvasDimensions.width / 2;
+                    const viewportCenterY = canvasDimensions.height / 2;
+                    
+                    setPanOffset({
+                      x: viewportCenterX - treeCenterX,
+                      y: viewportCenterY - treeCenterY
+                    });
+                  }
                 }
               }
             }}
