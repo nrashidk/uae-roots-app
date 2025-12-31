@@ -195,7 +195,7 @@ function App() {
     birthDate: "تاريخ الميلاد",
     birthPlace: "مكان الميلاد",
     isLiving: "على قيد الحياة",
-    breastfed: "أخت بالرضاعة/أخ",
+    breastfed: "بالرضاعة",
     deathDate: "تاريخ الوفاة",
     phone: "الهاتف",
     email: "البريد الإلكتروني",
@@ -1946,7 +1946,7 @@ function App() {
                 value={passwordInput}
                 onChange={(e) => setPasswordInput(e.target.value)}
                 placeholder="كلمة المرور"
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent text-right"
+                className="w-full pl-12 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent text-right"
                 dir="rtl"
                 disabled={authProcessing}
               />
@@ -2180,6 +2180,7 @@ function App() {
 
     let nameParts = [person.firstName];
     let current = person;
+    let oldestAncestorInChain = person;
 
     while (true) {
       // Find parent-child relationship where this person is the child
@@ -2208,6 +2209,7 @@ function App() {
             if (grandparent) {
               current = grandparent;
               nameParts.push(grandparent.firstName);
+              oldestAncestorInChain = grandparent;
               continue;
             }
           }
@@ -2216,18 +2218,12 @@ function App() {
       }
       nameParts.push(parent.firstName);
       current = parent;
+      oldestAncestorInChain = parent;
     }
 
-    // Find oldest ancestor's last name
-    const oldestAncestor = treePeople.find((p) => {
-      const hasParent = treeRels.some(
-        (r) => r.type === "parent-child" && r.childId === p.id,
-      );
-      return !hasParent && p.lastName;
-    });
-
-    if (oldestAncestor?.lastName) {
-      nameParts.push(oldestAncestor.lastName);
+    // Use the oldest ancestor in THIS person's chain for the last name
+    if (oldestAncestorInChain?.lastName) {
+      nameParts.push(oldestAncestorInChain.lastName);
     } else if (person.lastName) {
       nameParts.push(person.lastName);
     }
