@@ -172,7 +172,7 @@ function App() {
     birthDate: "تاريخ الميلاد",
     birthPlace: "مكان الميلاد",
     isLiving: "على قيد الحياة",
-    breastfed: "مُرضَع طبيعيًا",
+    breastfed: "أخت بالرضاعة/أخ",
     deathDate: "تاريخ الوفاة",
     phone: "الهاتف",
     email: "البريد الإلكتروني",
@@ -1800,7 +1800,7 @@ function App() {
                 value={passwordInput}
                 onChange={(e) => setPasswordInput(e.target.value)}
                 placeholder="كلمة المرور"
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent text-right pr-12"
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent text-right"
                 dir="rtl"
                 disabled={authProcessing}
               />
