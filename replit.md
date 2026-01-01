@@ -7,10 +7,13 @@ This React-based family tree application is designed for documenting UAE heritag
 I prefer simple language and detailed explanations. I want iterative development and for you to ask before making major changes. Do not make changes to the folder `Z` and do not make changes to the file `Y`.
 
 ## Recent Changes (January 2026)
+- **Dashboard Count Consistency Fix**:
+  - Dashboard "Family Members" count now matches the tree visualization count
+  - Uses the tree layout data (connected members only) instead of raw database count
+  - Ensures consistency between what's shown in the tree and the dashboard statistics
 - **Reverted Disconnected Family Groups Feature**:
   - Removed the feature that displayed disconnected family groups to the right of the main tree
   - Tree visualization now only shows members connected to the root person (simpler, cleaner display)
-  - Family members dashboard continues to show all members regardless of tree connections
 
 ## Recent Changes (December 2024)
 - **Security Enhancements**:

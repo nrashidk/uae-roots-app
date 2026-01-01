@@ -2470,7 +2470,7 @@ function App() {
           >
             <h3 className="text-xl font-bold mb-4">{t.familyMembers}</h3>
             <div className="text-3xl font-bold text-blue-600">
-              {people.filter((p) => p.treeId === currentTree?.id).length}
+              {treeLayout?.layout?.e ? Object.keys(treeLayout.layout.e).length : 0}
             </div>
           </div>
           <div
