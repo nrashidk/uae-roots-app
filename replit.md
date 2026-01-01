@@ -7,6 +7,11 @@ This React-based family tree application is designed for documenting UAE heritag
 I prefer simple language and detailed explanations. I want iterative development and for you to ask before making major changes. Do not make changes to the folder `Z` and do not make changes to the file `Y`.
 
 ## Recent Changes (January 2026)
+- **Security Hardening (Option 1 Implementation)**:
+  - JWT_SECRET moved from config file to secure Replit Secrets (no longer visible in code)
+  - Database connection URL redacted in logs (credentials hidden as `***:***`)
+  - JWT token expiration reduced from 7 days to 24 hours (improved session security)
+  - All existing sessions invalidated (users need to log in again with new secure tokens)
 - **Dashboard Count Consistency Fix**:
   - Dashboard "Family Members" count now matches the tree visualization count
   - Uses the tree layout data (connected members only) instead of raw database count
@@ -23,7 +28,7 @@ I prefer simple language and detailed explanations. I want iterative development
   - CORS restrictions for development/production environments
   - Multi-provider account linking with verified identities only (prevents account takeover)
   - SQL search pattern escaping to prevent LIKE injection
-  - JWT expiry reduced to 7 days (from 30 days) for improved security
+  - JWT expiry: 24 hours (reduced from 7 days in January 2026 security hardening)
   - Cookie settings updated for Replit preview iframe (sameSite:'none', secure:true, trust proxy)
 - **New Features**:
   - Family member search functionality
