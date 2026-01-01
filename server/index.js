@@ -1013,7 +1013,7 @@ app.post("/api/sms/verify-code", smsLimiter, async (req, res) => {
     const userId = existingUser ? existingUser.id : formattedPhone;
 
     const token = jwt.sign({ userId: userId, type: "phone" }, JWT_SECRET, {
-      expiresIn: "7d",
+      expiresIn: "24h",
     });
 
     res.cookie("auth_token", token, COOKIE_OPTIONS);
@@ -1100,7 +1100,7 @@ app.post("/api/auth/token", async (req, res) => {
     const token = jwt.sign(
       { userId: resolvedUserId, type: provider || "firebase" },
       JWT_SECRET,
-      { expiresIn: "7d" },
+      { expiresIn: "24h" },
     );
 
     res.cookie("auth_token", token, COOKIE_OPTIONS);

@@ -12,8 +12,7 @@ if (!process.env.DATABASE_URL) {
     "DATABASE_URL must be set. Did you forget to provision a database?",
   );
 }
-console.log(
-  `Connecting to  database at============== - ${process.env.DATABASE_URL}`,
-);
+const redactedUrl = process.env.DATABASE_URL?.replace(/:\/\/([^:]+):([^@]+)@/, '://***:***@');
+console.log(`Database connection established: ${redactedUrl}`);
 export const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 export const db = drizzle({ client: pool, schema });
