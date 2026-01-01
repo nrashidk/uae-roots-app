@@ -233,7 +233,7 @@ function App() {
     back: "رجوع",
     currentEmail: "البريد الإلكتروني الحالي",
     currentPhone: "رقم الهاتف الحالي",
-    newEmail: "البريد الإلكتروني الجديد",
+    newEmail: "البريد الإلك �روني الجديد",
     newPhone: "رقم الهاتف الجديد",
     notSet: "غير محدد",
   };
@@ -600,53 +600,59 @@ function App() {
     // Find disconnected people (orphans) not in the main layout
     const allPersonIds = Object.keys(familyData);
     const renderedPersonIds = new Set(Object.keys(mainLayout.e));
-    const orphanedPersonIds = allPersonIds.filter(id => !renderedPersonIds.has(id));
+    const orphanedPersonIds = allPersonIds.filter(
+      (id) => !renderedPersonIds.has(id),
+    );
 
     // If there are orphaned people, render them as separate disconnected groups
     if (orphanedPersonIds.length > 0) {
       console.log("Found orphaned family members:", orphanedPersonIds);
-      
+
       // Calculate the rightmost position in the ORIGINAL main layout to offset orphans
       // This ensures deterministic positioning regardless of re-renders
       let originalMaxX = 0;
-      Object.values(mainLayout.e).forEach(entity => {
+      Object.values(mainLayout.e).forEach((entity) => {
         if (entity.x > originalMaxX) originalMaxX = entity.x;
       });
-      
+
       // Track which orphans have been processed to avoid duplicates
       const processedOrphans = new Set();
       let xOffset = originalMaxX + 3; // Start 3 units to the right of the main tree
-      
-      orphanedPersonIds.forEach(orphanId => {
+
+      orphanedPersonIds.forEach((orphanId) => {
         if (processedOrphans.has(orphanId)) return;
-        
+
         // Generate layout for this orphan group
-        const orphanLayout = FamilyTreeLayout.generateLayout(familyData, orphanId, {
-          childDepth: 10,
-          parentDepth: 10,
-          siblingDepth: 10,
-          flipLayout: false,
-          displayOptions: {},
-        });
-        
+        const orphanLayout = FamilyTreeLayout.generateLayout(
+          familyData,
+          orphanId,
+          {
+            childDepth: 10,
+            parentDepth: 10,
+            siblingDepth: 10,
+            flipLayout: false,
+            displayOptions: {},
+          },
+        );
+
         // Ensure orphan layout structures exist
         const orphanEntities = orphanLayout.e || {};
         const orphanLines = orphanLayout.n || [];
-        
+
         // Find min/max X in orphan layout to calculate proper offset
         let minX = Infinity;
         let orphanMaxX = -Infinity;
-        Object.values(orphanEntities).forEach(entity => {
+        Object.values(orphanEntities).forEach((entity) => {
           if (entity.x < minX) minX = entity.x;
           if (entity.x > orphanMaxX) orphanMaxX = entity.x;
         });
-        
+
         // Handle case where orphan layout is empty or has no valid bounds
         if (minX === Infinity) minX = 0;
         if (orphanMaxX === -Infinity) orphanMaxX = 0;
-        
+
         const adjustedOffset = xOffset - minX;
-        
+
         // Merge orphan entities into main layout with offset
         Object.entries(orphanEntities).forEach(([id, entity]) => {
           if (!mainLayout.e[id]) {
@@ -657,29 +663,32 @@ function App() {
             processedOrphans.add(id);
           }
         });
-        
+
         // Merge orphan lines into main layout with offset
-        orphanLines.forEach(line => {
+        orphanLines.forEach((line) => {
           mainLayout.n.push({
             ...line,
             x1: line.x1 + adjustedOffset,
             x2: line.x2 + adjustedOffset,
           });
         });
-        
+
         // Update xOffset for next orphan group
         xOffset = xOffset + (orphanMaxX - minX) + 3;
       });
-      
+
       // Recalculate bounds to include all entities
-      let l = Infinity, r = -Infinity, t = Infinity, b = -Infinity;
-      Object.values(mainLayout.e).forEach(entity => {
+      let l = Infinity,
+        r = -Infinity,
+        t = Infinity,
+        b = -Infinity;
+      Object.values(mainLayout.e).forEach((entity) => {
         if (entity.x < l) l = entity.x;
         if (entity.x > r) r = entity.x;
         if (entity.y < t) t = entity.y;
         if (entity.y > b) b = entity.y;
       });
-      
+
       // Handle edge case where no valid bounds exist
       if (l !== Infinity) mainLayout.l = l;
       if (r !== -Infinity) mainLayout.r = r;
@@ -2333,23 +2342,24 @@ function App() {
 
     return (
       <div className="min-h-screen bg-gray-50">
-        <div className="bg-white shadow-sm border-b px-8 py-4 flex justify-between items-center">
+        <div className="bg-white shadow-sm border-b px-4 py-3 flex justify-between items-center">
           <div className="flex items-center gap-4">
             <Button
               onClick={() => setCurrentView("dashboard")}
               variant="outline"
+              size="sm"
             >
               <Home className="w-4 h-4 ml-2" />
               {t.backToDashboard}
             </Button>
-            <h1 className="text-3xl font-bold">{t.familyMembers}</h1>
+            <h1 className="text-xl font-bold">{t.familyMembers}</h1>
           </div>
           <div className="flex items-center gap-2">
-            <Button onClick={handleOpenProfile} variant="outline">
+            <Button onClick={handleOpenProfile} variant="outline" size="sm">
               <User className="w-4 h-4 ml-2" />
               {t.profile}
             </Button>
-            <Button onClick={handleLogout} variant="outline">
+            <Button onClick={handleLogout} variant="outline" size="sm">
               <LogOut className="w-4 h-4 ml-2" />
               {t.logout}
             </Button>
@@ -2451,23 +2461,24 @@ function App() {
 
     return (
       <div className="min-h-screen bg-gray-50">
-        <div className="bg-white shadow-sm border-b px-8 py-4 flex justify-between items-center">
+        <div className="bg-white shadow-sm border-b px-4 py-3 flex justify-between items-center">
           <div className="flex items-center gap-4">
             <Button
               onClick={() => setCurrentView("dashboard")}
               variant="outline"
+              size="sm"
             >
               <Home className="w-4 h-4 ml-2" />
               {t.backToDashboard}
             </Button>
-            <h1 className="text-3xl font-bold">{t.relationships}</h1>
+            <h1 className="text-xl font-bold">{t.relationships}</h1>
           </div>
           <div className="flex items-center gap-2">
-            <Button onClick={handleOpenProfile} variant="outline">
+            <Button onClick={handleOpenProfile} variant="outline" size="sm">
               <User className="w-4 h-4 ml-2" />
               {t.profile}
             </Button>
-            <Button onClick={handleLogout} variant="outline">
+            <Button onClick={handleLogout} variant="outline" size="sm">
               <LogOut className="w-4 h-4 ml-2" />
               {t.logout}
             </Button>
@@ -2524,22 +2535,24 @@ function App() {
   if (currentView === "dashboard") {
     return (
       <div className="min-h-screen bg-gray-50">
-        <div className="bg-white shadow-sm border-b px-8 py-4 flex justify-between items-center">
-          <h1 className="text-3xl font-bold">{t.dashboard}</h1>
+        <div className="bg-white shadow-sm border-b px-4 py-3 flex justify-between items-center">
+          <h1 className="text-xl font-bold">{t.dashboard}</h1>
           <div className="flex items-center gap-4">
             {(userProfile?.email || user?.email) && (
               <span className="text-sm text-gray-600">
                 {userProfile?.email || user?.email}
               </span>
             )}
-            <Button onClick={handleOpenProfile} variant="outline">
-              <User className="w-4 h-4 ml-2" />
-              {t.profile}
-            </Button>
-            <Button onClick={handleLogout} variant="outline">
-              <LogOut className="w-4 h-4 ml-2" />
-              {t.logout}
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button onClick={handleOpenProfile} variant="outline" size="sm">
+                <User className="w-4 h-4 ml-2" />
+                {t.profile}
+              </Button>
+              <Button onClick={handleLogout} variant="outline" size="sm">
+                <LogOut className="w-4 h-4 ml-2" />
+                {t.logout}
+              </Button>
+            </div>
           </div>
         </div>
         <div className="max-w-7xl mx-auto px-8 py-8 grid grid-cols-3 gap-6">
@@ -2590,7 +2603,7 @@ function App() {
             <Home className="w-4 h-4 ml-2" />
             {t.backToDashboard}
           </Button>
-          <h1 className="text-2xl font-bold">{t.familyTreeName}</h1>
+          <h1 className="text-xl font-bold">{t.familyTreeName}</h1>
         </div>
         <div className="flex items-center gap-2">
           <Button onClick={handleOpenProfile} variant="outline" size="sm">
