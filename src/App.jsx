@@ -559,6 +559,7 @@ function App() {
   }, [isAuthenticated]);
 
   // Generate tree layout using the working algorithm
+  // This also handles disconnected family groups (orphans) to ensure all people are visible
   const treeLayout = useMemo(() => {
     const treePeople = people.filter((p) => p.treeId === currentTree?.id);
     const treeRels = relationships.filter((r) => r.treeId === currentTree?.id);
@@ -581,9 +582,8 @@ function App() {
         ? preferredRoot
         : findRootPerson(familyData);
 
-    // Generate layout
-
-    const layout = FamilyTreeLayout.generateLayout(familyData, rootPerson, {
+    // Generate layout for main tree
+    const mainLayout = FamilyTreeLayout.generateLayout(familyData, rootPerson, {
       childDepth: 10,
       parentDepth: 10,
       siblingDepth: 10,
@@ -593,8 +593,104 @@ function App() {
         preferredRoot && familyData[preferredRoot] ? preferredRoot : null,
     });
 
+    // Ensure layout structures exist to prevent runtime errors
+    mainLayout.e = mainLayout.e || {};
+    mainLayout.n = mainLayout.n || [];
+
+    // Find disconnected people (orphans) not in the main layout
+    const allPersonIds = Object.keys(familyData);
+    const renderedPersonIds = new Set(Object.keys(mainLayout.e));
+    const orphanedPersonIds = allPersonIds.filter(id => !renderedPersonIds.has(id));
+
+    // If there are orphaned people, render them as separate disconnected groups
+    if (orphanedPersonIds.length > 0) {
+      console.log("Found orphaned family members:", orphanedPersonIds);
+      
+      // Calculate the rightmost position in the ORIGINAL main layout to offset orphans
+      // This ensures deterministic positioning regardless of re-renders
+      let originalMaxX = 0;
+      Object.values(mainLayout.e).forEach(entity => {
+        if (entity.x > originalMaxX) originalMaxX = entity.x;
+      });
+      
+      // Track which orphans have been processed to avoid duplicates
+      const processedOrphans = new Set();
+      let xOffset = originalMaxX + 3; // Start 3 units to the right of the main tree
+      
+      orphanedPersonIds.forEach(orphanId => {
+        if (processedOrphans.has(orphanId)) return;
+        
+        // Generate layout for this orphan group
+        const orphanLayout = FamilyTreeLayout.generateLayout(familyData, orphanId, {
+          childDepth: 10,
+          parentDepth: 10,
+          siblingDepth: 10,
+          flipLayout: false,
+          displayOptions: {},
+        });
+        
+        // Ensure orphan layout structures exist
+        const orphanEntities = orphanLayout.e || {};
+        const orphanLines = orphanLayout.n || [];
+        
+        // Find min/max X in orphan layout to calculate proper offset
+        let minX = Infinity;
+        let orphanMaxX = -Infinity;
+        Object.values(orphanEntities).forEach(entity => {
+          if (entity.x < minX) minX = entity.x;
+          if (entity.x > orphanMaxX) orphanMaxX = entity.x;
+        });
+        
+        // Handle case where orphan layout is empty or has no valid bounds
+        if (minX === Infinity) minX = 0;
+        if (orphanMaxX === -Infinity) orphanMaxX = 0;
+        
+        const adjustedOffset = xOffset - minX;
+        
+        // Merge orphan entities into main layout with offset
+        Object.entries(orphanEntities).forEach(([id, entity]) => {
+          if (!mainLayout.e[id]) {
+            mainLayout.e[id] = {
+              ...entity,
+              x: entity.x + adjustedOffset,
+            };
+            processedOrphans.add(id);
+          }
+        });
+        
+        // Merge orphan lines into main layout with offset
+        orphanLines.forEach(line => {
+          mainLayout.n.push({
+            ...line,
+            x1: line.x1 + adjustedOffset,
+            x2: line.x2 + adjustedOffset,
+          });
+        });
+        
+        // Update xOffset for next orphan group
+        xOffset = xOffset + (orphanMaxX - minX) + 3;
+      });
+      
+      // Recalculate bounds to include all entities
+      let l = Infinity, r = -Infinity, t = Infinity, b = -Infinity;
+      Object.values(mainLayout.e).forEach(entity => {
+        if (entity.x < l) l = entity.x;
+        if (entity.x > r) r = entity.x;
+        if (entity.y < t) t = entity.y;
+        if (entity.y > b) b = entity.y;
+      });
+      
+      // Handle edge case where no valid bounds exist
+      if (l !== Infinity) mainLayout.l = l;
+      if (r !== -Infinity) mainLayout.r = r;
+      if (t !== Infinity) mainLayout.t = t;
+      if (b !== -Infinity) mainLayout.b = b;
+      if (l !== Infinity && r !== -Infinity) mainLayout.w = r - l + 1;
+      if (t !== Infinity && b !== -Infinity) mainLayout.h = b - t + 1;
+    }
+
     // Return both layout and familyData so TreeCanvas can access person data
-    return { layout, familyData };
+    return { layout: mainLayout, familyData };
   }, [people, relationships, currentTree?.id, selectedPerson]);
 
   // Compute auto-pan for single-entity centering (to keep overlays aligned with canvas)
