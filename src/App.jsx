@@ -2437,11 +2437,6 @@ function App() {
         <div className="bg-white shadow-sm border-b px-4 py-3 flex justify-between items-center">
           <h1 className="text-xl font-bold">{t.dashboard}</h1>
           <div className="flex items-center gap-4">
-            {(userProfile?.email || user?.email) && (
-              <span className="text-sm text-gray-600">
-                {userProfile?.email || user?.email}
-              </span>
-            )}
             <div className="flex items-center gap-2">
               <Button onClick={handleOpenProfile} variant="outline" size="sm">
                 <User className="w-4 h-4 ml-2" />
