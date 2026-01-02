@@ -2295,7 +2295,7 @@ function App() {
     const treePeople = people.filter((p) => p.treeId === currentTree?.id);
     const treeRels = relationships.filter((r) => r.treeId === currentTree?.id);
 
-    // Get male parents (husbands who have wives and children)
+    // Get married males (husbands who have wives, with or without children)
     const maleParents = treePeople.filter((person) => {
       if (person.gender !== "male") return false;
 
@@ -2304,11 +2304,8 @@ function App() {
           r.type === "partner" &&
           (r.person1Id === person.id || r.person2Id === person.id),
       );
-      const hasChildren = treeRels.some(
-        (r) => r.type === "parent-child" && r.parentId === person.id,
-      );
 
-      return hasSpouse && hasChildren;
+      return hasSpouse;
     });
 
     const getRelationshipCounts = (person) => {
@@ -2422,7 +2419,7 @@ function App() {
           </div>
           {maleParents.length === 0 && (
             <div className="text-center text-gray-500 py-8">
-              لا يوجد علاقات زوجية مع أبناء بعد
+              لا يوجد علاقات زوجية بعد
             </div>
           )}
         </div>
