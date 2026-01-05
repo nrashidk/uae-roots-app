@@ -72,6 +72,14 @@ if (!usingDedicatedEncryptionKey) {
   }
 }
 
+// Validate ENCRYPTION_KEY and JWT_SECRET are different (if dedicated key is set)
+if (usingDedicatedEncryptionKey && ENCRYPTION_KEY === JWT_SECRET) {
+  console.error(
+    "CRITICAL: ENCRYPTION_KEY must be different from JWT_SECRET for security separation.",
+  );
+  process.exit(1);
+}
+
 // Derive a 32-byte key for AES-256-GCM from the encryption key string
 const deriveEncryptionKey = (keyString) => {
   return crypto.createHash("sha256").update(keyString).digest();
@@ -298,18 +306,9 @@ if (!fs.existsSync(uploadsDir)) {
   fs.mkdirSync(uploadsDir, { recursive: true });
 }
 
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, uploadsDir);
-  },
-  filename: (req, file, cb) => {
-    const ext = path.extname(file.originalname);
-    cb(null, `${uuidv4()}${ext}`);
-  },
-});
-
+// Use memory storage to validate file BEFORE writing to disk (fixes TOCTOU vulnerability)
 const upload = multer({
-  storage,
+  storage: multer.memoryStorage(),
   limits: { fileSize: 5 * 1024 * 1024 },
   fileFilter: (req, file, cb) => {
     const allowedTypes = ["image/jpeg", "image/png", "image/gif", "image/webp"];
@@ -344,6 +343,19 @@ const smsLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   validate: { xForwardedForHeader: false },
+});
+
+// Login rate limiting to prevent brute force attacks
+const loginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 10, // 10 login attempts per IP per 15 minutes
+  message: {
+    error: "تم تجاوز عدد محاولات تسجيل الدخول. حاول مرة أخرى بعد 15 دقيقة",
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+  validate: { xForwardedForHeader: false },
+  skipSuccessfulRequests: true, // Don't count successful logins
 });
 
 const phoneSchema = z
@@ -852,9 +864,11 @@ app.get("/api/photos/:filename", authenticateUser, async (req, res) => {
       .limit(1);
 
     if (personWithPhoto.length === 0) {
-      // Photo exists but not linked to any person - allow access if user is authenticated
-      // This handles edge cases like recently deleted persons
-      return res.sendFile(filePath);
+      // Orphaned photo - deny access for security (prevents access to deleted person's photos)
+      console.warn(
+        `[${req.requestId}] Denied access to orphaned photo: ${filename} by user ${req.userId}`,
+      );
+      return res.status(403).json({ error: "غير مصرح بالوصول إلى هذه الصورة" });
     }
 
     // Verify tree ownership
@@ -1041,7 +1055,7 @@ app.post("/api/sms/verify-code", smsLimiter, async (req, res) => {
   }
 });
 
-app.post("/api/auth/token", async (req, res) => {
+app.post("/api/auth/token", loginLimiter, async (req, res) => {
   try {
     const { userId, provider, firebaseIdToken, email } = req.body;
 
@@ -1827,14 +1841,10 @@ app.post(
         return res.status(400).json({ error: "No file uploaded" });
       }
 
-      // Verify magic bytes match claimed MIME type
-      const filePath = path.join(uploadsDir, req.file.filename);
-      const fileBuffer = fs.readFileSync(filePath);
-      const headerBytes = fileBuffer.slice(0, 12);
+      // With memory storage, file is in req.file.buffer (validates BEFORE disk write)
+      const headerBytes = req.file.buffer.slice(0, 12);
 
       if (!verifyImageMagicBytes(headerBytes, req.file.mimetype)) {
-        // Delete the invalid file
-        fs.unlinkSync(filePath);
         console.warn(
           `[${req.requestId}] Rejected file with mismatched magic bytes: ${req.file.mimetype}`,
         );
@@ -1843,13 +1853,19 @@ app.post(
           .json({ error: "نوع الملف غير صالح. تأكد من أن الملف صورة حقيقية" });
       }
 
-      const photoUrl = `/api/photos/${req.file.filename}`;
+      // Generate unique filename and write validated file to disk
+      const ext = path.extname(req.file.originalname);
+      const filename = `${uuidv4()}${ext}`;
+      const filePath = path.join(uploadsDir, filename);
+      fs.writeFileSync(filePath, req.file.buffer);
+
+      const photoUrl = `/api/photos/${filename}`;
 
       await logAudit(
         req.userId,
         "upload",
         "photo",
-        req.file.filename,
+        filename,
         { size: req.file.size },
         req,
       );
