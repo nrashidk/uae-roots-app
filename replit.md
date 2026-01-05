@@ -7,11 +7,15 @@ This React-based family tree application is designed for documenting UAE heritag
 I prefer simple language and detailed explanations. I want iterative development and for you to ask before making major changes. Do not make changes to the folder `Z` and do not make changes to the file `Y`.
 
 ## Recent Changes (January 2026)
-- **Security Hardening (Option 1 Implementation)**:
+- **Security Hardening (Option B - 4 Safe Fixes)**:
   - JWT_SECRET moved from config file to secure Replit Secrets (no longer visible in code)
   - Database connection URL redacted in logs (credentials hidden as `***:***`)
   - JWT token expiration reduced from 7 days to 24 hours (improved session security)
   - All existing sessions invalidated (users need to log in again with new secure tokens)
+  - **ENCRYPTION_KEY Validation**: If ENCRYPTION_KEY is set, it must be different from JWT_SECRET (key separation)
+  - **File Upload Security (TOCTOU Fix)**: Photo uploads now use memory storage; magic bytes validated BEFORE writing to disk
+  - **Orphaned Photo Access Denied**: Photos not linked to any person now return 403 (prevents access to deleted users' photos)
+  - **Login Rate Limiting**: 10 attempts per 15 minutes on /api/auth/token (prevents brute force attacks)
 - **Dashboard Count Consistency Fix**:
   - Dashboard "Family Members" count now matches the tree visualization count
   - Uses the tree layout data (connected members only) instead of raw database count
