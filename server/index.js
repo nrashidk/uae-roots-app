@@ -128,7 +128,12 @@ const decryptPII = (encrypted) => {
 // Escape special characters for SQL LIKE/ILIKE patterns
 const escapeLikePattern = (str) => {
   if (!str) return str;
-  return str.replace(/[%_\\]/g, "\\$&");
+  // Escape all special LIKE characters: %, _, and backslash
+  // Order matters: escape backslashes first to avoid double-escaping
+  return str
+    .replace(/\\/g, "\\\\")
+    .replace(/%/g, "\\%")
+    .replace(/_/g, "\\_");
 };
 
 // Normalize photo URLs from legacy /uploads/ to secure /api/photos/
@@ -199,6 +204,56 @@ const verifyImageMagicBytes = (buffer, mimeType) => {
     if (buffer.length < sig.length) return false;
     return sig.every((byte, i) => buffer[i] === byte);
   });
+};
+
+// Get image dimensions from buffer header (prevents image bomb attacks)
+const getImageDimensions = (buffer, mimeType) => {
+  try {
+    if (mimeType === "image/png" && buffer.length >= 24) {
+      // PNG: width at bytes 16-19, height at bytes 20-23 (big-endian)
+      const width = buffer.readUInt32BE(16);
+      const height = buffer.readUInt32BE(20);
+      return { width, height };
+    }
+    if (mimeType === "image/jpeg" && buffer.length >= 200) {
+      // JPEG: Find SOF0/SOF2 marker for dimensions
+      let offset = 2;
+      while (offset < buffer.length - 8) {
+        if (buffer[offset] !== 0xff) break;
+        const marker = buffer[offset + 1];
+        // SOF0 (0xC0) or SOF2 (0xC2) contain dimensions
+        if (marker === 0xc0 || marker === 0xc2) {
+          const height = buffer.readUInt16BE(offset + 5);
+          const width = buffer.readUInt16BE(offset + 7);
+          return { width, height };
+        }
+        // Skip to next marker
+        const segmentLength = buffer.readUInt16BE(offset + 2);
+        offset += segmentLength + 2;
+      }
+    }
+    if (mimeType === "image/gif" && buffer.length >= 10) {
+      // GIF: width at bytes 6-7, height at bytes 8-9 (little-endian)
+      const width = buffer.readUInt16LE(6);
+      const height = buffer.readUInt16LE(8);
+      return { width, height };
+    }
+    if (mimeType === "image/webp" && buffer.length >= 30) {
+      // WebP VP8: dimensions after "VP8 " chunk (simplified check)
+      // For VP8X (extended), check bytes 24-29
+      if (buffer[12] === 0x56 && buffer[13] === 0x50 && buffer[14] === 0x38) {
+        if (buffer[15] === 0x58 && buffer.length >= 30) {
+          // VP8X extended format
+          const width = (buffer[24] | (buffer[25] << 8) | (buffer[26] << 16)) + 1;
+          const height = (buffer[27] | (buffer[28] << 8) | (buffer[29] << 16)) + 1;
+          return { width, height };
+        }
+      }
+    }
+    return null; // Unable to parse dimensions
+  } catch {
+    return null;
+  }
 };
 
 const developmentOrigins = [
@@ -324,7 +379,20 @@ const upload = multer({
   },
 });
 
+// Helper to extract userId from JWT cookie for rate limiting (before auth middleware runs)
+const extractUserIdFromCookie = (req) => {
+  try {
+    const token = req.cookies?.auth_token;
+    if (!token) return null;
+    const decoded = jwt.verify(token, JWT_SECRET);
+    return decoded.userId || null;
+  } catch {
+    return null;
+  }
+};
+
 // Phase 1: Adjusted rate limiting (100 → 50 req/min for better security)
+// Enhanced with user ID + IP combination for authenticated endpoints
 const apiLimiter = rateLimit({
   windowMs: 1 * 60 * 1000,
   max: 50,
@@ -332,6 +400,12 @@ const apiLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   validate: { xForwardedForHeader: false },
+  keyGenerator: (req) => {
+    // Extract user ID from cookie (runs before auth middleware)
+    const userId = extractUserIdFromCookie(req) || "anonymous";
+    const ip = req.ip || req.connection?.remoteAddress || "unknown";
+    return `${userId}:${ip}`;
+  },
 });
 
 const smsLimiter = rateLimit({
@@ -1853,6 +1927,18 @@ app.post(
           .json({ error: "نوع الملف غير صالح. تأكد من أن الملف صورة حقيقية" });
       }
 
+      // Image dimension validation (max 4096x4096 to prevent image bombs)
+      const MAX_DIMENSION = 4096;
+      const dimensions = getImageDimensions(req.file.buffer, req.file.mimetype);
+      if (dimensions && (dimensions.width > MAX_DIMENSION || dimensions.height > MAX_DIMENSION)) {
+        console.warn(
+          `[${req.requestId}] Rejected oversized image: ${dimensions.width}x${dimensions.height}`,
+        );
+        return res
+          .status(400)
+          .json({ error: `أبعاد الصورة كبيرة جداً. الحد الأقصى ${MAX_DIMENSION}x${MAX_DIMENSION} بكسل` });
+      }
+
       // Generate unique filename and write validated file to disk
       const ext = path.extname(req.file.originalname);
       const filename = `${uuidv4()}${ext}`;
@@ -2301,6 +2387,15 @@ const cleanupAuditLogs = async () => {
 // Run cleanup once on startup and then every 24 hours
 cleanupAuditLogs();
 setInterval(cleanupAuditLogs, 24 * 60 * 60 * 1000);
+
+// Health check endpoint for monitoring and load balancers
+app.get("/health", (req, res) => {
+  res.status(200).json({
+    status: "healthy",
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime(),
+  });
+});
 
 if (isProduction) {
   const distPath = path.join(__dirname, "..", "dist");

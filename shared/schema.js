@@ -9,6 +9,7 @@ import {
   timestamp,
   boolean,
   jsonb,
+  index,
 } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 
@@ -34,7 +35,10 @@ export const authIdentities = pgTable("auth_identities", {
   providerUserId: text("provider_user_id"), // Firebase UID for Google/Microsoft, null for phone
   isVerified: boolean("is_verified").default(false).notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
-});
+}, (table) => [
+  index("auth_identities_identity_value_idx").on(table.identityValue),
+  index("auth_identities_user_id_idx").on(table.userId),
+]);
 
 // Audit logs table - tracks sensitive operations
 export const auditLogs = pgTable("audit_logs", {
@@ -94,7 +98,9 @@ export const people = pgTable("people", {
   birthOrder: integer("birth_order"),
   photoUrl: text("photo_url"), // URL to uploaded photo
   createdAt: timestamp("created_at").defaultNow().notNull(),
-});
+}, (table) => [
+  index("people_tree_id_idx").on(table.treeId),
+]);
 
 // Relationships table - represents connections between people
 export const relationships = pgTable("relationships", {
@@ -118,7 +124,9 @@ export const relationships = pgTable("relationships", {
   isBreastfeeding: boolean("is_breastfeeding").default(false),
   isDotted: boolean("is_dotted").default(false),
   createdAt: timestamp("created_at").defaultNow().notNull(),
-});
+}, (table) => [
+  index("relationships_tree_id_idx").on(table.treeId),
+]);
 
 // Relations
 export const treesRelations = relations(trees, ({ many }) => ({

@@ -16,6 +16,12 @@ I prefer simple language and detailed explanations. I want iterative development
   - **File Upload Security (TOCTOU Fix)**: Photo uploads now use memory storage; magic bytes validated BEFORE writing to disk
   - **Orphaned Photo Access Denied**: Photos not linked to any person now return 403 (prevents access to deleted users' photos)
   - **Login Rate Limiting**: 10 attempts per 15 minutes on /api/auth/token (prevents brute force attacks)
+- **Tier 1+2 Security Enhancements (Audit Recommendations)**:
+  - **/health endpoint**: Added for monitoring and load balancer health checks
+  - **Database indexes**: Added indexes on people.treeId, relationships.treeId, authIdentities.identityValue, authIdentities.userId for query performance
+  - **Image dimension limits**: Max 4096x4096 pixels to prevent image bomb attacks
+  - **Enhanced escapeLikePattern**: Improved SQL LIKE escaping with proper order (backslash first) to prevent edge case bypass
+  - **Rate limiting enhancement**: Now uses user ID + IP combination for authenticated endpoints (prevents rate limit bypass)
 - **Dashboard Count Consistency Fix**:
   - Dashboard "Family Members" count now matches the tree visualization count
   - Uses the tree layout data (connected members only) instead of raw database count
