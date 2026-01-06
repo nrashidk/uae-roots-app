@@ -2176,7 +2176,7 @@ function App() {
     );
   }
 
-  // Helper function to build genealogical name chain
+  // Helper function to build genealogical name chain (follows paternal line)
   const getGenealogicalName = (person) => {
     const treePeople = people.filter((p) => p.treeId === currentTree?.id);
     const treeRels = relationships.filter((r) => r.treeId === currentTree?.id);
@@ -2186,42 +2186,33 @@ function App() {
     let oldestAncestorInChain = person;
 
     while (true) {
-      // Find parent-child relationship where this person is the child
-      const parentRel = treeRels.find(
+      // Find ALL parent-child relationships where this person is the child
+      const parentRels = treeRels.filter(
         (r) => r.type === "parent-child" && r.childId === current.id,
       );
-      if (!parentRel) break;
+      if (parentRels.length === 0) break;
 
-      // Look for male parent first
-      const parent = treePeople.find(
-        (p) => p.id === parentRel.parentId && p.gender === "male",
-      );
-      if (!parent) {
-        // If parent is female, try to find her male parent
-        const femaleParent = treePeople.find(
-          (p) => p.id === parentRel.parentId && p.gender === "female",
+      // Look for the male parent (father) among all parent relationships
+      let fatherFound = null;
+      for (const parentRel of parentRels) {
+        const parent = treePeople.find(
+          (p) => p.id === parentRel.parentId && p.gender === "male",
         );
-        if (femaleParent) {
-          const femaleParentRel = treeRels.find(
-            (r) => r.type === "parent-child" && r.childId === femaleParent.id,
-          );
-          if (femaleParentRel) {
-            const grandparent = treePeople.find(
-              (p) => p.id === femaleParentRel.parentId && p.gender === "male",
-            );
-            if (grandparent) {
-              current = grandparent;
-              nameParts.push(grandparent.firstName);
-              oldestAncestorInChain = grandparent;
-              continue;
-            }
-          }
+        if (parent) {
+          fatherFound = parent;
+          break;
         }
+      }
+
+      if (fatherFound) {
+        // Found father - continue tracing paternal line
+        nameParts.push(fatherFound.firstName);
+        current = fatherFound;
+        oldestAncestorInChain = fatherFound;
+      } else {
+        // No male parent found - stop here (don't follow maternal line)
         break;
       }
-      nameParts.push(parent.firstName);
-      current = parent;
-      oldestAncestorInChain = parent;
     }
 
     // Use the oldest ancestor in THIS person's chain for the last name
