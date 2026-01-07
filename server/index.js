@@ -8,7 +8,6 @@ import jwt from "jsonwebtoken";
 import cookieParser from "cookie-parser";
 import multer from "multer";
 import { v4 as uuidv4 } from "uuid";
-import CryptoJS from "crypto-js";
 import crypto from "crypto";
 import { fileURLToPath } from "url";
 import { db } from "./db.js";
@@ -98,30 +97,33 @@ const encryptPII = (text) => {
   return `v2:${iv.toString("hex")}:${tag.toString("hex")}:${encrypted}`;
 };
 
-// Dual-format decryption: supports new v2 format and legacy CryptoJS format
+// AES-256-GCM decryption (v2 format only - legacy CryptoJS fallback removed after data migration)
 const decryptPII = (encrypted) => {
   if (!encrypted) return null;
   try {
-    // New v2 format: v2:<iv>:<tag>:<ciphertext>
-    if (encrypted.startsWith("v2:")) {
-      const parts = encrypted.split(":");
-      if (parts.length !== 4) return encrypted;
-      const [, ivHex, tagHex, data] = parts;
-      const decipher = crypto.createDecipheriv(
-        "aes-256-gcm",
-        DERIVED_KEY,
-        Buffer.from(ivHex, "hex"),
-        { authTagLength: 16 },
-      );
-      decipher.setAuthTag(Buffer.from(tagHex, "hex"));
-      let decrypted = decipher.update(data, "hex", "utf8");
-      return decrypted + decipher.final("utf8");
+    // Only v2 format supported: v2:<iv>:<tag>:<ciphertext>
+    if (!encrypted.startsWith("v2:")) {
+      console.error("Rejected legacy encryption format - data migration required");
+      return "[ENCRYPTED DATA - MIGRATION REQUIRED]";
     }
-    // Legacy CryptoJS format (for backward compatibility with existing data)
-    const bytes = CryptoJS.AES.decrypt(encrypted, ENCRYPTION_KEY);
-    return bytes.toString(CryptoJS.enc.Utf8);
-  } catch {
-    return encrypted;
+    const parts = encrypted.split(":");
+    if (parts.length !== 4) {
+      console.error("Invalid v2 encryption format");
+      return null;
+    }
+    const [, ivHex, tagHex, data] = parts;
+    const decipher = crypto.createDecipheriv(
+      "aes-256-gcm",
+      DERIVED_KEY,
+      Buffer.from(ivHex, "hex"),
+      { authTagLength: 16 },
+    );
+    decipher.setAuthTag(Buffer.from(tagHex, "hex"));
+    let decrypted = decipher.update(data, "hex", "utf8");
+    return decrypted + decipher.final("utf8");
+  } catch (error) {
+    console.error("Decryption failed:", error.message);
+    return null;
   }
 };
 
@@ -399,7 +401,7 @@ const apiLimiter = rateLimit({
   message: { error: "تم تجاوز الحد الأقصى للطلبات. حاول مرة أخرى لاحقاً" },
   standardHeaders: true,
   legacyHeaders: false,
-  validate: { xForwardedForHeader: false },
+  validate: false,
   keyGenerator: (req) => {
     // Extract user ID from cookie (runs before auth middleware)
     const userId = extractUserIdFromCookie(req) || "anonymous";
@@ -627,8 +629,8 @@ const recordEdit = async (
 
 const COOKIE_OPTIONS = {
   httpOnly: true,
-  secure: isProduction || isReplitPreview,
-  sameSite: isReplitPreview ? "none" : "lax",
+  secure: true, // Always use secure cookies (H1: prevents cookie interception)
+  sameSite: isReplitPreview ? "none" : (isProduction ? "strict" : "lax"),
   maxAge: 7 * 24 * 60 * 60 * 1000,
   path: "/",
 };

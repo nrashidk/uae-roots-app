@@ -25,6 +25,9 @@ I prefer simple language and detailed explanations. I want iterative development
 - **Security Audit Fixes (M2+M4)**:
   - **M4: Audit log index**: Added database index on `audit_logs.createdAt` for efficient cleanup queries
   - **M2: Orphan photo cleanup**: When a person is deleted, their photo file is now deleted from disk (prevents orphaned files)
+- **Security Audit Fixes (C3+H1)**:
+  - **C3: Removed legacy CryptoJS fallback**: Decryption now only supports v2 format (all data migrated, legacy fallback vulnerability eliminated)
+  - **H1: Secure cookies always**: Cookies now always use `secure: true` (prevents cookie interception even in development)
 - **Dashboard Count Consistency Fix**:
   - Dashboard "Family Members" count now matches the tree visualization count
   - Uses the tree layout data (connected members only) instead of raw database count
