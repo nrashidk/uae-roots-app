@@ -168,41 +168,18 @@ let authState = {
 };
 
 export function setAuthToken(token, userId) {
-  // Only store resolvedUserId - JWT is handled by httpOnly cookie from backend
   if (userId) {
     authState = {
       resolvedUserId: userId,
       timestamp: Date.now(),
     };
-    // Store resolvedUserId in sessionStorage for page reload persistence
-    try {
-      sessionStorage.setItem("resolved_user_id", userId);
-    } catch (e) {
-      console.error("Failed to store user id:", e);
-    }
   }
 }
 
 export function getAuthToken() {
-  // Try memory first
   if (authState.resolvedUserId) {
     return authState;
   }
-
-  // Try sessionStorage for resolvedUserId only
-  try {
-    const storedUserId = sessionStorage.getItem("resolved_user_id");
-    if (storedUserId) {
-      authState = {
-        resolvedUserId: storedUserId,
-        timestamp: Date.now(),
-      };
-      return authState;
-    }
-  } catch (e) {
-    console.error("Failed to retrieve user id:", e);
-  }
-
   return null;
 }
 
@@ -211,9 +188,4 @@ export function clearAuthToken() {
     resolvedUserId: null,
     timestamp: null,
   };
-  try {
-    sessionStorage.removeItem("resolved_user_id");
-  } catch (e) {
-    console.error("Failed to clear user id:", e);
-  }
 }
