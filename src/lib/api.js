@@ -27,28 +27,6 @@ async function fetchAPI(endpoint, options = {}) {
   }
 }
 
-async function fetchAPIWithFile(endpoint, formData) {
-  try {
-    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
-      method: "POST",
-      credentials: "include",
-      body: formData,
-    });
-
-    if (!response.ok) {
-      const error = await response
-        .json()
-        .catch(() => ({ error: "An error occurred" }));
-      throw new Error(error.error || `HTTP error! status: ${response.status}`);
-    }
-
-    return await response.json();
-  } catch (error) {
-    console.error(`API Error (${endpoint}):`, error);
-    throw error;
-  }
-}
-
 export const api = {
   auth: {
     getToken: (userId, provider, firebaseIdToken, email) =>
@@ -145,14 +123,6 @@ export const api = {
       fetchAPI(`/relationships/${id}`, {
         method: "DELETE",
       }),
-  },
-
-  upload: {
-    photo: (file) => {
-      const formData = new FormData();
-      formData.append("photo", file);
-      return fetchAPIWithFile("/upload/photo", formData);
-    },
   },
 
   history: {
