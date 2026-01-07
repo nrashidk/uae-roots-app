@@ -19,15 +19,18 @@ I prefer simple language and detailed explanations. I want iterative development
 - **Tier 1+2 Security Enhancements (Audit Recommendations)**:
   - **/health endpoint**: Added for monitoring and load balancer health checks
   - **Database indexes**: Added indexes on people.treeId, relationships.treeId, authIdentities.identityValue, authIdentities.userId for query performance
-  - **Image dimension limits**: Max 4096x4096 pixels to prevent image bomb attacks
   - **Enhanced escapeLikePattern**: Improved SQL LIKE escaping with proper order (backslash first) to prevent edge case bypass
   - **Rate limiting enhancement**: Now uses user ID + IP combination for authenticated endpoints (prevents rate limit bypass)
-- **Security Audit Fixes (M2+M4)**:
+- **Security Audit Fixes (M4)**:
   - **M4: Audit log index**: Added database index on `audit_logs.createdAt` for efficient cleanup queries
-  - **M2: Orphan photo cleanup**: When a person is deleted, their photo file is now deleted from disk (prevents orphaned files)
 - **Security Audit Fixes (C3+H1)**:
   - **C3: Removed legacy CryptoJS fallback**: Decryption now only supports v2 format (all data migrated, legacy fallback vulnerability eliminated)
   - **H1: Secure cookies always**: Cookies now always use `secure: true` (prevents cookie interception even in development)
+- **Photo Upload Removal (Code Cleanup)**:
+  - Removed unused photo upload functionality (never exposed to users in UI)
+  - Deleted PhotoUpload.jsx component, multer package, and all related endpoints
+  - Removed /api/upload/photo and /api/photos/:filename endpoints
+  - No data loss (verified 0 photos existed in database or disk)
 - **Dashboard Count Consistency Fix**:
   - Dashboard "Family Members" count now matches the tree visualization count
   - Uses the tree layout data (connected members only) instead of raw database count
@@ -48,7 +51,6 @@ I prefer simple language and detailed explanations. I want iterative development
   - Cookie settings updated for Replit preview iframe (sameSite:'none', secure:true, trust proxy)
 - **New Features**:
   - Family member search functionality
-  - Photo upload for family members
   - Edit history with undo/redo capability
   - Multi-format data export (GEDCOM, CSV, HTML, Text, JSON)
   - Privacy policy page
@@ -82,7 +84,6 @@ Key features include:
     - **Family Relationship Modeling**: Supports complex relationships including breastfeeding siblings, with specific UI indicators and counting. Genealogical name chains trace paternal lineage.
     - **Export Functionality**: Supports exporting family data in HTML, GEDCOM, CSV, JSON, and Plain Text formats.
     - **Search**: Real-time search for family members within trees.
-    - **Photo Upload**: Upload and manage photos for family members (stored in /uploads directory).
     - **Undo/Redo**: Edit history tracking with ability to undo changes.
     - **Islamic Custom Adherence**: Implements marriage restrictions (e.g., maximum four living spouses for males), automatic spouse gender setting, and organization of family members by husband's lineage.
     - **Dynamic UI**: Action buttons beneath person boxes dynamically adjust width. Zoom and pan controls are fixed on screen.
@@ -102,11 +103,8 @@ Key features include:
       - JWT secret strength validation (32+ chars required in production)
       - JWT token expiry: 7 days (aligned with cookie maxAge)
       - ENCRYPTION_KEY validation with secure warnings
-      - Authenticated photo access endpoint (/api/photos/:filename) - no public static serving
-      - Photo URL normalization for legacy database records
       - Undo operation data validation to prevent tampering
       - XSS sanitization for user-generated text (names, descriptions)
-      - Magic byte verification for uploaded files (JPEG, PNG, GIF, WebP)
       - Request ID tracking (X-Request-ID header) for log correlation
       - Automatic audit log cleanup (90-day retention policy)
 
