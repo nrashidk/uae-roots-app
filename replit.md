@@ -13,8 +13,6 @@ I prefer simple language and detailed explanations. I want iterative development
   - JWT token expiration reduced from 7 days to 24 hours (improved session security)
   - All existing sessions invalidated (users need to log in again with new secure tokens)
   - **ENCRYPTION_KEY Validation**: If ENCRYPTION_KEY is set, it must be different from JWT_SECRET (key separation)
-  - **File Upload Security (TOCTOU Fix)**: Photo uploads now use memory storage; magic bytes validated BEFORE writing to disk
-  - **Orphaned Photo Access Denied**: Photos not linked to any person now return 403 (prevents access to deleted users' photos)
   - **Login Rate Limiting**: 10 attempts per 15 minutes on /api/auth/token (prevents brute force attacks)
 - **Tier 1+2 Security Enhancements (Audit Recommendations)**:
   - **/health endpoint**: Added for monitoring and load balancer health checks
@@ -31,6 +29,10 @@ I prefer simple language and detailed explanations. I want iterative development
   - Deleted PhotoUpload.jsx component, multer package, and all related endpoints
   - Removed /api/upload/photo and /api/photos/:filename endpoints
   - No data loss (verified 0 photos existed in database or disk)
+- **Full Security Hardening (C2+H3+A2)**:
+  - **C2: .env.example**: Created documentation file with all required environment variables
+  - **H3: Removed sessionStorage**: User ID now stored in memory only (XSS-resistant)
+  - **A2: Database pool config**: Added connection limits (max 20), idle timeout (30s), connection timeout (10s)
 - **Dashboard Count Consistency Fix**:
   - Dashboard "Family Members" count now matches the tree visualization count
   - Uses the tree layout data (connected members only) instead of raw database count
@@ -62,7 +64,7 @@ I prefer simple language and detailed explanations. I want iterative development
   - Type definitions for all data models
   - URL encoding fix for phone numbers with + characters in API requests
   - Auth identities table for multi-provider account resolution
-  - Session restoration with fallback handling: checks backend cookie validity, refreshes Firebase tokens, caches resolved userId in sessionStorage (not JWT for security)
+  - Session restoration with fallback handling: checks backend cookie validity, refreshes Firebase tokens, caches resolved userId in memory (not JWT for security)
   - Race condition prevention: interactiveLoginInProgressRef prevents session restore from conflicting with interactive logins
   - Debug endpoint /api/debug/session for diagnosing authentication state
   - Consolidated loadUserTreeData helper function for consistent tree loading across all auth flows
