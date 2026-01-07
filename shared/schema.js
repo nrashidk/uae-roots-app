@@ -51,7 +51,9 @@ export const auditLogs = pgTable("audit_logs", {
   ipAddress: text("ip_address"),
   userAgent: text("user_agent"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
-});
+}, (table) => [
+  index("audit_logs_created_at_idx").on(table.createdAt),
+]);
 
 // Edit history for undo/redo functionality
 export const editHistory = pgTable("edit_history", {

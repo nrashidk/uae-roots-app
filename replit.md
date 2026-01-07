@@ -22,6 +22,9 @@ I prefer simple language and detailed explanations. I want iterative development
   - **Image dimension limits**: Max 4096x4096 pixels to prevent image bomb attacks
   - **Enhanced escapeLikePattern**: Improved SQL LIKE escaping with proper order (backslash first) to prevent edge case bypass
   - **Rate limiting enhancement**: Now uses user ID + IP combination for authenticated endpoints (prevents rate limit bypass)
+- **Security Audit Fixes (M2+M4)**:
+  - **M4: Audit log index**: Added database index on `audit_logs.createdAt` for efficient cleanup queries
+  - **M2: Orphan photo cleanup**: When a person is deleted, their photo file is now deleted from disk (prevents orphaned files)
 - **Dashboard Count Consistency Fix**:
   - Dashboard "Family Members" count now matches the tree visualization count
   - Uses the tree layout data (connected members only) instead of raw database count

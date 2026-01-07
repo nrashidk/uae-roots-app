@@ -1847,6 +1847,22 @@ app.delete("/api/people/:id", authenticateUser, async (req, res) => {
       null,
     );
 
+    // Delete associated photo file if exists (M2: cleanup orphaned photos)
+    if (existingPerson.photoUrl) {
+      try {
+        const filename = existingPerson.photoUrl.split("/").pop();
+        if (filename) {
+          const filePath = path.join(uploadsDir, filename);
+          if (fs.existsSync(filePath)) {
+            fs.unlinkSync(filePath);
+            console.log(`[${req.requestId}] Deleted photo file: ${filename}`);
+          }
+        }
+      } catch (photoErr) {
+        console.error(`[${req.requestId}] Failed to delete photo:`, photoErr.message);
+      }
+    }
+
     await db.delete(people).where(eq(people.id, personId));
 
     await logAudit(
