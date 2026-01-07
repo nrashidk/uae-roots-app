@@ -6,7 +6,6 @@ import twilio from "twilio";
 import path from "path";
 import jwt from "jsonwebtoken";
 import cookieParser from "cookie-parser";
-import multer from "multer";
 import { v4 as uuidv4 } from "uuid";
 import crypto from "crypto";
 import { fileURLToPath } from "url";
@@ -138,14 +137,6 @@ const escapeLikePattern = (str) => {
     .replace(/_/g, "\\_");
 };
 
-// Normalize photo URLs from legacy /uploads/ to secure /api/photos/
-const normalizePhotoUrl = (url) => {
-  if (!url) return url;
-  if (url.startsWith("/uploads/")) {
-    return url.replace("/uploads/", "/api/photos/");
-  }
-  return url;
-};
 
 // XSS sanitization - escapes HTML special characters to prevent script injection
 const sanitizeText = (text) => {
@@ -168,94 +159,6 @@ const sanitizeUserInput = (obj, fieldsToSanitize) => {
     }
   }
   return sanitized;
-};
-
-// Magic byte signatures for allowed image types
-const IMAGE_SIGNATURES = {
-  "image/jpeg": [[0xff, 0xd8, 0xff]],
-  "image/png": [[0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]],
-  "image/gif": [
-    [0x47, 0x49, 0x46, 0x38, 0x37, 0x61],
-    [0x47, 0x49, 0x46, 0x38, 0x39, 0x61],
-  ],
-};
-
-// Verify file magic bytes match claimed MIME type
-const verifyImageMagicBytes = (buffer, mimeType) => {
-  // Special handling for WebP: RIFF header at 0-3, "WEBP" at bytes 8-11
-  if (mimeType === "image/webp") {
-    if (buffer.length < 12) return false;
-    const riffHeader = buffer.slice(0, 4);
-    const webpMarker = buffer.slice(8, 12);
-    return (
-      riffHeader[0] === 0x52 &&
-      riffHeader[1] === 0x49 &&
-      riffHeader[2] === 0x46 &&
-      riffHeader[3] === 0x46 &&
-      webpMarker[0] === 0x57 &&
-      webpMarker[1] === 0x45 &&
-      webpMarker[2] === 0x42 &&
-      webpMarker[3] === 0x50
-    ); // "WEBP"
-  }
-
-  const signatures = IMAGE_SIGNATURES[mimeType];
-  if (!signatures) return false;
-
-  return signatures.some((sig) => {
-    if (buffer.length < sig.length) return false;
-    return sig.every((byte, i) => buffer[i] === byte);
-  });
-};
-
-// Get image dimensions from buffer header (prevents image bomb attacks)
-const getImageDimensions = (buffer, mimeType) => {
-  try {
-    if (mimeType === "image/png" && buffer.length >= 24) {
-      // PNG: width at bytes 16-19, height at bytes 20-23 (big-endian)
-      const width = buffer.readUInt32BE(16);
-      const height = buffer.readUInt32BE(20);
-      return { width, height };
-    }
-    if (mimeType === "image/jpeg" && buffer.length >= 200) {
-      // JPEG: Find SOF0/SOF2 marker for dimensions
-      let offset = 2;
-      while (offset < buffer.length - 8) {
-        if (buffer[offset] !== 0xff) break;
-        const marker = buffer[offset + 1];
-        // SOF0 (0xC0) or SOF2 (0xC2) contain dimensions
-        if (marker === 0xc0 || marker === 0xc2) {
-          const height = buffer.readUInt16BE(offset + 5);
-          const width = buffer.readUInt16BE(offset + 7);
-          return { width, height };
-        }
-        // Skip to next marker
-        const segmentLength = buffer.readUInt16BE(offset + 2);
-        offset += segmentLength + 2;
-      }
-    }
-    if (mimeType === "image/gif" && buffer.length >= 10) {
-      // GIF: width at bytes 6-7, height at bytes 8-9 (little-endian)
-      const width = buffer.readUInt16LE(6);
-      const height = buffer.readUInt16LE(8);
-      return { width, height };
-    }
-    if (mimeType === "image/webp" && buffer.length >= 30) {
-      // WebP VP8: dimensions after "VP8 " chunk (simplified check)
-      // For VP8X (extended), check bytes 24-29
-      if (buffer[12] === 0x56 && buffer[13] === 0x50 && buffer[14] === 0x38) {
-        if (buffer[15] === 0x58 && buffer.length >= 30) {
-          // VP8X extended format
-          const width = (buffer[24] | (buffer[25] << 8) | (buffer[26] << 16)) + 1;
-          const height = (buffer[27] | (buffer[28] << 8) | (buffer[29] << 16)) + 1;
-          return { width, height };
-        }
-      }
-    }
-    return null; // Unable to parse dimensions
-  } catch {
-    return null;
-  }
 };
 
 const developmentOrigins = [
@@ -358,28 +261,6 @@ app.use((req, res, next) => {
   next();
 });
 
-const uploadsDir = path.join(__dirname, "..", "uploads");
-if (!fs.existsSync(uploadsDir)) {
-  fs.mkdirSync(uploadsDir, { recursive: true });
-}
-
-// Use memory storage to validate file BEFORE writing to disk (fixes TOCTOU vulnerability)
-const upload = multer({
-  storage: multer.memoryStorage(),
-  limits: { fileSize: 5 * 1024 * 1024 },
-  fileFilter: (req, file, cb) => {
-    const allowedTypes = ["image/jpeg", "image/png", "image/gif", "image/webp"];
-    if (allowedTypes.includes(file.mimetype)) {
-      cb(null, true);
-    } else {
-      cb(
-        new Error(
-          "نوع الملف غير مدعوم. يرجى استخدام JPEG أو PNG أو GIF أو WebP",
-        ),
-      );
-    }
-  },
-});
 
 // Helper to extract userId from JWT cookie for rate limiting (before auth middleware runs)
 const extractUserIdFromCookie = (req) => {
@@ -905,62 +786,6 @@ async function getTwilioCredentials() {
     phoneNumber: connectionSettings.settings.phone_number,
   };
 }
-
-// Authenticated photo access endpoint (secure - no public static serving)
-app.get("/api/photos/:filename", authenticateUser, async (req, res) => {
-  try {
-    const filename = req.params.filename;
-
-    // Prevent directory traversal attacks
-    if (
-      filename.includes("..") ||
-      filename.includes("/") ||
-      filename.includes("\\")
-    ) {
-      return res.status(400).json({ error: "اسم ملف غير صالح" });
-    }
-
-    const filePath = path.join(uploadsDir, filename);
-
-    // Check if file exists
-    if (!fs.existsSync(filePath)) {
-      return res.status(404).json({ error: "الصورة غير موجودة" });
-    }
-
-    // Find person with this photo to verify ownership
-    const personWithPhoto = await db
-      .select()
-      .from(people)
-      .where(
-        or(
-          eq(people.photoUrl, `/uploads/${filename}`),
-          eq(people.photoUrl, `/api/photos/${filename}`),
-        ),
-      )
-      .limit(1);
-
-    if (personWithPhoto.length === 0) {
-      // Orphaned photo - deny access for security (prevents access to deleted person's photos)
-      console.warn(
-        `[${req.requestId}] Denied access to orphaned photo: ${filename} by user ${req.userId}`,
-      );
-      return res.status(403).json({ error: "غير مصرح بالوصول إلى هذه الصورة" });
-    }
-
-    // Verify tree ownership
-    const ownership = await verifyTreeOwnership(
-      personWithPhoto[0].treeId,
-      req.userId,
-    );
-    if (!ownership.valid) {
-      return res.status(403).json({ error: "غير مصرح بالوصول إلى هذه الصورة" });
-    }
-
-    res.sendFile(filePath);
-  } catch (error) {
-    handleError(res, error, "Photo access");
-  }
-});
 
 app.post("/api/sms/send-code", smsLimiter, async (req, res) => {
   try {
@@ -1849,22 +1674,6 @@ app.delete("/api/people/:id", authenticateUser, async (req, res) => {
       null,
     );
 
-    // Delete associated photo file if exists (M2: cleanup orphaned photos)
-    if (existingPerson.photoUrl) {
-      try {
-        const filename = existingPerson.photoUrl.split("/").pop();
-        if (filename) {
-          const filePath = path.join(uploadsDir, filename);
-          if (fs.existsSync(filePath)) {
-            fs.unlinkSync(filePath);
-            console.log(`[${req.requestId}] Deleted photo file: ${filename}`);
-          }
-        }
-      } catch (photoErr) {
-        console.error(`[${req.requestId}] Failed to delete photo:`, photoErr.message);
-      }
-    }
-
     await db.delete(people).where(eq(people.id, personId));
 
     await logAudit(
@@ -1922,64 +1731,6 @@ app.patch("/api/people/:id/birthOrder", authenticateUser, async (req, res) => {
     handleError(res, error, "Birth order update");
   }
 });
-
-app.post(
-  "/api/upload/photo",
-  authenticateUser,
-  upload.single("photo"),
-  async (req, res) => {
-    try {
-      if (!req.file) {
-        return res.status(400).json({ error: "No file uploaded" });
-      }
-
-      // With memory storage, file is in req.file.buffer (validates BEFORE disk write)
-      const headerBytes = req.file.buffer.slice(0, 12);
-
-      if (!verifyImageMagicBytes(headerBytes, req.file.mimetype)) {
-        console.warn(
-          `[${req.requestId}] Rejected file with mismatched magic bytes: ${req.file.mimetype}`,
-        );
-        return res
-          .status(400)
-          .json({ error: "نوع الملف غير صالح. تأكد من أن الملف صورة حقيقية" });
-      }
-
-      // Image dimension validation (max 4096x4096 to prevent image bombs)
-      const MAX_DIMENSION = 4096;
-      const dimensions = getImageDimensions(req.file.buffer, req.file.mimetype);
-      if (dimensions && (dimensions.width > MAX_DIMENSION || dimensions.height > MAX_DIMENSION)) {
-        console.warn(
-          `[${req.requestId}] Rejected oversized image: ${dimensions.width}x${dimensions.height}`,
-        );
-        return res
-          .status(400)
-          .json({ error: `أبعاد الصورة كبيرة جداً. الحد الأقصى ${MAX_DIMENSION}x${MAX_DIMENSION} بكسل` });
-      }
-
-      // Generate unique filename and write validated file to disk
-      const ext = path.extname(req.file.originalname);
-      const filename = `${uuidv4()}${ext}`;
-      const filePath = path.join(uploadsDir, filename);
-      fs.writeFileSync(filePath, req.file.buffer);
-
-      const photoUrl = `/api/photos/${filename}`;
-
-      await logAudit(
-        req.userId,
-        "upload",
-        "photo",
-        filename,
-        { size: req.file.size },
-        req,
-      );
-
-      res.json({ success: true, photoUrl });
-    } catch (error) {
-      handleError(res, error, "Photo upload");
-    }
-  },
-);
 
 app.get("/api/relationships", authenticateUser, async (req, res) => {
   try {
