@@ -137,6 +137,11 @@ const escapeLikePattern = (str) => {
     .replace(/_/g, "\\_");
 };
 
+// Normalize photo URL (photo upload removed, pass through as-is or null)
+const normalizePhotoUrl = (url) => {
+  if (!url) return null;
+  return url;
+};
 
 // XSS sanitization - escapes HTML special characters to prevent script injection
 const sanitizeText = (text) => {
@@ -1380,8 +1385,10 @@ app.delete("/api/trees/:id", authenticateUser, async (req, res) => {
 });
 
 app.get("/api/people", authenticateUser, async (req, res) => {
+  const rid = req.requestId || "";
   try {
     const { treeId } = req.query;
+    console.log(`[${rid}][People] GET - treeId: ${treeId}, userId: ${req.userId}`);
 
     if (!treeId) {
       return res.status(400).json({ error: "Tree ID is required" });
@@ -1392,26 +1399,45 @@ app.get("/api/people", authenticateUser, async (req, res) => {
       return res.status(400).json({ error: "Invalid tree ID" });
     }
 
+    console.log(`[${rid}][People] Verifying ownership for tree ${parsedTreeId}`);
     const ownership = await verifyTreeOwnership(parsedTreeId, req.userId);
     if (!ownership.valid) {
+      console.log(`[${rid}][People] Ownership denied: ${ownership.error}`);
       return res.status(403).json({ error: ownership.error });
     }
 
+    console.log(`[${rid}][People] Fetching people from database...`);
     const allPeople = await db
       .select()
       .from(people)
       .where(eq(people.treeId, parsedTreeId));
+    console.log(`[${rid}][People] Found ${allPeople.length} people`);
 
-    const decryptedPeople = allPeople.map((person) => ({
-      ...person,
-      phone: decryptPII(person.phone),
-      email: decryptPII(person.email),
-      identificationNumber: decryptPII(person.identificationNumber),
-      photoUrl: normalizePhotoUrl(person.photoUrl),
-    }));
+    const decryptedPeople = allPeople.map((person, index) => {
+      try {
+        return {
+          ...person,
+          phone: decryptPII(person.phone),
+          email: decryptPII(person.email),
+          identificationNumber: decryptPII(person.identificationNumber),
+          photoUrl: normalizePhotoUrl(person.photoUrl),
+        };
+      } catch (decryptError) {
+        console.error(`[${rid}][People] Decrypt error for person ${person.id}:`, decryptError.message);
+        return {
+          ...person,
+          phone: null,
+          email: null,
+          identificationNumber: null,
+          photoUrl: normalizePhotoUrl(person.photoUrl),
+        };
+      }
+    });
 
+    console.log(`[${rid}][People] Returning ${decryptedPeople.length} people`);
     res.json(decryptedPeople);
   } catch (error) {
+    console.error(`[${rid}][People] Error:`, error.message, error.stack);
     handleError(res, error, "People fetch");
   }
 });
