@@ -825,6 +825,7 @@ function App() {
         setAuthToken(tokenResponse.token, resolvedUserId);
       }
 
+      console.log("[handleAuthSuccess] Calling createOrUpdate with:", { id: resolvedUserId, provider });
       const savedUser = await api.users.createOrUpdate({
         id: resolvedUserId,
         email: currentUser.email || null,
@@ -832,12 +833,15 @@ function App() {
         phoneNumber: currentUser.phoneNumber || null,
         provider: provider,
       });
-      console.log("User saved:", savedUser);
+      console.log("[handleAuthSuccess] User saved:", savedUser);
       setUserProfile(savedUser);
 
+      console.log("[handleAuthSuccess] Loading tree data...");
       await loadUserTreeData(resolvedUserId);
+      console.log("[handleAuthSuccess] Complete!");
     } catch (err) {
-      console.error("Error in handleAuthSuccess:", err);
+      console.error("[handleAuthSuccess] Error:", err);
+      console.error("[handleAuthSuccess] Error stack:", err.stack);
       alert("خطأ أثناء تسجيل الدخول: " + err.message);
     }
   };

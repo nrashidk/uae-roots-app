@@ -1085,11 +1085,15 @@ app.use("/api/people", apiLimiter);
 app.use("/api/relationships", apiLimiter);
 
 app.post("/api/users", authenticateUser, async (req, res) => {
+  const rid = req.requestId || "";
+  console.log(`[${rid}][Users] POST - incoming body:`, JSON.stringify(req.body));
+  console.log(`[${rid}][Users] POST - req.userId from JWT: "${req.userId}"`);
+  
   try {
     const validatedData = userCreateSchema.parse(req.body);
 
     console.log(
-      `[Users] POST - req.userId: "${req.userId}", validatedData.id: "${validatedData.id}"`,
+      `[${rid}][Users] POST - req.userId: "${req.userId}", validatedData.id: "${validatedData.id}"`,
     );
 
     if (req.userId !== validatedData.id) {

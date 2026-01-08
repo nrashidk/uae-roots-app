@@ -7,22 +7,26 @@ async function fetchAPI(endpoint, options = {}) {
       ...options.headers,
     };
 
+    console.log(`[API] ${options.method || 'GET'} ${endpoint}`);
     const response = await fetch(`${API_BASE_URL}${endpoint}`, {
       headers,
       credentials: "include",
       ...options,
     });
 
+    console.log(`[API] ${endpoint} - Status: ${response.status}`);
+    
     if (!response.ok) {
       const error = await response
         .json()
         .catch(() => ({ error: "An error occurred" }));
+      console.error(`[API] ${endpoint} - Error:`, error);
       throw new Error(error.error || `HTTP error! status: ${response.status}`);
     }
 
     return await response.json();
   } catch (error) {
-    console.error(`API Error (${endpoint}):`, error);
+    console.error(`[API] Error (${endpoint}):`, error);
     throw error;
   }
 }
