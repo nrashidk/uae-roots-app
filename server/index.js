@@ -515,7 +515,7 @@ const recordEdit = async (
 const COOKIE_OPTIONS = {
   httpOnly: true,
   secure: true, // Always use secure cookies (H1: prevents cookie interception)
-  sameSite: isReplitPreview ? "none" : (isProduction ? "strict" : "lax"),
+  sameSite: isProduction ? "strict" : "lax",
   maxAge: 7 * 24 * 60 * 60 * 1000,
   path: "/",
 };
