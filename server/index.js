@@ -29,10 +29,9 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-const isReplitPreview = process.env.REPL_ID || process.env.REPLIT_DEV_DOMAIN;
-if (isReplitPreview) {
-  app.set("trust proxy", 1);
-}
+// Trust the hosting platform's reverse proxy (Replit, Render, Railway, etc.)
+// Required for express-rate-limit to read X-Forwarded-For and for secure cookies.
+app.set("trust proxy", 1);
 
 const JWT_SECRET = process.env.JWT_SECRET;
 if (!JWT_SECRET) {
@@ -744,52 +743,14 @@ const createUserWithIdentities = async (
 };
 
 async function getTwilioCredentials() {
-  const hostname = process.env.REPLIT_CONNECTORS_HOSTNAME;
-  const xReplitToken = process.env.REPL_IDENTITY
-    ? "repl " + process.env.REPL_IDENTITY
-    : process.env.WEB_REPL_RENEWAL
-      ? "depl " + process.env.WEB_REPL_RENEWAL
-      : null;
+  const accountSid = process.env.TWILIO_ACCOUNT_SID;
+  const authToken = process.env.TWILIO_AUTH_TOKEN;
 
-  if (!xReplitToken) {
-    throw new Error("X_REPLIT_TOKEN not found");
-  }
-
-  const response = await fetch(
-    "https://" +
-      hostname +
-      "/api/v2/connection?include_secrets=true&connector_names=twilio",
-    {
-      headers: {
-        Accept: "application/json",
-        X_REPLIT_TOKEN: xReplitToken,
-      },
-    },
-  );
-
-  if (!response.ok) {
-    const text = await response.text();
-    console.error("Twilio connector response:", text);
-    throw new Error("Failed to get Twilio credentials: " + response.status);
-  }
-
-  const text = await response.text();
-  if (!text) {
-    throw new Error("Empty response from Twilio connector");
-  }
-
-  const data = JSON.parse(text);
-  const connectionSettings = data.items?.[0];
-
-  if (!connectionSettings || !connectionSettings.settings.account_sid) {
+  if (!accountSid || !authToken) {
     throw new Error("Twilio not connected");
   }
-  return {
-    accountSid: connectionSettings.settings.account_sid,
-    apiKey: connectionSettings.settings.api_key,
-    apiKeySecret: connectionSettings.settings.api_key_secret,
-    phoneNumber: connectionSettings.settings.phone_number,
-  };
+
+  return { accountSid, authToken };
 }
 
 app.post("/api/sms/send-code", smsLimiter, async (req, res) => {
@@ -818,8 +779,8 @@ app.post("/api/sms/send-code", smsLimiter, async (req, res) => {
       return res.status(400).json({ error: "رقم الهاتف غير صالح" });
     }
 
-    const { accountSid, apiKey, apiKeySecret } = await getTwilioCredentials();
-    const client = twilio(apiKey, apiKeySecret, { accountSid });
+    const { accountSid, authToken } = await getTwilioCredentials();
+    const client = twilio(accountSid, authToken);
 
     const verifySid = process.env.TWILIO_VERIFY_SID;
     if (!verifySid) {
@@ -887,8 +848,8 @@ app.post("/api/sms/verify-code", smsLimiter, async (req, res) => {
       return res.status(400).json({ error: "بيانات غير صالحة" });
     }
 
-    const { accountSid, apiKey, apiKeySecret } = await getTwilioCredentials();
-    const client = twilio(apiKey, apiKeySecret, { accountSid });
+    const { accountSid, authToken } = await getTwilioCredentials();
+    const client = twilio(accountSid, authToken);
 
     const verifySid = process.env.TWILIO_VERIFY_SID;
     if (!verifySid) {
