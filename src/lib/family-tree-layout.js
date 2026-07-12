@@ -74,11 +74,9 @@ var FamilyTreeLayoutModule;
      * @returns {number|null} Order value
      */
     function getPersonOrder(p, o) {
-        const d = parseDate(p.b);
-        if (!o && d.y) {
-            return d.y * 10000 + d.m * 100 + d.d;
-        }
-        if (p.O && !isNaN(parseFloat(p.O))) {
+        // Sibling order is driven ONLY by the manual arrow value (O).
+        // DOB is display-only and intentionally never affects sibling ordering.
+        if (p.O !== undefined && p.O !== null && !isNaN(parseFloat(p.O))) {
             return parseFloat(p.O);
         }
         return null;
