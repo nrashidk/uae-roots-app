@@ -41,6 +41,11 @@ if (!JWT_SECRET) {
 
 const isProduction = process.env.NODE_ENV === "production";
 
+// Verbose request-tracing logs only emit when DEBUG_LOGS=true (keeps prod logs clean, avoids logging user identifiers by default).
+const debugLog = (...args) => {
+  if (process.env.DEBUG_LOGS === "true") console.log(...args);
+};
+
 // Phase 1: JWT secret strength validation
 if (JWT_SECRET.length < 32) {
   console.warn(
@@ -54,6 +59,10 @@ if (JWT_SECRET.length < 32) {
   }
 }
 
+// ENCRYPTION_KEY must be set explicitly in production; no silent fallback to JWT_SECRET (key reuse weakens both).
+if (isProduction && !process.env.ENCRYPTION_KEY) {
+  throw new Error("ENCRYPTION_KEY environment variable is required in production.");
+}
 // Phase 1: ENCRYPTION_KEY validation with backward compatibility
 const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY || JWT_SECRET;
 const usingDedicatedEncryptionKey = !!process.env.ENCRYPTION_KEY;
@@ -177,8 +186,6 @@ const productionOrigins = process.env.ALLOWED_ORIGINS
   : [
       "https://uaeroots.com",
       "https://www.uaeroots.com",
-      /\.replit\.dev$/,
-      /\.repl\.co$/,
     ];
 
 const allowedOrigins = isProduction
@@ -528,12 +535,12 @@ const authenticateUser = async (req, res, next) => {
     const authHeader = req.headers.authorization;
     if (authHeader && authHeader.startsWith("Bearer ")) {
       token = authHeader.split("Bearer ")[1];
-      console.log(`[${rid}][Auth] Using Bearer token from header`);
+      debugLog(`[${rid}][Auth] Using Bearer token from header`);
     }
   }
 
   if (!token) {
-    console.log(`[${rid}][Auth] No token found - returning 401`);
+    debugLog(`[${rid}][Auth] No token found - returning 401`);
     return res.status(401).json({ error: "Authentication required" });
   }
 
@@ -541,10 +548,10 @@ const authenticateUser = async (req, res, next) => {
     const decoded = jwt.verify(token, JWT_SECRET);
     req.userId = decoded.userId;
     req.userType = decoded.type;
-    console.log(`[${rid}][Auth] Token valid - userId: ${req.userId}`);
+    debugLog(`[${rid}][Auth] Token valid - userId: ${req.userId}`);
     next();
   } catch (jwtError) {
-    console.log(`[${rid}][Auth] Token invalid or expired:`, jwtError.message);
+    debugLog(`[${rid}][Auth] Token invalid or expired:`, jwtError.message);
     res.clearCookie("auth_token", COOKIE_OPTIONS);
     return res.status(401).json({ error: "Invalid or expired token" });
   }
@@ -1019,32 +1026,6 @@ app.get("/api/auth/check", optionalAuth, (req, res) => {
   }
 });
 
-app.get("/api/debug/session", optionalAuth, async (req, res) => {
-  try {
-    const cookiePresent = !!req.cookies?.auth_token;
-    const jwtUser = req.userId || null;
-
-    let treesCount = 0;
-    if (jwtUser) {
-      const userTrees = await db
-        .select()
-        .from(trees)
-        .where(eq(trees.createdBy, jwtUser));
-      treesCount = userTrees.length;
-    }
-
-    res.json({
-      cookiePresent,
-      authenticated: !!jwtUser,
-      jwtUserId: jwtUser,
-      treesForUser: treesCount,
-      timestamp: new Date().toISOString(),
-    });
-  } catch (error) {
-    res.json({ error: error.message });
-  }
-});
-
 app.use("/api/users", apiLimiter);
 app.use("/api/trees", apiLimiter);
 app.use("/api/people", apiLimiter);
@@ -1349,7 +1330,7 @@ app.get("/api/people", authenticateUser, async (req, res) => {
   const rid = req.requestId || "";
   try {
     const { treeId } = req.query;
-    console.log(`[${rid}][People] GET - treeId: ${treeId}, userId: ${req.userId}`);
+    debugLog(`[${rid}][People] GET - treeId: ${treeId}, userId: ${req.userId}`);
 
     if (!treeId) {
       return res.status(400).json({ error: "Tree ID is required" });
@@ -1360,19 +1341,19 @@ app.get("/api/people", authenticateUser, async (req, res) => {
       return res.status(400).json({ error: "Invalid tree ID" });
     }
 
-    console.log(`[${rid}][People] Verifying ownership for tree ${parsedTreeId}`);
+    debugLog(`[${rid}][People] Verifying ownership for tree ${parsedTreeId}`);
     const ownership = await verifyTreeOwnership(parsedTreeId, req.userId);
     if (!ownership.valid) {
-      console.log(`[${rid}][People] Ownership denied: ${ownership.error}`);
+      debugLog(`[${rid}][People] Ownership denied: ${ownership.error}`);
       return res.status(403).json({ error: ownership.error });
     }
 
-    console.log(`[${rid}][People] Fetching people from database...`);
+    debugLog(`[${rid}][People] Fetching people from database...`);
     const allPeople = await db
       .select()
       .from(people)
       .where(eq(people.treeId, parsedTreeId));
-    console.log(`[${rid}][People] Found ${allPeople.length} people`);
+    debugLog(`[${rid}][People] Found ${allPeople.length} people`);
 
     const decryptedPeople = allPeople.map((person, index) => {
       try {
@@ -1395,7 +1376,7 @@ app.get("/api/people", authenticateUser, async (req, res) => {
       }
     });
 
-    console.log(`[${rid}][People] Returning ${decryptedPeople.length} people`);
+    debugLog(`[${rid}][People] Returning ${decryptedPeople.length} people`);
     res.json(decryptedPeople);
   } catch (error) {
     console.error(`[${rid}][People] Error:`, error.message, error.stack);
