@@ -2304,20 +2304,54 @@ function App() {
     });
 
     const getRelationshipCounts = (person) => {
-      const siblings = treeRels.filter(
-        (r) =>
-          r.type === "sibling" &&
-          (r.person1Id === person.id || r.person2Id === person.id),
-      );
-      const siblingIds = siblings.map((r) =>
-        r.person1Id === person.id ? r.person2Id : r.person1Id,
-      );
+      // Blood siblings are defined by shared parents (matches getSiblings, which the arrows use).
+      // Direct "sibling" rows are only a fallback used when no parents exist yet.
+      const myParentIds = treeRels
+        .filter((r) => r.type === "parent-child" && r.childId === person.id)
+        .map((r) => r.parentId);
+
+      let siblingIds;
+      if (myParentIds.length > 0) {
+        siblingIds = [
+          ...new Set(
+            treeRels
+              .filter(
+                (r) =>
+                  r.type === "parent-child" &&
+                  myParentIds.includes(r.parentId) &&
+                  r.childId !== person.id,
+              )
+              .map((r) => r.childId),
+          ),
+        ];
+      } else {
+        siblingIds = [
+          ...new Set(
+            treeRels
+              .filter(
+                (r) =>
+                  r.type === "sibling" &&
+                  !r.isBreastfeeding &&
+                  (r.person1Id === person.id || r.person2Id === person.id),
+              )
+              .map((r) =>
+                r.person1Id === person.id ? r.person2Id : r.person1Id,
+              ),
+          ),
+        ];
+      }
       const siblingPeople = treePeople.filter((p) => siblingIds.includes(p.id));
 
       const brothers = siblingPeople.filter((p) => p.gender === "male").length;
       const sisters = siblingPeople.filter((p) => p.gender === "female").length;
 
-      const breastfeedingSiblings = siblings.filter((r) => r.isBreastfeeding);
+      // Breastfeeding (milk) siblings remain tracked via direct "sibling" rows flagged isBreastfeeding.
+      const breastfeedingSiblings = treeRels.filter(
+        (r) =>
+          r.type === "sibling" &&
+          r.isBreastfeeding &&
+          (r.person1Id === person.id || r.person2Id === person.id),
+      );
       const breastfeedingBrothers = breastfeedingSiblings.filter((r) => {
         const sibId = r.person1Id === person.id ? r.person2Id : r.person1Id;
         const sib = treePeople.find((p) => p.id === sibId);
