@@ -2154,6 +2154,11 @@ function App() {
                       onChange={(e) =>
                         setPhoneInput(e.target.value.replace(/\D/g, ""))
                       }
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" && phoneInput && !authProcessing) {
+                          handleSendSmsCode();
+                        }
+                      }}
                       placeholder="501234567"
                       className="flex-1 block w-full rounded-r-md border border-gray-300 px-3 py-2 focus:border-purple-500 focus:ring-purple-500"
                       maxLength={9}
@@ -2186,6 +2191,15 @@ function App() {
                     onChange={(e) =>
                       setSmsCode(e.target.value.replace(/\D/g, ""))
                     }
+                    onKeyDown={(e) => {
+                      if (
+                        e.key === "Enter" &&
+                        smsCode.length === 6 &&
+                        !authProcessing
+                      ) {
+                        handleVerifySmsCode();
+                      }
+                    }}
                     placeholder="أدخل الرمز المكون من 6 أرقام"
                     className="block w-full rounded-md border border-gray-300 px-3 py-2 focus:border-purple-500 focus:ring-purple-500 text-center text-lg tracking-widest"
                     maxLength={6}
