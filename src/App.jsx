@@ -69,7 +69,12 @@ function App() {
   const [emailInput, setEmailInput] = useState("");
   const [passwordInput, setPasswordInput] = useState("");
   const [showPassword, setShowPassword] = useState(false);
-  const [authProcessing, setAuthProcessing] = useState(false);
+  const [processingMethod, setProcessingMethod] = useState(null);
+  // Any auth in progress (keeps all buttons disabled to prevent double-submit)
+  const authProcessing = processingMethod !== null;
+  // Shim so existing setAuthProcessing(false) calls still clear the state
+  const setAuthProcessing = (val) =>
+    setProcessingMethod(val ? "generic" : null);
   const [showSmsLogin, setShowSmsLogin] = useState(false);
   const [phoneInput, setPhoneInput] = useState("");
   const [smsCode, setSmsCode] = useState("");
@@ -853,7 +858,7 @@ function App() {
     try {
       interactiveLoginInProgressRef.current = true;
       restorationAttemptedRef.current = true;
-      setAuthProcessing(true);
+      setProcessingMethod("google");
       const loggedInUser = await loginWithGoogle();
       await handleAuthSuccess(loggedInUser);
     } catch (err) {
@@ -868,7 +873,7 @@ function App() {
     try {
       interactiveLoginInProgressRef.current = true;
       restorationAttemptedRef.current = true;
-      setAuthProcessing(true);
+      setProcessingMethod("microsoft");
       const loggedInUser = await loginWithMicrosoft();
       await handleAuthSuccess(loggedInUser);
     } catch (err) {
@@ -886,7 +891,7 @@ function App() {
     try {
       interactiveLoginInProgressRef.current = true;
       restorationAttemptedRef.current = true;
-      setAuthProcessing(true);
+      setProcessingMethod("email");
       let loggedInUser;
       if (authMode === "login") {
         loggedInUser = await loginWithEmail(emailInput, passwordInput);
@@ -1109,7 +1114,7 @@ function App() {
     }
 
     try {
-      setAuthProcessing(true);
+      setProcessingMethod("phone");
       setSmsError("");
 
       const response = await fetch("/api/sms/send-code", {
@@ -1148,7 +1153,7 @@ function App() {
     try {
       interactiveLoginInProgressRef.current = true;
       restorationAttemptedRef.current = true;
-      setAuthProcessing(true);
+      setProcessingMethod("code");
       setSmsError("");
 
       const response = await fetch("/api/sms/verify-code", {
@@ -2027,7 +2032,7 @@ function App() {
               disabled={authProcessing || !emailInput || !passwordInput}
               className="w-full bg-purple-600 hover:bg-purple-700 text-white py-3"
             >
-              {authProcessing ? (
+              {processingMethod === "email" ? (
                 <Loader2 className="w-5 h-5 animate-spin" />
               ) : authMode === "login" ? (
                 "تسجيل الدخول"
@@ -2066,7 +2071,7 @@ function App() {
               disabled={authProcessing}
               className="w-full bg-white hover:bg-gray-50 text-gray-700 border border-gray-300 py-3"
             >
-              {authProcessing ? (
+              {processingMethod === "google" ? (
                 <Loader2 className="w-5 h-5 animate-spin ml-2" />
               ) : (
                 <svg className="w-5 h-5 ml-2" viewBox="0 0 24 24">
@@ -2095,7 +2100,7 @@ function App() {
               disabled={authProcessing}
               className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3"
             >
-              {authProcessing ? (
+              {processingMethod === "microsoft" ? (
                 <Loader2 className="w-5 h-5 animate-spin ml-2" />
               ) : (
                 <User className="w-5 h-5 ml-2" />
@@ -2156,6 +2161,8 @@ function App() {
                       }
                       onKeyDown={(e) => {
                         if (e.key === "Enter" && phoneInput && !authProcessing) {
+                          e.preventDefault();
+                          e.stopPropagation();
                           handleSendSmsCode();
                         }
                       }}
@@ -2173,7 +2180,7 @@ function App() {
                   disabled={authProcessing || !phoneInput}
                   className="w-full bg-purple-600 hover:bg-purple-700"
                 >
-                  {authProcessing ? (
+                  {processingMethod === "phone" ? (
                     <Loader2 className="w-5 h-5 animate-spin ml-2" />
                   ) : null}
                   إرسال رمز التحقق
@@ -2197,6 +2204,8 @@ function App() {
                         smsCode.length === 6 &&
                         !authProcessing
                       ) {
+                        e.preventDefault();
+                        e.stopPropagation();
                         handleVerifySmsCode();
                       }
                     }}
@@ -2226,7 +2235,7 @@ function App() {
                     disabled={authProcessing || smsCode.length !== 6}
                     className="flex-1 bg-purple-600 hover:bg-purple-700"
                   >
-                    {authProcessing ? (
+                    {processingMethod === "code" ? (
                       <Loader2 className="w-5 h-5 animate-spin ml-2" />
                     ) : null}
                     تحقق
