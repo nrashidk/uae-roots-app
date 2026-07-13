@@ -3500,23 +3500,25 @@ function PersonForm({
           </label>
         </div>
 
-        <div className="flex items-center gap-2">
-          <input
-            type="checkbox"
-            id="isBreastfed"
-            checked={formData.isBreastfed}
-            onChange={(e) =>
-              setFormData((prev) => ({
-                ...prev,
-                isBreastfed: e.target.checked,
-              }))
-            }
-            className="rounded"
-          />
-          <label htmlFor="isBreastfed" className="text-sm font-bold">
-            {t.breastfed}
-          </label>
-        </div>
+        {!person && (
+          <div className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              id="isBreastfed"
+              checked={formData.isBreastfed}
+              onChange={(e) =>
+                setFormData((prev) => ({
+                  ...prev,
+                  isBreastfed: e.target.checked,
+                }))
+              }
+              className="rounded"
+            />
+            <label htmlFor="isBreastfed" className="text-sm font-bold">
+              {t.breastfed}
+            </label>
+          </div>
+        )}
       </div>
 
       {!formData.isLiving && (
