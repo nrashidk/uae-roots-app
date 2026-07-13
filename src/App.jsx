@@ -1245,9 +1245,27 @@ function App() {
       console.log("Selected person:", selectedPerson);
       console.log("Tree ID:", currentTree?.id);
 
+      // Compute a far-left birthOrder for a new child BEFORE creating it,
+      // so we can set it in the create call (no mid-flow await that would
+      // split setRelationships/setPeople and crash the layout mid-render).
+      let childBirthOrder = null;
+      if (relationshipType === "child" && selectedPerson) {
+        const sibIds = relationships
+          .filter(
+            (r) => r.type === "parent-child" && r.parentId === selectedPerson,
+          )
+          .map((r) => r.childId);
+        const sibOrders = people
+          .filter((p) => sibIds.includes(p.id) && p.birthOrder != null)
+          .map((p) => p.birthOrder);
+        childBirthOrder =
+          sibOrders.length > 0 ? Math.min(...sibOrders) - 1 : 1;
+      }
+
       const newPerson = await api.people.create({
         ...personData,
         treeId: currentTree?.id,
+        ...(childBirthOrder != null ? { birthOrder: childBirthOrder } : {}),
       });
 
       console.log("New person created:", newPerson);
@@ -1319,30 +1337,6 @@ function App() {
               ),
             );
             setRelationships((prev) => [...prev, ...createdRels]);
-
-            // New child defaults to the far-left position: give it the lowest
-            // birthOrder among its existing siblings (children of the anchor parent),
-            // so it doesn't land on the far right and need manual arrow-walking.
-            const sibIds = relationships
-              .filter(
-                (r) =>
-                  r.type === "parent-child" &&
-                  r.parentId === selectedPerson &&
-                  r.childId !== newPerson.id,
-              )
-              .map((r) => r.childId);
-            const sibOrders = people
-              .filter((p) => sibIds.includes(p.id) && p.birthOrder != null)
-              .map((p) => p.birthOrder);
-            const newChildOrder =
-              sibOrders.length > 0 ? Math.min(...sibOrders) - 1 : 1;
-            try {
-              await api.people.updateBirthOrder(newPerson.id, newChildOrder);
-              newPerson.birthOrder = newChildOrder;
-            } catch (e) {
-              console.error("Failed to set new child birthOrder:", e);
-            }
-
             setChosenChildOtherParentId(null);
           } else if (relationshipType === "parent") {
             relData.parentId = newPerson.id;
