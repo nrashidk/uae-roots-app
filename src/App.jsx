@@ -583,12 +583,10 @@ function App() {
       currentTree?.id,
     );
 
-    // Choose root person: prefer currently selected person if present in this tree
-    const preferredRoot = selectedPerson ? `P${selectedPerson}` : null;
-    const rootPerson =
-      preferredRoot && familyData[preferredRoot]
-        ? preferredRoot
-        : findRootPerson(familyData);
+    // Root the tree at the STABLE natural root. Selecting a person must NOT
+    // re-root the tree — that was causing the whole view to jump/relocate on
+    // every click. Selection now only marks/highlights; it doesn't restructure.
+    const rootPerson = findRootPerson(familyData);
 
     // Generate layout for main tree
     const layout = FamilyTreeLayout.generateLayout(familyData, rootPerson, {
@@ -598,7 +596,9 @@ function App() {
       flipLayout: false,
       displayOptions: {},
       markedPersonId:
-        preferredRoot && familyData[preferredRoot] ? preferredRoot : null,
+        selectedPerson && familyData[`P${selectedPerson}`]
+          ? `P${selectedPerson}`
+          : null,
     });
 
     // Ensure layout structures exist to prevent runtime errors
@@ -1297,35 +1297,48 @@ function App() {
       // If there's a relationship, create it
       if (relationshipType && selectedPerson) {
         if (relationshipType === "sibling") {
-          // Prefer linking the new sibling to the same parents (parent-child relations)
-          const parentRels = relationships.filter(
-            (r) =>
-              r.treeId === currentTree?.id &&
-              r.type === "parent-child" &&
-              r.childId === selectedPerson,
-          );
-
-          if (parentRels.length > 0) {
-            const createdRels = await Promise.all(
-              parentRels.map((r) =>
-                api.relationships.create({
-                  treeId: currentTree?.id,
-                  type: "parent-child",
-                  parentId: r.parentId,
-                  childId: newPerson.id,
-                }),
-              ),
-            );
-            setRelationships((prev) => [...prev, ...createdRels]);
-          } else {
-            // Fallback: direct sibling relation if no parents exist yet
+          if (personData.isBreastfed) {
+            // Milk sibling (رضاعة): direct sibling link ONLY, flagged breastfeeding,
+            // with NO blood parents inherited (like the first person in a tree).
             const siblingRel = await api.relationships.create({
               treeId: currentTree?.id,
               type: "sibling",
               person1Id: selectedPerson,
               person2Id: newPerson.id,
+              isBreastfeeding: true,
             });
             setRelationships((prev) => [...prev, siblingRel]);
+          } else {
+            // Blood sibling: link to the same parents (parent-child relations)
+            const parentRels = relationships.filter(
+              (r) =>
+                r.treeId === currentTree?.id &&
+                r.type === "parent-child" &&
+                r.childId === selectedPerson,
+            );
+
+            if (parentRels.length > 0) {
+              const createdRels = await Promise.all(
+                parentRels.map((r) =>
+                  api.relationships.create({
+                    treeId: currentTree?.id,
+                    type: "parent-child",
+                    parentId: r.parentId,
+                    childId: newPerson.id,
+                  }),
+                ),
+              );
+              setRelationships((prev) => [...prev, ...createdRels]);
+            } else {
+              // Fallback: direct sibling relation if no parents exist yet
+              const siblingRel = await api.relationships.create({
+                treeId: currentTree?.id,
+                type: "sibling",
+                person1Id: selectedPerson,
+                person2Id: newPerson.id,
+              });
+              setRelationships((prev) => [...prev, siblingRel]);
+            }
           }
         } else {
           const relData = {
@@ -2639,6 +2652,7 @@ function App() {
               }}
               onBackgroundClick={() => {
                 setShowActionMenu(false);
+                setSelectedPerson(null);
               }}
               zoom={zoom}
               panOffset={panOffset}
@@ -3487,23 +3501,25 @@ function PersonForm({
           </label>
         </div>
 
-        <div className="flex items-center gap-2">
-          <input
-            type="checkbox"
-            id="isBreastfed"
-            checked={formData.isBreastfed}
-            onChange={(e) =>
-              setFormData((prev) => ({
-                ...prev,
-                isBreastfed: e.target.checked,
-              }))
-            }
-            className="rounded"
-          />
-          <label htmlFor="isBreastfed" className="text-sm font-bold">
-            {t.breastfed}
-          </label>
-        </div>
+        {!person && (
+          <div className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              id="isBreastfed"
+              checked={formData.isBreastfed}
+              onChange={(e) =>
+                setFormData((prev) => ({
+                  ...prev,
+                  isBreastfed: e.target.checked,
+                }))
+              }
+              className="rounded"
+            />
+            <label htmlFor="isBreastfed" className="text-sm font-bold">
+              {t.breastfed}
+            </label>
+          </div>
+        )}
       </div>
 
       {!formData.isLiving && (

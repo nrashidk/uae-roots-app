@@ -44,6 +44,12 @@ export function convertToAlgorithmFormat(people, relationships, treeId) {
                 spouseMap[rel.person2Id].push(rel.person1Id);
             }
         } else if (rel.type === "sibling") {
+            // Milk-sibling (رضاعة): do NOT propagate blood parents. A breastfeeding
+            // link must never make the milk-sibling inherit the other person's parents,
+            // so we skip it here (siblingMap is only used for parent inheritance).
+            if (rel.isBreastfeeding) {
+                return;
+            }
             if (!siblingMap[rel.person1Id]) {
                 siblingMap[rel.person1Id] = [];
             }
