@@ -19,7 +19,7 @@ import {
   editHistory,
   authIdentities,
 } from "../shared/schema.js";
-import { eq, and, or, ilike, desc, lt } from "drizzle-orm";
+import { eq, and, or, ilike, desc, lt, inArray } from "drizzle-orm";
 import { z } from "zod";
 import fs from "fs";
 
@@ -1742,6 +1742,30 @@ app.post("/api/relationships", authenticateUser, async (req, res) => {
     );
     if (!ownership.valid) {
       return res.status(403).json({ error: ownership.error });
+    }
+
+    // Hardening: every referenced person must belong to this same tree,
+    // so a relationship can't reference people from another user's tree.
+    const referencedIds = [
+      validatedData.person1Id,
+      validatedData.person2Id,
+      validatedData.childId,
+      validatedData.parentId,
+    ].filter((id) => id != null);
+
+    if (referencedIds.length > 0) {
+      const referenced = await db
+        .select()
+        .from(people)
+        .where(inArray(people.id, referencedIds));
+      const allInTree =
+        referenced.length === referencedIds.length &&
+        referenced.every((p) => p.treeId === validatedData.treeId);
+      if (!allInTree) {
+        return res.status(400).json({
+          error: "All referenced people must belong to this tree",
+        });
+      }
     }
 
     const relationshipData = {
