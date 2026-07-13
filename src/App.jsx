@@ -1260,6 +1260,25 @@ function App() {
           .map((p) => p.birthOrder);
         childBirthOrder =
           sibOrders.length > 0 ? Math.min(...sibOrders) - 1 : 1;
+      } else if (relationshipType === "sibling" && selectedPerson) {
+        // A new sibling shares the clicked person's parents; its sibling group
+        // is the children of those parents. Land it far-left too (consistent with add-child).
+        const parentIds = relationships
+          .filter(
+            (r) => r.type === "parent-child" && r.childId === selectedPerson,
+          )
+          .map((r) => r.parentId);
+        const sibIds = relationships
+          .filter(
+            (r) =>
+              r.type === "parent-child" && parentIds.includes(r.parentId),
+          )
+          .map((r) => r.childId);
+        const sibOrders = people
+          .filter((p) => sibIds.includes(p.id) && p.birthOrder != null)
+          .map((p) => p.birthOrder);
+        childBirthOrder =
+          sibOrders.length > 0 ? Math.min(...sibOrders) - 1 : 1;
       }
 
       const newPerson = await api.people.create({
