@@ -1468,7 +1468,7 @@ app.post("/api/people", authenticateUser, async (req, res) => {
       email: encryptPII(sanitizedData.email),
       identificationNumber: encryptPII(sanitizedData.identificationNumber),
       profession: sanitizedData.profession || null,
-      birthOrder: sanitizedData.birthOrder || null,
+      birthOrder: sanitizedData.birthOrder ?? null,
       photoUrl: sanitizedData.photoUrl || null,
     };
     console.log("Saving to DB:", personData);
