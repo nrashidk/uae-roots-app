@@ -583,12 +583,10 @@ function App() {
       currentTree?.id,
     );
 
-    // Choose root person: prefer currently selected person if present in this tree
-    const preferredRoot = selectedPerson ? `P${selectedPerson}` : null;
-    const rootPerson =
-      preferredRoot && familyData[preferredRoot]
-        ? preferredRoot
-        : findRootPerson(familyData);
+    // Root the tree at the STABLE natural root. Selecting a person must NOT
+    // re-root the tree — that was causing the whole view to jump/relocate on
+    // every click. Selection now only marks/highlights; it doesn't restructure.
+    const rootPerson = findRootPerson(familyData);
 
     // Generate layout for main tree
     const layout = FamilyTreeLayout.generateLayout(familyData, rootPerson, {
@@ -598,7 +596,9 @@ function App() {
       flipLayout: false,
       displayOptions: {},
       markedPersonId:
-        preferredRoot && familyData[preferredRoot] ? preferredRoot : null,
+        selectedPerson && familyData[`P${selectedPerson}`]
+          ? `P${selectedPerson}`
+          : null,
     });
 
     // Ensure layout structures exist to prevent runtime errors
