@@ -2652,6 +2652,7 @@ function App() {
               }}
               onBackgroundClick={() => {
                 setShowActionMenu(false);
+                setSelectedPerson(null);
               }}
               zoom={zoom}
               panOffset={panOffset}
