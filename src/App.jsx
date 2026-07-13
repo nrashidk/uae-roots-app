@@ -1292,49 +1292,35 @@ function App() {
       // If there's a relationship, create it
       if (relationshipType && selectedPerson) {
         if (relationshipType === "sibling") {
-          if (personData.isBreastfed) {
-            // Milk sibling (رضاعة): direct sibling link ONLY, flagged breastfeeding,
-            // with NO blood parents inherited (like the first person in a tree).
-            // The person is created with isBreastfed=true, so its box renders in the breastfed color.
+          // Prefer linking the new sibling to the same parents (parent-child relations)
+          const parentRels = relationships.filter(
+            (r) =>
+              r.treeId === currentTree?.id &&
+              r.type === "parent-child" &&
+              r.childId === selectedPerson,
+          );
+
+          if (parentRels.length > 0) {
+            const createdRels = await Promise.all(
+              parentRels.map((r) =>
+                api.relationships.create({
+                  treeId: currentTree?.id,
+                  type: "parent-child",
+                  parentId: r.parentId,
+                  childId: newPerson.id,
+                }),
+              ),
+            );
+            setRelationships((prev) => [...prev, ...createdRels]);
+          } else {
+            // Fallback: direct sibling relation if no parents exist yet
             const siblingRel = await api.relationships.create({
               treeId: currentTree?.id,
               type: "sibling",
               person1Id: selectedPerson,
               person2Id: newPerson.id,
-              isBreastfeeding: true,
             });
             setRelationships((prev) => [...prev, siblingRel]);
-          } else {
-            // Blood sibling: link to the same parents (parent-child relations)
-            const parentRels = relationships.filter(
-              (r) =>
-                r.treeId === currentTree?.id &&
-                r.type === "parent-child" &&
-                r.childId === selectedPerson,
-            );
-
-            if (parentRels.length > 0) {
-              const createdRels = await Promise.all(
-                parentRels.map((r) =>
-                  api.relationships.create({
-                    treeId: currentTree?.id,
-                    type: "parent-child",
-                    parentId: r.parentId,
-                    childId: newPerson.id,
-                  }),
-                ),
-              );
-              setRelationships((prev) => [...prev, ...createdRels]);
-            } else {
-              // Fallback: direct sibling relation if no parents exist yet
-              const siblingRel = await api.relationships.create({
-                treeId: currentTree?.id,
-                type: "sibling",
-                person1Id: selectedPerson,
-                person2Id: newPerson.id,
-              });
-              setRelationships((prev) => [...prev, siblingRel]);
-            }
           }
         } else {
           const relData = {
@@ -2170,6 +2156,8 @@ function App() {
                       }
                       onKeyDown={(e) => {
                         if (e.key === "Enter" && phoneInput && !authProcessing) {
+                          e.preventDefault();
+                          e.stopPropagation();
                           handleSendSmsCode();
                         }
                       }}
@@ -2211,6 +2199,8 @@ function App() {
                         smsCode.length === 6 &&
                         !authProcessing
                       ) {
+                        e.preventDefault();
+                        e.stopPropagation();
                         handleVerifySmsCode();
                       }
                     }}
