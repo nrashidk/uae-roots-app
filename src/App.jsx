@@ -86,6 +86,9 @@ function App() {
   const [formKey, setFormKey] = useState(0); // Key to force form remount
   const [pendingFatherId, setPendingFatherId] = useState(null);
   const [pendingMotherId, setPendingMotherId] = useState(null);
+  // Slice 1: when adding a child to a parent with 2+ spouses, pick which spouse is the other parent
+  const [motherPickerFor, setMotherPickerFor] = useState(null); // { parentId, candidates, pickLabel, helpText }
+  const [chosenChildOtherParentId, setChosenChildOtherParentId] = useState(null);
   const [zoom, setZoom] = useState(1);
   const [panOffset, setPanOffset] = useState({ x: 0, y: 0 });
   const [isDragging, setIsDragging] = useState(false);
@@ -1299,33 +1302,12 @@ function App() {
             const newRel = await api.relationships.create(relData);
             setRelationships((prev) => [...prev, newRel]);
           } else if (relationshipType === "child") {
-            // Child should be linked to BOTH parents (selected person + spouse)
-            console.log("=== CREATING CHILD RELATIONSHIPS ===");
-            const selectedPerson_obj = people.find(
-              (p) => p.id === selectedPerson,
-            );
-            console.log("Selected parent:", selectedPerson_obj);
+            // Child links to exactly ONE father + ONE mother.
+            // The other parent was resolved before the form opened (auto if 1 spouse, chosen if 2+).
+            const allParentIds = chosenChildOtherParentId
+              ? [selectedPerson, chosenChildOtherParentId]
+              : [selectedPerson];
 
-            // Find the spouse(s) of the selected person
-            const spouseRels = relationships.filter(
-              (r) =>
-                r.treeId === currentTree?.id &&
-                r.type === "partner" &&
-                (r.person1Id === selectedPerson ||
-                  r.person2Id === selectedPerson),
-            );
-            console.log("Spouse relationships found:", spouseRels);
-            const spouseIds = spouseRels.map((r) =>
-              r.person1Id === selectedPerson ? r.person2Id : r.person1Id,
-            );
-
-            // Create parent-child relationships for selected person + spouse(s)
-            // Do NOT include grandparents
-            const allParentIds = [selectedPerson, ...spouseIds];
-            console.log("All parent IDs:", allParentIds);
-            console.log("New child ID:", newPerson.id);
-
-            // Create parent-child relationship for each parent
             const createdRels = await Promise.all(
               allParentIds.map((parentId) =>
                 api.relationships.create({
@@ -1336,8 +1318,8 @@ function App() {
                 }),
               ),
             );
-            console.log("Created relationships:", createdRels);
             setRelationships((prev) => [...prev, ...createdRels]);
+            setChosenChildOtherParentId(null);
           } else if (relationshipType === "parent") {
             relData.parentId = newPerson.id;
             relData.childId = selectedPerson;
@@ -1607,16 +1589,50 @@ function App() {
     setShowPersonForm(true);
   };
 
-  const handleQuickCreateChild = (personId) => {
-    const selected = people.find((p) => p.id === personId);
-    if (!selected) return;
-
-    // Open form for adding child
-    setSelectedPerson(personId);
+  const proceedAddChild = (parentId, otherParentId) => {
+    setChosenChildOtherParentId(otherParentId ?? null);
+    setMotherPickerFor(null);
+    setSelectedPerson(parentId);
     setRelationshipType("child");
     setEditingPerson(null);
     setFormKey((prev) => prev + 1);
     setShowPersonForm(true);
+  };
+
+  const handleQuickCreateChild = (personId) => {
+    const selected = people.find((p) => p.id === personId);
+    if (!selected) return;
+
+    // Find the selected parent's spouses (the child's other parent must be one of them)
+    const spouseIds = relationships
+      .filter(
+        (r) =>
+          r.treeId === currentTree?.id &&
+          r.type === "partner" &&
+          (r.person1Id === personId || r.person2Id === personId),
+      )
+      .map((r) => (r.person1Id === personId ? r.person2Id : r.person1Id));
+
+    if (spouseIds.length >= 2) {
+      // Ambiguous: ask which spouse is the other parent (starts blank — user must choose)
+      const isMale = selected.gender === "male";
+      const candidates = spouseIds.map((sid) => {
+        const sp = people.find((p) => p.id === sid);
+        return { id: sid, name: sp?.firstName || `Person ${sid}` };
+      });
+      setMotherPickerFor({
+        parentId: personId,
+        candidates,
+        pickLabel: isMale ? "اختر الأم" : "اختر الأب",
+        helpText: isMale
+          ? "لهذا الأب أكثر من زوجة. اختر أم هذا الطفل:"
+          : "لهذه الأم أكثر من زوج. اختر أب هذا الطفل:",
+      });
+      return;
+    }
+
+    // 0 or 1 spouse — unambiguous, proceed directly
+    proceedAddChild(personId, spouseIds[0]);
   };
 
   const handleQuickCreateSibling = (personId) => {
@@ -2940,6 +2956,40 @@ function App() {
           </Button>
         </div>
 
+        {motherPickerFor && (
+          <Dialog
+            open={true}
+            onOpenChange={(open) => {
+              if (!open) setMotherPickerFor(null);
+            }}
+          >
+            <DialogContent className="sm:max-w-md" dir="rtl">
+              <DialogHeader>
+                <DialogTitle className="text-right text-xl">
+                  {motherPickerFor.pickLabel}
+                </DialogTitle>
+              </DialogHeader>
+              <div className="space-y-2">
+                <p className="text-sm text-gray-600 text-right">
+                  {motherPickerFor.helpText}
+                </p>
+                {motherPickerFor.candidates.map((c) => (
+                  <Button
+                    key={c.id}
+                    onClick={() =>
+                      proceedAddChild(motherPickerFor.parentId, c.id)
+                    }
+                    variant="outline"
+                    className="w-full justify-end"
+                  >
+                    {c.name}
+                  </Button>
+                ))}
+              </div>
+            </DialogContent>
+          </Dialog>
+        )}
+
         {showPersonForm && (
           <div
             data-person-form
@@ -2987,6 +3037,7 @@ function App() {
                     setRelationshipType(null);
                     setPendingFatherId(null);
                     setPendingMotherId(null);
+                    setChosenChildOtherParentId(null);
                   }}
                   relationshipType={relationshipType}
                   defaultGender={defaultSpouseGender}
