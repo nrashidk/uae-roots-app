@@ -741,6 +741,32 @@ function App() {
     isSingleLayout,
   ]);
 
+  // When a person is selected, the tree re-roots to reveal their branch (e.g.
+  // clicking a spouse shows their side of the family). Recenter the view on that
+  // person so they stay in view instead of flying off-screen. Only for
+  // multi-entity layouts (single-entity is handled by autoPan).
+  const lastCenteredPersonRef = useRef(null);
+  useEffect(() => {
+    if (!selectedPerson || isSingleLayout) {
+      lastCenteredPersonRef.current = null;
+      return;
+    }
+    // Only recenter when the SELECTED person changes (not on every layout tweak),
+    // so it doesn't fight manual dragging or re-center during unrelated updates.
+    if (lastCenteredPersonRef.current === selectedPerson) return;
+    const entity = treeLayout?.layout?.e?.[`P${selectedPerson}`];
+    if (!entity || !canvasDimensions.width || !canvasDimensions.height) return;
+    const BOX_WIDTH = stylingOptions?.boxWidth || CARD.w;
+    const BOX_HEIGHT = CARD.h;
+    const px = entity.x * BOX_WIDTH;
+    const py = entity.y * BOX_HEIGHT;
+    setPanOffset({
+      x: canvasDimensions.width / 2 - (px + BOX_WIDTH / 2),
+      y: canvasDimensions.height / 2 - (py + BOX_HEIGHT / 2),
+    });
+    lastCenteredPersonRef.current = selectedPerson;
+  }, [selectedPerson, treeLayout, isSingleLayout, canvasDimensions]);
+
   // Get people for the current tree
   const treePeople = useMemo(() => {
     return people.filter((p) => p.treeId === currentTree?.id);
