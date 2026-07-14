@@ -86,6 +86,10 @@ function App() {
   const [relationships, setRelationships] = useState([]);
   const [showPersonForm, setShowPersonForm] = useState(false);
   const [selectedPerson, setSelectedPerson] = useState(null);
+  // Drives ONLY the green selection border. Kept separate from selectedPerson
+  // (which drives the tree root/branch) so clearing the border on click-away
+  // doesn't re-root/relocate the tree.
+  const [highlightedPerson, setHighlightedPerson] = useState(null);
   const [editingPerson, setEditingPerson] = useState(null);
   const [relationshipType, setRelationshipType] = useState(null);
   const [formKey, setFormKey] = useState(0); // Key to force form remount
@@ -1481,6 +1485,7 @@ function App() {
       // Keep the tree rooted on the branch we were working on (the anchor),
       // so adding a relative doesn't jump the view back to the natural root.
       setSelectedPerson(anchorPerson);
+      setHighlightedPerson(anchorPerson);
     } catch (error) {
       console.error("Failed to add person:", error);
       alert("فشل في إضافة الشخص: " + error.message);
@@ -2674,8 +2679,10 @@ function App() {
               familyData={treeLayout.familyData}
               people={treePeople}
               selectedPerson={selectedPerson}
+              highlightedPerson={highlightedPerson}
               onPersonClick={(personId) => {
                 setSelectedPerson(personId);
+                setHighlightedPerson(personId);
                 setEditingPerson(personId);
                 setRelationshipType(null);
                 setShowPersonForm(true);
@@ -2683,6 +2690,7 @@ function App() {
               }}
               onBackgroundClick={() => {
                 setShowActionMenu(false);
+                setHighlightedPerson(null);
               }}
               zoom={zoom}
               panOffset={panOffset}
