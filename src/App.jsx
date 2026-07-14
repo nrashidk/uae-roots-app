@@ -1241,6 +1241,9 @@ function App() {
 
   // Add person using the data transformation utility
   const addPerson = async (personData) => {
+    // Remember which person we're adding relative to, so after adding we keep the
+    // tree rooted on that branch instead of jumping back to the natural root.
+    const anchorPerson = selectedPerson;
     // Enforce living spouse limit when adding a spouse
     if (relationshipType === "spouse" && selectedPerson) {
       const spouseRels = relationships.filter(
@@ -1475,7 +1478,9 @@ function App() {
       setShowPersonForm(false);
       setRelationshipType(null);
       setEditingPerson(null);
-      setSelectedPerson(null);
+      // Keep the tree rooted on the branch we were working on (the anchor),
+      // so adding a relative doesn't jump the view back to the natural root.
+      setSelectedPerson(anchorPerson);
     } catch (error) {
       console.error("Failed to add person:", error);
       alert("فشل في إضافة الشخص: " + error.message);
