@@ -5,6 +5,7 @@ const TreeCanvas = ({
   familyData,
   people,
   selectedPerson,
+  highlightedPerson,
   onPersonClick,
   onBackgroundClick,
   zoom = 1,
@@ -167,8 +168,8 @@ const TreeCanvas = ({
         ctx.fillStyle = boxColor;
         ctx.fillRect(boxX, boxY, w, h);
 
-        // Draw border (highlight if selected)
-        if (selectedPerson === personId) {
+        // Draw border (highlight if this person is the highlighted one)
+        if (highlightedPerson === personId) {
           ctx.strokeStyle = "#22c55e"; // green for selected
           ctx.lineWidth = 3;
         } else {
@@ -295,6 +296,7 @@ const TreeCanvas = ({
       familyData,
       people,
       selectedPerson,
+      highlightedPerson,
       stylingOptions,
       displayOptions,
       cardDimensions,
