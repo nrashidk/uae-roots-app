@@ -2434,6 +2434,21 @@ function App() {
   if (currentView === "family-members") {
     const treePeople = people.filter((p) => p.treeId === currentTree?.id);
 
+    // People involved in any milk-bond (breastfeeding sibling link) — both sides
+    // of the bond get the «بالرضاعة» ribbon on their card.
+    const milkPersonIds = new Set();
+    relationships
+      .filter(
+        (r) =>
+          r.treeId === currentTree?.id &&
+          r.type === "sibling" &&
+          r.isBreastfeeding,
+      )
+      .forEach((r) => {
+        milkPersonIds.add(r.person1Id);
+        milkPersonIds.add(r.person2Id);
+      });
+
     console.log("Rendering family members view with people:", treePeople);
 
     return (
@@ -2463,7 +2478,9 @@ function App() {
         </div>
         <div className="max-w-7xl mx-auto px-8 py-8">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {treePeople.map((person) => (
+            {treePeople.map((person) => {
+              const isMilk = milkPersonIds.has(person.id);
+              return (
               <div
                 key={person.id}
                 onClick={() => {
@@ -2473,8 +2490,25 @@ function App() {
                   setFormKey((prev) => prev + 1);
                   setShowPersonForm(true);
                 }}
-                className="bg-white rounded-lg shadow p-4 cursor-pointer hover:shadow-md hover:border-gray-300 border border-transparent transition"
+                className={`relative overflow-hidden bg-white rounded-lg shadow p-4 cursor-pointer hover:shadow-md hover:border-gray-300 border transition ${
+                  isMilk ? "border-green-300" : "border-transparent"
+                }`}
               >
+                {isMilk && (
+                  <div
+                    className="absolute top-0 left-0 bg-green-600 text-white font-bold text-center"
+                    style={{
+                      fontSize: "11px",
+                      width: "150px",
+                      padding: "22px 0 5px",
+                      transform: "translate(-37%, -37%) rotate(-45deg)",
+                      transformOrigin: "center",
+                      boxShadow: "0 1px 4px rgba(0,0,0,.15)",
+                    }}
+                  >
+                    بالرضاعة
+                  </div>
+                )}
                 <div className="text-lg">{getGenealogicalName(person)}</div>
                 {person.identificationNumber && (
                   <div className="text-sm text-gray-500">
@@ -2485,7 +2519,8 @@ function App() {
                   {person.gender === "male" ? "ذكر" : "أنثى"}
                 </div>
               </div>
-            ))}
+              );
+            })}
           </div>
           {treePeople.length === 0 && (
             <div className="text-center text-gray-500 py-8">
