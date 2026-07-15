@@ -2354,6 +2354,83 @@ function App() {
     return nameParts.join(" ");
   };
 
+  // Reusable person add/edit form panel — rendered in both the tree view and the
+  // Family Members dashboard, so people who aren't placed on the tree (e.g. milk
+  // siblings) can still be opened and edited from the dashboard.
+  const renderPersonForm = () => {
+    const treePeople = people.filter((p) => p.treeId === currentTree?.id);
+    return (
+      showPersonForm && (
+        <div
+          data-person-form
+          className="fixed right-4 top-1/2 transform -translate-y-1/2 bg-white shadow-2xl border rounded-lg z-50"
+          style={{
+            width: "380px",
+            maxHeight: "min(800px, 85vh)",
+            overflow: "hidden",
+          }}
+        >
+          <div className="flex flex-col h-full" style={{ maxHeight: "inherit" }}>
+            <div className="flex justify-between items-center p-4 border-b">
+              <h2 className="text-xl font-bold">
+                {editingPerson ? "تعديل فرد" : "إضافة فرد"}
+              </h2>
+              <Button
+                onClick={() => {
+                  setShowPersonForm(false);
+                  setEditingPerson(null);
+                  setRelationshipType(null);
+                }}
+                variant="ghost"
+                size="sm"
+              >
+                <X className="w-4 h-4" />
+              </Button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-4">
+              <PersonForm
+                key={editingPerson ? `edit-${editingPerson}` : `add-${formKey}`}
+                person={
+                  editingPerson
+                    ? treePeople.find((p) => p.id === editingPerson)
+                    : null
+                }
+                onSave={editingPerson ? updatePerson : addPerson}
+                onCancel={() => {
+                  setShowPersonForm(false);
+                  setEditingPerson(null);
+                  setRelationshipType(null);
+                  setPendingFatherId(null);
+                  setPendingMotherId(null);
+                  setChosenChildOtherParentId(null);
+                }}
+                relationshipType={relationshipType}
+                defaultGender={defaultSpouseGender}
+                pendingFatherId={pendingFatherId}
+                pendingMotherId={pendingMotherId}
+                selectedPersonName={
+                  selectedPerson
+                    ? (() => {
+                        const selected = treePeople.find(
+                          (p) => p.id === selectedPerson,
+                        );
+                        return (
+                          selected?.firstName ||
+                          selected?.lastName ||
+                          `Person ${selectedPerson}`
+                        );
+                      })()
+                    : ""
+                }
+                t={t}
+              />
+            </div>
+          </div>
+        </div>
+      )
+    );
+  };
+
   if (currentView === "family-members") {
     const treePeople = people.filter((p) => p.treeId === currentTree?.id);
 
@@ -2387,7 +2464,17 @@ function App() {
         <div className="max-w-7xl mx-auto px-8 py-8">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {treePeople.map((person) => (
-              <div key={person.id} className="bg-white rounded-lg shadow p-4">
+              <div
+                key={person.id}
+                onClick={() => {
+                  setEditingPerson(person.id);
+                  setSelectedPerson(person.id);
+                  setRelationshipType(null);
+                  setFormKey((prev) => prev + 1);
+                  setShowPersonForm(true);
+                }}
+                className="bg-white rounded-lg shadow p-4 cursor-pointer hover:shadow-md hover:border-gray-300 border border-transparent transition"
+              >
                 <div className="text-lg">{getGenealogicalName(person)}</div>
                 {person.identificationNumber && (
                   <div className="text-sm text-gray-500">
@@ -2406,6 +2493,7 @@ function App() {
             </div>
           )}
         </div>
+        {renderPersonForm()}
         {renderProfileDialog()}
       </div>
     );
@@ -3102,79 +3190,7 @@ function App() {
           </Dialog>
         )}
 
-        {showPersonForm && (
-          <div
-            data-person-form
-            className="fixed right-4 top-1/2 transform -translate-y-1/2 bg-white shadow-2xl border rounded-lg z-50"
-            style={{
-              width: "380px",
-              maxHeight: "min(800px, 85vh)",
-              overflow: "hidden",
-            }}
-          >
-            <div
-              className="flex flex-col h-full"
-              style={{ maxHeight: "inherit" }}
-            >
-              <div className="flex justify-between items-center p-4 border-b">
-                <h2 className="text-xl font-bold">
-                  {editingPerson ? "تعديل فرد" : "إضافة فرد"}
-                </h2>
-                <Button
-                  onClick={() => {
-                    setShowPersonForm(false);
-                    setEditingPerson(null);
-                    setRelationshipType(null);
-                  }}
-                  variant="ghost"
-                  size="sm"
-                >
-                  <X className="w-4 h-4" />
-                </Button>
-              </div>
-              <div className="flex-1 overflow-y-auto p-4">
-                <PersonForm
-                  key={
-                    editingPerson ? `edit-${editingPerson}` : `add-${formKey}`
-                  }
-                  person={
-                    editingPerson
-                      ? treePeople.find((p) => p.id === editingPerson)
-                      : null
-                  }
-                  onSave={editingPerson ? updatePerson : addPerson}
-                  onCancel={() => {
-                    setShowPersonForm(false);
-                    setEditingPerson(null);
-                    setRelationshipType(null);
-                    setPendingFatherId(null);
-                    setPendingMotherId(null);
-                    setChosenChildOtherParentId(null);
-                  }}
-                  relationshipType={relationshipType}
-                  defaultGender={defaultSpouseGender}
-                  pendingFatherId={pendingFatherId}
-                  pendingMotherId={pendingMotherId}
-                  selectedPersonName={
-                    selectedPerson
-                      ? (() => {
-                          const selected = treePeople.find(
-                            (p) => p.id === selectedPerson,
-                          );
-                          return (
-                            selected?.firstName ||
-                            selected?.lastName ||
-                            `Person ${selectedPerson}`
-                          );
-                        })()
-                      : ""
-                  }
-                  t={t}
-                />
-              </div>
-            </div>
-          </div>
-        )}
+        {renderPersonForm()}
 
         {showOptions && (
           <div className="fixed inset-0 z-40 pointer-events-none">
