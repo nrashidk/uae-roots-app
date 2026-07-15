@@ -1319,8 +1319,11 @@ function App() {
           sibOrders.length > 0 ? Math.min(...sibOrders) - 1 : 1;
       }
 
+      // milkFatherName/milkMotherName are form-only helpers (not person columns);
+      // keep them out of the person record but still available via personData.
+      const { milkFatherName, milkMotherName, ...personFields } = personData;
       const newPerson = await api.people.create({
-        ...personData,
+        ...personFields,
         treeId: currentTree?.id,
         ...(childBirthOrder != null ? { birthOrder: childBirthOrder } : {}),
       });
@@ -1341,6 +1344,41 @@ function App() {
               isBreastfeeding: true,
             });
             setRelationships((prev) => [...prev, siblingRel]);
+
+            // Optionally create the milk-sibling's parents (Ring 1) if names were
+            // given. Names only — details can be enriched later via the dashboard.
+            if (personData.milkFatherName?.trim()) {
+              const milkFather = await api.people.create({
+                treeId: currentTree?.id,
+                firstName: personData.milkFatherName.trim(),
+                gender: "male",
+                isLiving: true,
+              });
+              const fatherLink = await api.relationships.create({
+                treeId: currentTree?.id,
+                type: "parent-child",
+                parentId: milkFather.id,
+                childId: newPerson.id,
+              });
+              setPeople((prev) => [...prev, milkFather]);
+              setRelationships((prev) => [...prev, fatherLink]);
+            }
+            if (personData.milkMotherName?.trim()) {
+              const milkMother = await api.people.create({
+                treeId: currentTree?.id,
+                firstName: personData.milkMotherName.trim(),
+                gender: "female",
+                isLiving: true,
+              });
+              const motherLink = await api.relationships.create({
+                treeId: currentTree?.id,
+                type: "parent-child",
+                parentId: milkMother.id,
+                childId: newPerson.id,
+              });
+              setPeople((prev) => [...prev, milkMother]);
+              setRelationships((prev) => [...prev, motherLink]);
+            }
           } else {
             // Blood sibling: link to the same parents (parent-child relations)
             const parentRels = relationships.filter(
@@ -3457,6 +3495,8 @@ function PersonForm({
     birthPlace: person?.birthPlace || "",
     isLiving: person?.isLiving !== false,
     isBreastfed: person?.isBreastfed === true,
+    milkFatherName: "",
+    milkMotherName: "",
     deathDate: person?.deathDate || "",
     phone: person?.phone || "",
     email: person?.email || "",
@@ -3608,6 +3648,44 @@ function PersonForm({
             <label htmlFor="isBreastfed" className="text-sm font-bold">
               {t.breastfed}
             </label>
+          </div>
+        )}
+
+        {!person && formData.isBreastfed && (
+          <div className="flex flex-col gap-3 rounded-lg border border-green-200 bg-green-50 p-3">
+            <div className="text-xs font-bold text-green-700">
+              بيانات والدَي الأخ/الأخت بالرضاعة (اختياري — يمكن إضافتها لاحقًا)
+            </div>
+            <div>
+              <label className="text-sm font-bold">اسم الأب (بالرضاعة)</label>
+              <input
+                type="text"
+                value={formData.milkFatherName}
+                onChange={(e) =>
+                  setFormData((prev) => ({
+                    ...prev,
+                    milkFatherName: e.target.value,
+                  }))
+                }
+                className="w-full border rounded p-2 text-right"
+                placeholder="اسم الأب"
+              />
+            </div>
+            <div>
+              <label className="text-sm font-bold">اسم الأم / المرضعة (بالرضاعة)</label>
+              <input
+                type="text"
+                value={formData.milkMotherName}
+                onChange={(e) =>
+                  setFormData((prev) => ({
+                    ...prev,
+                    milkMotherName: e.target.value,
+                  }))
+                }
+                className="w-full border rounded p-2 text-right"
+                placeholder="اسم الأم / المرضعة"
+              />
+            </div>
           </div>
         )}
       </div>
