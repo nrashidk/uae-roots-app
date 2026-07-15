@@ -2575,6 +2575,25 @@ function App() {
         milkPersonIds.add(r.person2Id);
       });
 
+    // Milk-parents (the wet-nurse/father added via a milk-sibling's form) are
+    // names-only, freshly-created records managed through the milk-sibling's
+    // edit form — so they should NOT appear as their own cards. Detect them as
+    // the parent side of a parent-child link whose child is a milk-sibling.
+    const milkParentIds = new Set();
+    relationships
+      .filter(
+        (r) =>
+          r.treeId === currentTree?.id &&
+          r.type === "parent-child" &&
+          milkPersonIds.has(r.childId),
+      )
+      .forEach((r) => milkParentIds.add(r.parentId));
+
+    // Hide milk-parents, but never hide someone who is themselves a milk-sibling.
+    const visiblePeople = treePeople.filter(
+      (p) => !(milkParentIds.has(p.id) && !milkPersonIds.has(p.id)),
+    );
+
     console.log("Rendering family members view with people:", treePeople);
 
     return (
@@ -2604,7 +2623,7 @@ function App() {
         </div>
         <div className="max-w-7xl mx-auto px-8 py-8">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {treePeople.map((person) => {
+            {visiblePeople.map((person) => {
               const isMilk = milkPersonIds.has(person.id);
               return (
               <div
@@ -2649,7 +2668,7 @@ function App() {
               );
             })}
           </div>
-          {treePeople.length === 0 && (
+          {visiblePeople.length === 0 && (
             <div className="text-center text-gray-500 py-8">
               لا يوجد أفراد في العائلة بعد
             </div>
