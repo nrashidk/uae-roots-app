@@ -2496,14 +2496,15 @@ function App() {
               >
                 {isMilk && (
                   <div
-                    className="absolute top-0 left-0 bg-green-600 text-white font-bold text-center"
+                    className="absolute top-0 left-0 bg-green-600 text-white font-bold flex items-center justify-center"
                     style={{
                       fontSize: "11px",
-                      width: "150px",
-                      padding: "22px 0 5px",
-                      transform: "translate(-37%, -37%) rotate(-45deg)",
+                      width: "160px",
+                      height: "26px",
+                      transform: "translate(-33%, 55%) rotate(-45deg)",
                       transformOrigin: "center",
                       boxShadow: "0 1px 4px rgba(0,0,0,.15)",
+                      letterSpacing: "0.5px",
                     }}
                   >
                     بالرضاعة
