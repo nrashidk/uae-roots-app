@@ -1532,13 +1532,71 @@ function App() {
 
   const updatePerson = async (personData) => {
     try {
+      const editingId = editingPerson;
+      // milk-parent names are form-only helpers, not person columns
+      const { milkFatherName, milkMotherName, ...personFields } = personData;
       // Update person via API
-      const updatedPerson = await api.people.update(editingPerson, personData);
+      const updatedPerson = await api.people.update(editingId, personFields);
 
       // Update local state
       setPeople((prev) =>
-        prev.map((p) => (p.id === editingPerson ? updatedPerson : p)),
+        prev.map((p) => (p.id === editingId ? updatedPerson : p)),
       );
+
+      // If this person is a milk-sibling, sync their (names-only) milk-parents:
+      // update the existing father/mother name, or create them if a name was
+      // entered and none exists yet.
+      const relsNow = relationships.filter(
+        (r) => r.treeId === currentTree?.id,
+      );
+      const personIsMilk = relsNow.some(
+        (r) =>
+          r.type === "sibling" &&
+          r.isBreastfeeding &&
+          (r.person1Id === editingId || r.person2Id === editingId),
+      );
+      if (personIsMilk) {
+        const parentLinks = relsNow.filter(
+          (r) => r.type === "parent-child" && r.childId === editingId,
+        );
+        const parentPeople = parentLinks
+          .map((r) => people.find((p) => p.id === r.parentId))
+          .filter(Boolean);
+        const existingFather = parentPeople.find((p) => p.gender === "male");
+        const existingMother = parentPeople.find((p) => p.gender === "female");
+
+        const syncParent = async (name, existing, gender) => {
+          const trimmed = name?.trim();
+          if (!trimmed) return;
+          if (existing) {
+            if (existing.firstName !== trimmed) {
+              const upd = await api.people.update(existing.id, {
+                firstName: trimmed,
+              });
+              setPeople((prev) =>
+                prev.map((p) => (p.id === existing.id ? upd : p)),
+              );
+            }
+          } else {
+            const created = await api.people.create({
+              treeId: currentTree?.id,
+              firstName: trimmed,
+              gender,
+              isLiving: true,
+            });
+            const link = await api.relationships.create({
+              treeId: currentTree?.id,
+              type: "parent-child",
+              parentId: created.id,
+              childId: editingId,
+            });
+            setPeople((prev) => [...prev, created]);
+            setRelationships((prev) => [...prev, link]);
+          }
+        };
+        await syncParent(milkFatherName, existingFather, "male");
+        await syncParent(milkMotherName, existingMother, "female");
+      }
 
       if (pendingSecondParent) {
         const nextId = pendingSecondParent;
@@ -2397,6 +2455,33 @@ function App() {
   // siblings) can still be opened and edited from the dashboard.
   const renderPersonForm = () => {
     const treePeople = people.filter((p) => p.treeId === currentTree?.id);
+    const treeRelsForm = relationships.filter(
+      (r) => r.treeId === currentTree?.id,
+    );
+    // Is the person being edited a milk-sibling (has an isBreastfeeding link)?
+    const editingIsMilkSibling =
+      !!editingPerson &&
+      treeRelsForm.some(
+        (r) =>
+          r.type === "sibling" &&
+          r.isBreastfeeding &&
+          (r.person1Id === editingPerson || r.person2Id === editingPerson),
+      );
+    // Find the milk-sibling's existing parents (to pre-fill the name fields)
+    const milkParentLinks = editingPerson
+      ? treeRelsForm.filter(
+          (r) => r.type === "parent-child" && r.childId === editingPerson,
+        )
+      : [];
+    const milkParentPeople = milkParentLinks
+      .map((r) => treePeople.find((p) => p.id === r.parentId))
+      .filter(Boolean);
+    const existingMilkFather = milkParentPeople.find(
+      (p) => p.gender === "male",
+    );
+    const existingMilkMother = milkParentPeople.find(
+      (p) => p.gender === "female",
+    );
     return (
       showPersonForm && (
         <div
@@ -2446,6 +2531,9 @@ function App() {
                 defaultGender={defaultSpouseGender}
                 pendingFatherId={pendingFatherId}
                 pendingMotherId={pendingMotherId}
+                isMilkSibling={editingIsMilkSibling}
+                initialMilkFatherName={existingMilkFather?.firstName || ""}
+                initialMilkMotherName={existingMilkMother?.firstName || ""}
                 selectedPersonName={
                   selectedPerson
                     ? (() => {
@@ -3449,6 +3537,9 @@ function PersonForm({
   selectedPersonName,
   pendingFatherId,
   pendingMotherId,
+  isMilkSibling,
+  initialMilkFatherName,
+  initialMilkMotherName,
 }) {
   const getDefaultFirstName = () => {
     if (person?.firstName) return person.firstName;
@@ -3495,8 +3586,8 @@ function PersonForm({
     birthPlace: person?.birthPlace || "",
     isLiving: person?.isLiving !== false,
     isBreastfed: person?.isBreastfed === true,
-    milkFatherName: "",
-    milkMotherName: "",
+    milkFatherName: initialMilkFatherName || "",
+    milkMotherName: initialMilkMotherName || "",
     deathDate: person?.deathDate || "",
     phone: person?.phone || "",
     email: person?.email || "",
@@ -3650,44 +3741,6 @@ function PersonForm({
             </label>
           </div>
         )}
-
-        {!person && formData.isBreastfed && (
-          <div className="flex flex-col gap-3 rounded-lg border border-green-200 bg-green-50 p-3">
-            <div className="text-xs font-bold text-green-700">
-              بيانات والدَي الأخ/الأخت بالرضاعة (اختياري — يمكن إضافتها لاحقًا)
-            </div>
-            <div>
-              <label className="text-sm font-bold">اسم الأب (بالرضاعة)</label>
-              <input
-                type="text"
-                value={formData.milkFatherName}
-                onChange={(e) =>
-                  setFormData((prev) => ({
-                    ...prev,
-                    milkFatherName: e.target.value,
-                  }))
-                }
-                className="w-full border rounded p-2 text-right"
-                placeholder="اسم الأب"
-              />
-            </div>
-            <div>
-              <label className="text-sm font-bold">اسم الأم / المرضعة (بالرضاعة)</label>
-              <input
-                type="text"
-                value={formData.milkMotherName}
-                onChange={(e) =>
-                  setFormData((prev) => ({
-                    ...prev,
-                    milkMotherName: e.target.value,
-                  }))
-                }
-                className="w-full border rounded p-2 text-right"
-                placeholder="اسم الأم / المرضعة"
-              />
-            </div>
-          </div>
-        )}
       </div>
 
       {!formData.isLiving && (
@@ -3702,6 +3755,49 @@ function PersonForm({
             className="w-full px-3 py-2 border rounded-md"
           />
         </div>
+      )}
+
+      {((!person && formData.isBreastfed) || isMilkSibling) && (
+        <>
+          <div>
+            <label className="block text-sm font-bold mb-1 text-green-700">
+              اسم الأب (بالرضاعة){" "}
+              <span className="font-normal text-green-600">— اختياري</span>
+            </label>
+            <input
+              type="text"
+              value={formData.milkFatherName}
+              onChange={(e) =>
+                setFormData((prev) => ({
+                  ...prev,
+                  milkFatherName: e.target.value,
+                }))
+              }
+              className="w-full px-3 py-2 border border-green-300 bg-green-50 rounded-md"
+              dir="rtl"
+              placeholder="اسم الأب"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-bold mb-1 text-green-700">
+              اسم الأم / المرضعة (بالرضاعة){" "}
+              <span className="font-normal text-green-600">— اختياري</span>
+            </label>
+            <input
+              type="text"
+              value={formData.milkMotherName}
+              onChange={(e) =>
+                setFormData((prev) => ({
+                  ...prev,
+                  milkMotherName: e.target.value,
+                }))
+              }
+              className="w-full px-3 py-2 border border-green-300 bg-green-50 rounded-md"
+              dir="rtl"
+              placeholder="اسم الأم / المرضعة"
+            />
+          </div>
+        </>
       )}
 
       <div className="grid grid-cols-2 gap-3">
