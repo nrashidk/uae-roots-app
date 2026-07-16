@@ -1319,11 +1319,10 @@ function App() {
           sibOrders.length > 0 ? Math.min(...sibOrders) - 1 : 1;
       }
 
-      // milkFatherName/milkMotherName are form-only helpers (not person columns);
-      // keep them out of the person record but still available via personData.
-      const { milkFatherName, milkMotherName, ...personFields } = personData;
+      // milkFatherName/milkMotherName are now real person columns — save them
+      // directly on the person (only meaningful for milk-siblings; empty otherwise).
       const newPerson = await api.people.create({
-        ...personFields,
+        ...personData,
         treeId: currentTree?.id,
         ...(childBirthOrder != null ? { birthOrder: childBirthOrder } : {}),
       });
@@ -1344,41 +1343,9 @@ function App() {
               isBreastfeeding: true,
             });
             setRelationships((prev) => [...prev, siblingRel]);
-
-            // Optionally create the milk-sibling's parents (Ring 1) if names were
-            // given. Names only — details can be enriched later via the dashboard.
-            if (personData.milkFatherName?.trim()) {
-              const milkFather = await api.people.create({
-                treeId: currentTree?.id,
-                firstName: personData.milkFatherName.trim(),
-                gender: "male",
-                isLiving: true,
-              });
-              const fatherLink = await api.relationships.create({
-                treeId: currentTree?.id,
-                type: "parent-child",
-                parentId: milkFather.id,
-                childId: newPerson.id,
-              });
-              setPeople((prev) => [...prev, milkFather]);
-              setRelationships((prev) => [...prev, fatherLink]);
-            }
-            if (personData.milkMotherName?.trim()) {
-              const milkMother = await api.people.create({
-                treeId: currentTree?.id,
-                firstName: personData.milkMotherName.trim(),
-                gender: "female",
-                isLiving: true,
-              });
-              const motherLink = await api.relationships.create({
-                treeId: currentTree?.id,
-                type: "parent-child",
-                parentId: milkMother.id,
-                childId: newPerson.id,
-              });
-              setPeople((prev) => [...prev, milkMother]);
-              setRelationships((prev) => [...prev, motherLink]);
-            }
+            // Milk-parent names are stored as text on the milk-sibling record
+            // (milkFatherName/milkMotherName) — NOT as separate people or
+            // parent-child links, so they never render in the tree.
           } else {
             // Blood sibling: link to the same parents (parent-child relations)
             const parentRels = relationships.filter(
@@ -1533,70 +1500,14 @@ function App() {
   const updatePerson = async (personData) => {
     try {
       const editingId = editingPerson;
-      // milk-parent names are form-only helpers, not person columns
-      const { milkFatherName, milkMotherName, ...personFields } = personData;
-      // Update person via API
-      const updatedPerson = await api.people.update(editingId, personFields);
+      // milkFatherName/milkMotherName are real person columns now — update them
+      // directly on the person. No parent people, no parent-child links.
+      const updatedPerson = await api.people.update(editingId, personData);
 
       // Update local state
       setPeople((prev) =>
         prev.map((p) => (p.id === editingId ? updatedPerson : p)),
       );
-
-      // If this person is a milk-sibling, sync their (names-only) milk-parents:
-      // update the existing father/mother name, or create them if a name was
-      // entered and none exists yet.
-      const relsNow = relationships.filter(
-        (r) => r.treeId === currentTree?.id,
-      );
-      const personIsMilk = relsNow.some(
-        (r) =>
-          r.type === "sibling" &&
-          r.isBreastfeeding &&
-          r.person2Id === editingId,
-      );
-      if (personIsMilk) {
-        const parentLinks = relsNow.filter(
-          (r) => r.type === "parent-child" && r.childId === editingId,
-        );
-        const parentPeople = parentLinks
-          .map((r) => people.find((p) => p.id === r.parentId))
-          .filter(Boolean);
-        const existingFather = parentPeople.find((p) => p.gender === "male");
-        const existingMother = parentPeople.find((p) => p.gender === "female");
-
-        const syncParent = async (name, existing, gender) => {
-          const trimmed = name?.trim();
-          if (!trimmed) return;
-          if (existing) {
-            if (existing.firstName !== trimmed) {
-              const upd = await api.people.update(existing.id, {
-                firstName: trimmed,
-              });
-              setPeople((prev) =>
-                prev.map((p) => (p.id === existing.id ? upd : p)),
-              );
-            }
-          } else {
-            const created = await api.people.create({
-              treeId: currentTree?.id,
-              firstName: trimmed,
-              gender,
-              isLiving: true,
-            });
-            const link = await api.relationships.create({
-              treeId: currentTree?.id,
-              type: "parent-child",
-              parentId: created.id,
-              childId: editingId,
-            });
-            setPeople((prev) => [...prev, created]);
-            setRelationships((prev) => [...prev, link]);
-          }
-        };
-        await syncParent(milkFatherName, existingFather, "male");
-        await syncParent(milkMotherName, existingMother, "female");
-      }
 
       if (pendingSecondParent) {
         const nextId = pendingSecondParent;
@@ -2407,6 +2318,12 @@ function App() {
     const treeRels = relationships.filter((r) => r.treeId === currentTree?.id);
 
     let nameParts = [person.firstName];
+    // Milk-siblings have no blood parent-child links; their father's name is
+    // stored as text (milkFatherName). Use it as the father segment so the name
+    // still reads e.g. "سعيد مساعد آل علي".
+    if (person.milkFatherName && person.milkFatherName.trim()) {
+      nameParts.push(person.milkFatherName.trim());
+    }
     let current = person;
     let oldestAncestorInChain = person;
 
@@ -2455,35 +2372,9 @@ function App() {
   // siblings) can still be opened and edited from the dashboard.
   const renderPersonForm = () => {
     const treePeople = people.filter((p) => p.treeId === currentTree?.id);
-    const treeRelsForm = relationships.filter(
-      (r) => r.treeId === currentTree?.id,
-    );
-    // Only the INCOMING milk-relative (person2 of the bond) has capturable
-    // milk-parents. The blood originator (person1, e.g. سيف) must NOT get the
-    // milk-parent fields — their real parents live in the tree.
-    const editingIsMilkSibling =
-      !!editingPerson &&
-      treeRelsForm.some(
-        (r) =>
-          r.type === "sibling" &&
-          r.isBreastfeeding &&
-          r.person2Id === editingPerson,
-      );
-    // Find the milk-sibling's existing parents (to pre-fill the name fields)
-    const milkParentLinks = editingPerson
-      ? treeRelsForm.filter(
-          (r) => r.type === "parent-child" && r.childId === editingPerson,
-        )
-      : [];
-    const milkParentPeople = milkParentLinks
-      .map((r) => treePeople.find((p) => p.id === r.parentId))
-      .filter(Boolean);
-    const existingMilkFather = milkParentPeople.find(
-      (p) => p.gender === "male",
-    );
-    const existingMilkMother = milkParentPeople.find(
-      (p) => p.gender === "female",
-    );
+    // Milk-parent names now live on the person record (milkFatherName /
+    // milkMotherName). The form reads them directly; the fields show whenever the
+    // person is a milk-sibling (isBreastfed), which is true on add and edit.
     return (
       showPersonForm && (
         <div
@@ -2533,9 +2424,6 @@ function App() {
                 defaultGender={defaultSpouseGender}
                 pendingFatherId={pendingFatherId}
                 pendingMotherId={pendingMotherId}
-                isMilkSibling={editingIsMilkSibling}
-                initialMilkFatherName={existingMilkFather?.firstName || ""}
-                initialMilkMotherName={existingMilkMother?.firstName || ""}
                 selectedPersonName={
                   selectedPerson
                     ? (() => {
@@ -3573,9 +3461,6 @@ function PersonForm({
   selectedPersonName,
   pendingFatherId,
   pendingMotherId,
-  isMilkSibling,
-  initialMilkFatherName,
-  initialMilkMotherName,
 }) {
   const getDefaultFirstName = () => {
     if (person?.firstName) return person.firstName;
@@ -3622,8 +3507,8 @@ function PersonForm({
     birthPlace: person?.birthPlace || "",
     isLiving: person?.isLiving !== false,
     isBreastfed: person?.isBreastfed === true,
-    milkFatherName: initialMilkFatherName || "",
-    milkMotherName: initialMilkMotherName || "",
+    milkFatherName: person?.milkFatherName || "",
+    milkMotherName: person?.milkMotherName || "",
     deathDate: person?.deathDate || "",
     phone: person?.phone || "",
     email: person?.email || "",
@@ -3793,7 +3678,7 @@ function PersonForm({
         </div>
       )}
 
-      {((!person && formData.isBreastfed) || isMilkSibling) && (
+      {formData.isBreastfed && (
         <>
           <div>
             <label className="block text-sm font-bold mb-1 text-green-700">
