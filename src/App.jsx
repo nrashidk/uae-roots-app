@@ -161,6 +161,13 @@ function App() {
     }
   }, [showPersonForm]);
 
+  // Close any open person form when switching views (e.g. dashboard <-> tree),
+  // so an edit form opened in Family Members doesn't linger on other screens.
+  useEffect(() => {
+    setShowPersonForm(false);
+    setEditingPerson(null);
+  }, [currentView]);
+
   useEffect(() => {
     const handleDocClick = (e) => {
       const target = e.target;
@@ -2535,7 +2542,6 @@ function App() {
                 key={person.id}
                 onClick={() => {
                   setEditingPerson(person.id);
-                  setSelectedPerson(person.id);
                   setRelationshipType(null);
                   setFormKey((prev) => prev + 1);
                   setShowPersonForm(true);
