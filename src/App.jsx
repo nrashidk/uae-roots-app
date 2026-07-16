@@ -757,14 +757,21 @@ function App() {
   // person so they stay in view instead of flying off-screen. Only for
   // multi-entity layouts (single-entity is handled by autoPan).
   const lastCenteredPersonRef = useRef(null);
+  const lastCenteredLayoutRef = useRef(null);
   useEffect(() => {
     if (!selectedPerson || isSingleLayout) {
       lastCenteredPersonRef.current = null;
+      lastCenteredLayoutRef.current = null;
       return;
     }
-    // Only recenter when the SELECTED person changes (not on every layout tweak),
-    // so it doesn't fight manual dragging or re-center during unrelated updates.
-    if (lastCenteredPersonRef.current === selectedPerson) return;
+    // Recenter when the selected person changes OR the layout reflows (e.g. after
+    // a delete, the tree repacks and the rooted person moves). Manual dragging
+    // changes panOffset — not treeLayout — so this never fights dragging.
+    if (
+      lastCenteredPersonRef.current === selectedPerson &&
+      lastCenteredLayoutRef.current === treeLayout
+    )
+      return;
     const entity = treeLayout?.layout?.e?.[`P${selectedPerson}`];
     if (!entity || !canvasDimensions.width || !canvasDimensions.height) return;
     const BOX_WIDTH = stylingOptions?.boxWidth || CARD.w;
@@ -776,6 +783,7 @@ function App() {
       y: canvasDimensions.height / 2 - (py + BOX_HEIGHT / 2),
     });
     lastCenteredPersonRef.current = selectedPerson;
+    lastCenteredLayoutRef.current = treeLayout;
   }, [selectedPerson, treeLayout, isSingleLayout, canvasDimensions]);
 
   // Get people for the current tree
