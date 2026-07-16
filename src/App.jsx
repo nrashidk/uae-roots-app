@@ -161,6 +161,13 @@ function App() {
     }
   }, [showPersonForm]);
 
+  // Close any open person form when switching views (e.g. dashboard <-> tree),
+  // so an edit form opened in Family Members doesn't linger on other screens.
+  useEffect(() => {
+    setShowPersonForm(false);
+    setEditingPerson(null);
+  }, [currentView]);
+
   useEffect(() => {
     const handleDocClick = (e) => {
       const target = e.target;
@@ -750,14 +757,21 @@ function App() {
   // person so they stay in view instead of flying off-screen. Only for
   // multi-entity layouts (single-entity is handled by autoPan).
   const lastCenteredPersonRef = useRef(null);
+  const lastCenteredLayoutRef = useRef(null);
   useEffect(() => {
     if (!selectedPerson || isSingleLayout) {
       lastCenteredPersonRef.current = null;
+      lastCenteredLayoutRef.current = null;
       return;
     }
-    // Only recenter when the SELECTED person changes (not on every layout tweak),
-    // so it doesn't fight manual dragging or re-center during unrelated updates.
-    if (lastCenteredPersonRef.current === selectedPerson) return;
+    // Recenter when the selected person changes OR the layout reflows (e.g. after
+    // a delete, the tree repacks and the rooted person moves). Manual dragging
+    // changes panOffset — not treeLayout — so this never fights dragging.
+    if (
+      lastCenteredPersonRef.current === selectedPerson &&
+      lastCenteredLayoutRef.current === treeLayout
+    )
+      return;
     const entity = treeLayout?.layout?.e?.[`P${selectedPerson}`];
     if (!entity || !canvasDimensions.width || !canvasDimensions.height) return;
     const BOX_WIDTH = stylingOptions?.boxWidth || CARD.w;
@@ -769,6 +783,7 @@ function App() {
       y: canvasDimensions.height / 2 - (py + BOX_HEIGHT / 2),
     });
     lastCenteredPersonRef.current = selectedPerson;
+    lastCenteredLayoutRef.current = treeLayout;
   }, [selectedPerson, treeLayout, isSingleLayout, canvasDimensions]);
 
   // Get people for the current tree
@@ -1319,6 +1334,8 @@ function App() {
           sibOrders.length > 0 ? Math.min(...sibOrders) - 1 : 1;
       }
 
+      // milkFatherName/milkMotherName are now real person columns — save them
+      // directly on the person (only meaningful for milk-siblings; empty otherwise).
       const newPerson = await api.people.create({
         ...personData,
         treeId: currentTree?.id,
@@ -1341,6 +1358,9 @@ function App() {
               isBreastfeeding: true,
             });
             setRelationships((prev) => [...prev, siblingRel]);
+            // Milk-parent names are stored as text on the milk-sibling record
+            // (milkFatherName/milkMotherName) — NOT as separate people or
+            // parent-child links, so they never render in the tree.
           } else {
             // Blood sibling: link to the same parents (parent-child relations)
             const parentRels = relationships.filter(
@@ -1494,12 +1514,14 @@ function App() {
 
   const updatePerson = async (personData) => {
     try {
-      // Update person via API
-      const updatedPerson = await api.people.update(editingPerson, personData);
+      const editingId = editingPerson;
+      // milkFatherName/milkMotherName are real person columns now — update them
+      // directly on the person. No parent people, no parent-child links.
+      const updatedPerson = await api.people.update(editingId, personData);
 
       // Update local state
       setPeople((prev) =>
-        prev.map((p) => (p.id === editingPerson ? updatedPerson : p)),
+        prev.map((p) => (p.id === editingId ? updatedPerson : p)),
       );
 
       if (pendingSecondParent) {
@@ -1531,6 +1553,43 @@ function App() {
   const deletePerson = async (personId) => {
     if (window.confirm(t.deleteConfirm)) {
       try {
+        // Before deleting, find a neighbour (parent, then spouse, sibling, child)
+        // to re-root on. Deleting always removes the SELECTED (rooted) person, so
+        // without this the tree falls back to the natural root (father's side).
+        const treeRels = relationships.filter(
+          (r) => r.treeId === currentTree?.id,
+        );
+        const findNeighbour = () => {
+          const parent = treeRels.find(
+            (r) => r.type === "parent-child" && r.childId === personId,
+          );
+          if (parent) return parent.parentId;
+          const spouse = treeRels.find(
+            (r) =>
+              r.type === "partner" &&
+              (r.person1Id === personId || r.person2Id === personId),
+          );
+          if (spouse)
+            return spouse.person1Id === personId
+              ? spouse.person2Id
+              : spouse.person1Id;
+          const sibling = treeRels.find(
+            (r) =>
+              r.type === "sibling" &&
+              (r.person1Id === personId || r.person2Id === personId),
+          );
+          if (sibling)
+            return sibling.person1Id === personId
+              ? sibling.person2Id
+              : sibling.person1Id;
+          const child = treeRels.find(
+            (r) => r.type === "parent-child" && r.parentId === personId,
+          );
+          if (child) return child.childId;
+          return null;
+        };
+        const neighbour = findNeighbour();
+
         // Delete person via API (this will also delete related relationships on backend)
         await api.people.delete(personId);
 
@@ -1553,7 +1612,10 @@ function App() {
               r.childId !== personId,
           ),
         );
-        setSelectedPerson(null);
+        // If we deleted the currently-rooted person, re-root on a neighbour so the
+        // view stays on this branch instead of jumping to the natural root.
+        setSelectedPerson((prev) => (prev === personId ? neighbour : prev));
+        setHighlightedPerson((prev) => (prev === personId ? null : prev));
         setShowActionMenu(false);
       } catch (error) {
         console.error("Failed to delete person:", error);
@@ -2311,6 +2373,12 @@ function App() {
     const treeRels = relationships.filter((r) => r.treeId === currentTree?.id);
 
     let nameParts = [person.firstName];
+    // Milk-siblings have no blood parent-child links; their father's name is
+    // stored as text (milkFatherName). Use it as the father segment so the name
+    // still reads e.g. "سعيد مساعد آل علي".
+    if (person.milkFatherName && person.milkFatherName.trim()) {
+      nameParts.push(person.milkFatherName.trim());
+    }
     let current = person;
     let oldestAncestorInChain = person;
 
@@ -2359,6 +2427,9 @@ function App() {
   // siblings) can still be opened and edited from the dashboard.
   const renderPersonForm = () => {
     const treePeople = people.filter((p) => p.treeId === currentTree?.id);
+    // Milk-parent names now live on the person record (milkFatherName /
+    // milkMotherName). The form reads them directly; the fields show whenever the
+    // person is a milk-sibling (isBreastfed), which is true on add and edit.
     return (
       showPersonForm && (
         <div
@@ -2449,10 +2520,58 @@ function App() {
         milkPersonIds.add(r.person2Id);
       });
 
+    // The INCOMING milk-relatives only (person2 of each bond) — these are the
+    // ones with names-only milk-parents. The blood originator (person1) has real
+    // parents in the tree and must be excluded here.
+    const milkRelativeIds = new Set();
+    relationships
+      .filter(
+        (r) =>
+          r.treeId === currentTree?.id &&
+          r.type === "sibling" &&
+          r.isBreastfeeding,
+      )
+      .forEach((r) => milkRelativeIds.add(r.person2Id));
+
+    // Milk-parents (the wet-nurse/father added via a milk-sibling's form) are
+    // names-only, freshly-created records managed through the milk-sibling's
+    // edit form — so they should NOT appear as their own cards. Detect them as
+    // the parent side of a parent-child link whose child is an INCOMING
+    // milk-relative (person2) — NOT the blood originator (whose real parents
+    // must stay visible).
+    const milkParentIds = new Set();
+    relationships
+      .filter(
+        (r) =>
+          r.treeId === currentTree?.id &&
+          r.type === "parent-child" &&
+          milkRelativeIds.has(r.childId),
+      )
+      .forEach((r) => milkParentIds.add(r.parentId));
+
+    // Hide milk-parents, but never hide someone who is themselves a milk-sibling.
+    const visiblePeople = treePeople.filter(
+      (p) => !(milkParentIds.has(p.id) && !milkPersonIds.has(p.id)),
+    );
+
     console.log("Rendering family members view with people:", treePeople);
 
     return (
-      <div className="min-h-screen bg-gray-50">
+      <div
+        className="min-h-screen bg-gray-50"
+        onClick={(e) => {
+          // Click empty space (not a card, not the form) closes the edit form,
+          // matching the tree page's behavior.
+          if (
+            showPersonForm &&
+            !e.target.closest("[data-person-form]") &&
+            !e.target.closest("[data-person-card]")
+          ) {
+            setShowPersonForm(false);
+            setEditingPerson(null);
+          }
+        }}
+      >
         <div className="bg-white shadow-sm border-b px-4 py-3 flex justify-between items-center">
           <div className="flex items-center gap-4">
             <Button
@@ -2478,14 +2597,14 @@ function App() {
         </div>
         <div className="max-w-7xl mx-auto px-8 py-8">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {treePeople.map((person) => {
+            {visiblePeople.map((person) => {
               const isMilk = milkPersonIds.has(person.id);
               return (
               <div
                 key={person.id}
+                data-person-card
                 onClick={() => {
                   setEditingPerson(person.id);
-                  setSelectedPerson(person.id);
                   setRelationshipType(null);
                   setFormKey((prev) => prev + 1);
                   setShowPersonForm(true);
@@ -2523,7 +2642,7 @@ function App() {
               );
             })}
           </div>
-          {treePeople.length === 0 && (
+          {visiblePeople.length === 0 && (
             <div className="text-center text-gray-500 py-8">
               لا يوجد أفراد في العائلة بعد
             </div>
@@ -3457,6 +3576,8 @@ function PersonForm({
     birthPlace: person?.birthPlace || "",
     isLiving: person?.isLiving !== false,
     isBreastfed: person?.isBreastfed === true,
+    milkFatherName: person?.milkFatherName || "",
+    milkMotherName: person?.milkMotherName || "",
     deathDate: person?.deathDate || "",
     phone: person?.phone || "",
     email: person?.email || "",
@@ -3624,6 +3745,49 @@ function PersonForm({
             className="w-full px-3 py-2 border rounded-md"
           />
         </div>
+      )}
+
+      {formData.isBreastfed && (
+        <>
+          <div>
+            <label className="block text-sm font-bold mb-1 text-green-700">
+              اسم الأب (بالرضاعة){" "}
+              <span className="font-normal text-green-600">— اختياري</span>
+            </label>
+            <input
+              type="text"
+              value={formData.milkFatherName}
+              onChange={(e) =>
+                setFormData((prev) => ({
+                  ...prev,
+                  milkFatherName: e.target.value,
+                }))
+              }
+              className="w-full px-3 py-2 border border-green-300 bg-green-50 rounded-md"
+              dir="rtl"
+              placeholder="اسم الأب"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-bold mb-1 text-green-700">
+              اسم الأم / المرضعة (بالرضاعة){" "}
+              <span className="font-normal text-green-600">— اختياري</span>
+            </label>
+            <input
+              type="text"
+              value={formData.milkMotherName}
+              onChange={(e) =>
+                setFormData((prev) => ({
+                  ...prev,
+                  milkMotherName: e.target.value,
+                }))
+              }
+              className="w-full px-3 py-2 border border-green-300 bg-green-50 rounded-md"
+              dir="rtl"
+              placeholder="اسم الأم / المرضعة"
+            />
+          </div>
+        </>
       )}
 
       <div className="grid grid-cols-2 gap-3">
