@@ -1560,10 +1560,19 @@ function App() {
           (r) => r.treeId === currentTree?.id,
         );
         const findNeighbour = () => {
-          const parent = treeRels.find(
+          // Prefer a parent — and when there are two (father + mother), prefer the
+          // FATHER (male parent) so deleting a child keeps the view on the paternal
+          // line consistently, instead of flipping based on link creation order.
+          const parentLinks = treeRels.filter(
             (r) => r.type === "parent-child" && r.childId === personId,
           );
-          if (parent) return parent.parentId;
+          if (parentLinks.length > 0) {
+            const parentPeople = parentLinks
+              .map((r) => people.find((p) => p.id === r.parentId))
+              .filter(Boolean);
+            const father = parentPeople.find((p) => p.gender === "male");
+            return (father || parentPeople[0])?.id ?? parentLinks[0].parentId;
+          }
           const spouse = treeRels.find(
             (r) =>
               r.type === "partner" &&
