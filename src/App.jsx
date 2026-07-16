@@ -1553,7 +1553,7 @@ function App() {
         (r) =>
           r.type === "sibling" &&
           r.isBreastfeeding &&
-          (r.person1Id === editingId || r.person2Id === editingId),
+          r.person2Id === editingId,
       );
       if (personIsMilk) {
         const parentLinks = relsNow.filter(
@@ -2458,14 +2458,16 @@ function App() {
     const treeRelsForm = relationships.filter(
       (r) => r.treeId === currentTree?.id,
     );
-    // Is the person being edited a milk-sibling (has an isBreastfeeding link)?
+    // Only the INCOMING milk-relative (person2 of the bond) has capturable
+    // milk-parents. The blood originator (person1, e.g. سيف) must NOT get the
+    // milk-parent fields — their real parents live in the tree.
     const editingIsMilkSibling =
       !!editingPerson &&
       treeRelsForm.some(
         (r) =>
           r.type === "sibling" &&
           r.isBreastfeeding &&
-          (r.person1Id === editingPerson || r.person2Id === editingPerson),
+          r.person2Id === editingPerson,
       );
     // Find the milk-sibling's existing parents (to pre-fill the name fields)
     const milkParentLinks = editingPerson
@@ -2575,17 +2577,32 @@ function App() {
         milkPersonIds.add(r.person2Id);
       });
 
+    // The INCOMING milk-relatives only (person2 of each bond) — these are the
+    // ones with names-only milk-parents. The blood originator (person1) has real
+    // parents in the tree and must be excluded here.
+    const milkRelativeIds = new Set();
+    relationships
+      .filter(
+        (r) =>
+          r.treeId === currentTree?.id &&
+          r.type === "sibling" &&
+          r.isBreastfeeding,
+      )
+      .forEach((r) => milkRelativeIds.add(r.person2Id));
+
     // Milk-parents (the wet-nurse/father added via a milk-sibling's form) are
     // names-only, freshly-created records managed through the milk-sibling's
     // edit form — so they should NOT appear as their own cards. Detect them as
-    // the parent side of a parent-child link whose child is a milk-sibling.
+    // the parent side of a parent-child link whose child is an INCOMING
+    // milk-relative (person2) — NOT the blood originator (whose real parents
+    // must stay visible).
     const milkParentIds = new Set();
     relationships
       .filter(
         (r) =>
           r.treeId === currentTree?.id &&
           r.type === "parent-child" &&
-          milkPersonIds.has(r.childId),
+          milkRelativeIds.has(r.childId),
       )
       .forEach((r) => milkParentIds.add(r.parentId));
 
