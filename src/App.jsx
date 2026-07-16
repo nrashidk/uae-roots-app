@@ -1553,6 +1553,43 @@ function App() {
   const deletePerson = async (personId) => {
     if (window.confirm(t.deleteConfirm)) {
       try {
+        // Before deleting, find a neighbour (parent, then spouse, sibling, child)
+        // to re-root on. Deleting always removes the SELECTED (rooted) person, so
+        // without this the tree falls back to the natural root (father's side).
+        const treeRels = relationships.filter(
+          (r) => r.treeId === currentTree?.id,
+        );
+        const findNeighbour = () => {
+          const parent = treeRels.find(
+            (r) => r.type === "parent-child" && r.childId === personId,
+          );
+          if (parent) return parent.parentId;
+          const spouse = treeRels.find(
+            (r) =>
+              r.type === "partner" &&
+              (r.person1Id === personId || r.person2Id === personId),
+          );
+          if (spouse)
+            return spouse.person1Id === personId
+              ? spouse.person2Id
+              : spouse.person1Id;
+          const sibling = treeRels.find(
+            (r) =>
+              r.type === "sibling" &&
+              (r.person1Id === personId || r.person2Id === personId),
+          );
+          if (sibling)
+            return sibling.person1Id === personId
+              ? sibling.person2Id
+              : sibling.person1Id;
+          const child = treeRels.find(
+            (r) => r.type === "parent-child" && r.parentId === personId,
+          );
+          if (child) return child.childId;
+          return null;
+        };
+        const neighbour = findNeighbour();
+
         // Delete person via API (this will also delete related relationships on backend)
         await api.people.delete(personId);
 
@@ -1575,10 +1612,9 @@ function App() {
               r.childId !== personId,
           ),
         );
-        // Keep the tree where the user is: only reset the root/highlight if the
-        // person they deleted was the current root (otherwise a delete would
-        // bounce the view back to the natural root, e.g. father's side).
-        setSelectedPerson((prev) => (prev === personId ? null : prev));
+        // If we deleted the currently-rooted person, re-root on a neighbour so the
+        // view stays on this branch instead of jumping to the natural root.
+        setSelectedPerson((prev) => (prev === personId ? neighbour : prev));
         setHighlightedPerson((prev) => (prev === personId ? null : prev));
         setShowActionMenu(false);
       } catch (error) {
