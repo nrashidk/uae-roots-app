@@ -1567,7 +1567,11 @@ function App() {
               r.childId !== personId,
           ),
         );
-        setSelectedPerson(null);
+        // Keep the tree where the user is: only reset the root/highlight if the
+        // person they deleted was the current root (otherwise a delete would
+        // bounce the view back to the natural root, e.g. father's side).
+        setSelectedPerson((prev) => (prev === personId ? null : prev));
+        setHighlightedPerson((prev) => (prev === personId ? null : prev));
         setShowActionMenu(false);
       } catch (error) {
         console.error("Failed to delete person:", error);
