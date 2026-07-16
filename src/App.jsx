@@ -2509,7 +2509,21 @@ function App() {
     console.log("Rendering family members view with people:", treePeople);
 
     return (
-      <div className="min-h-screen bg-gray-50">
+      <div
+        className="min-h-screen bg-gray-50"
+        onClick={(e) => {
+          // Click empty space (not a card, not the form) closes the edit form,
+          // matching the tree page's behavior.
+          if (
+            showPersonForm &&
+            !e.target.closest("[data-person-form]") &&
+            !e.target.closest("[data-person-card]")
+          ) {
+            setShowPersonForm(false);
+            setEditingPerson(null);
+          }
+        }}
+      >
         <div className="bg-white shadow-sm border-b px-4 py-3 flex justify-between items-center">
           <div className="flex items-center gap-4">
             <Button
@@ -2540,6 +2554,7 @@ function App() {
               return (
               <div
                 key={person.id}
+                data-person-card
                 onClick={() => {
                   setEditingPerson(person.id);
                   setRelationshipType(null);
