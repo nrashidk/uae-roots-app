@@ -1585,7 +1585,73 @@ function App() {
   };
 
   const deletePerson = async (personId) => {
-    if (window.confirm(t.deleteConfirm)) {
+    // Build a consequence-aware confirmation. For a "bridge" person (one with a
+    // spouse and/or children) or a milk-bonded person, name who will be
+    // disconnected from the tree — they SURVIVE in Family Members but stop
+    // rendering in the tree once their only connection (this person) is gone.
+    // Leaf deletes keep the plain confirmation.
+    const buildDeleteMessage = () => {
+      const rels = relationships.filter((r) => r.treeId === currentTree?.id);
+      const nameOf = (id) => {
+        const p = people.find((pp) => pp.id === id);
+        return p ? p.firstName : "";
+      };
+
+      // Spouse(s)
+      const spouseIds = rels
+        .filter(
+          (r) =>
+            r.type === "partner" &&
+            (r.person1Id === personId || r.person2Id === personId),
+        )
+        .map((r) => (r.person1Id === personId ? r.person2Id : r.person1Id));
+
+      // Children (this person as a parent)
+      const childIds = rels
+        .filter((r) => r.type === "parent-child" && r.parentId === personId)
+        .map((r) => r.childId);
+
+      // Milk-sibling(s) (breastfeeding sibling bond)
+      const milkIds = rels
+        .filter(
+          (r) =>
+            r.type === "sibling" &&
+            r.isBreastfeeding &&
+            (r.person1Id === personId || r.person2Id === personId),
+        )
+        .map((r) => (r.person1Id === personId ? r.person2Id : r.person1Id));
+
+      // No consequences → plain confirmation.
+      if (
+        spouseIds.length === 0 &&
+        childIds.length === 0 &&
+        milkIds.length === 0
+      ) {
+        return t.deleteConfirm;
+      }
+
+      const parts = [];
+      if (spouseIds.length > 0) {
+        const names = spouseIds.map(nameOf).filter(Boolean).join("، ");
+        parts.push(`الزوج/الزوجة: ${names}`);
+      }
+      if (childIds.length > 0) {
+        parts.push(`عدد الأبناء: ${childIds.length}`);
+      }
+      if (milkIds.length > 0) {
+        const names = milkIds.map(nameOf).filter(Boolean).join("، ");
+        parts.push(`روابط الرضاعة مع: ${names}`);
+      }
+
+      return (
+        `حذف هذا الشخص سيؤدي إلى فصل الأشخاص التالين عن الشجرة ` +
+        `(سيبقون في قائمة أفراد العائلة):\n\n` +
+        parts.join("\n") +
+        `\n\nهل تريد المتابعة؟`
+      );
+    };
+
+    if (window.confirm(buildDeleteMessage())) {
       try {
         // Before deleting, find a neighbour (parent, then spouse, sibling, child)
         // to re-root on. Deleting always removes the SELECTED (rooted) person, so
