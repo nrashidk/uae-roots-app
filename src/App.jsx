@@ -863,9 +863,21 @@ function App() {
       parentsOf.get(r.childId).push(r.parentId);
     });
 
-    const bo = (id) => byId.get(id)?.birthOrder ?? 9999;
+    // Oldest-first ordering. The reorder arrows assign YOUNGER children a
+    // LOWER (more negative) birthOrder; the eldest/original child is null.
+    // So oldest-first = null (unset original) first, then DESCENDING birthOrder.
+    const bo = (id) => byId.get(id)?.birthOrder;
     const sortByBirth = (ids) =>
-      [...ids].sort((a, b) => bo(a) - bo(b) || a - b);
+      [...ids].sort((a, b) => {
+        const va = bo(a);
+        const vb = bo(b);
+        // null/undefined = oldest → sort first
+        if (va == null && vb == null) return a - b;
+        if (va == null) return -1;
+        if (vb == null) return 1;
+        // higher birthOrder = older → older first
+        return vb - va || a - b;
+      });
 
     const rendered = new Set();
 
