@@ -825,7 +825,150 @@ function App() {
     );
   }, [treePeople, relationships, currentTree?.id]);
 
-  // Default spouse gender suggestion for first spouse
+  // Organize the visible members into ORDERED FAMILY BLOCKS for the Family
+  // Members page. Each block = a couple (or single parent) plus their UNMARRIED
+  // children, children ordered by birthOrder (oldest first). A married person
+  // leaves their parents' block and heads their own. Blocks are ordered
+  // depth-first down the eldest line: a person's own block appears immediately
+  // after the block they belong to as a child. Every visible person appears
+  // exactly once. Reflows automatically when birthOrder changes.
+  const familyGroups = useMemo(() => {
+    const treeId = currentTree?.id;
+    const visible = visibleFamilyMembers;
+    const visibleIds = new Set(visible.map((p) => p.id));
+    const byId = new Map(visible.map((p) => [p.id, p]));
+
+    const rels = relationships.filter((r) => r.treeId === treeId);
+    const partnerRels = rels.filter((r) => r.type === "partner");
+    const parentChildRels = rels.filter((r) => r.type === "parent-child");
+
+    // Spouse lookup (only spouses who are themselves visible people).
+    const spouseOf = new Map();
+    partnerRels.forEach((r) => {
+      if (visibleIds.has(r.person1Id) && visibleIds.has(r.person2Id)) {
+        if (!spouseOf.has(r.person1Id)) spouseOf.set(r.person1Id, r.person2Id);
+        if (!spouseOf.has(r.person2Id)) spouseOf.set(r.person2Id, r.person1Id);
+      }
+    });
+    const isMarried = (id) =>
+      partnerRels.some((r) => r.person1Id === id || r.person2Id === id);
+
+    // parent -> [childIds], and child -> [parentIds]
+    const childrenOf = new Map();
+    const parentsOf = new Map();
+    parentChildRels.forEach((r) => {
+      if (!childrenOf.has(r.parentId)) childrenOf.set(r.parentId, []);
+      childrenOf.get(r.parentId).push(r.childId);
+      if (!parentsOf.has(r.childId)) parentsOf.set(r.childId, []);
+      parentsOf.get(r.childId).push(r.parentId);
+    });
+
+    const bo = (id) => byId.get(id)?.birthOrder ?? 9999;
+    const sortByBirth = (ids) =>
+      [...ids].sort((a, b) => bo(a) - bo(b) || a - b);
+
+    const rendered = new Set();
+
+    // Build one family block headed by `headId` (+ spouse if any).
+    // Returns { key, heads:[personObjs], children:[personObjs] } or null.
+    const buildBlock = (headId) => {
+      if (rendered.has(headId) || !byId.has(headId)) return null;
+      const head = byId.get(headId);
+      const heads = [head];
+      rendered.add(headId);
+
+      const spouseId = spouseOf.get(headId);
+      if (spouseId != null && byId.has(spouseId) && !rendered.has(spouseId)) {
+        heads.push(byId.get(spouseId));
+        rendered.add(spouseId);
+      }
+
+      // Children of this couple = union of both heads' children, visible only.
+      const kidIds = new Set();
+      heads.forEach((h) => (childrenOf.get(h.id) || []).forEach((c) => {
+        if (visibleIds.has(c)) kidIds.add(c);
+      }));
+
+      const sortedKids = sortByBirth([...kidIds]);
+      const unmarriedChildren = [];
+      const marriedChildren = [];
+      sortedKids.forEach((cid) => {
+        if (isMarried(cid)) marriedChildren.push(cid);
+        else unmarriedChildren.push(cid);
+      });
+
+      const block = {
+        key: `fam-${headId}`,
+        heads,
+        children: unmarriedChildren
+          .filter((cid) => !rendered.has(cid))
+          .map((cid) => {
+            rendered.add(cid);
+            return byId.get(cid);
+          }),
+        // stash for depth-first recursion after this block is emitted
+        _marriedChildren: marriedChildren,
+      };
+      return block;
+    };
+
+    const groups = [];
+    const emit = (headId) => {
+      const block = buildBlock(headId);
+      if (!block) return;
+      const married = block._marriedChildren;
+      delete block._marriedChildren;
+      groups.push(block);
+      // Depth-first: each married child's own block immediately follows,
+      // in birthOrder.
+      married.forEach((cid) => emit(cid));
+    };
+
+    // ROOTS: visible people with no visible parent in the tree, and who are
+    // NOT a married-in spouse of someone processed first. Order roots by
+    // birthOrder so the eldest family comes first.
+    const hasVisibleParent = (id) =>
+      (parentsOf.get(id) || []).some((pid) => visibleIds.has(pid));
+
+    const rootCandidates = visible
+      .filter((p) => !hasVisibleParent(p.id))
+      .map((p) => p.id);
+
+    // Prefer starting each root couple from the MALE head (so the block reads
+    // father, mother). If a root is someone's spouse, they'll be pulled in as a
+    // spouse; skip starting a separate block from them.
+    const spouseStarted = new Set();
+    const orderedRoots = sortByBirth(rootCandidates);
+
+    orderedRoots.forEach((id) => {
+      if (rendered.has(id)) return;
+      // If this root is the spouse of another root we haven't started yet,
+      // prefer the male as head for father-first reading.
+      const sp = spouseOf.get(id);
+      if (sp != null && !rendered.has(sp) && byId.has(sp)) {
+        const a = byId.get(id);
+        const b = byId.get(sp);
+        const head = a.gender === "male" ? a : b.gender === "male" ? b : a;
+        emit(head.id);
+      } else {
+        emit(id);
+      }
+    });
+
+    // Safety net: any visible person not yet placed (e.g. off-tree milk-sibling
+    // with no parent/partner links) gets their own single-card block at the end,
+    // in birthOrder.
+    const leftovers = sortByBirth(
+      visible.filter((p) => !rendered.has(p.id)).map((p) => p.id),
+    );
+    leftovers.forEach((id) => {
+      if (rendered.has(id)) return;
+      rendered.add(id);
+      groups.push({ key: `solo-${id}`, heads: [byId.get(id)], children: [] });
+    });
+
+    return groups;
+  }, [visibleFamilyMembers, relationships, currentTree?.id]);
   const defaultSpouseGender = useMemo(() => {
     if (relationshipType !== "spouse" || editingPerson) return "";
     if (!selectedPerson) return "";
@@ -2672,56 +2815,65 @@ function App() {
           </div>
         </div>
         <div className="max-w-7xl mx-auto px-8 py-8">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {visiblePeople.map((person) => {
-              const isMilk = milkPersonIds.has(person.id);
-              return (
+          {familyGroups.map((group, gi) => {
+            const cards = [...group.heads, ...group.children];
+            return (
               <div
-                key={person.id}
-                data-person-card
-                onClick={() => {
-                  setEditingPerson(person.id);
-                  setRelationshipType(null);
-                  setFormKey((prev) => prev + 1);
-                  setShowPersonForm(true);
-                }}
-                className={`relative overflow-hidden bg-white rounded-lg shadow p-4 cursor-pointer hover:shadow-md hover:border-gray-300 border transition ${
-                  isMilk ? "border-green-300" : "border-transparent"
-                }`}
+                key={group.key}
+                className={gi > 0 ? "mt-4 pt-4 border-t border-dashed border-gray-300" : ""}
               >
-                <div dir="ltr" className="absolute bottom-2 left-2 flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      // Stop the card's edit onClick from also firing.
-                      e.stopPropagation();
-                      deletePerson(person.id);
-                    }}
-                    title={t.delete || "حذف"}
-                    aria-label={t.delete || "حذف"}
-                    className="p-1.5 rounded-md hover:bg-red-50 transition"
-                  >
-                    <Trash2 className="w-4 h-4 text-red-600" />
-                  </button>
-                  {isMilk && (
-                    <span className="bg-green-600 text-white text-[11px] font-bold px-2.5 py-0.5 rounded tracking-wide">
-                      بالرضاعة
-                    </span>
-                  )}
-                </div>
-                <div className="text-lg">{getGenealogicalName(person)}</div>
-                {person.identificationNumber && (
-                  <div className="text-sm text-gray-500">
-                    رقم الهوية: {person.identificationNumber}
-                  </div>
-                )}
-                <div className="text-sm text-gray-500">
-                  {person.gender === "male" ? "ذكر" : "أنثى"}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {cards.map((person) => {
+                    const isMilk = milkPersonIds.has(person.id);
+                    return (
+                      <div
+                        key={person.id}
+                        data-person-card
+                        onClick={() => {
+                          setEditingPerson(person.id);
+                          setRelationshipType(null);
+                          setFormKey((prev) => prev + 1);
+                          setShowPersonForm(true);
+                        }}
+                        className={`relative overflow-hidden bg-white rounded-lg shadow p-4 cursor-pointer hover:shadow-md hover:border-gray-300 border transition ${
+                          isMilk ? "border-green-300" : "border-transparent"
+                        }`}
+                      >
+                        <div dir="ltr" className="absolute bottom-2 left-2 flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              deletePerson(person.id);
+                            }}
+                            title={t.delete || "حذف"}
+                            aria-label={t.delete || "حذف"}
+                            className="p-1.5 rounded-md hover:bg-red-50 transition"
+                          >
+                            <Trash2 className="w-4 h-4 text-red-600" />
+                          </button>
+                          {isMilk && (
+                            <span className="bg-green-600 text-white text-[11px] font-bold px-2.5 py-0.5 rounded tracking-wide">
+                              بالرضاعة
+                            </span>
+                          )}
+                        </div>
+                        <div className="text-lg">{getGenealogicalName(person)}</div>
+                        {person.identificationNumber && (
+                          <div className="text-sm text-gray-500">
+                            رقم الهوية: {person.identificationNumber}
+                          </div>
+                        )}
+                        <div className="text-sm text-gray-500">
+                          {person.gender === "male" ? "ذكر" : "أنثى"}
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
-              );
-            })}
-          </div>
+            );
+          })}
           {visiblePeople.length === 0 && (
             <div className="text-center text-gray-500 py-8">
               لا يوجد أفراد في العائلة بعد
