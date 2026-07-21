@@ -2689,35 +2689,26 @@ function App() {
                   isMilk ? "border-green-300" : "border-transparent"
                 }`}
               >
-                {isMilk && (
-                  <div
-                    className="absolute top-0 left-0 bg-green-600 text-white font-bold flex items-center justify-center"
-                    style={{
-                      fontSize: "11px",
-                      width: "160px",
-                      height: "26px",
-                      transform: "translate(-33%, 20%) rotate(-45deg)",
-                      transformOrigin: "center",
-                      boxShadow: "0 1px 4px rgba(0,0,0,.15)",
-                      letterSpacing: "0.5px",
+                <div className="absolute bottom-2 left-2 flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      // Stop the card's edit onClick from also firing.
+                      e.stopPropagation();
+                      deletePerson(person.id);
                     }}
+                    title={t.delete || "حذف"}
+                    aria-label={t.delete || "حذف"}
+                    className="p-1.5 rounded-md hover:bg-red-50 transition"
                   >
-                    بالرضاعة
-                  </div>
-                )}
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    // Stop the card's edit onClick from also firing.
-                    e.stopPropagation();
-                    deletePerson(person.id);
-                  }}
-                  title={t.delete || "حذف"}
-                  aria-label={t.delete || "حذف"}
-                  className="absolute bottom-2 left-2 p-1.5 rounded-md hover:bg-red-50 transition"
-                >
-                  <Trash2 className="w-4 h-4 text-red-600" />
-                </button>
+                    <Trash2 className="w-4 h-4 text-red-600" />
+                  </button>
+                  {isMilk && (
+                    <span className="bg-green-600 text-white text-[11px] font-bold px-2.5 py-0.5 rounded tracking-wide">
+                      بالرضاعة
+                    </span>
+                  )}
+                </div>
                 <div className="text-lg">{getGenealogicalName(person)}</div>
                 {person.identificationNumber && (
                   <div className="text-sm text-gray-500">
