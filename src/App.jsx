@@ -791,6 +791,40 @@ function App() {
     return people.filter((p) => p.treeId === currentTree?.id);
   }, [people, currentTree?.id]);
 
+  // The people actually shown as Family Members cards — tree people minus
+  // legacy names-only milk-parent records (real people rows created before the
+  // text-field pivot). Computed once here so the dashboard count and the
+  // Family Members list can never disagree: both read this same set.
+  const visibleFamilyMembers = useMemo(() => {
+    const treeId = currentTree?.id;
+    const milkRels = relationships.filter(
+      (r) => r.treeId === treeId && r.type === "sibling" && r.isBreastfeeding,
+    );
+    // Anyone on either side of a milk-bond keeps their card.
+    const milkPersonIds = new Set();
+    milkRels.forEach((r) => {
+      milkPersonIds.add(r.person1Id);
+      milkPersonIds.add(r.person2Id);
+    });
+    // Incoming milk-relatives (person2) are the ones whose parents are
+    // names-only records to be hidden.
+    const milkRelativeIds = new Set();
+    milkRels.forEach((r) => milkRelativeIds.add(r.person2Id));
+    const milkParentIds = new Set();
+    relationships
+      .filter(
+        (r) =>
+          r.treeId === treeId &&
+          r.type === "parent-child" &&
+          milkRelativeIds.has(r.childId),
+      )
+      .forEach((r) => milkParentIds.add(r.parentId));
+    // Hide milk-parents, but never hide someone who is themselves a milk-sibling.
+    return treePeople.filter(
+      (p) => !(milkParentIds.has(p.id) && !milkPersonIds.has(p.id)),
+    );
+  }, [treePeople, relationships, currentTree?.id]);
+
   // Default spouse gender suggestion for first spouse
   const defaultSpouseGender = useMemo(() => {
     if (relationshipType !== "spouse" || editingPerson) return "";
@@ -2512,8 +2546,6 @@ function App() {
   };
 
   if (currentView === "family-members") {
-    const treePeople = people.filter((p) => p.treeId === currentTree?.id);
-
     // People involved in any milk-bond (breastfeeding sibling link) — both sides
     // of the bond get the «بالرضاعة» ribbon on their card.
     const milkPersonIds = new Set();
@@ -2529,41 +2561,10 @@ function App() {
         milkPersonIds.add(r.person2Id);
       });
 
-    // The INCOMING milk-relatives only (person2 of each bond) — these are the
-    // ones with names-only milk-parents. The blood originator (person1) has real
-    // parents in the tree and must be excluded here.
-    const milkRelativeIds = new Set();
-    relationships
-      .filter(
-        (r) =>
-          r.treeId === currentTree?.id &&
-          r.type === "sibling" &&
-          r.isBreastfeeding,
-      )
-      .forEach((r) => milkRelativeIds.add(r.person2Id));
-
-    // Milk-parents (the wet-nurse/father added via a milk-sibling's form) are
-    // names-only, freshly-created records managed through the milk-sibling's
-    // edit form — so they should NOT appear as their own cards. Detect them as
-    // the parent side of a parent-child link whose child is an INCOMING
-    // milk-relative (person2) — NOT the blood originator (whose real parents
-    // must stay visible).
-    const milkParentIds = new Set();
-    relationships
-      .filter(
-        (r) =>
-          r.treeId === currentTree?.id &&
-          r.type === "parent-child" &&
-          milkRelativeIds.has(r.childId),
-      )
-      .forEach((r) => milkParentIds.add(r.parentId));
-
-    // Hide milk-parents, but never hide someone who is themselves a milk-sibling.
-    const visiblePeople = treePeople.filter(
-      (p) => !(milkParentIds.has(p.id) && !milkPersonIds.has(p.id)),
-    );
-
-    console.log("Rendering family members view with people:", treePeople);
+    // Cards to render = the same branch-independent set the dashboard count
+    // uses (shared memo), so the count and the list can never disagree. The
+    // milk-parent exclusion now lives in the visibleFamilyMembers memo.
+    const visiblePeople = visibleFamilyMembers;
 
     return (
       <div
@@ -2868,7 +2869,7 @@ function App() {
           >
             <h3 className="text-xl font-bold mb-4">{t.familyMembers}</h3>
             <div className="text-3xl font-bold text-blue-600">
-              {treeLayout?.layout?.e ? Object.keys(treeLayout.layout.e).length : 0}
+              {visibleFamilyMembers.length}
             </div>
           </div>
           <div
