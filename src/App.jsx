@@ -2696,7 +2696,7 @@ function App() {
                       fontSize: "11px",
                       width: "160px",
                       height: "26px",
-                      transform: "translate(-33%, 55%) rotate(-45deg)",
+                      transform: "translate(-33%, 20%) rotate(-45deg)",
                       transformOrigin: "center",
                       boxShadow: "0 1px 4px rgba(0,0,0,.15)",
                       letterSpacing: "0.5px",
