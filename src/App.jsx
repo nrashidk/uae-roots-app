@@ -2639,6 +2639,19 @@ function App() {
                     بالرضاعة
                   </div>
                 )}
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    // Stop the card's edit onClick from also firing.
+                    e.stopPropagation();
+                    deletePerson(person.id);
+                  }}
+                  title={t.delete || "حذف"}
+                  aria-label={t.delete || "حذف"}
+                  className="absolute bottom-2 left-2 p-1.5 rounded-md hover:bg-red-50 transition"
+                >
+                  <Trash2 className="w-4 h-4 text-red-600" />
+                </button>
                 <div className="text-lg">{getGenealogicalName(person)}</div>
                 {person.identificationNumber && (
                   <div className="text-sm text-gray-500">
