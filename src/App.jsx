@@ -863,6 +863,21 @@ function App() {
       parentsOf.get(r.childId).push(r.parentId);
     });
 
+    // Milk-siblings: for each person, the visible people they're milk-bonded to.
+    // A milk-sibling is rendered right AFTER the family block of the person they
+    // are bonded to, so they stay adjacent to their bond no matter how the tree
+    // grows.
+    const milkSiblingsOf = new Map();
+    rels
+      .filter((r) => r.type === "sibling" && r.isBreastfeeding)
+      .forEach((r) => {
+        if (!visibleIds.has(r.person1Id) || !visibleIds.has(r.person2Id)) return;
+        if (!milkSiblingsOf.has(r.person1Id)) milkSiblingsOf.set(r.person1Id, []);
+        if (!milkSiblingsOf.has(r.person2Id)) milkSiblingsOf.set(r.person2Id, []);
+        milkSiblingsOf.get(r.person1Id).push(r.person2Id);
+        milkSiblingsOf.get(r.person2Id).push(r.person1Id);
+      });
+
     // Oldest-first ordering. The reorder arrows assign YOUNGER children a
     // LOWER (more negative) birthOrder; the eldest/original child is null.
     // So oldest-first = null (unset original) first, then DESCENDING birthOrder.
@@ -931,6 +946,24 @@ function App() {
       const married = block._marriedChildren;
       delete block._marriedChildren;
       groups.push(block);
+
+      // Render milk-siblings of this block's heads right after the block, so a
+      // milk-sibling always sits next to the person they're bonded to. Only
+      // milk-siblings who don't have their own family block (no children) get
+      // pulled here; a milk-sibling who heads their own family keeps that block.
+      block.heads.forEach((h) => {
+        const ms = milkSiblingsOf.get(h.id) || [];
+        sortByBirth(ms).forEach((mid) => {
+          if (rendered.has(mid)) return;
+          const hasOwnFamily =
+            (childrenOf.get(mid) || []).some((c) => visibleIds.has(c)) ||
+            spouseOf.get(mid) != null;
+          if (hasOwnFamily) return; // will be emitted as its own block elsewhere
+          rendered.add(mid);
+          groups.push({ key: `milk-${mid}`, heads: [byId.get(mid)], children: [] });
+        });
+      });
+
       // Depth-first: each married child's own block immediately follows,
       // in birthOrder.
       married.forEach((cid) => emit(cid));
