@@ -1002,33 +1002,45 @@ function App() {
       .map((p) => p.id);
 
     const rootHeadIds = [];
+    const fragmentHeadIds = [];
     const seenCouple = new Set();
     rawRoots.forEach((id) => {
       if (seenCouple.has(id)) return;
       const sp = spouseOf.get(id);
-      let head = id;
       if (sp != null && byId.has(sp)) {
-        // Choose male as head; if this person isn't male but spouse is, the
-        // spouse becomes head. Mark both as handled for the couple.
+        // A founding COUPLE (both parentless, they anchor the tree). Emit among
+        // the primary founders. Choose male as head for father-first reading.
         const me = byId.get(id);
         const partner = byId.get(sp);
-        head = me.gender === "male"
+        const head = me.gender === "male"
           ? id
           : partner.gender === "male"
             ? sp
             : id;
         seenCouple.add(id);
         seenCouple.add(sp);
+        if (!rootHeadIds.includes(head)) rootHeadIds.push(head);
       } else {
+        // A LONE parentless parent — no spouse. This is typically an orphaned
+        // fragment: e.g. a widowed in-law whose blood-linked spouse was deleted,
+        // leaving them and their children disconnected from the founding tree.
+        // These render AFTER the real founding families, not leading the page.
         seenCouple.add(id);
+        fragmentHeadIds.push(id);
       }
-      if (!rootHeadIds.includes(head)) rootHeadIds.push(head);
     });
 
     // Order founding couples by the head's birthOrder (eldest lineage first).
     const orderedRoots = sortByBirth(rootHeadIds);
 
     orderedRoots.forEach((id) => {
+      if (rendered.has(id)) return;
+      emit(id);
+    });
+
+    // Then orphaned fragments (widowed in-law branches, etc.), after the real
+    // founding families, ordered by birthOrder.
+    sortByBirth(fragmentHeadIds).forEach((id) => {
       if (rendered.has(id)) return;
       emit(id);
     });
