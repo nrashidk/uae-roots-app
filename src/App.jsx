@@ -2689,7 +2689,7 @@ function App() {
                   isMilk ? "border-green-300" : "border-transparent"
                 }`}
               >
-                <div className="absolute bottom-2 left-2 flex items-center gap-2">
+                <div dir="ltr" className="absolute bottom-2 left-2 flex items-center gap-2">
                   <button
                     type="button"
                     onClick={(e) => {
