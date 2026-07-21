@@ -924,35 +924,68 @@ function App() {
       married.forEach((cid) => emit(cid));
     };
 
-    // ROOTS: visible people with no visible parent in the tree, and who are
-    // NOT a married-in spouse of someone processed first. Order roots by
-    // birthOrder so the eldest family comes first.
+    // ROOTS: the founding couples of the tree. A genuine root is a visible
+    // person with NO visible parents who anchors a lineage — i.e. they (or
+    // their spouse) have children. This deliberately EXCLUDES:
+    //   - married-in spouses (they get pulled into their partner's block)
+    //   - childless parentless people like off-tree milk-siblings (they fall
+    //     to the safety-net leftovers at the end)
+    // Prefer the MALE of a founding couple as the head (father-first reading).
     const hasVisibleParent = (id) =>
       (parentsOf.get(id) || []).some((pid) => visibleIds.has(pid));
+    const hasVisibleChildren = (id) =>
+      (childrenOf.get(id) || []).some((cid) => visibleIds.has(cid));
 
-    const rootCandidates = visible
-      .filter((p) => !hasVisibleParent(p.id))
+    // A person anchors a lineage if they, or their spouse, have children.
+    const anchorsLineage = (id) => {
+      if (hasVisibleChildren(id)) return true;
+      const sp = spouseOf.get(id);
+      return sp != null && hasVisibleChildren(sp);
+    };
+
+    // Candidate roots: parentless lineage-anchors whose SPOUSE is also
+    // parentless. If the spouse HAS parents, this couple belongs under the
+    // spouse's parents (reached by nesting), not as an independent root.
+    const rawRoots = visible
+      .filter((p) => {
+        if (hasVisibleParent(p.id)) return false;
+        if (!anchorsLineage(p.id)) return false;
+        const sp = spouseOf.get(p.id);
+        if (sp != null && hasVisibleParent(sp)) return false;
+        return true;
+      })
       .map((p) => p.id);
 
-    // Prefer starting each root couple from the MALE head (so the block reads
-    // father, mother). If a root is someone's spouse, they'll be pulled in as a
-    // spouse; skip starting a separate block from them.
-    const spouseStarted = new Set();
-    const orderedRoots = sortByBirth(rootCandidates);
+    const rootHeadIds = [];
+    const seenCouple = new Set();
+    rawRoots.forEach((id) => {
+      if (seenCouple.has(id)) return;
+      const sp = spouseOf.get(id);
+      let head = id;
+      if (sp != null && byId.has(sp)) {
+        // Choose male as head; if this person isn't male but spouse is, the
+        // spouse becomes head. Mark both as handled for the couple.
+        const me = byId.get(id);
+        const partner = byId.get(sp);
+        head = me.gender === "male"
+          ? id
+          : partner.gender === "male"
+            ? sp
+            : id;
+        seenCouple.add(id);
+        seenCouple.add(sp);
+      } else {
+        seenCouple.add(id);
+      }
+      if (!rootHeadIds.includes(head)) rootHeadIds.push(head);
+    });
+
+    // Order founding couples by the head's birthOrder (eldest lineage first).
+    const orderedRoots = sortByBirth(rootHeadIds);
 
     orderedRoots.forEach((id) => {
       if (rendered.has(id)) return;
-      // If this root is the spouse of another root we haven't started yet,
-      // prefer the male as head for father-first reading.
-      const sp = spouseOf.get(id);
-      if (sp != null && !rendered.has(sp) && byId.has(sp)) {
-        const a = byId.get(id);
-        const b = byId.get(sp);
-        const head = a.gender === "male" ? a : b.gender === "male" ? b : a;
-        emit(head.id);
-      } else {
-        emit(id);
-      }
+      emit(id);
     });
 
     // Safety net: any visible person not yet placed (e.g. off-tree milk-sibling
