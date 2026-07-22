@@ -959,14 +959,20 @@ function App() {
         });
       };
 
+      const hasMultipleWives = otherSpouseIds.length > 1;
       otherSpouseIds.forEach((sid, idx) => {
         if (!byId.has(sid)) return;
         const sp = byId.get(sid);
-        // Mark wives from the SECOND onward: they start a new row and get a
-        // «الزوجة الثانية/الثالثة…» label so their group is unmistakable.
+        // Wife-order labels appear ONLY when there is more than one wife —
+        // a single-wife family stays clean. Wives from the second onward also
+        // start a new row so each wife heads her own group.
         cards.push(
-          idx > 0
-            ? { ...sp, _spouseIndex: idx + 1, _startsNewRow: true }
+          hasMultipleWives
+            ? {
+                ...sp,
+                _spouseIndex: idx + 1,
+                _startsNewRow: idx > 0,
+              }
             : sp,
         );
         pushChildrenOf(sid);
@@ -2972,13 +2978,15 @@ function App() {
                   {cards.map((person) => {
                     const isMilk = milkPersonIds.has(person.id);
                     const spouseLabel =
-                      person._spouseIndex === 2
-                        ? "الزوجة الثانية"
-                        : person._spouseIndex === 3
-                          ? "الزوجة الثالثة"
-                          : person._spouseIndex === 4
-                            ? "الزوجة الرابعة"
-                            : null;
+                      person._spouseIndex === 1
+                        ? "الزوجة الأولى"
+                        : person._spouseIndex === 2
+                          ? "الزوجة الثانية"
+                          : person._spouseIndex === 3
+                            ? "الزوجة الثالثة"
+                            : person._spouseIndex === 4
+                              ? "الزوجة الرابعة"
+                              : null;
                     return (
                       <div
                         key={person.id}
