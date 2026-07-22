@@ -911,77 +911,82 @@ function App() {
     const buildBlock = (headId) => {
       if (rendered.has(headId) || !byId.has(headId)) return null;
       const head = byId.get(headId);
-      const heads = [head];
       rendered.add(headId);
 
-      // Include ALL spouses of the head, in marriage order (first wife first).
+      // Spouses of the head, in marriage order (first wife first).
       const spouseIds = (spousesOf.get(headId) || []).filter(
         (sid) => byId.has(sid) && !rendered.has(sid),
       );
-      spouseIds.forEach((sid) => {
-        heads.push(byId.get(sid));
-        rendered.add(sid);
-      });
+      spouseIds.forEach((sid) => rendered.add(sid));
 
-      // Children GROUPED BY MOTHER (spouse), first wife's children first, then
-      // the next wife's — never interleaved. Within each mother's group,
-      // children are ordered oldest→youngest.
+      // MALE FIRST: the block always reads husband, then wife — consistent with
+      // the father-then-mother reading, regardless of which side the blood
+      // descendant is on (the name chain already carries the lineage).
+      const headIsMale = head.gender === "male";
+      const maleFirstHead = headIsMale
+        ? head
+        : (spouseIds.map((s) => byId.get(s)).find((p) => p.gender === "male") ||
+           head);
+      const otherSpouseIds = headIsMale
+        ? spouseIds
+        : [
+            ...(maleFirstHead.id !== head.id ? [head.id] : []),
+            ...spouseIds.filter((s) => s !== maleFirstHead.id),
+          ];
+
+      const marriedChildren = [];
+      const cards = [maleFirstHead];
       const takenKids = new Set();
-      const groupedKidIds = [];
-      spouseIds.forEach((sid) => {
-        // children shared by this head and this particular spouse
-        const shared = (childrenOf.get(sid) || []).filter(
+
+      // Each spouse is immediately followed by HER OWN unmarried children, so
+      // the maternal grouping is visually obvious:
+      //   father, wife1, wife1's children, wife2, wife2's children
+      const pushChildrenOf = (spouseId) => {
+        const shared = (childrenOf.get(spouseId) || []).filter(
           (c) =>
             visibleIds.has(c) &&
             !takenKids.has(c) &&
-            (childrenOf.get(headId) || []).includes(c),
+            (childrenOf.get(maleFirstHead.id) || []).includes(c),
         );
-        sortByBirth(shared).forEach((c) => {
-          takenKids.add(c);
-          groupedKidIds.push(c);
+        sortByBirth(shared).forEach((cid) => {
+          takenKids.add(cid);
+          if (isMarried(cid)) {
+            marriedChildren.push(cid);
+          } else if (!rendered.has(cid)) {
+            rendered.add(cid);
+            cards.push(byId.get(cid));
+          }
         });
+      };
+
+      otherSpouseIds.forEach((sid) => {
+        if (!byId.has(sid)) return;
+        cards.push(byId.get(sid));
+        pushChildrenOf(sid);
       });
-      // Any remaining children of the head not attributed to a listed spouse
-      // (e.g. other parent not visible) go last, still oldest→youngest.
-      const leftoverKids = (childrenOf.get(headId) || []).filter(
+
+      // Any remaining children of the head not attributed to a listed spouse.
+      const leftoverKids = (childrenOf.get(maleFirstHead.id) || []).filter(
         (c) => visibleIds.has(c) && !takenKids.has(c),
       );
-      sortByBirth(leftoverKids).forEach((c) => {
-        takenKids.add(c);
-        groupedKidIds.push(c);
-      });
-      // And children belonging to a spouse but not the head (rare).
-      heads.slice(1).forEach((sp) => {
-        const extra = (childrenOf.get(sp.id) || []).filter(
-          (c) => visibleIds.has(c) && !takenKids.has(c),
-        );
-        sortByBirth(extra).forEach((c) => {
-          takenKids.add(c);
-          groupedKidIds.push(c);
-        });
+      sortByBirth(leftoverKids).forEach((cid) => {
+        takenKids.add(cid);
+        if (isMarried(cid)) {
+          marriedChildren.push(cid);
+        } else if (!rendered.has(cid)) {
+          rendered.add(cid);
+          cards.push(byId.get(cid));
+        }
       });
 
-      const unmarriedChildren = [];
-      const marriedChildren = [];
-      groupedKidIds.forEach((cid) => {
-        if (isMarried(cid)) marriedChildren.push(cid);
-        else unmarriedChildren.push(cid);
-      });
-
-      const block = {
+      return {
         key: `fam-${headId}`,
-        heads,
-        children: unmarriedChildren
-          .filter((cid) => !rendered.has(cid))
-          .map((cid) => {
-            rendered.add(cid);
-            return byId.get(cid);
-          }),
-        // stash for depth-first recursion after this block is emitted
+        heads: [maleFirstHead],
+        cards,
         _marriedChildren: marriedChildren,
       };
-      return block;
     };
+
 
     const groups = [];
     const emit = (headId) => {
@@ -995,7 +1000,7 @@ function App() {
       // milk-sibling always sits next to the person they're bonded to. Only
       // milk-siblings who don't have their own family block (no children) get
       // pulled here; a milk-sibling who heads their own family keeps that block.
-      block.heads.forEach((h) => {
+      (block.cards || block.heads).forEach((h) => {
         const ms = milkSiblingsOf.get(h.id) || [];
         sortByBirth(ms).forEach((mid) => {
           if (rendered.has(mid)) return;
@@ -2950,7 +2955,7 @@ function App() {
         </div>
         <div className="max-w-7xl mx-auto px-8 py-8">
           {familyGroups.map((group, gi) => {
-            const cards = [...group.heads, ...group.children];
+            const cards = group.cards || [...group.heads, ...(group.children || [])];
             return (
               <div
                 key={group.key}
