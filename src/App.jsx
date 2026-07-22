@@ -842,13 +842,23 @@ function App() {
     const partnerRels = rels.filter((r) => r.type === "partner");
     const parentChildRels = rels.filter((r) => r.type === "parent-child");
 
-    // Spouse lookup (only spouses who are themselves visible people).
+    // All spouses per person, in marriage order (relationship id ascending =
+    // order the marriages were recorded, so first wife first).
+    const spousesOf = new Map();
+    [...partnerRels]
+      .sort((a, b) => (a.id ?? 0) - (b.id ?? 0))
+      .forEach((r) => {
+        if (visibleIds.has(r.person1Id) && visibleIds.has(r.person2Id)) {
+          if (!spousesOf.has(r.person1Id)) spousesOf.set(r.person1Id, []);
+          if (!spousesOf.has(r.person2Id)) spousesOf.set(r.person2Id, []);
+          spousesOf.get(r.person1Id).push(r.person2Id);
+          spousesOf.get(r.person2Id).push(r.person1Id);
+        }
+      });
+    // Convenience: first/primary spouse (kept for root-couple detection).
     const spouseOf = new Map();
-    partnerRels.forEach((r) => {
-      if (visibleIds.has(r.person1Id) && visibleIds.has(r.person2Id)) {
-        if (!spouseOf.has(r.person1Id)) spouseOf.set(r.person1Id, r.person2Id);
-        if (!spouseOf.has(r.person2Id)) spouseOf.set(r.person2Id, r.person1Id);
-      }
+    spousesOf.forEach((list, id) => {
+      if (list.length > 0) spouseOf.set(id, list[0]);
     });
     const isMarried = (id) =>
       partnerRels.some((r) => r.person1Id === id || r.person2Id === id);
@@ -904,22 +914,56 @@ function App() {
       const heads = [head];
       rendered.add(headId);
 
-      const spouseId = spouseOf.get(headId);
-      if (spouseId != null && byId.has(spouseId) && !rendered.has(spouseId)) {
-        heads.push(byId.get(spouseId));
-        rendered.add(spouseId);
-      }
+      // Include ALL spouses of the head, in marriage order (first wife first).
+      const spouseIds = (spousesOf.get(headId) || []).filter(
+        (sid) => byId.has(sid) && !rendered.has(sid),
+      );
+      spouseIds.forEach((sid) => {
+        heads.push(byId.get(sid));
+        rendered.add(sid);
+      });
 
-      // Children of this couple = union of both heads' children, visible only.
-      const kidIds = new Set();
-      heads.forEach((h) => (childrenOf.get(h.id) || []).forEach((c) => {
-        if (visibleIds.has(c)) kidIds.add(c);
-      }));
+      // Children GROUPED BY MOTHER (spouse), first wife's children first, then
+      // the next wife's — never interleaved. Within each mother's group,
+      // children are ordered oldest→youngest.
+      const takenKids = new Set();
+      const groupedKidIds = [];
+      spouseIds.forEach((sid) => {
+        // children shared by this head and this particular spouse
+        const shared = (childrenOf.get(sid) || []).filter(
+          (c) =>
+            visibleIds.has(c) &&
+            !takenKids.has(c) &&
+            (childrenOf.get(headId) || []).includes(c),
+        );
+        sortByBirth(shared).forEach((c) => {
+          takenKids.add(c);
+          groupedKidIds.push(c);
+        });
+      });
+      // Any remaining children of the head not attributed to a listed spouse
+      // (e.g. other parent not visible) go last, still oldest→youngest.
+      const leftoverKids = (childrenOf.get(headId) || []).filter(
+        (c) => visibleIds.has(c) && !takenKids.has(c),
+      );
+      sortByBirth(leftoverKids).forEach((c) => {
+        takenKids.add(c);
+        groupedKidIds.push(c);
+      });
+      // And children belonging to a spouse but not the head (rare).
+      heads.slice(1).forEach((sp) => {
+        const extra = (childrenOf.get(sp.id) || []).filter(
+          (c) => visibleIds.has(c) && !takenKids.has(c),
+        );
+        sortByBirth(extra).forEach((c) => {
+          takenKids.add(c);
+          groupedKidIds.push(c);
+        });
+      });
 
-      const sortedKids = sortByBirth([...kidIds]);
       const unmarriedChildren = [];
       const marriedChildren = [];
-      sortedKids.forEach((cid) => {
+      groupedKidIds.forEach((cid) => {
         if (isMarried(cid)) marriedChildren.push(cid);
         else unmarriedChildren.push(cid);
       });
