@@ -959,9 +959,16 @@ function App() {
         });
       };
 
-      otherSpouseIds.forEach((sid) => {
+      otherSpouseIds.forEach((sid, idx) => {
         if (!byId.has(sid)) return;
-        cards.push(byId.get(sid));
+        const sp = byId.get(sid);
+        // Mark wives from the SECOND onward: they start a new row and get a
+        // «الزوجة الثانية/الثالثة…» label so their group is unmistakable.
+        cards.push(
+          idx > 0
+            ? { ...sp, _spouseIndex: idx + 1, _startsNewRow: true }
+            : sp,
+        );
         pushChildrenOf(sid);
       });
 
@@ -2964,10 +2971,23 @@ function App() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {cards.map((person) => {
                     const isMilk = milkPersonIds.has(person.id);
+                    const spouseLabel =
+                      person._spouseIndex === 2
+                        ? "الزوجة الثانية"
+                        : person._spouseIndex === 3
+                          ? "الزوجة الثالثة"
+                          : person._spouseIndex === 4
+                            ? "الزوجة الرابعة"
+                            : null;
                     return (
                       <div
                         key={person.id}
                         data-person-card
+                        style={
+                          person._startsNewRow
+                            ? { gridColumnStart: 1 }
+                            : undefined
+                        }
                         onClick={() => {
                           setEditingPerson(person.id);
                           setRelationshipType(null);
@@ -2994,6 +3014,11 @@ function App() {
                           {isMilk && (
                             <span className="bg-green-600 text-white text-[11px] font-bold px-2.5 py-0.5 rounded tracking-wide">
                               بالرضاعة
+                            </span>
+                          )}
+                          {spouseLabel && (
+                            <span className="bg-gray-600 text-white text-[11px] font-bold px-2.5 py-0.5 rounded tracking-wide">
+                              {spouseLabel}
                             </span>
                           )}
                         </div>
