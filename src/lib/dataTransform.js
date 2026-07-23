@@ -21,6 +21,7 @@ export function convertToAlgorithmFormat(people, relationships, treeId) {
     const parentChildMap = {}; // parentId -> [childIds]
     const spouseMap = {}; // personId -> [spouseIds]
     const siblingMap = {}; // personId -> [siblingIds]
+    const milkMap = {}; // SPIKE: personId -> [milkSiblingIds] (رضاعة bonds)
 
     treeRels.forEach((rel) => {
         if (rel.type === "parent-child") {
@@ -48,6 +49,13 @@ export function convertToAlgorithmFormat(people, relationships, treeId) {
             // link must never make the milk-sibling inherit the other person's parents,
             // so we skip it here (siblingMap is only used for parent inheritance).
             if (rel.isBreastfeeding) {
+                // SPIKE: record the milk bond so it can be rendered laterally.
+                if (!milkMap[rel.person1Id]) milkMap[rel.person1Id] = [];
+                if (!milkMap[rel.person2Id]) milkMap[rel.person2Id] = [];
+                if (!milkMap[rel.person1Id].includes(rel.person2Id))
+                    milkMap[rel.person1Id].push(rel.person2Id);
+                if (!milkMap[rel.person2Id].includes(rel.person1Id))
+                    milkMap[rel.person2Id].push(rel.person1Id);
                 return;
             }
             if (!siblingMap[rel.person1Id]) {
@@ -197,12 +205,32 @@ export function convertToAlgorithmFormat(people, relationships, treeId) {
             c: children.length > 0 ? children.map((cid) => `P${cid}`) : [],
 
             // Partners object (all partners) - MUST be present (empty object if no partners)
-            pc:
-                spouses.length > 0
-                    ? Object.fromEntries(
-                          spouses.map((sid) => [`P${sid}`, true]),
-                      )
-                    : {},
+            // SPIKE: milk-siblings are injected here so the lateral chain places
+            // them, but they are deliberately NOT added to `spouses`, `cp` or `es`.
+            pc: (() => {
+                const map =
+                    spouses.length > 0
+                        ? Object.fromEntries(
+                              spouses.map((sid) => [`P${sid}`, true]),
+                          )
+                        : {};
+                (milkMap[person.id] || []).forEach((mid) => {
+                    map[`P${mid}`] = true;
+                });
+                return map;
+            })(),
+
+            // SPIKE: which pc entries are milk bonds (not marriages)
+            milk: Object.fromEntries(
+                (milkMap[person.id] || []).map((mid) => [`P${mid}`, true]),
+            ),
+
+            // SPIKE v2: gp is the engine's own "partner types" map and IS
+            // preserved through prepareData (a custom field is stripped).
+            // Tag milk bonds with code "R" so the draw path can branch on it.
+            gp: Object.fromEntries(
+                (milkMap[person.id] || []).map((mid) => [`P${mid}`, "R"]),
+            ),
 
             // Flag properties (from data-large.js)
             fg: true, // Always true in data-large.js for most people
