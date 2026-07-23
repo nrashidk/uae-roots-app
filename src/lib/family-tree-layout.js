@@ -817,10 +817,14 @@ var FamilyTreeLayoutModule;
                         const xo = dr ? 0.5 : -0.5;
                         const x1 = ax[0] - xo * (1 + ax.length / 10);
                         const x2 = ax[ax.length - 1] + xo + xo / 10;
+                        // Lift the horizontal run slightly ABOVE the spouse
+                        // routing height so the milk line never overlaps a
+                        // wife's connector.
+                        const muy = uy - 0.12;
                         addLine(d, fx, ly, x1, ly, "r");
-                        addLine(d, x1, ly, x1, uy, "r");
-                        addLine(d, x1, uy, x2, uy, "r");
-                        addLine(d, x2, uy, x2, ly, "r");
+                        addLine(d, x1, ly, x1, muy, "r");
+                        addLine(d, x1, muy, x2, muy, "r");
+                        addLine(d, x2, muy, x2, ly, "r");
                         addLine(d, x2, ly, px, ly, "r");
                     } else {
                         addLine(d, fx, ly, px, ly, "r");
