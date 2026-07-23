@@ -810,7 +810,21 @@ var FamilyTreeLayoutModule;
                     // Childless placement (a milk bond never has shared children)
                     const px = dr ? d.r : d.l - 1;
                     if (pcx) pcx[pi] = px - (dr ? 0.5 : -0.5);
-                    addLine(d, fx, ly, px, ly, "r");
+                    // Route the connector the SAME way successive spouses are
+                    // routed: if partners are already placed, go around them
+                    // rather than drawing one long line straight through.
+                    if (ax.length) {
+                        const xo = dr ? 0.5 : -0.5;
+                        const x1 = ax[0] - xo * (1 + ax.length / 10);
+                        const x2 = ax[ax.length - 1] + xo + xo / 10;
+                        addLine(d, fx, ly, x1, ly, "r");
+                        addLine(d, x1, ly, x1, uy, "r");
+                        addLine(d, x1, uy, x2, uy, "r");
+                        addLine(d, x2, uy, x2, ly, "r");
+                        addLine(d, x2, ly, px, ly, "r");
+                    } else {
+                        addLine(d, fx, ly, px, ly, "r");
+                    }
                     addPersonBox(d, f, pi, i, px, cy, true, dr, true);
                     ax[ax.length] = px;
                 }
