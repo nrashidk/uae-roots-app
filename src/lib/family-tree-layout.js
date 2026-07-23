@@ -799,6 +799,25 @@ var FamilyTreeLayoutModule;
         let uy = cy - 0.5 + uo * (yt + 1);
         const ax = [];
         for (const pi in ps) {
+            // SPIKE v3: a milk bond (رضاعة) is NOT a marriage. Place the node
+            // using the same childless-partner position math, draw ONLY a
+            // dashed connector, and skip the partnership line + partner label
+            // + partner-children descent entirely.
+            if ((p.gp && p.gp[pi] === "R") || (p.milk && p.milk[pi])) {
+                if (!dp.p[i + "-" + pi] && f[pi]) {
+                    dp.p[i + "-" + pi] = true;
+                    dp.p[pi + "-" + i] = true;
+                    // Childless placement (a milk bond never has shared children)
+                    const px = dr ? d.r : d.l - 1;
+                    if (pcx) pcx[pi] = px - (dr ? 0.5 : -0.5);
+                    addLine(d, fx, ly, px, ly, "r");
+                    addPersonBox(d, f, pi, i, px, cy, true, dr, true);
+                    ax[ax.length] = px;
+                }
+                ly -= lo;
+                uy -= uo;
+                continue;
+            }
             if (dp.p[i + "-" + pi]) {
                 addLine(
                     d,
@@ -2331,6 +2350,7 @@ var FamilyTreeLayoutModule;
             nonBiological: lineType === "C" || lineType === "c",
             partnership: lineType === "P" || lineType === "p",
             currentPartnership: lineType === "S" || lineType === "s",
+            milk: lineType === "R" || lineType === "r",
             solid: lineType === lineType.toUpperCase(),
             dashed: lineType === lineType.toLowerCase(),
         };
