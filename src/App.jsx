@@ -796,34 +796,13 @@ function App() {
   // text-field pivot). Computed once here so the dashboard count and the
   // Family Members list can never disagree: both read this same set.
   const visibleFamilyMembers = useMemo(() => {
-    const treeId = currentTree?.id;
-    const milkRels = relationships.filter(
-      (r) => r.treeId === treeId && r.type === "sibling" && r.isBreastfeeding,
-    );
-    // Anyone on either side of a milk-bond keeps their card.
-    const milkPersonIds = new Set();
-    milkRels.forEach((r) => {
-      milkPersonIds.add(r.person1Id);
-      milkPersonIds.add(r.person2Id);
-    });
-    // Incoming milk-relatives (person2) are the ones whose parents are
-    // names-only records to be hidden.
-    const milkRelativeIds = new Set();
-    milkRels.forEach((r) => milkRelativeIds.add(r.person2Id));
-    const milkParentIds = new Set();
-    relationships
-      .filter(
-        (r) =>
-          r.treeId === treeId &&
-          r.type === "parent-child" &&
-          milkRelativeIds.has(r.childId),
-      )
-      .forEach((r) => milkParentIds.add(r.parentId));
-    // Hide milk-parents, but never hide someone who is themselves a milk-sibling.
-    return treePeople.filter(
-      (p) => !(milkParentIds.has(p.id) && !milkPersonIds.has(p.id)),
-    );
-  }, [treePeople, relationships, currentTree?.id]);
+    // Milk-siblings are now ORDINARY people: they have real parent-child links
+    // like anyone else, added through the normal flow. The old rule here hid the
+    // "parents of a milk-relative" because they used to be names-only stub
+    // records created by the milk form. That form is gone, so those parents are
+    // now legitimate family members and must NOT be hidden.
+    return treePeople;
+  }, [treePeople]);
 
   // Organize the visible members into ORDERED FAMILY BLOCKS for the Family
   // Members page. Each block = a couple (or single parent) plus their UNMARRIED
@@ -2777,10 +2756,21 @@ function App() {
     const treeRels = relationships.filter((r) => r.treeId === currentTree?.id);
 
     let nameParts = [person.firstName];
-    // Milk-siblings have no blood parent-child links; their father's name is
-    // stored as text (milkFatherName). Use it as the father segment so the name
-    // still reads e.g. "سعيد مساعد آل علي".
-    if (person.milkFatherName && person.milkFatherName.trim()) {
+    // LEGACY: older milk-siblings stored their father's name as text
+    // (milkFatherName) because they could not have real parents. Milk-siblings
+    // are now ordinary people with real parent-child links, so the text value is
+    // only a FALLBACK — used when the person has no real father in the tree.
+    const hasRealFather = treeRels.some(
+      (r) =>
+        r.type === "parent-child" &&
+        r.childId === person.id &&
+        treePeople.some((p) => p.id === r.parentId && p.gender === "male"),
+    );
+    if (
+      !hasRealFather &&
+      person.milkFatherName &&
+      person.milkFatherName.trim()
+    ) {
       nameParts.push(person.milkFatherName.trim());
     }
     let current = person;
@@ -4149,49 +4139,6 @@ function PersonForm({
             className="w-full px-3 py-2 border rounded-md"
           />
         </div>
-      )}
-
-      {formData.isBreastfed && (
-        <>
-          <div>
-            <label className="block text-sm font-bold mb-1 text-green-700">
-              اسم الأب (بالرضاعة){" "}
-              <span className="font-normal text-green-600">— اختياري</span>
-            </label>
-            <input
-              type="text"
-              value={formData.milkFatherName}
-              onChange={(e) =>
-                setFormData((prev) => ({
-                  ...prev,
-                  milkFatherName: e.target.value,
-                }))
-              }
-              className="w-full px-3 py-2 border border-green-300 bg-green-50 rounded-md"
-              dir="rtl"
-              placeholder="اسم الأب"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-bold mb-1 text-green-700">
-              اسم الأم / المرضعة (بالرضاعة){" "}
-              <span className="font-normal text-green-600">— اختياري</span>
-            </label>
-            <input
-              type="text"
-              value={formData.milkMotherName}
-              onChange={(e) =>
-                setFormData((prev) => ({
-                  ...prev,
-                  milkMotherName: e.target.value,
-                }))
-              }
-              className="w-full px-3 py-2 border border-green-300 bg-green-50 rounded-md"
-              dir="rtl"
-              placeholder="اسم الأم / المرضعة"
-            />
-          </div>
-        </>
       )}
 
       <div className="grid grid-cols-2 gap-3">
