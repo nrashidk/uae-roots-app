@@ -83,6 +83,12 @@ const TreeCanvas = ({
         // Dotted/dashed styling for collapsed/truncated connectors
         const t = line.t || "";
         const isDashed = typeof t === "string" && t === t.toLowerCase();
+        // SPIKE: milk (رضاعة) connectors get their own colour so they can never
+        // be read as a marriage line.
+        const isMilk = t === "r" || t === "R";
+        ctx.strokeStyle = isMilk
+          ? "#16a34a"
+          : stylingOptions?.lineColor || "#8b8b8b";
         if (isDashed) {
           ctx.setLineDash([6, 4]);
         } else {
