@@ -792,15 +792,30 @@ var FamilyTreeLayoutModule;
         for (const pi in ps) {
             yt++;
         }
-        const ot = Math.min(0.1 * (yt - 1), 0.15);
-        let ly = cy + ot / 2;
-        const lo = yt > 1 ? ot / (yt - 1) : 0;
+        // ACCUMULATIVE step between the horizontal lines LEAVING this person.
+        // This used to be `lo = ot/(yt-1)` with `ot = min(0.1*(yt-1), 0.15)` —
+        // capped, so the bundle COMPRESSED as partners were added (~2.7px apart
+        // at 6 partners, visually merged). A constant step keeps every line
+        // readable however many there are, and matches the overhead lane step
+        // below so the two sets share one rhythm. The bundle stays centred on
+        // the box: it fans out symmetrically from the middle.
+        const LINE_STEP = 0.075; // ~6.8px at the fixed 90px row height
+        const lo = LINE_STEP;
+        let ly = cy + (LINE_STEP * (yt - 1)) / 2;
         const uo = 0.1 / (yt + 1);
         let uy = cy - 0.5 + uo * (yt + 1);
         const ax = [];
-        // SPIKE: how many milk bonds have used the routed (over-the-top)
-        // path so far. Each one needs its own overhead lane.
-        let milkRouted = 0;
+        // Overhead lanes: any connector that has to route OVER already-placed
+        // boxes (a 2nd/3rd/4th spouse, or a milk bond) gets its own horizontal
+        // lane above this person. One shared counter so spouse lanes and milk
+        // lanes can never land on the same height.
+        // Uses the SAME constant step as the departure bundle above, so the
+        // overhead runs read with the identical rhythm. Row height is fixed, so
+        // this spacing is stable at any box width.
+        const LANE_BASE = 0.5; // clear of the box top edge
+        const laneStep = LINE_STEP;
+        let lanesUsed = 0;
+        const nextLaneY = () => cy - LANE_BASE - lanesUsed * laneStep;
         for (const pi in ps) {
             // SPIKE v3: a milk bond (رضاعة) is NOT a marriage. Place the node
             // using the same childless-partner position math, draw ONLY a
@@ -820,23 +835,13 @@ var FamilyTreeLayoutModule;
                         const xo = dr ? 0.5 : -0.5;
                         const x1 = ax[0] - xo * (1 + ax.length / 10);
                         const x2 = ax[ax.length - 1] + xo + xo / 10;
-                        // Overhead lane for this milk connector. Deliberately NOT
-                        // derived from `uy`: the spouse offset (uo = 0.1/(yt+1))
-                        // shrinks as the partner count grows, which put successive
-                        // milk runs ~2px apart and made them touch.
-                        // The step is `lo` — the SAME spacing the engine uses
-                        // between the lines leaving this person — so the overhead
-                        // lanes read with the identical rhythm as the departure
-                        // bundle at any bond count.
-                        const MILK_LANE_BASE = 0.5; // clear of the box top edge
-                        const milkLaneStep = lo > 0 ? lo : 0.075;
-                        const muy = cy - MILK_LANE_BASE - milkRouted * milkLaneStep;
+                        const muy = nextLaneY();
                         addLine(d, fx, ly, x1, ly, "r");
                         addLine(d, x1, ly, x1, muy, "r");
                         addLine(d, x1, muy, x2, muy, "r");
                         addLine(d, x2, muy, x2, ly, "r");
                         addLine(d, x2, ly, px, ly, "r");
-                        milkRouted++;
+                        lanesUsed++;
                     } else {
                         addLine(d, fx, ly, px, ly, "r");
                     }
@@ -866,6 +871,15 @@ var FamilyTreeLayoutModule;
                         (childId) => !excludeChildren.includes(childId),
                     );
                 }
+                // A spouse only routes over the top when boxes are already
+                // placed beside this person (i.e. the 2nd wife onward). When it
+                // does, it consumes an overhead lane — the same lanes the milk
+                // connectors use — so no two overhead runs share a height.
+                // `uy` used to be passed raw here, and because it advanced by
+                // uo = 0.1/(yt+1) the 3rd and 4th wives' runs ended up ~2px
+                // apart. The lane value also carries the partner label, which
+                // is drawn on that run, so both move together.
+                const spouseWillRoute = ax.length > 0;
                 drawPartnerWithChildren(
                     d,
                     f,
@@ -877,7 +891,7 @@ var FamilyTreeLayoutModule;
                     fx,
                     cy,
                     ly,
-                    uy,
+                    spouseWillRoute ? nextLaneY() : uy,
                     fl,
                     pg,
                     dp,
@@ -885,6 +899,7 @@ var FamilyTreeLayoutModule;
                     pcx,
                     excludeParent,
                 );
+                if (spouseWillRoute) lanesUsed++;
             }
             ly -= lo;
             uy -= uo;
