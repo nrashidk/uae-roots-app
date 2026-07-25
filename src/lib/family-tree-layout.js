@@ -812,7 +812,11 @@ var FamilyTreeLayoutModule;
         // Uses the SAME constant step as the departure bundle above, so the
         // overhead runs read with the identical rhythm. Row height is fixed, so
         // this spacing is stable at any box width.
-        const LANE_BASE = 0.5; // clear of the box top edge
+        // First overhead lane sits in the free gap between the top of this box
+        // (0.30) and the band the ancestor/sibling connectors already use
+        // (0.425-0.50). A lane at 0.50 landed exactly on the parent-to-children
+        // bus and the two lines overlapped.
+        const LANE_BASE = 0.36;
         const laneStep = LINE_STEP;
         let lanesUsed = 0;
         const nextLaneY = () => cy - LANE_BASE - lanesUsed * laneStep;
