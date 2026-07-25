@@ -1886,41 +1886,32 @@ function App() {
       return p ? p.firstName : "";
     };
 
-    // --- "No orphans" delete -------------------------------------------------
-    // Deleting a person also deletes everyone who was attached to the tree ONLY
-    // through them — parents, spouse, descendants, milk-relatives alike. The
-    // rule is uniform: after removing this person, anyone in THEIR tree who can
-    // no longer reach the part that stays rendering is scaffolding with nothing
-    // left to hang on, so it goes too. Nothing survives "disconnected".
-    //   • Pre-existing SEPARATE families (never linked to this person) are never
-    //     touched — only this person's own connected tree is affected.
-    //   • A relative who still reaches the tree another way (a parent with other
-    //     children, a co-parent, a child with a surviving second parent) stays.
-    // Build the full graph, find this person's connected tree, then see what
-    // falls off when they're removed.
-    const fullAdj = new Map();
+    // INTERIM SAFE DELETE: removes ONLY the selected person — never cascades to
+    // anyone else. It re-roots the view on a surviving neighbour so the tree
+    // doesn't collapse, and warns (accurately) about relatives who will be left
+    // disconnected, but it does NOT delete them. A correct "delete everyone
+    // stranded" cascade is being built and validated separately; until then this
+    // guarantees a delete can never remove the wrong people.
     const survAdj = new Map();
-    const addTo = (m, a, b) => {
-      if (a == null || b == null) return;
-      if (!m.has(a)) m.set(a, new Set());
-      if (!m.has(b)) m.set(b, new Set());
-      m.get(a).add(b);
-      m.get(b).add(a);
+    const addEdge = (a, b) => {
+      if (a == null || b == null || a === personId || b === personId) return;
+      if (!survAdj.has(a)) survAdj.set(a, new Set());
+      if (!survAdj.has(b)) survAdj.set(b, new Set());
+      survAdj.get(a).add(b);
+      survAdj.get(b).add(a);
     };
     treeRels.forEach((r) => {
-      const a = r.type === "parent-child" ? r.parentId : r.person1Id;
-      const b = r.type === "parent-child" ? r.childId : r.person2Id;
-      addTo(fullAdj, a, b);
-      if (a !== personId && b !== personId) addTo(survAdj, a, b);
+      if (r.type === "parent-child") addEdge(r.parentId, r.childId);
+      else addEdge(r.person1Id, r.person2Id);
     });
-    const componentIn = (adj, start) => {
+    const compOf = (start) => {
       const seen = new Set();
-      if (start == null || !adj.has(start)) return seen;
+      if (start == null || !survAdj.has(start)) return seen;
       seen.add(start);
       const stack = [start];
       while (stack.length) {
         const cur = stack.pop();
-        for (const nb of adj.get(cur) || []) {
+        for (const nb of survAdj.get(cur) || []) {
           if (!seen.has(nb)) {
             seen.add(nb);
             stack.push(nb);
@@ -1929,13 +1920,9 @@ function App() {
       }
       return seen;
     };
-    // This person's whole tree BEFORE the delete (includes them).
-    const beforeTree = componentIn(fullAdj, personId);
 
-    // Re-root target after the delete: the surviving neighbour whose component is
-    // largest (parent, spouse, sibling, child break ties). The component it sits
-    // in is the part that stays rendering ("kept"); everything else in this
-    // person's tree falls off.
+    // Re-root on the surviving neighbour whose component is largest, so the view
+    // stays on the main tree instead of a dead-end island.
     const candidates = [];
     const pushCand = (id) => {
       if (id != null && id !== personId && !candidates.includes(id))
@@ -1972,58 +1959,80 @@ function App() {
     if (childRel) pushCand(childRel.childId);
 
     let neighbour = null;
-    let kept = new Set();
+    let renderComponent = new Set();
     if (candidates.length > 0) {
-      const scored = candidates.map((id) => ({
-        id,
-        comp: componentIn(survAdj, id),
-      }));
+      const scored = candidates.map((id) => ({ id, comp: compOf(id) }));
       const best = scored.reduce((a, b) =>
         b.comp.size > a.comp.size ? b : a,
       );
-      neighbour = best.comp.size > 0 ? best.id : null;
-      kept = best.comp;
+      if (best.comp.size > 2) {
+        neighbour = best.id;
+        renderComponent = best.comp;
+      }
     }
-    if (kept.size === 0) {
-      // No usable neighbour (e.g. deleting an isolated person): keep the largest
-      // surviving fragment of this person's tree.
+    if (renderComponent.size === 0) {
       const seen = new Set();
-      beforeTree.forEach((id) => {
-        if (id === personId || seen.has(id)) return;
-        const c = componentIn(survAdj, id);
+      survAdj.forEach((_, id) => {
+        if (seen.has(id)) return;
+        const c = compOf(id);
         c.forEach((x) => seen.add(x));
-        if (c.size > kept.size) kept = c;
+        if (c.size > renderComponent.size) renderComponent = c;
       });
     }
+    const isStranded = (id) => id !== personId && !renderComponent.has(id);
 
-    // Everyone in this person's tree who won't be in the kept part = stranded.
-    const stranded = [...beforeTree].filter(
-      (id) => id !== personId && !kept.has(id),
-    );
-    const deleteIds = [personId, ...stranded];
-    const deletedSet = new Set(deleteIds);
-
-    // --- Confirmation: name EVERYONE that will be permanently deleted. --------
+    // Confirmation: warn about relatives who will be left disconnected (they
+    // SURVIVE in Family Members — they are not deleted).
     const buildDeleteMessage = () => {
-      if (deleteIds.length === 1) return t.deleteConfirm;
-      const names = deleteIds.map(nameOf).filter(Boolean);
+      const spouseIds = treeRels
+        .filter(
+          (r) =>
+            r.type === "partner" &&
+            (r.person1Id === personId || r.person2Id === personId),
+        )
+        .map((r) => (r.person1Id === personId ? r.person2Id : r.person1Id))
+        .filter(isStranded);
+      const childIds = treeRels
+        .filter((r) => r.type === "parent-child" && r.parentId === personId)
+        .map((r) => r.childId)
+        .filter(isStranded);
+      const milkIds = treeRels
+        .filter(
+          (r) =>
+            r.type === "sibling" &&
+            r.isBreastfeeding &&
+            (r.person1Id === personId || r.person2Id === personId),
+        )
+        .map((r) => (r.person1Id === personId ? r.person2Id : r.person1Id))
+        .filter(isStranded);
+
+      const parts = [];
+      if (spouseIds.length > 0)
+        parts.push(
+          `الزوج/الزوجة: ${spouseIds.map(nameOf).filter(Boolean).join("، ")}`,
+        );
+      if (childIds.length > 0) parts.push(`عدد الأبناء: ${childIds.length}`);
+      if (milkIds.length > 0)
+        parts.push(
+          `روابط الرضاعة مع: ${milkIds.map(nameOf).filter(Boolean).join("، ")}`,
+        );
+
+      if (parts.length === 0) return t.deleteConfirm;
       return (
-        `سيتم حذف الأشخاص التالية أسماؤهم نهائياً ` +
-        `(العدد: ${deleteIds.length}):\n` +
-        names.join("، ") +
-        `\n\nهؤلاء مرتبطون بالشجرة من خلال هذا الشخص فقط.` +
+        `حذف هذا الشخص سيؤدي إلى فصل الأشخاص التالين عن الشجرة ` +
+        `(سيبقون في قائمة أفراد العائلة):\n\n` +
+        parts.join("\n") +
         `\n\nهل تريد المتابعة؟`
       );
     };
 
     if (window.confirm(buildDeleteMessage())) {
       try {
-        // Delete this person and everyone stranded by the removal. Each backend
-        // delete also cascades that person's relationship rows.
-        await Promise.all(deleteIds.map((id) => api.people.delete(id)));
+        // Delete ONLY this person.
+        await api.people.delete(personId);
 
         setPeople((prev) => {
-          const updated = prev.filter((p) => !deletedSet.has(p.id));
+          const updated = prev.filter((p) => p.id !== personId);
           if (
             updated.filter((p) => p.treeId === currentTree?.id).length === 0
           ) {
@@ -2034,15 +2043,14 @@ function App() {
         setRelationships((prev) =>
           prev.filter(
             (r) =>
-              !deletedSet.has(r.person1Id) &&
-              !deletedSet.has(r.person2Id) &&
-              !deletedSet.has(r.parentId) &&
-              !deletedSet.has(r.childId),
+              r.person1Id !== personId &&
+              r.person2Id !== personId &&
+              r.parentId !== personId &&
+              r.childId !== personId,
           ),
         );
-        // Re-root on the surviving neighbour so the view stays on the kept tree.
-        setSelectedPerson((prev) => (deletedSet.has(prev) ? neighbour : prev));
-        setHighlightedPerson((prev) => (deletedSet.has(prev) ? null : prev));
+        setSelectedPerson((prev) => (prev === personId ? neighbour : prev));
+        setHighlightedPerson((prev) => (prev === personId ? null : prev));
         setShowActionMenu(false);
       } catch (error) {
         console.error("Failed to delete person:", error);
@@ -2050,6 +2058,7 @@ function App() {
       }
     }
   };
+
 
 
 
