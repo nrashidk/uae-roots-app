@@ -821,15 +821,16 @@ var FamilyTreeLayoutModule;
                         const x1 = ax[0] - xo * (1 + ax.length / 10);
                         const x2 = ax[ax.length - 1] + xo + xo / 10;
                         // Overhead lane for this milk connector. Deliberately NOT
-                        // derived from `uy`: the spouse offset shrinks as the
-                        // partner count grows (uo = 0.1/(yt+1)), which put
-                        // successive milk runs ~2px apart and made them touch.
-                        // Each routed milk bond gets its own lane, a fixed step
-                        // apart in ROW units — row height is fixed, so this
-                        // spacing is stable at any box width.
-                        const MILK_LANE_BASE = 0.5; // above the box, clear of its top edge
-                        const MILK_LANE_STEP = 0.1; // ~9px between lanes
-                        const muy = cy - MILK_LANE_BASE - milkRouted * MILK_LANE_STEP;
+                        // derived from `uy`: the spouse offset (uo = 0.1/(yt+1))
+                        // shrinks as the partner count grows, which put successive
+                        // milk runs ~2px apart and made them touch.
+                        // The step is `lo` — the SAME spacing the engine uses
+                        // between the lines leaving this person — so the overhead
+                        // lanes read with the identical rhythm as the departure
+                        // bundle at any bond count.
+                        const MILK_LANE_BASE = 0.5; // clear of the box top edge
+                        const milkLaneStep = lo > 0 ? lo : 0.075;
+                        const muy = cy - MILK_LANE_BASE - milkRouted * milkLaneStep;
                         addLine(d, fx, ly, x1, ly, "r");
                         addLine(d, x1, ly, x1, muy, "r");
                         addLine(d, x1, muy, x2, muy, "r");
