@@ -36,6 +36,7 @@ import {
   LogOut,
 } from "lucide-react";
 import LandingPage from "./pages/LandingPage.jsx";
+import PublicLayout from "./pages/PublicLayout.jsx";
 import { PrivacyPolicy } from "./pages/PrivacyPolicy.jsx";
 import FamilyTreeLayout from "./lib/family-tree-layout.js";
 import {
@@ -76,6 +77,7 @@ function App() {
   // Public screen shown to signed-out visitors: the landing page first, the
   // login form only once they ask for it. Becomes a route when routing lands.
   const [publicScreen, setPublicScreen] = useState("landing");
+  const [authDialogOpen, setAuthDialogOpen] = useState(false);
   const [authMode, setAuthMode] = useState("login");
   const [emailInput, setEmailInput] = useState("");
   const [passwordInput, setPasswordInput] = useState("");
@@ -271,6 +273,8 @@ function App() {
     newEmail: "البريد الإلك �روني الجديد",
     newPhone: "رقم الهاتف الجديد",
     notSet: "غير محدد",
+    signInTitle: "تسجيل الدخول",
+    signUpTitle: "إنشاء حساب جديد",
     undoDelete: "تراجع عن الحذف",
     nothingToUndo: "لا يوجد عملية حذف للتراجع عنها",
   };
@@ -292,6 +296,8 @@ function App() {
   // Track if an interactive login is in progress (prevents race with session restore)
   const interactiveLoginInProgressRef = useRef(false);
   const [sessionRestoreLoading, setSessionRestoreLoading] = useState(false);
+  // Only show a loader if the wait is long enough to notice.
+  const [loaderVisible, setLoaderVisible] = useState(false);
   const [sessionRestoreError, setSessionRestoreError] = useState(null);
 
   // Cookie-based session restoration (for Phone SMS users who don't have Firebase sessions)
@@ -592,8 +598,37 @@ function App() {
     if (!isAuthenticated) {
       restorationAttemptedRef.current = false;
       clearAuthToken();
+      // Return the public view to its starting state whenever auth flips to
+      // signed-out, regardless of WHICH path got us here (logout button,
+      // account deletion, expired session, failed session restore). Resetting
+      // inside each handler was fragile — one missed path and the sign-in
+      // dialog reappears already-open over the landing page.
+      setAuthDialogOpen(false);
+      setPublicScreen("landing");
+      setEmailInput("");
+      setPasswordInput("");
+      setShowSmsLogin(false);
+      setSmsStep("phone");
+      setPhoneInput("");
+      setSmsCode("");
+      setSmsError("");
     }
   }, [isAuthenticated]);
+
+  // Switching public screens must start at the top. The privacy link sits in the
+  // footer, so the document is already scrolled down when it's clicked.
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [publicScreen]);
+
+  useEffect(() => {
+    if (!authLoading && !sessionRestoreLoading) {
+      setLoaderVisible(false);
+      return;
+    }
+    const t = setTimeout(() => setLoaderVisible(true), 300);
+    return () => clearTimeout(t);
+  }, [authLoading, sessionRestoreLoading]);
 
   // Generate tree layout using the working algorithm
   // Only shows members connected to the root person in the tree visualization
@@ -1215,6 +1250,12 @@ function App() {
       DEBUG && console.log("[handleAuthSuccess] User saved:", savedUser);
       setUserProfile(savedUser);
 
+      // Close the auth dialog now that we're in; leaving it true means it
+      // reappears already-open the moment the user signs out.
+      setAuthDialogOpen(false);
+      setEmailInput("");
+      setPasswordInput("");
+
       DEBUG && console.log("[handleAuthSuccess] Loading tree data...");
       await loadUserTreeData(resolvedUserId);
       DEBUG && console.log("[handleAuthSuccess] Complete!");
@@ -1299,6 +1340,19 @@ function App() {
       setUserProfile(null);
       setCurrentView("auth");
 
+      // Return the public view to its starting state. Without this the auth
+      // dialog is still flagged open from before sign-in and pops straight back
+      // up on logout, and the previous user's email stays in the field.
+      setAuthDialogOpen(false);
+      setPublicScreen("landing");
+      setEmailInput("");
+      setPasswordInput("");
+      setShowSmsLogin(false);
+      setSmsStep("phone");
+      setPhoneInput("");
+      setSmsCode("");
+      setSmsError("");
+
       // Reset restoration flag so it can run again on next login
       restorationAttemptedRef.current = false;
       setSessionRestoreError(null);
@@ -1363,6 +1417,10 @@ function App() {
       setUserProfile(null);
       setCurrentView("auth");
       setShowProfile(false);
+      setAuthDialogOpen(false);
+      setPublicScreen("landing");
+      setEmailInput("");
+      setPasswordInput("");
     } catch (err) {
       console.error("Account delete error:", err);
       setProfileMessage("فشل في حذف الحساب");
@@ -2582,59 +2640,76 @@ function App() {
     }
   };
 
-  if (authLoading) {
+  if (authLoading || sessionRestoreLoading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-purple-400 via-purple-500 to-purple-600 flex items-center justify-center p-4">
-        <div className="bg-white rounded-2xl shadow-xl p-8 w-full max-w-md text-center">
-          <Loader2 className="w-12 h-12 animate-spin mx-auto text-purple-600" />
-          <p className="mt-4 text-gray-600">جاري التحميل...</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (sessionRestoreLoading) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-purple-400 via-purple-500 to-purple-600 flex items-center justify-center p-4">
-        <div className="bg-white rounded-2xl shadow-xl p-8 w-full max-w-md text-center">
-          <Loader2 className="w-12 h-12 animate-spin mx-auto text-purple-600" />
-          <p className="mt-4 text-gray-600">جاري استعادة بيانات العائلة...</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (!isAuthenticated && !userProfile && publicScreen === "landing") {
-    return (
-      <LandingPage
-        onSignIn={() => setPublicScreen("login")}
-        onPrivacy={() => setPublicScreen("privacy")}
-      />
-    );
-  }
-
-  if (!isAuthenticated && !userProfile && publicScreen === "privacy") {
-    return (
-      <div style={{ minHeight: "100vh", background: "#F4EFE3" }}>
-        <div style={{ maxWidth: "1180px", margin: "0 auto", padding: "24px 32px" }}>
-          <Button variant="outline" size="sm" onClick={() => setPublicScreen("landing")}>
-            <Home className="w-4 h-4 ml-2" />
-            {t.back}
-          </Button>
-        </div>
-        <PrivacyPolicy />
+      <div className="auth-shell min-h-screen bg-[#F4EFE3] flex items-center justify-center p-4">
+        {loaderVisible && (
+          <div className="text-center">
+            <Loader2 className="w-10 h-10 animate-spin mx-auto text-[#16233D]" />
+            <p className="mt-4 text-sm text-[#6B6555]">
+              {sessionRestoreLoading
+                ? "جاري استعادة بيانات العائلة..."
+                : "جاري التحميل..."}
+            </p>
+          </div>
+        )}
       </div>
     );
   }
 
   if (!isAuthenticated && !userProfile) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-purple-400 via-purple-500 to-purple-600 flex items-center justify-center p-4">
-        <div className="bg-white rounded-2xl shadow-xl p-8 w-full max-w-md">
-          <h1 className="text-4xl font-bold text-gray-800 mb-8 text-center">
-            {t.welcome}
-          </h1>
+      <>
+        {publicScreen === "privacy" ? (
+          <PublicLayout
+            onHome={() => setPublicScreen("landing")}
+            onClaims={() => {
+              setPublicScreen("landing");
+              // The section only exists once the landing page is mounted.
+              setTimeout(
+                () =>
+                  document
+                    .getElementById("lp-claims")
+                    ?.scrollIntoView({ behavior: "smooth" }),
+                60,
+              );
+            }}
+            onSignIn={() => {
+              setAuthMode("login");
+              setAuthDialogOpen(true);
+            }}
+            onSignUp={() => {
+              setAuthMode("signup");
+              setAuthDialogOpen(true);
+            }}
+            onPrivacy={() => setPublicScreen("privacy")}
+          >
+            <PrivacyPolicy />
+          </PublicLayout>
+        ) : (
+          <LandingPage
+            onSignIn={() => {
+              setAuthMode("login");
+              setAuthDialogOpen(true);
+            }}
+            onSignUp={() => {
+              setAuthMode("signup");
+              setAuthDialogOpen(true);
+            }}
+            onPrivacy={() => setPublicScreen("privacy")}
+          />
+        )}
 
+        {/* Sign in / register happens in a dialog over the landing page rather
+            than on a separate screen: no page switch, and the two entry points
+            differ only by which mode the form opens in. */}
+        <Dialog open={authDialogOpen} onOpenChange={setAuthDialogOpen}>
+          <DialogContent className="auth-shell sm:max-w-md" dir="rtl">
+            <DialogHeader>
+              <DialogTitle className="kufi text-right text-2xl font-medium text-[#16233D]">
+                {authMode === "login" ? t.signInTitle : t.signUpTitle}
+              </DialogTitle>
+            </DialogHeader>
           {authError && (
             <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-4 text-center text-sm">
               {authError}
@@ -2648,7 +2723,7 @@ function App() {
                 value={emailInput}
                 onChange={(e) => setEmailInput(e.target.value)}
                 placeholder="البريد الإلكتروني"
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent text-right"
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#A5813F] focus:border-transparent text-right"
                 dir="rtl"
                 disabled={authProcessing}
               />
@@ -2659,7 +2734,7 @@ function App() {
                 value={passwordInput}
                 onChange={(e) => setPasswordInput(e.target.value)}
                 placeholder="كلمة المرور"
-                className="w-full pl-12 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent text-right"
+                className="w-full pl-12 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#A5813F] focus:border-transparent text-right"
                 dir="rtl"
                 disabled={authProcessing}
               />
@@ -2678,7 +2753,7 @@ function App() {
             <Button
               type="submit"
               disabled={authProcessing || !emailInput || !passwordInput}
-              className="w-full bg-purple-600 hover:bg-purple-700 text-white py-3"
+              className="w-full bg-[#16233D] hover:bg-[#A5813F] text-white py-3 rounded-[3px]"
             >
               {processingMethod === "email" ? (
                 <Loader2 className="w-5 h-5 animate-spin" />
@@ -2696,7 +2771,7 @@ function App() {
               onClick={() =>
                 setAuthMode(authMode === "login" ? "signup" : "login")
               }
-              className="text-purple-600 hover:text-purple-800 text-sm"
+              className="text-[#A5813F] hover:text-[#8A6A2F] text-sm"
             >
               {authMode === "login"
                 ? "ليس لديك حساب؟ إنشاء حساب جديد"
@@ -2717,7 +2792,7 @@ function App() {
             <Button
               onClick={handleGoogleLogin}
               disabled={authProcessing}
-              className="w-full bg-white hover:bg-gray-50 text-gray-700 border border-gray-300 py-3"
+              className="w-full bg-white hover:bg-gray-50 text-gray-700 border border-gray-300 py-3 rounded-[3px]"
             >
               {processingMethod === "google" ? (
                 <Loader2 className="w-5 h-5 animate-spin ml-2" />
@@ -2746,7 +2821,7 @@ function App() {
             <Button
               onClick={handleMicrosoftLogin}
               disabled={authProcessing}
-              className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3"
+              className="w-full bg-white hover:bg-gray-50 text-gray-700 border border-gray-300 py-3 rounded-[3px]"
             >
               {processingMethod === "microsoft" ? (
                 <Loader2 className="w-5 h-5 animate-spin ml-2" />
@@ -2758,13 +2833,14 @@ function App() {
             <Button
               onClick={() => setShowSmsLogin(true)}
               disabled={authProcessing}
-              className="w-full bg-orange-500 hover:bg-orange-600 text-white py-3"
+              className="w-full bg-transparent hover:bg-[#A5813F]/8 text-[#16233D] border border-[#A5813F] py-3 rounded-[3px]"
             >
               <Smartphone className="w-5 h-5 ml-2" />
               {t.uaeMobile}
             </Button>
           </div>
-        </div>
+          </DialogContent>
+        </Dialog>
 
         <Dialog
           open={showSmsLogin}
@@ -2815,7 +2891,7 @@ function App() {
                         }
                       }}
                       placeholder="501234567"
-                      className="flex-1 block w-full rounded-r-md border border-gray-300 px-3 py-2 focus:border-purple-500 focus:ring-purple-500"
+                      className="flex-1 block w-full rounded-r-md border border-gray-300 px-3 py-2 focus:border-[#A5813F] focus:ring-[#A5813F]"
                       maxLength={9}
                     />
                   </div>
@@ -2826,7 +2902,7 @@ function App() {
                 <Button
                   onClick={handleSendSmsCode}
                   disabled={authProcessing || !phoneInput}
-                  className="w-full bg-purple-600 hover:bg-purple-700"
+                  className="w-full bg-[#16233D] hover:bg-[#A5813F] text-white rounded-[3px]"
                 >
                   {processingMethod === "phone" ? (
                     <Loader2 className="w-5 h-5 animate-spin ml-2" />
@@ -2858,7 +2934,7 @@ function App() {
                       }
                     }}
                     placeholder="أدخل الرمز المكون من 6 أرقام"
-                    className="block w-full rounded-md border border-gray-300 px-3 py-2 focus:border-purple-500 focus:ring-purple-500 text-center text-lg tracking-widest"
+                    className="block w-full rounded-md border border-gray-300 px-3 py-2 focus:border-[#A5813F] focus:ring-[#A5813F] text-center text-lg tracking-widest"
                     maxLength={6}
                     dir="ltr"
                   />
@@ -2881,7 +2957,7 @@ function App() {
                   <Button
                     onClick={handleVerifySmsCode}
                     disabled={authProcessing || smsCode.length !== 6}
-                    className="flex-1 bg-purple-600 hover:bg-purple-700"
+                    className="flex-1 bg-[#16233D] hover:bg-[#A5813F] text-white rounded-[3px]"
                   >
                     {processingMethod === "code" ? (
                       <Loader2 className="w-5 h-5 animate-spin ml-2" />
@@ -2892,7 +2968,7 @@ function App() {
                 <button
                   onClick={handleSendSmsCode}
                   disabled={authProcessing}
-                  className="w-full text-sm text-purple-600 hover:text-purple-700 underline"
+                  className="w-full text-sm text-[#A5813F] hover:text-[#8A6A2F] underline"
                 >
                   إعادة إرسال الرمز
                 </button>
@@ -2900,7 +2976,7 @@ function App() {
             )}
           </DialogContent>
         </Dialog>
-      </div>
+      </>
     );
   }
 

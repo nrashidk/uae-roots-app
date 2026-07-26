@@ -50,6 +50,12 @@
   justify-content: space-between;
   padding: 18px 0;
 }
+.lp-brand-btn {
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+}
 .lp-brand {
   display: flex;
   align-items: center;
@@ -377,6 +383,13 @@
   }
   .lp-nav-links button.lp-plain {
     display: none;
+  }
+  .lp-nav-links {
+    gap: 8px;
+  }
+  .lp-nav-links .lp-btn {
+    padding: 8px 14px;
+    font-size: 14px;
   }
   .lp-hero {
     padding: 52px 0 44px;

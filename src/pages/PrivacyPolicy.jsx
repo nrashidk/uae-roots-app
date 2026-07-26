@@ -3,22 +3,22 @@ import { Button } from '@/components/ui/button';
 
 export function PrivacyPolicy() {
   return (
-    <div className="min-h-screen bg-gradient-to-b from-purple-50 to-white" dir="rtl">
+    <div dir="rtl">
       <div className="max-w-4xl mx-auto px-4 py-8">
 
-        <div className="bg-white rounded-2xl shadow-lg p-8 space-y-8">
+        <div className="bg-white rounded-[3px] border border-[#16233D]/12 p-8 space-y-8">
           <div className="text-center border-b pb-6">
-            <div className="inline-flex items-center justify-center h-16 w-16 bg-purple-100 rounded-full mb-4">
-              <Shield className="h-8 w-8 text-purple-600" />
+            <div className="inline-flex items-center justify-center h-16 w-16 bg-[#A5813F]/15 rounded-full mb-4">
+              <Shield className="h-8 w-8 text-[#A5813F]" />
             </div>
-            <h1 className="text-3xl font-bold text-gray-900">سياسة الخصوصية</h1>
+            <h1 className="text-3xl font-medium text-[#16233D]">سياسة الخصوصية</h1>
             <p className="text-gray-500 mt-2">آخر تحديث: يوليو ٢٠٢٦</p>
           </div>
 
           <section className="space-y-4">
             <div className="flex items-center gap-3">
-              <Database className="h-6 w-6 text-purple-600" />
-              <h2 className="text-xl font-semibold">البيانات التي نجمعها</h2>
+              <Database className="h-6 w-6 text-[#A5813F]" />
+              <h2 className="text-xl font-medium text-[#16233D]">البيانات التي نجمعها</h2>
             </div>
             <p className="text-gray-700 leading-relaxed">
               نجمع المعلومات التي تقدمها لنا مباشرة عند استخدام خدمتنا، بما في ذلك:
@@ -32,8 +32,8 @@ export function PrivacyPolicy() {
 
           <section className="space-y-4">
             <div className="flex items-center gap-3">
-              <Lock className="h-6 w-6 text-purple-600" />
-              <h2 className="text-xl font-semibold">كيف نحمي بياناتك</h2>
+              <Lock className="h-6 w-6 text-[#A5813F]" />
+              <h2 className="text-xl font-medium text-[#16233D]">كيف نحمي بياناتك</h2>
             </div>
             <p className="text-gray-700 leading-relaxed">
               نستخدم إجراءات أمنية متقدمة لحماية معلوماتك الشخصية:
@@ -49,8 +49,8 @@ export function PrivacyPolicy() {
 
           <section className="space-y-4">
             <div className="flex items-center gap-3">
-              <Eye className="h-6 w-6 text-purple-600" />
-              <h2 className="text-xl font-semibold">كيف نستخدم بياناتك</h2>
+              <Eye className="h-6 w-6 text-[#A5813F]" />
+              <h2 className="text-xl font-medium text-[#16233D]">كيف نستخدم بياناتك</h2>
             </div>
             <p className="text-gray-700 leading-relaxed">
               نستخدم المعلومات التي نجمعها للأغراض التالية:
@@ -66,8 +66,8 @@ export function PrivacyPolicy() {
 
           <section className="space-y-4">
             <div className="flex items-center gap-3">
-              <UserCheck className="h-6 w-6 text-purple-600" />
-              <h2 className="text-xl font-semibold">حقوقك</h2>
+              <UserCheck className="h-6 w-6 text-[#A5813F]" />
+              <h2 className="text-xl font-medium text-[#16233D]">حقوقك</h2>
             </div>
             <p className="text-gray-700 leading-relaxed">
               لديك الحقوق التالية فيما يتعلق ببياناتك الشخصية:
@@ -82,7 +82,7 @@ export function PrivacyPolicy() {
           </section>
 
           <section className="space-y-4">
-            <h2 className="text-xl font-semibold">مشاركة البيانات مع أطراف ثالثة</h2>
+            <h2 className="text-xl font-medium text-[#16233D]">مشاركة البيانات مع أطراف ثالثة</h2>
             <p className="text-gray-700 leading-relaxed">
               لا نبيع أو نؤجر بياناتك الشخصية لأي طرف ثالث. قد نشارك بياناتك فقط في الحالات التالية:
             </p>
@@ -94,7 +94,7 @@ export function PrivacyPolicy() {
           </section>
 
           <section className="space-y-4">
-            <h2 className="text-xl font-semibold">ملفات تعريف الارتباط</h2>
+            <h2 className="text-xl font-medium text-[#16233D]">ملفات تعريف الارتباط</h2>
             <p className="text-gray-700 leading-relaxed">
               نستخدم ملفات تعريف الارتباط الضرورية لتشغيل التطبيق وتأمين جلسة المستخدم. 
               هذه الملفات ضرورية لعمل التطبيق بشكل صحيح ولا يمكن تعطيلها.
@@ -102,23 +102,23 @@ export function PrivacyPolicy() {
           </section>
 
           <section className="space-y-4">
-            <h2 className="text-xl font-semibold">الاحتفاظ بالبيانات</h2>
+            <h2 className="text-xl font-medium text-[#16233D]">الاحتفاظ بالبيانات</h2>
             <p className="text-gray-700 leading-relaxed">
               نحتفظ ببياناتك طالما أن حسابك نشط. عند حذف حسابك، نحذف جميع بياناتك الشخصية 
               وبيانات شجرة العائلة خلال 30 يومًا، باستثناء ما يلزمنا الاحتفاظ به بموجب القانون.
             </p>
           </section>
 
-          <section className="space-y-4 bg-purple-50 rounded-lg p-6">
+          <section className="space-y-4 bg-[#EDE6D6] rounded-[3px] p-6">
             <div className="flex items-center gap-3">
-              <Mail className="h-6 w-6 text-purple-600" />
-              <h2 className="text-xl font-semibold">تواصل معنا</h2>
+              <Mail className="h-6 w-6 text-[#A5813F]" />
+              <h2 className="text-xl font-medium text-[#16233D]">تواصل معنا</h2>
             </div>
             <p className="text-gray-700 leading-relaxed">
               إذا كانت لديك أي أسئلة حول سياسة الخصوصية هذه أو ممارسات البيانات لدينا، 
               يرجى التواصل معنا عبر:
             </p>
-            <p className="text-purple-600 font-medium">
+            <p className="text-[#A5813F] font-medium">
               support@uaeroots.com
             </p>
           </section>
