@@ -35,7 +35,8 @@ import {
   EyeOff,
   LogOut,
 } from "lucide-react";
-import LandingPage, { LandingNav, LandingFooter } from "./pages/LandingPage.jsx";
+import LandingPage from "./pages/LandingPage.jsx";
+import PublicLayout from "./pages/PublicLayout.jsx";
 import { PrivacyPolicy } from "./pages/PrivacyPolicy.jsx";
 import FamilyTreeLayout from "./lib/family-tree-layout.js";
 import {
@@ -2683,32 +2684,31 @@ function App() {
     return (
       <>
         {publicScreen === "privacy" ? (
-          <div className="lp" style={{ minHeight: "100vh" }}>
-            <LandingNav
-              onHome={() => setPublicScreen("landing")}
-              onClaims={() => {
-                setPublicScreen("landing");
-                // The section only exists once the landing page is mounted.
-                setTimeout(
-                  () =>
-                    document
-                      .getElementById("lp-claims")
-                      ?.scrollIntoView({ behavior: "smooth" }),
-                  60,
-                );
-              }}
-              onSignIn={() => {
-                setAuthMode("login");
-                setAuthDialogOpen(true);
-              }}
-              onSignUp={() => {
-                setAuthMode("signup");
-                setAuthDialogOpen(true);
-              }}
-            />
+          <PublicLayout
+            onHome={() => setPublicScreen("landing")}
+            onClaims={() => {
+              setPublicScreen("landing");
+              // The section only exists once the landing page is mounted.
+              setTimeout(
+                () =>
+                  document
+                    .getElementById("lp-claims")
+                    ?.scrollIntoView({ behavior: "smooth" }),
+                60,
+              );
+            }}
+            onSignIn={() => {
+              setAuthMode("login");
+              setAuthDialogOpen(true);
+            }}
+            onSignUp={() => {
+              setAuthMode("signup");
+              setAuthDialogOpen(true);
+            }}
+            onPrivacy={() => setPublicScreen("privacy")}
+          >
             <PrivacyPolicy />
-            <LandingFooter onPrivacy={() => setPublicScreen("privacy")} />
-          </div>
+          </PublicLayout>
         ) : (
           <LandingPage
             onSignIn={() => {
