@@ -637,11 +637,12 @@ function App() {
     }
   }, [isAuthenticated]);
 
-  // Switching public screens must start at the top. The privacy link sits in the
-  // footer, so the document is already scrolled down when it's clicked.
+  // Every navigation starts at the top. The privacy link sits in the footer, so
+  // the document is already scrolled down when it's followed. Keyed to the path
+  // rather than to view state, so it covers back/forward and pasted links too.
   useEffect(() => {
     window.scrollTo(0, 0);
-  }, [publicScreen]);
+  }, [location.pathname]);
 
   // URL -> state. The address bar is the source of truth on load, on back/forward,
   // and on a pasted link.
@@ -678,6 +679,8 @@ function App() {
   useEffect(() => {
     if (!isAuthenticated && !userProfile) return;
     if (currentView === "auth") return;
+    // /privacy is reachable signed in or out; don't drag the user off it.
+    if (location.pathname === "/privacy") return;
 
     const want =
       currentView === "tree-builder"
@@ -2763,36 +2766,32 @@ function App() {
     );
   }
 
+  if (location.pathname === "/privacy") {
+    const signedIn = isAuthenticated || !!userProfile;
+    return (
+      <PublicLayout
+        signedIn={signedIn}
+        onBackToApp={() => navigate("/tree")}
+        onHome={() => navigate("/")}
+        onClaims={() => navigate("/")}
+        onSignIn={() => {
+          setAuthMode("login");
+          setAuthDialogOpen(true);
+        }}
+        onSignUp={() => {
+          setAuthMode("signup");
+          setAuthDialogOpen(true);
+        }}
+        onPrivacy={() => navigate("/privacy")}
+      >
+        <PrivacyPolicy />
+      </PublicLayout>
+    );
+  }
+
   if (!isAuthenticated && !userProfile) {
     return (
       <>
-        {publicScreen === "privacy" ? (
-          <PublicLayout
-            onHome={() => navigate("/")}
-            onClaims={() => {
-              setPublicScreen("landing");
-              // The section only exists once the landing page is mounted.
-              setTimeout(
-                () =>
-                  document
-                    .getElementById("lp-claims")
-                    ?.scrollIntoView({ behavior: "smooth" }),
-                60,
-              );
-            }}
-            onSignIn={() => {
-              setAuthMode("login");
-              setAuthDialogOpen(true);
-            }}
-            onSignUp={() => {
-              setAuthMode("signup");
-              setAuthDialogOpen(true);
-            }}
-            onPrivacy={() => navigate("/privacy")}
-          >
-            <PrivacyPolicy />
-          </PublicLayout>
-        ) : (
           <LandingPage
             onSignIn={() => {
               setAuthMode("login");
@@ -2804,7 +2803,6 @@ function App() {
             }}
             onPrivacy={() => navigate("/privacy")}
           />
-        )}
 
         {/* Sign in / register happens in a dialog over the landing page rather
             than on a separate screen: no page switch, and the two entry points
