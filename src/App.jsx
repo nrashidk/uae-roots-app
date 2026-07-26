@@ -597,6 +597,20 @@ function App() {
     if (!isAuthenticated) {
       restorationAttemptedRef.current = false;
       clearAuthToken();
+      // Return the public view to its starting state whenever auth flips to
+      // signed-out, regardless of WHICH path got us here (logout button,
+      // account deletion, expired session, failed session restore). Resetting
+      // inside each handler was fragile — one missed path and the sign-in
+      // dialog reappears already-open over the landing page.
+      setAuthDialogOpen(false);
+      setPublicScreen("landing");
+      setEmailInput("");
+      setPasswordInput("");
+      setShowSmsLogin(false);
+      setSmsStep("phone");
+      setPhoneInput("");
+      setSmsCode("");
+      setSmsError("");
     }
   }, [isAuthenticated]);
 
