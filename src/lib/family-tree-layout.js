@@ -1,4 +1,8 @@
 // Store the factory result for ES6 export
+
+// Per-render tracing. These logs fire for every person on every redraw,
+// so they are gated rather than removed — flip to true when debugging layout.
+const DEBUG = false;
 var FamilyTreeLayoutModule;
 
 (function (root, factory) {
@@ -1217,7 +1221,7 @@ var FamilyTreeLayoutModule;
         const p = f[i];
         const d = createTreeData();
 
-        console.log(
+        DEBUG && console.log(
             "=== FamilyTreeLayout: buildDescendantTree called (v4) ===",
             {
                 personId: i,
@@ -1245,7 +1249,7 @@ var FamilyTreeLayoutModule;
         const sx = sr ? g : -g;
 
         if (h > 0) {
-            console.log("FamilyTreeLayout: Processing person with depth > 0", {
+            DEBUG && console.log("FamilyTreeLayout: Processing person with depth > 0", {
                 personId: i,
                 depth: h,
                 hasSpouse: !!p.es,
@@ -1326,7 +1330,7 @@ var FamilyTreeLayoutModule;
 
             // Process spouse
             if (p.es) {
-                console.log("FamilyTreeLayout: Processing spouse (v3)", {
+                DEBUG && console.log("FamilyTreeLayout: Processing spouse (v3)", {
                     personId: i,
                     spouseId: p.es,
                     alreadyProcessed: !!dp.p[i + "-" + p.es],
@@ -1334,7 +1338,7 @@ var FamilyTreeLayoutModule;
                     spouseData: f[p.es],
                 });
                 if (dp.p[i + "-" + p.es]) {
-                    console.log(
+                    DEBUG && console.log(
                         "FamilyTreeLayout: Spouse already processed, adding line only",
                     );
                     addLine(
@@ -1346,7 +1350,7 @@ var FamilyTreeLayoutModule;
                         isCurrentPartnership(f, i, p.es) ? "s" : "p",
                     );
                 } else {
-                    console.log(
+                    DEBUG && console.log(
                         "FamilyTreeLayout: Processing spouse for first time",
                     );
                     dp.p[i + "-" + p.es] = true;
@@ -1357,7 +1361,7 @@ var FamilyTreeLayoutModule;
                         (childId) => !childrenOfSpouse.includes(childId),
                     );
 
-                    console.log("FamilyTreeLayout: Partner children (v3)", {
+                    DEBUG && console.log("FamilyTreeLayout: Partner children (v3)", {
                         personId: i,
                         spouseId: p.es,
                         partnerChildren: tc.length,
@@ -1397,7 +1401,7 @@ var FamilyTreeLayoutModule;
                         personChildPositions[i] = cx;
                     }
 
-                    console.log(
+                    DEBUG && console.log(
                         "FamilyTreeLayout: About to add spouse entity (v3)",
                         {
                             personId: i,
@@ -1419,7 +1423,7 @@ var FamilyTreeLayoutModule;
                     addPersonBox(d, f, p.es, i, sx, 0, true, null, false);
                     personChildPositions[""] = sx;
 
-                    console.log("FamilyTreeLayout: Spouse entity added (v3)", {
+                    DEBUG && console.log("FamilyTreeLayout: Spouse entity added (v3)", {
                         personId: i,
                         spouseId: p.es,
                         entitiesAfterAdd: Object.keys(d.e).length,
@@ -1638,30 +1642,6 @@ var FamilyTreeLayoutModule;
      * @param {number} x - X position
      * @param {number} y - Y position
      */
-    function addAloneChildrenStub(d, f, i, x, y) {
-        const ac = getAloneChildren(f, i);
-        if (ac.length) {
-            let sb = false;
-            let sg = false;
-            for (let j = 0; j < ac.length; j++) {
-                if (isNonBiological(f[ac[j]], i)) {
-                    sg = true;
-                } else {
-                    sb = true;
-                }
-            }
-            // 0.425 matches the UPWARD "parents exist but aren't drawn" stub
-            // (y - 0.425) so the marks above and below a box are the same
-            // length. The box covers +/-0.3, so each shows ~11px.
-            if (sb) {
-                addLine(d, x, y, x, y + 0.425, "b");
-            }
-            if (sg) {
-                addLine(d, x, y, x, y + 0.425, "c");
-            }
-        }
-    }
-
     /**
      * Build parent siblings (aunts/uncles)
      */
@@ -1921,7 +1901,7 @@ var FamilyTreeLayoutModule;
      * Main tree generation function (Build Full Tree)
      */
     function buildFullTree(f, i, m, ch, ph, oh, fl, pg) {
-        console.log("=== buildFullTree called (v4) ===", {
+        DEBUG && console.log("=== buildFullTree called (v4) ===", {
             personId: i,
             personName: f[i]?.p,
             childDepth: ch,
@@ -1931,13 +1911,13 @@ var FamilyTreeLayoutModule;
 
         const hi = JSON.stringify([i, m, ch, ph, oh, fl, pg, cacheDataSig]);
         if (cacheKey === hi) {
-            console.log("buildFullTree: Using cached tree");
+            DEBUG && console.log("buildFullTree: Using cached tree");
             return cacheTree;
         }
         const p = f[i];
         const hc = getHiddenCenter(f, i);
 
-        console.log("buildFullTree: Hidden center check", {
+        DEBUG && console.log("buildFullTree: Hidden center check", {
             personId: i,
             hasHiddenCenter: !!hc,
             hiddenCenterId: hc,
@@ -1945,13 +1925,13 @@ var FamilyTreeLayoutModule;
 
         let d;
         if (ch && hc && !getHiddenCenter(f, hc)) {
-            console.log("buildFullTree: Using hidden center path");
+            DEBUG && console.log("buildFullTree: Using hidden center path");
             d = createTreeData();
             const od = buildFullTree(f, hc, m, ch, ph, oh, fl, pg);
             mergeTreeData(d, od, -od.e[i].x, -od.e[i].y);
             d.e[hc].k = false;
         } else {
-            console.log("buildFullTree: Using buildDescendantTree path");
+            DEBUG && console.log("buildFullTree: Using buildDescendantTree path");
             const dp = { a: {}, p: {}, c: {} };
             d = buildDescendantTree(f, i, ch, fl, pg, dp);
             if (ph > 0) {
@@ -1959,7 +1939,7 @@ var FamilyTreeLayoutModule;
                 const gs = [isParentSetNonBio(p, 1)];
                 const ax = [0];
                 const bs = getSiblings(f, i, 1);
-                console.log("buildFullTree: Siblings check", {
+                DEBUG && console.log("buildFullTree: Siblings check", {
                     personId: i,
                     siblingDepth: oh,
                     siblingsCount: bs.length,
@@ -1987,7 +1967,7 @@ var FamilyTreeLayoutModule;
                         ax[ax.length] = aa.ap[bs[j]];
                     }
                 }
-                console.log("buildFullTree: Parent render check", {
+                DEBUG && console.log("buildFullTree: Parent render check", {
                     personId: i,
                     parentDepth: ph,
                     hasParents: !!(p.m1 || p.f1),
@@ -2154,13 +2134,13 @@ var FamilyTreeLayoutModule;
                         );
                     }
                 } else {
-                    console.log(
+                    DEBUG && console.log(
                         "buildFullTree: No parents found for current person; skipping parent rendering",
                         { personId: i },
                     );
                 }
             } else {
-                console.log(
+                DEBUG && console.log(
                     "buildFullTree: parentDepth <= 0; skipping parent rendering section",
                     { personId: i, parentDepth: ph },
                 );
@@ -2239,16 +2219,16 @@ var FamilyTreeLayoutModule;
      * });
      *
      * // Access person positions
-     * console.log(layout.e['p1']); // { p: {...}, x: 0, y: 0, k: true }
+     * DEBUG && console.log(layout.e['p1']); // { p: {...}, x: 0, y: 0, k: true }
      *
      * // Access connecting lines
      * layout.n.forEach(line => {
-     *   console.log(`Line from (${line.x1}, ${line.y1}) to (${line.x2}, ${line.y2})`);
+     *   DEBUG && console.log(`Line from (${line.x1}, ${line.y1}) to (${line.x2}, ${line.y2})`);
      * });
 
      */
     function generateLayout(familyData, rootPersonId, options) {
-        console.log("=== FamilyTreeLayout.generateLayout CALLED (v2) ===", {
+        DEBUG && console.log("=== FamilyTreeLayout.generateLayout CALLED (v2) ===", {
             rootPersonId,
             peopleCount: Object.keys(familyData).length,
             people: Object.keys(familyData).map((id) => ({
@@ -2302,7 +2282,7 @@ var FamilyTreeLayoutModule;
         const displayOptions = options.displayOptions || {};
         const markedPersonId = options.markedPersonId || null;
 
-        console.log("FamilyTreeLayout: Calling buildFullTree", {
+        DEBUG && console.log("FamilyTreeLayout: Calling buildFullTree", {
             rootPersonId,
             childDepth,
             parentDepth,
@@ -2311,7 +2291,7 @@ var FamilyTreeLayoutModule;
 
         // Update cache signature for current family data
         cacheDataSig = computeDataSig(familyData);
-        console.log("FamilyTreeLayout: Data signature for cache", cacheDataSig);
+        DEBUG && console.log("FamilyTreeLayout: Data signature for cache", cacheDataSig);
 
         // Build the full tree using the main algorithm
         const treeData = buildFullTree(
@@ -2325,7 +2305,7 @@ var FamilyTreeLayoutModule;
             displayOptions,
         );
 
-        console.log("FamilyTreeLayout: buildFullTree returned", {
+        DEBUG && console.log("FamilyTreeLayout: buildFullTree returned", {
             entitiesCount: Object.keys(treeData.e || {}).length,
             linesCount: treeData.n?.length || 0,
         });
