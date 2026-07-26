@@ -45,6 +45,7 @@ import {
   addPersonWithRelationship,
 } from "./lib/dataTransform.js";
 import TreeCanvas from "./components/FamilyTree/TreeCanvas.jsx";
+import { useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "./hooks/useAuth";
 import { api, setAuthToken, clearAuthToken, getAuthToken } from "./lib/api.js";
 
@@ -54,7 +55,27 @@ import { api, setAuthToken, clearAuthToken, getAuthToken } from "./lib/api.js";
 // fire on real failures and carry no form data.
 const DEBUG = false;
 
+// URL <-> view mapping. The app still drives itself through `currentView`;
+// routing is layered on top so every screen has an address, the back button
+// works, and a reload lands where you were. Views keep their internal names so
+// nothing downstream had to change.
+const VIEW_BY_PATH = {
+  "/dashboard": "dashboard",
+  "/tree": "tree-builder",
+  "/members": "family-members",
+  "/relationships": "relationships-detail",
+};
+const PATH_BY_VIEW = {
+  dashboard: "/dashboard",
+  "tree-builder": "/tree",
+  "family-members": "/members",
+  "relationships-detail": "/relationships",
+};
+const PUBLIC_PATHS = ["/", "/privacy"];
+
 function App() {
+  const navigate = useNavigate();
+  const location = useLocation();
   const CARD = { w: 140, h: 90 };
   const REL = {
     PARTNER: "partner",
@@ -605,6 +626,7 @@ function App() {
       // dialog reappears already-open over the landing page.
       setAuthDialogOpen(false);
       setPublicScreen("landing");
+      navigate("/", { replace: true });
       setEmailInput("");
       setPasswordInput("");
       setShowSmsLogin(false);
@@ -620,6 +642,90 @@ function App() {
   useEffect(() => {
     window.scrollTo(0, 0);
   }, [publicScreen]);
+
+  // URL -> state. The address bar is the source of truth on load, on back/forward,
+  // and on a pasted link.
+  useEffect(() => {
+    const path = location.pathname;
+
+    if (path === "/privacy") {
+      setPublicScreen("privacy");
+      return;
+    }
+    if (path === "/") {
+      setPublicScreen("landing");
+      return;
+    }
+
+    // /tree/:personId roots the tree on that person, so a branch view survives a
+    // reload and can be shared.
+    const rooted = path.match(/^\/tree\/(\d+)$/);
+    if (rooted) {
+      const id = Number(rooted[1]);
+      setCurrentView("tree-builder");
+      setSelectedPerson((prev) => (prev === id ? prev : id));
+      setHighlightedPerson((prev) => (prev === id ? prev : id));
+      return;
+    }
+
+    const view = VIEW_BY_PATH[path];
+    if (view) setCurrentView(view);
+  }, [location.pathname]);
+
+  // state -> URL. Only once signed in; the public screens are driven the other
+  // way. Re-rooting uses `replace` because clicking through ten relatives
+  // shouldn't leave ten entries in the back button.
+  useEffect(() => {
+    if (!isAuthenticated && !userProfile) return;
+    if (currentView === "auth") return;
+
+    const want =
+      currentView === "tree-builder"
+        ? selectedPerson
+          ? `/tree/${selectedPerson}`
+          : "/tree"
+        : PATH_BY_VIEW[currentView];
+    if (!want || location.pathname === want) return;
+
+    const rerooting =
+      currentView === "tree-builder" && location.pathname.startsWith("/tree");
+    navigate(want, { replace: rerooting });
+  }, [currentView, selectedPerson, isAuthenticated, userProfile]);
+
+  // Guards. Signed-out visitors can only see the public paths; signed-in users
+  // don't need the marketing page, and land on their tree — which shows the
+  // "start your tree" prompt when it's empty, so first-time users get the right
+  // screen without a separate route.
+  useEffect(() => {
+    if (authLoading || sessionRestoreLoading) return;
+    const signedIn = isAuthenticated || !!userProfile;
+    const path = location.pathname;
+    const isPublic = PUBLIC_PATHS.includes(path);
+
+    if (!signedIn && !isPublic) {
+      navigate("/", { replace: true });
+      return;
+    }
+    if (signedIn && path === "/") {
+      navigate("/tree", { replace: true });
+      return;
+    }
+    // Unknown path for a signed-in user -> their tree.
+    if (
+      signedIn &&
+      !isPublic &&
+      !VIEW_BY_PATH[path] &&
+      !/^\/tree\/\d+$/.test(path)
+    ) {
+      navigate("/tree", { replace: true });
+    }
+  }, [
+    authLoading,
+    sessionRestoreLoading,
+    isAuthenticated,
+    userProfile,
+    location.pathname,
+  ]);
 
   useEffect(() => {
     if (!authLoading && !sessionRestoreLoading) {
@@ -2662,7 +2768,7 @@ function App() {
       <>
         {publicScreen === "privacy" ? (
           <PublicLayout
-            onHome={() => setPublicScreen("landing")}
+            onHome={() => navigate("/")}
             onClaims={() => {
               setPublicScreen("landing");
               // The section only exists once the landing page is mounted.
@@ -2682,7 +2788,7 @@ function App() {
               setAuthMode("signup");
               setAuthDialogOpen(true);
             }}
-            onPrivacy={() => setPublicScreen("privacy")}
+            onPrivacy={() => navigate("/privacy")}
           >
             <PrivacyPolicy />
           </PublicLayout>
@@ -2696,7 +2802,7 @@ function App() {
               setAuthMode("signup");
               setAuthDialogOpen(true);
             }}
-            onPrivacy={() => setPublicScreen("privacy")}
+            onPrivacy={() => navigate("/privacy")}
           />
         )}
 
