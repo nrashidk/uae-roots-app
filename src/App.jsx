@@ -45,6 +45,12 @@ import TreeCanvas from "./components/FamilyTree/TreeCanvas.jsx";
 import { useAuth } from "./hooks/useAuth";
 import { api, setAuthToken, clearAuthToken, getAuthToken } from "./lib/api.js";
 
+// Verbose tracing. Several of these print whole person/user objects — names,
+// phone, email — so they are OFF in production and gated rather than deleted.
+// Flip to true when debugging. console.error/warn are left alone: they only
+// fire on real failures and carry no form data.
+const DEBUG = false;
+
 function App() {
   const CARD = { w: 140, h: 90 };
   const REL = {
@@ -289,31 +295,31 @@ function App() {
     const restoreFromCookie = async () => {
       // Skip if Firebase says authenticated (Firebase-based restoration will handle it)
       if (isAuthenticated) {
-        console.log("[Cookie Restore] Skipping - Firebase session exists");
+        DEBUG && console.log("[Cookie Restore] Skipping - Firebase session exists");
         return;
       }
 
       // Wait for Firebase auth to finish loading first
       if (authLoading) {
-        console.log("[Cookie Restore] Waiting for Firebase auth to finish...");
+        DEBUG && console.log("[Cookie Restore] Waiting for Firebase auth to finish...");
         return;
       }
 
       // Skip if tree already loaded
       if (currentTree) {
-        console.log("[Cookie Restore] Skipping - tree already loaded");
+        DEBUG && console.log("[Cookie Restore] Skipping - tree already loaded");
         return;
       }
 
       // Skip if not on auth view (user navigated elsewhere)
       if (currentView !== "auth") {
-        console.log("[Cookie Restore] Skipping - not on auth view");
+        DEBUG && console.log("[Cookie Restore] Skipping - not on auth view");
         return;
       }
 
       // Skip if an interactive login is in progress
       if (interactiveLoginInProgressRef.current) {
-        console.log(
+        DEBUG && console.log(
           "[Cookie Restore] Skipping - interactive login in progress",
         );
         return;
@@ -321,11 +327,11 @@ function App() {
 
       // Prevent multiple restoration attempts
       if (restorationAttemptedRef.current) {
-        console.log("[Cookie Restore] Already attempted");
+        DEBUG && console.log("[Cookie Restore] Already attempted");
         return;
       }
 
-      console.log(
+      DEBUG && console.log(
         "[Cookie Restore] Starting cookie-based restoration (non-Firebase user)...",
       );
       restorationAttemptedRef.current = true;
@@ -335,10 +341,10 @@ function App() {
       try {
         // Check if backend cookie is still valid
         const backendAuth = await api.auth.check();
-        console.log("[Cookie Restore] Backend auth check:", backendAuth);
+        DEBUG && console.log("[Cookie Restore] Backend auth check:", backendAuth);
 
         if (!backendAuth?.authenticated || !backendAuth?.userId) {
-          console.log("[Cookie Restore] No valid backend session found");
+          DEBUG && console.log("[Cookie Restore] No valid backend session found");
           setSessionRestoreLoading(false);
           // Keep restorationAttemptedRef = true to prevent infinite loop
           // It will be reset on logout or when user successfully logs in
@@ -346,7 +352,7 @@ function App() {
         }
 
         const resolvedUserId = backendAuth.userId;
-        console.log(
+        DEBUG && console.log(
           "[Cookie Restore] Found valid session for userId:",
           resolvedUserId,
         );
@@ -357,10 +363,10 @@ function App() {
         // Load user profile
         try {
           const savedUser = await api.users.get(resolvedUserId);
-          console.log("[Cookie Restore] User profile loaded:", savedUser?.id);
+          DEBUG && console.log("[Cookie Restore] User profile loaded:", savedUser?.id);
           setUserProfile(savedUser);
         } catch (userError) {
-          console.log(
+          DEBUG && console.log(
             "[Cookie Restore] Could not load user profile:",
             userError.message,
           );
@@ -370,7 +376,7 @@ function App() {
         // Load user's trees using the consolidated helper
         await loadUserTreeData(resolvedUserId);
 
-        console.log(
+        DEBUG && console.log(
           "[Cookie Restore] Session restored successfully from cookie!",
         );
         setSessionRestoreLoading(false);
@@ -410,7 +416,7 @@ function App() {
       restorationAttemptedRef.current = true;
       setSessionRestoreLoading(true);
       setSessionRestoreError(null);
-      console.log(
+      DEBUG && console.log(
         "[Session Restore] Starting restoration for user:",
         user.uid || user.phoneNumber,
       );
@@ -424,9 +430,9 @@ function App() {
         let backendAuth = null;
         try {
           backendAuth = await api.auth.check();
-          console.log("[Session Restore] Backend auth check:", backendAuth);
+          DEBUG && console.log("[Session Restore] Backend auth check:", backendAuth);
         } catch (e) {
-          console.log(
+          DEBUG && console.log(
             "[Session Restore] Backend auth check failed:",
             e.message,
           );
@@ -435,14 +441,14 @@ function App() {
         // STEP 2: If backend cookie is valid, use that userId
         if (backendAuth?.authenticated && backendAuth?.userId) {
           resolvedUserId = backendAuth.userId;
-          console.log(
+          DEBUG && console.log(
             "[Session Restore] Using backend userId:",
             resolvedUserId,
           );
           setAuthToken(null, resolvedUserId);
         } else {
           // STEP 3: Backend cookie expired/missing - need to re-authenticate
-          console.log(
+          DEBUG && console.log(
             "[Session Restore] Backend cookie invalid, re-authenticating...",
           );
 
@@ -450,7 +456,7 @@ function App() {
           const cachedAuth = getAuthToken();
           if (cachedAuth?.resolvedUserId) {
             resolvedUserId = cachedAuth.resolvedUserId;
-            console.log(
+            DEBUG && console.log(
               "[Session Restore] Using cached userId:",
               resolvedUserId,
             );
@@ -461,7 +467,7 @@ function App() {
           try {
             if (user.getIdToken) {
               firebaseIdToken = await user.getIdToken(true); // force refresh = true
-              console.log("[Session Restore] Got fresh Firebase ID token");
+              DEBUG && console.log("[Session Restore] Got fresh Firebase ID token");
             }
           } catch (tokenError) {
             console.error(
@@ -488,7 +494,7 @@ function App() {
               if (tokenResponse.userId) {
                 resolvedUserId = tokenResponse.userId;
               }
-              console.log(
+              DEBUG && console.log(
                 "[Session Restore] Got new backend token, userId:",
                 resolvedUserId,
               );
@@ -516,16 +522,16 @@ function App() {
           phoneNumber: user.phoneNumber || null,
           provider: provider,
         });
-        console.log("[Session Restore] User record updated:", savedUser);
+        DEBUG && console.log("[Session Restore] User record updated:", savedUser);
         setUserProfile(savedUser);
 
         // STEP 5: Load user's trees using the RESOLVED userId (inline to avoid hoisting issues)
-        console.log(
+        DEBUG && console.log(
           "[Session Restore] Fetching trees for userId:",
           resolvedUserId,
         );
         const userTrees = await api.trees.getAll(resolvedUserId);
-        console.log("[Session Restore] Found trees:", userTrees.length);
+        DEBUG && console.log("[Session Restore] Found trees:", userTrees.length);
 
         if (userTrees.length > 0) {
           setCurrentTree(userTrees[0]);
@@ -533,7 +539,7 @@ function App() {
           const treeRelData = await api.relationships.getAll(userTrees[0].id);
           setPeople(treePeopleData);
           setRelationships(treeRelData);
-          console.log(
+          DEBUG && console.log(
             "[Session Restore] Loaded tree:",
             userTrees[0].name,
             "with",
@@ -541,7 +547,7 @@ function App() {
             "people",
           );
         } else {
-          console.log(
+          DEBUG && console.log(
             "[Session Restore] No trees found, creating default tree",
           );
           const newTree = await api.trees.create({
@@ -555,7 +561,7 @@ function App() {
         }
 
         setCurrentView("tree-builder");
-        console.log("[Session Restore] Session restored successfully");
+        DEBUG && console.log("[Session Restore] Session restored successfully");
         setSessionRestoreLoading(false);
       } catch (error) {
         console.error("[Session Restore] Failed to restore session:", error);
@@ -1120,9 +1126,9 @@ function App() {
 
   // Reusable helper to load user's trees and navigate to tree-builder
   const loadUserTreeData = async (resolvedUserId) => {
-    console.log("[loadUserTreeData] Loading trees for userId:", resolvedUserId);
+    DEBUG && console.log("[loadUserTreeData] Loading trees for userId:", resolvedUserId);
     const userTrees = await api.trees.getAll(resolvedUserId);
-    console.log("[loadUserTreeData] Found trees:", userTrees.length);
+    DEBUG && console.log("[loadUserTreeData] Found trees:", userTrees.length);
 
     if (userTrees.length > 0) {
       setCurrentTree(userTrees[0]);
@@ -1130,7 +1136,7 @@ function App() {
       const treeRelData = await api.relationships.getAll(userTrees[0].id);
       setPeople(treePeopleData);
       setRelationships(treeRelData);
-      console.log(
+      DEBUG && console.log(
         "[loadUserTreeData] Loaded tree:",
         userTrees[0].name,
         "with",
@@ -1138,7 +1144,7 @@ function App() {
         "people",
       );
     } else {
-      console.log("[loadUserTreeData] No trees found, creating default tree");
+      DEBUG && console.log("[loadUserTreeData] No trees found, creating default tree");
       const newTree = await api.trees.create({
         name: "شجرة عائلتي",
         description: "شجرة العائلة الأولى",
@@ -1155,7 +1161,7 @@ function App() {
   const handleAuthSuccess = async (phoneUser = null, authToken = null) => {
     try {
       const currentUser = phoneUser || user;
-      console.log("handleAuthSuccess called with user:", currentUser);
+      DEBUG && console.log("handleAuthSuccess called with user:", currentUser);
       if (!currentUser) {
         console.error("No user found after auth success");
         return;
@@ -1163,7 +1169,7 @@ function App() {
 
       const userId =
         currentUser.uid || currentUser.phoneNumber || currentUser.id;
-      console.log("Creating/updating user with ID:", userId);
+      DEBUG && console.log("Creating/updating user with ID:", userId);
       const provider =
         currentUser.providerData?.[0]?.providerId ||
         (currentUser.phoneNumber ? "phone" : "email");
@@ -1187,13 +1193,13 @@ function App() {
         );
         if (tokenResponse.userId) {
           resolvedUserId = tokenResponse.userId;
-          console.log("Resolved to linked account:", resolvedUserId);
+          DEBUG && console.log("Resolved to linked account:", resolvedUserId);
         }
         // Store token with resolved userId
         setAuthToken(tokenResponse.token, resolvedUserId);
       }
 
-      console.log("[handleAuthSuccess] Calling createOrUpdate with:", { id: resolvedUserId, provider });
+      DEBUG && console.log("[handleAuthSuccess] Calling createOrUpdate with:", { id: resolvedUserId, provider });
       const savedUser = await api.users.createOrUpdate({
         id: resolvedUserId,
         email: currentUser.email || null,
@@ -1201,12 +1207,12 @@ function App() {
         phoneNumber: currentUser.phoneNumber || null,
         provider: provider,
       });
-      console.log("[handleAuthSuccess] User saved:", savedUser);
+      DEBUG && console.log("[handleAuthSuccess] User saved:", savedUser);
       setUserProfile(savedUser);
 
-      console.log("[handleAuthSuccess] Loading tree data...");
+      DEBUG && console.log("[handleAuthSuccess] Loading tree data...");
       await loadUserTreeData(resolvedUserId);
-      console.log("[handleAuthSuccess] Complete!");
+      DEBUG && console.log("[handleAuthSuccess] Complete!");
     } catch (err) {
       console.error("[handleAuthSuccess] Error:", err);
       console.error("[handleAuthSuccess] Error stack:", err.stack);
@@ -1607,11 +1613,11 @@ function App() {
 
     try {
       // Create person via API
-      console.log("=== ADDING PERSON ===");
-      console.log("Person data:", personData);
-      console.log("Relationship type:", relationshipType);
-      console.log("Selected person:", selectedPerson);
-      console.log("Tree ID:", currentTree?.id);
+      DEBUG && console.log("=== ADDING PERSON ===");
+      DEBUG && console.log("Person data:", personData);
+      DEBUG && console.log("Relationship type:", relationshipType);
+      DEBUG && console.log("Selected person:", selectedPerson);
+      DEBUG && console.log("Tree ID:", currentTree?.id);
 
       // Compute a far-left birthOrder for a new child BEFORE creating it,
       // so we can set it in the create call (no mid-flow await that would
@@ -1657,7 +1663,7 @@ function App() {
         ...(childBirthOrder != null ? { birthOrder: childBirthOrder } : {}),
       });
 
-      console.log("New person created:", newPerson);
+      DEBUG && console.log("New person created:", newPerson);
 
       // If there's a relationship, create it
       if (relationshipType && selectedPerson) {
@@ -4147,7 +4153,7 @@ function PersonForm({
       alert("يجب أن يكون رقم الهاتف 10 أرقام ويبدأ بصفر (مثال: 0503000223)");
       return;
     }
-    console.log("Form data being submitted:", formData);
+    DEBUG && console.log("Form data being submitted:", formData);
     onSave(formData);
   };
 
