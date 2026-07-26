@@ -1757,6 +1757,36 @@ function App() {
     }
   };
 
+  // A marriage occupies a slot only while it is BOTH current and the spouse is
+  // alive. A divorced spouse frees the slot: a man who divorces one of four
+  // wives may marry again, and a divorced woman may remarry — exactly as
+  // widowhood already frees her. Until `status` existed the app could only see
+  // death, so a divorce left the slot occupied forever, and reviving a dead
+  // husband silently revived the marriage.
+  // One helper, used everywhere the limit is checked — it was previously
+  // computed in three places with three slightly different implementations.
+  const countActiveSpouses = (personId) =>
+    relationships
+      .filter(
+        (r) =>
+          r.treeId === currentTree?.id &&
+          r.type === "partner" &&
+          r.status !== "divorced" &&
+          (r.person1Id === personId || r.person2Id === personId),
+      )
+      .reduce((count, r) => {
+        const sid = r.person1Id === personId ? r.person2Id : r.person1Id;
+        const sp = people.find((pp) => pp.id === sid);
+        return sp && sp.isLiving !== false ? count + 1 : count;
+      }, 0);
+
+  const spouseLimitFor = (person) => (person?.gender === "male" ? 4 : 1);
+
+  const spouseLimitMessage = (limit) =>
+    limit === 1
+      ? "لا يمكن إضافة أكثر من زوج واحد"
+      : "لا يمكن إضافة أكثر من ٤ زوجات على قيد الحياة";
+
   // Add person using the data transformation utility
   const addPerson = async (personData) => {
     // Remember which person we're adding relative to, so after adding we keep the
@@ -1764,27 +1794,13 @@ function App() {
     const anchorPerson = selectedPerson;
     // Enforce living spouse limit when adding a spouse
     if (relationshipType === "spouse" && selectedPerson) {
-      const spouseRels = relationships.filter(
-        (r) =>
-          r.treeId === currentTree?.id &&
-          r.type === "partner" &&
-          (r.person1Id === selectedPerson || r.person2Id === selectedPerson),
-      );
-      const spouseIds = spouseRels.map((rel) =>
-        rel.person1Id === selectedPerson ? rel.person2Id : rel.person1Id,
-      );
-      const livingSpousesCount = spouseIds.reduce((count, sid) => {
-        const sp = people.find((p) => p.id === sid);
-        return sp && sp.isLiving !== false ? count + 1 : count;
-      }, 0);
       const selected = people.find((p) => p.id === selectedPerson);
-      const spouseLimit = selected?.gender === "male" ? 4 : 1;
-      const limitMessage =
-        spouseLimit === 1
-          ? "Maximum of 1 spouse allowed"
-          : "Maximum of 4 living spouses allowed";
-      if (livingSpousesCount >= spouseLimit && personData.isLiving !== false) {
-        window.alert(limitMessage);
+      const spouseLimit = spouseLimitFor(selected);
+      if (
+        countActiveSpouses(selectedPerson) >= spouseLimit &&
+        personData.isLiving !== false
+      ) {
+        window.alert(spouseLimitMessage(spouseLimit));
         return;
       }
     }
@@ -2398,26 +2414,9 @@ function App() {
     if (!selected) return;
 
     // Enforce living spouse limit per gender
-    const spouseRels = relationships.filter(
-      (r) =>
-        r.treeId === currentTree?.id &&
-        r.type === "partner" &&
-        (r.person1Id === personId || r.person2Id === personId),
-    );
-    const spouseIds = spouseRels.map((rel) =>
-      rel.person1Id === personId ? rel.person2Id : rel.person1Id,
-    );
-    const livingSpousesCount = spouseIds.reduce((count, sid) => {
-      const sp = people.find((pp) => pp.id === sid);
-      return sp && sp.isLiving !== false ? count + 1 : count;
-    }, 0);
-    const spouseLimit = selected.gender === "male" ? 4 : 1;
-    const limitMessage =
-      spouseLimit === 1
-        ? "Maximum of 1 spouse allowed"
-        : "Maximum of 4 living spouses allowed";
-    if (livingSpousesCount >= spouseLimit) {
-      window.alert(limitMessage);
+    const spouseLimit = spouseLimitFor(selected);
+    if (countActiveSpouses(personId) >= spouseLimit) {
+      window.alert(spouseLimitMessage(spouseLimit));
       return;
     }
 
@@ -3705,31 +3704,13 @@ function App() {
                 const y = entity.y * BOX_HEIGHT;
 
                 // Living spouse limit per gender
-                const spouseRels = relationships.filter(
-                  (r) =>
-                    r.treeId === currentTree?.id &&
-                    r.type === "partner" &&
-                    (r.person1Id === selectedPerson ||
-                      r.person2Id === selectedPerson),
-                );
-                const spouseIds = spouseRels.map((rel) =>
-                  rel.person1Id === selectedPerson
-                    ? rel.person2Id
-                    : rel.person1Id,
-                );
-                const livingSpousesCount = spouseIds.reduce((count, sid) => {
-                  const sp = treePeople.find((pp) => pp.id === sid);
-                  return sp && sp.isLiving !== false ? count + 1 : count;
-                }, 0);
                 const selected = treePeople.find(
                   (p) => p.id === selectedPerson,
                 );
-                const spouseLimit = selected?.gender === "male" ? 4 : 1;
-                const limitMessage =
-                  spouseLimit === 1
-                    ? "Maximum of 1 spouse allowed"
-                    : "Maximum of 4 living spouses allowed";
-                const canAddSpouse = livingSpousesCount < spouseLimit;
+                const spouseLimit = spouseLimitFor(selected);
+                const limitMessage = spouseLimitMessage(spouseLimit);
+                const canAddSpouse =
+                  countActiveSpouses(selectedPerson) < spouseLimit;
                 const addSpouseTooltip = canAddSpouse
                   ? t.addSpouse
                   : limitMessage;
