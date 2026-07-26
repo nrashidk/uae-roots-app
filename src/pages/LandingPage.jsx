@@ -150,17 +150,6 @@ export default function LandingPage({ onSignIn, onSignUp, onPrivacy }) {
             </button>
             <button
               type="button"
-              className="lp-plain"
-              onClick={() =>
-                document
-                  .getElementById("lp-privacy")
-                  ?.scrollIntoView({ behavior: "smooth" })
-              }
-            >
-              الخصوصية
-            </button>
-            <button
-              type="button"
               className="lp-btn lp-btn-line"
               onClick={onSignIn}
             >
