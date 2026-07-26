@@ -76,6 +76,7 @@ function App() {
   // Public screen shown to signed-out visitors: the landing page first, the
   // login form only once they ask for it. Becomes a route when routing lands.
   const [publicScreen, setPublicScreen] = useState("landing");
+  const [authDialogOpen, setAuthDialogOpen] = useState(false);
   const [authMode, setAuthMode] = useState("login");
   const [emailInput, setEmailInput] = useState("");
   const [passwordInput, setPasswordInput] = useState("");
@@ -271,6 +272,8 @@ function App() {
     newEmail: "البريد الإلك �روني الجديد",
     newPhone: "رقم الهاتف الجديد",
     notSet: "غير محدد",
+    signInTitle: "تسجيل الدخول",
+    signUpTitle: "إنشاء حساب جديد",
     undoDelete: "تراجع عن الحذف",
     nothingToUndo: "لا يوجد عملية حذف للتراجع عنها",
   };
@@ -292,6 +295,8 @@ function App() {
   // Track if an interactive login is in progress (prevents race with session restore)
   const interactiveLoginInProgressRef = useRef(false);
   const [sessionRestoreLoading, setSessionRestoreLoading] = useState(false);
+  // Only show a loader if the wait is long enough to notice.
+  const [loaderVisible, setLoaderVisible] = useState(false);
   const [sessionRestoreError, setSessionRestoreError] = useState(null);
 
   // Cookie-based session restoration (for Phone SMS users who don't have Firebase sessions)
@@ -594,6 +599,15 @@ function App() {
       clearAuthToken();
     }
   }, [isAuthenticated]);
+
+  useEffect(() => {
+    if (!authLoading && !sessionRestoreLoading) {
+      setLoaderVisible(false);
+      return;
+    }
+    const t = setTimeout(() => setLoaderVisible(true), 300);
+    return () => clearTimeout(t);
+  }, [authLoading, sessionRestoreLoading]);
 
   // Generate tree layout using the working algorithm
   // Only shows members connected to the root person in the tree visualization
@@ -2582,24 +2596,19 @@ function App() {
     }
   };
 
-  if (authLoading) {
+  if (authLoading || sessionRestoreLoading) {
     return (
       <div className="auth-shell min-h-screen bg-[#F4EFE3] flex items-center justify-center p-4">
-        <div className="bg-white rounded-[3px] border border-[#16233D]/12 p-8 w-full max-w-md text-center">
-          <Loader2 className="w-12 h-12 animate-spin mx-auto text-[#16233D]" />
-          <p className="mt-4 text-gray-600">جاري التحميل...</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (sessionRestoreLoading) {
-    return (
-      <div className="auth-shell min-h-screen bg-[#F4EFE3] flex items-center justify-center p-4">
-        <div className="bg-white rounded-[3px] border border-[#16233D]/12 p-8 w-full max-w-md text-center">
-          <Loader2 className="w-12 h-12 animate-spin mx-auto text-[#16233D]" />
-          <p className="mt-4 text-gray-600">جاري استعادة بيانات العائلة...</p>
-        </div>
+        {loaderVisible && (
+          <div className="text-center">
+            <Loader2 className="w-10 h-10 animate-spin mx-auto text-[#16233D]" />
+            <p className="mt-4 text-sm text-[#6B6555]">
+              {sessionRestoreLoading
+                ? "جاري استعادة بيانات العائلة..."
+                : "جاري التحميل..."}
+            </p>
+          </div>
+        )}
       </div>
     );
   }
@@ -2629,12 +2638,45 @@ function App() {
 
   if (!isAuthenticated && !userProfile) {
     return (
-      <div className="auth-shell min-h-screen bg-[#F4EFE3] flex items-center justify-center p-4">
-        <div className="bg-white rounded-[3px] border border-[#16233D]/12 p-8 w-full max-w-md">
-          <h1 className="kufi text-3xl font-medium text-[#16233D] mb-8 text-center leading-relaxed">
-            {t.welcome}
-          </h1>
+      <>
+        {publicScreen === "privacy" ? (
+          <div className="lp" style={{ minHeight: "100vh" }}>
+            <div className="lp-wrap" style={{ padding: "24px 32px" }}>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setPublicScreen("landing")}
+              >
+                <Home className="w-4 h-4 ml-2" />
+                {t.back}
+              </Button>
+            </div>
+            <PrivacyPolicy />
+          </div>
+        ) : (
+          <LandingPage
+            onSignIn={() => {
+              setAuthMode("login");
+              setAuthDialogOpen(true);
+            }}
+            onSignUp={() => {
+              setAuthMode("signup");
+              setAuthDialogOpen(true);
+            }}
+            onPrivacy={() => setPublicScreen("privacy")}
+          />
+        )}
 
+        {/* Sign in / register happens in a dialog over the landing page rather
+            than on a separate screen: no page switch, and the two entry points
+            differ only by which mode the form opens in. */}
+        <Dialog open={authDialogOpen} onOpenChange={setAuthDialogOpen}>
+          <DialogContent className="auth-shell sm:max-w-md" dir="rtl">
+            <DialogHeader>
+              <DialogTitle className="kufi text-right text-2xl font-medium text-[#16233D]">
+                {authMode === "login" ? t.signInTitle : t.signUpTitle}
+              </DialogTitle>
+            </DialogHeader>
           {authError && (
             <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-4 text-center text-sm">
               {authError}
@@ -2764,7 +2806,8 @@ function App() {
               {t.uaeMobile}
             </Button>
           </div>
-        </div>
+          </DialogContent>
+        </Dialog>
 
         <Dialog
           open={showSmsLogin}
@@ -2900,7 +2943,7 @@ function App() {
             )}
           </DialogContent>
         </Dialog>
-      </div>
+      </>
     );
   }
 
