@@ -1,6 +1,10 @@
 @import "tailwindcss";
 @import "tw-animate-css";
-@import url('https://fonts.googleapis.com/css2?family=Sakkal+Majalla&display=swap');
+/* Sakkal Majalla is a Microsoft font that ships with Windows — it was never
+   on Google Fonts, so this request always failed and the app fell through to
+   whatever Arabic face the visitor's OS happened to have. Fonts are now
+   loaded in index.html; Sakkal Majalla stays first in the stack so Windows
+   users see no change. */
 
 @custom-variant dark (&:is(.dark *));
 
@@ -411,4 +415,21 @@ body {
 .reset-btn:hover {
   background: #e5e7eb;
   color: #374151;
+}
+
+/* ---------------------------------------------------------------------------
+   Marketing pages (landing, privacy) opt out of the app-wide font override.
+   `* { font-family: ... }` above has specificity 0,0,0 and applies to EVERY
+   element, so descendants never inherit — they match that rule directly.
+   `.lp *` (0,1,0) is the minimum that wins it back for a scoped subtree.
+   --------------------------------------------------------------------------- */
+.lp,
+.lp * {
+  font-family: "IBM Plex Sans Arabic", "Sakkal Majalla", "Noto Sans Arabic", sans-serif;
+}
+.lp h1,
+.lp h2,
+.lp h3,
+.lp .kufi {
+  font-family: "Noto Kufi Arabic", "Sakkal Majalla", sans-serif;
 }

@@ -1,17 +1,10 @@
-import { Link } from 'react-router-dom';
-import { ArrowRight, Shield, Lock, Eye, Database, UserCheck, Mail } from 'lucide-react';
+import { Shield, Lock, Eye, Database, UserCheck, Mail } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 export function PrivacyPolicy() {
   return (
     <div className="min-h-screen bg-gradient-to-b from-purple-50 to-white" dir="rtl">
       <div className="max-w-4xl mx-auto px-4 py-8">
-        <Link to="/">
-          <Button variant="ghost" className="mb-6 gap-2">
-            <ArrowRight className="h-4 w-4" />
-            العودة للرئيسية
-          </Button>
-        </Link>
 
         <div className="bg-white rounded-2xl shadow-lg p-8 space-y-8">
           <div className="text-center border-b pb-6">
@@ -19,7 +12,7 @@ export function PrivacyPolicy() {
               <Shield className="h-8 w-8 text-purple-600" />
             </div>
             <h1 className="text-3xl font-bold text-gray-900">سياسة الخصوصية</h1>
-            <p className="text-gray-500 mt-2">آخر تحديث: ديسمبر 2024</p>
+            <p className="text-gray-500 mt-2">آخر تحديث: يوليو ٢٠٢٦</p>
           </div>
 
           <section className="space-y-4">
@@ -33,7 +26,6 @@ export function PrivacyPolicy() {
             <ul className="list-disc list-inside space-y-2 text-gray-700 mr-4">
               <li>معلومات الحساب (البريد الإلكتروني، رقم الهاتف، اسم المستخدم)</li>
               <li>بيانات شجرة العائلة (الأسماء، تواريخ الميلاد والوفاة، العلاقات الأسرية)</li>
-              <li>الصور التي ترفعها لأفراد العائلة</li>
               <li>سجلات الاستخدام والنشاط</li>
             </ul>
           </section>
