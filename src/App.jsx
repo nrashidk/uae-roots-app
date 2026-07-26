@@ -35,6 +35,8 @@ import {
   EyeOff,
   LogOut,
 } from "lucide-react";
+import LandingPage from "./pages/LandingPage.jsx";
+import { PrivacyPolicy } from "./pages/PrivacyPolicy.jsx";
 import FamilyTreeLayout from "./lib/family-tree-layout.js";
 import {
   convertToAlgorithmFormat,
@@ -71,6 +73,9 @@ function App() {
     logout,
     deleteAccount,
   } = useAuth();
+  // Public screen shown to signed-out visitors: the landing page first, the
+  // login form only once they ask for it. Becomes a route when routing lands.
+  const [publicScreen, setPublicScreen] = useState("landing");
   const [authMode, setAuthMode] = useState("login");
   const [emailInput, setEmailInput] = useState("");
   const [passwordInput, setPasswordInput] = useState("");
@@ -2595,6 +2600,29 @@ function App() {
           <Loader2 className="w-12 h-12 animate-spin mx-auto text-purple-600" />
           <p className="mt-4 text-gray-600">جاري استعادة بيانات العائلة...</p>
         </div>
+      </div>
+    );
+  }
+
+  if (!isAuthenticated && !userProfile && publicScreen === "landing") {
+    return (
+      <LandingPage
+        onSignIn={() => setPublicScreen("login")}
+        onPrivacy={() => setPublicScreen("privacy")}
+      />
+    );
+  }
+
+  if (!isAuthenticated && !userProfile && publicScreen === "privacy") {
+    return (
+      <div style={{ minHeight: "100vh", background: "#F4EFE3" }}>
+        <div style={{ maxWidth: "1180px", margin: "0 auto", padding: "24px 32px" }}>
+          <Button variant="outline" size="sm" onClick={() => setPublicScreen("landing")}>
+            <Home className="w-4 h-4 ml-2" />
+            {t.back}
+          </Button>
+        </div>
+        <PrivacyPolicy />
       </div>
     );
   }
