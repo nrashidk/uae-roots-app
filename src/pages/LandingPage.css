@@ -1,0 +1,402 @@
+/* ---------------------------------------------------------------------------
+   Landing page. Everything is scoped under .lp so it cannot leak into the app,
+   and so it wins against the `* { font-family }` rule in App.css.
+   Palette: manuscript ink, parchment, muted brass, palm sage.
+   --------------------------------------------------------------------------- */
+.lp {
+  --ink: #16233d;
+  --ink-soft: #2c3a56;
+  --parchment: #f4efe3;
+  --parchment-2: #ede6d6;
+  --brass: #a5813f;
+  --brass-lift: #c29e58;
+  --radaa: #2f8f6b;
+  --paper-text: #3a3529;
+
+  background: var(--parchment);
+  color: var(--paper-text);
+  font-weight: 400;
+  font-size: 17px;
+  line-height: 1.85;
+  min-height: 100vh;
+  direction: rtl;
+  text-align: right;
+  -webkit-font-smoothing: antialiased;
+}
+.lp h1,
+.lp h2,
+.lp h3 {
+  font-weight: 500;
+  line-height: 1.45;
+  letter-spacing: -0.005em;
+  margin: 0;
+  color: var(--ink);
+}
+.lp-wrap {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 0 32px;
+}
+.lp a {
+  color: inherit;
+}
+
+.lp-nav {
+  border-bottom: 1px solid rgba(22, 35, 61, 0.1);
+}
+.lp-nav-in {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 0;
+}
+.lp-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 500;
+  font-size: 18px;
+  color: var(--ink);
+}
+.lp-nav-links {
+  display: flex;
+  align-items: center;
+  gap: 26px;
+  font-size: 15px;
+}
+.lp-nav-links button.lp-plain {
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  font-size: 15px;
+  color: var(--ink-soft);
+}
+.lp-nav-links button.lp-plain:hover {
+  color: var(--brass);
+}
+
+.lp-btn {
+  font-weight: 500;
+  font-size: 15px;
+  padding: 9px 22px;
+  border-radius: 2px;
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: background 0.18s ease, color 0.18s ease, transform 0.18s ease,
+    border-color 0.18s ease;
+}
+.lp-btn-solid {
+  background: var(--ink);
+  color: var(--parchment);
+}
+.lp-btn-solid:hover {
+  background: var(--brass);
+  transform: translateY(-1px);
+}
+.lp-btn-line {
+  background: none;
+  border-color: rgba(22, 35, 61, 0.28);
+  color: var(--ink);
+}
+.lp-btn-line:hover {
+  border-color: var(--brass);
+  color: var(--brass);
+}
+.lp :focus-visible {
+  outline: 2px solid var(--brass);
+  outline-offset: 3px;
+}
+
+.lp-hero {
+  padding: 80px 0 72px;
+}
+.lp-eyebrow {
+  font-size: 13px;
+  letter-spacing: 0.14em;
+  color: var(--brass);
+  margin: 0 0 20px;
+}
+.lp-hero h1 {
+  font-size: clamp(32px, 5vw, 56px);
+  font-weight: 600;
+  max-width: 16ch;
+}
+.lp-lede {
+  font-size: 19px;
+  max-width: 47ch;
+  margin: 20px 0 0;
+  color: #514b3c;
+}
+.lp-cta {
+  display: flex;
+  gap: 12px;
+  margin-top: 32px;
+  flex-wrap: wrap;
+}
+
+.lp-chain-frame {
+  margin-top: 60px;
+  padding: 36px 32px 26px;
+  background: var(--parchment-2);
+  border: 1px solid rgba(22, 35, 61, 0.1);
+  border-radius: 3px;
+  position: relative;
+}
+.lp-chain-label {
+  position: absolute;
+  top: -11px;
+  right: 24px;
+  background: var(--parchment-2);
+  padding: 0 10px;
+  font-size: 12px;
+  letter-spacing: 0.1em;
+  color: var(--brass);
+}
+.lp-chain {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  font-family: "Noto Kufi Arabic", "Sakkal Majalla", sans-serif;
+  font-size: clamp(23px, 3.4vw, 40px);
+  line-height: 1.6;
+  font-weight: 500;
+  color: var(--ink);
+}
+.lp-seg {
+  opacity: 0;
+  transform: translateX(12px);
+  transition: opacity 0.5s ease, transform 0.5s ease;
+  white-space: nowrap;
+}
+.lp-seg.on {
+  opacity: 1;
+  transform: none;
+}
+.lp-seg + .lp-seg {
+  margin-inline-start: 0.4em;
+}
+.lp-rel {
+  color: var(--brass);
+  font-weight: 400;
+}
+.lp-chain-foot {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-top: 22px;
+  padding-top: 16px;
+  border-top: 1px solid rgba(22, 35, 61, 0.1);
+  font-size: 14px;
+  color: #6b6555;
+}
+.lp-replay {
+  background: none;
+  border: 1px solid rgba(22, 35, 61, 0.22);
+  color: var(--ink-soft);
+  font-size: 13px;
+  padding: 6px 15px;
+  border-radius: 2px;
+  cursor: pointer;
+}
+.lp-replay:hover {
+  border-color: var(--brass);
+  color: var(--brass);
+}
+
+.lp-claims {
+  padding: 86px 0 16px;
+}
+.lp-sec-head {
+  max-width: 54ch;
+  margin-bottom: 48px;
+}
+.lp-sec-head h2 {
+  font-size: clamp(25px, 3.2vw, 34px);
+}
+.lp-sec-head p {
+  margin: 14px 0 0;
+  color: #544e3f;
+}
+.lp-claim {
+  display: grid;
+  grid-template-columns: auto 1fr 1fr;
+  gap: 32px;
+  padding: 34px 0;
+  border-top: 1px solid rgba(22, 35, 61, 0.12);
+  align-items: start;
+}
+.lp-num {
+  font-family: "Noto Kufi Arabic", "Sakkal Majalla", sans-serif;
+  font-size: 30px;
+  color: rgba(22, 35, 61, 0.2);
+  line-height: 1;
+}
+.lp-claim h3 {
+  font-size: 20px;
+  margin-bottom: 8px;
+}
+.lp-claim p {
+  margin: 0;
+  font-size: 16px;
+  color: #5a5344;
+}
+.lp-compare {
+  display: flex;
+  flex-direction: column;
+  gap: 11px;
+}
+.lp-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 15.5px;
+}
+.lp-tag {
+  font-size: 11.5px;
+  letter-spacing: 0.06em;
+  padding: 3px 9px;
+  border-radius: 2px;
+  flex: none;
+}
+.lp-tag-no {
+  background: rgba(22, 35, 61, 0.07);
+  color: #7a7466;
+}
+.lp-tag-yes {
+  background: rgba(165, 129, 63, 0.15);
+  color: #7a5d24;
+}
+.lp-mini {
+  font-weight: 500;
+  color: var(--ink);
+}
+.lp-mini s {
+  color: #8e8878;
+}
+.lp-dash {
+  display: inline-block;
+  width: 22px;
+  border-top: 2px dashed var(--radaa);
+  vertical-align: middle;
+  margin: 0 5px;
+}
+
+.lp-privacy {
+  background: var(--ink);
+  color: #ddd6c6;
+  margin-top: 70px;
+  padding: 74px 0;
+}
+.lp-privacy h2 {
+  color: var(--parchment);
+  font-size: clamp(24px, 3vw, 33px);
+  max-width: 24ch;
+}
+.lp-privacy-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(215px, 1fr));
+  gap: 32px;
+  margin-top: 40px;
+}
+.lp-privacy h4 {
+  font-weight: 600;
+  font-size: 16.5px;
+  color: var(--brass-lift);
+  margin: 0 0 7px;
+}
+.lp-privacy p {
+  margin: 0;
+  font-size: 15.5px;
+  color: #b9b2a2;
+  line-height: 1.8;
+}
+.lp-note {
+  margin-top: 40px;
+  padding-top: 24px;
+  border-top: 1px solid rgba(244, 239, 227, 0.14);
+  font-size: 15px;
+  color: #9a9484;
+  max-width: 66ch;
+}
+.lp-note button {
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  color: var(--brass-lift);
+  font-size: 15px;
+  text-decoration: underline;
+}
+
+.lp-close {
+  padding: 84px 0;
+  text-align: center;
+}
+.lp-close h2 {
+  font-size: clamp(25px, 3.4vw, 38px);
+  max-width: 22ch;
+  margin: 0 auto;
+}
+.lp-close p {
+  max-width: 44ch;
+  margin: 16px auto 30px;
+  color: #544e3f;
+}
+
+.lp-foot {
+  border-top: 1px solid rgba(22, 35, 61, 0.12);
+  padding: 24px 0;
+}
+.lp-foot-in {
+  display: flex;
+  justify-content: space-between;
+  gap: 20px;
+  flex-wrap: wrap;
+  font-size: 14px;
+  color: #6b6555;
+}
+.lp-foot-in button {
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  font-size: 14px;
+  color: #6b6555;
+}
+.lp-foot-in button:hover,
+.lp-foot-in a:hover {
+  color: var(--brass);
+}
+
+@media (max-width: 760px) {
+  .lp-wrap {
+    padding: 0 22px;
+  }
+  .lp-nav-links button.lp-plain {
+    display: none;
+  }
+  .lp-hero {
+    padding: 52px 0 44px;
+  }
+  .lp-claim {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+  .lp-num {
+    font-size: 24px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lp-seg {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+  .lp-btn-solid:hover {
+    transform: none;
+  }
+}
