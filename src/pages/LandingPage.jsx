@@ -116,55 +116,76 @@ function LineageChain() {
 }
 
 /**
+ * Shared top banner. Used by the landing page and the privacy page so moving
+ * between them doesn't change the chrome. `onHome` returns to the landing page;
+ * `onClaims` scrolls to the comparison section (from the privacy page it has to
+ * navigate home first, which the caller handles).
+ */
+export function LandingNav({ onHome, onClaims, onSignIn, onSignUp }) {
+  return (
+    <nav className="lp-nav">
+      <div className="lp-wrap lp-nav-in">
+        <button type="button" className="lp-brand lp-brand-btn" onClick={onHome}>
+          <svg width="24" height="24" viewBox="0 0 26 26" fill="none" aria-hidden="true">
+            <path d="M13 24V9" stroke="#16233D" strokeWidth="1.6" />
+            <path d="M13 15L5 10M13 15l8-5" stroke="#16233D" strokeWidth="1.6" />
+            <circle cx="13" cy="6.5" r="2.6" fill="#A5813F" />
+            <circle cx="4" cy="9" r="2.2" fill="#16233D" />
+            <circle cx="22" cy="9" r="2.2" fill="#16233D" />
+          </svg>
+          جذور الإمارات
+        </button>
+        <div className="lp-nav-links">
+          <button type="button" className="lp-plain" onClick={onClaims}>
+            لماذا نحن
+          </button>
+          <button type="button" className="lp-btn lp-btn-line" onClick={onSignIn}>
+            تسجيل الدخول
+          </button>
+          <button type="button" className="lp-btn lp-btn-solid" onClick={onSignUp}>
+            إنشاء حساب
+          </button>
+        </div>
+      </div>
+    </nav>
+  );
+}
+
+/** Shared footer, same reasoning as the nav. */
+export function LandingFooter({ onPrivacy }) {
+  return (
+    <footer className="lp-foot">
+      <div className="lp-wrap lp-foot-in">
+        <span>© ٢٠٢٦ جذور الإمارات</span>
+        <span style={{ display: "flex", gap: "20px" }}>
+          <button type="button" onClick={onPrivacy}>
+            سياسة الخصوصية
+          </button>
+          <a href="mailto:support@uaeroots.com">support@uaeroots.com</a>
+        </span>
+      </div>
+    </footer>
+  );
+}
+
+/**
  * The public landing page — the first screen anyone not signed in sees.
  * `onSignIn` reveals the existing login form; `onPrivacy` opens the policy.
  * Both are callbacks rather than links so this works before URL routing exists;
  * when routing lands, they become route pushes and nothing else changes.
  */
 export default function LandingPage({ onSignIn, onSignUp, onPrivacy }) {
+  const scrollToClaims = () =>
+    document.getElementById("lp-claims")?.scrollIntoView({ behavior: "smooth" });
+
   return (
     <div className="lp">
-      <nav className="lp-nav">
-        <div className="lp-wrap lp-nav-in">
-          <div className="lp-brand">
-            <svg width="24" height="24" viewBox="0 0 26 26" fill="none" aria-hidden="true">
-              <path d="M13 24V9" stroke="#16233D" strokeWidth="1.6" />
-              <path d="M13 15L5 10M13 15l8-5" stroke="#16233D" strokeWidth="1.6" />
-              <circle cx="13" cy="6.5" r="2.6" fill="#A5813F" />
-              <circle cx="4" cy="9" r="2.2" fill="#16233D" />
-              <circle cx="22" cy="9" r="2.2" fill="#16233D" />
-            </svg>
-            جذور الإمارات
-          </div>
-          <div className="lp-nav-links">
-            <button
-              type="button"
-              className="lp-plain"
-              onClick={() =>
-                document
-                  .getElementById("lp-claims")
-                  ?.scrollIntoView({ behavior: "smooth" })
-              }
-            >
-              لماذا نحن
-            </button>
-            <button
-              type="button"
-              className="lp-btn lp-btn-line"
-              onClick={onSignIn}
-            >
-              تسجيل الدخول
-            </button>
-            <button
-              type="button"
-              className="lp-btn lp-btn-solid"
-              onClick={onSignUp}
-            >
-              إنشاء حساب
-            </button>
-          </div>
-        </div>
-      </nav>
+      <LandingNav
+        onHome={() => window.scrollTo({ top: 0, behavior: "smooth" })}
+        onClaims={scrollToClaims}
+        onSignIn={onSignIn}
+        onSignUp={onSignUp}
+      />
 
       <header className="lp-hero">
         <div className="lp-wrap">
@@ -263,17 +284,7 @@ export default function LandingPage({ onSignIn, onSignUp, onPrivacy }) {
         </div>
       </section>
 
-      <footer className="lp-foot">
-        <div className="lp-wrap lp-foot-in">
-          <span>© ٢٠٢٦ جذور الإمارات</span>
-          <span style={{ display: "flex", gap: "20px" }}>
-            <button type="button" onClick={onPrivacy}>
-              سياسة الخصوصية
-            </button>
-            <a href="mailto:support@uaeroots.com">support@uaeroots.com</a>
-          </span>
-        </div>
-      </footer>
+      <LandingFooter onPrivacy={onPrivacy} />
     </div>
   );
 }
