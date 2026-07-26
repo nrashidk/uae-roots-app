@@ -1,5 +1,9 @@
 const API_BASE_URL = "/api";
 
+// Request tracing. No form data, but one line per call is noisy in production.
+// console.error is left active so failures still surface.
+const DEBUG = false;
+
 async function fetchAPI(endpoint, options = {}) {
   try {
     const headers = {
@@ -7,14 +11,14 @@ async function fetchAPI(endpoint, options = {}) {
       ...options.headers,
     };
 
-    console.log(`[API] ${options.method || 'GET'} ${endpoint}`);
+    DEBUG && console.log(`[API] ${options.method || 'GET'} ${endpoint}`);
     const response = await fetch(`${API_BASE_URL}${endpoint}`, {
       headers,
       credentials: "include",
       ...options,
     });
 
-    console.log(`[API] ${endpoint} - Status: ${response.status}`);
+    DEBUG && console.log(`[API] ${endpoint} - Status: ${response.status}`);
     
     if (!response.ok) {
       const error = await response
