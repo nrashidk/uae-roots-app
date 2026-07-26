@@ -121,7 +121,7 @@ function LineageChain() {
  * Both are callbacks rather than links so this works before URL routing exists;
  * when routing lands, they become route pushes and nothing else changes.
  */
-export default function LandingPage({ onSignIn, onPrivacy }) {
+export default function LandingPage({ onSignIn, onSignUp, onPrivacy }) {
   return (
     <div className="lp">
       <nav className="lp-nav">
@@ -166,6 +166,13 @@ export default function LandingPage({ onSignIn, onPrivacy }) {
             >
               تسجيل الدخول
             </button>
+            <button
+              type="button"
+              className="lp-btn lp-btn-solid"
+              onClick={onSignUp}
+            >
+              إنشاء حساب
+            </button>
           </div>
         </div>
       </nav>
@@ -183,20 +190,16 @@ export default function LandingPage({ onSignIn, onPrivacy }) {
             <button
               type="button"
               className="lp-btn lp-btn-solid"
-              onClick={onSignIn}
+              onClick={onSignUp}
             >
               ابدأ شجرتك
             </button>
             <button
               type="button"
               className="lp-btn lp-btn-line"
-              onClick={() =>
-                document
-                  .getElementById("lp-claims")
-                  ?.scrollIntoView({ behavior: "smooth" })
-              }
+              onClick={onSignIn}
             >
-              اعرف الفرق
+              لدي حساب
             </button>
           </div>
           <LineageChain />
@@ -264,7 +267,7 @@ export default function LandingPage({ onSignIn, onPrivacy }) {
           <button
             type="button"
             className="lp-btn lp-btn-solid"
-            onClick={onSignIn}
+            onClick={onSignUp}
           >
             ابدأ شجرتك
           </button>

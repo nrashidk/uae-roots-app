@@ -378,6 +378,13 @@
   .lp-nav-links button.lp-plain {
     display: none;
   }
+  .lp-nav-links {
+    gap: 8px;
+  }
+  .lp-nav-links .lp-btn {
+    padding: 8px 14px;
+    font-size: 14px;
+  }
   .lp-hero {
     padding: 52px 0 44px;
   }
