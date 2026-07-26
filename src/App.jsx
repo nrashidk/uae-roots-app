@@ -4139,6 +4139,14 @@ function PersonForm({
       alert("يرجى اختيار الجنس");
       return;
     }
+    // Phone, when given, must be a 10-digit UAE number starting with 0
+    // (e.g. 0503000223). Validated on save, the same way the browser validates
+    // the email field, so a malformed number can't be stored silently.
+    const phoneValue = (formData.phone || "").trim();
+    if (phoneValue && !/^0\d{9}$/.test(phoneValue)) {
+      alert("يجب أن يكون رقم الهاتف 10 أرقام ويبدأ بصفر (مثال: 0503000223)");
+      return;
+    }
     console.log("Form data being submitted:", formData);
     onSave(formData);
   };
