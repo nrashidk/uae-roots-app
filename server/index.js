@@ -2436,10 +2436,15 @@ if (isProduction) {
   const distPath = path.join(__dirname, "..", "dist");
   app.use(express.static(distPath));
 
+  // SPA fallback: any non-API path serves index.html so deep links like
+  // /privacy or /tree/842 survive a reload. Unknown API paths previously fell
+  // through with NO response, leaving the request hanging until it timed out —
+  // they now get a 404.
   app.get("/{*path}", (req, res) => {
-    if (!req.path.startsWith("/api")) {
-      res.sendFile(path.join(distPath, "index.html"));
+    if (req.path.startsWith("/api")) {
+      return res.status(404).json({ error: "Not found" });
     }
+    res.sendFile(path.join(distPath, "index.html"));
   });
 }
 
