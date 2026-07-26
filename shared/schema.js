@@ -70,6 +70,24 @@ export const editHistory = pgTable("edit_history", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
+// Deletions log - a snapshot of every person (and every relationship touching
+// them) removed by a single delete action, so the whole action can be undone.
+// Kept as a separate log rather than `deleted_at` columns on people, so no read
+// path anywhere has to filter deleted rows — a missed filter would resurrect
+// people as ghosts in the tree.
+export const deletions = pgTable("deletions", {
+  id: serial("id").primaryKey(),
+  treeId: integer("tree_id").notNull(),
+  deletedBy: text("deleted_by"),
+  deletedAt: timestamp("deleted_at").defaultNow().notNull(),
+  label: text("label"), // e.g. "هنادي +6"
+  people: jsonb("people").notNull(),
+  relationships: jsonb("relationships").notNull(),
+  restoredAt: timestamp("restored_at"),
+}, (table) => [
+  index("deletions_tree_idx").on(table.treeId),
+]);
+
 // Trees table - represents individual family trees
 export const trees = pgTable("trees", {
   id: serial("id").primaryKey(),
