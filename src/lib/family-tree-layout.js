@@ -659,56 +659,6 @@ var FamilyTreeLayoutModule;
     }
 
     /**
-     * Draw children lines (vertical and horizontal connectors)
-     * @param {Object} d - Tree data
-     * @param {number} vx - Vertical line X position
-     * @param {Array} ax - Array of child X positions
-     * @param {number} vy - Vertical line Y start
-     * @param {number} cy - Children Y position
-     * @param {Array} gs - Array of relationship types (biological/non-biological)
-     * @param {number} yo - Y offset
-     */
-    function drawChildrenLines(d, vx, ax, vy, cy, gs, yo) {
-        let sb = false;
-        let sg = false;
-        let minB = vx,
-            maxB = vx;
-        let minG = vx,
-            maxG = vx;
-        const ay = (vy + cy) / 2 + yo;
-        for (let j = 0; j < gs.length; j++) {
-            const x = ax[j];
-            if (gs[j]) {
-                sg = true;
-                minG = Math.min(minG, x);
-                maxG = Math.max(maxG, x);
-            } else {
-                sb = true;
-                minB = Math.min(minB, x);
-                maxB = Math.max(maxB, x);
-            }
-            addLine(d, x, ay, x, cy, gs[j] ? "C" : "B");
-        }
-        const minAll = Math.min(minB, minG);
-        const maxAll = Math.max(maxB, maxG);
-        for (let g = 0; g <= 1; g++) {
-            if (g ? sg : sb) {
-                const s = g ? "C" : "B";
-                if (vx < minAll || vx > maxAll) {
-                    const x = vx < minAll ? minAll : maxAll;
-                    const y = (vy + ay) / 2;
-                    addLine(d, vx, vy, vx, y, s);
-                    addLine(d, vx, y, x, y, s);
-                    addLine(d, x, y, x, ay, s);
-                } else {
-                    addLine(d, vx, vy, vx, ay, s);
-                }
-                addLine(d, g ? minG : minB, ay, g ? maxG : maxB, ay, s);
-            }
-        }
-    }
-
-    /**
      * Add person box with parent lines
      * @param {Object} d - Tree data
      * @param {Object} f - Family data
@@ -1635,14 +1585,6 @@ var FamilyTreeLayoutModule;
     }
 
     /**
-     * Add stub for alone children
-     * @param {Object} d - Tree data
-     * @param {Object} f - Family data
-     * @param {string} i - Person ID
-     * @param {number} x - X position
-     * @param {number} y - Y position
-     */
-    /**
      * Build parent siblings (aunts/uncles)
      */
     function buildParentSiblings(d, f, pi, oi, ph, h, dr, fx, fl, pg, dp) {
@@ -2219,11 +2161,11 @@ var FamilyTreeLayoutModule;
      * });
      *
      * // Access person positions
-     * DEBUG && console.log(layout.e['p1']); // { p: {...}, x: 0, y: 0, k: true }
+     * console.log(layout.e['p1']); // { p: {...}, x: 0, y: 0, k: true }
      *
      * // Access connecting lines
      * layout.n.forEach(line => {
-     *   DEBUG && console.log(`Line from (${line.x1}, ${line.y1}) to (${line.x2}, ${line.y2})`);
+     *   console.log(`Line from (${line.x1}, ${line.y1}) to (${line.x2}, ${line.y2})`);
      * });
 
      */
