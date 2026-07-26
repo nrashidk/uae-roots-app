@@ -120,6 +120,11 @@ function App() {
   const [deleteConfirmText, setDeleteConfirmText] = useState("");
   const [profileMessage, setProfileMessage] = useState("");
   const [userProfile, setUserProfile] = useState(null);
+  // The most recent deletion that has not been undone yet, if any. Drives the
+  // «تراجع عن الحذف» button in the header. Restores must run newest-first, so
+  // there is only ever one candidate — which is exactly what one button offers.
+  const [restorableDeletion, setRestorableDeletion] = useState(null);
+  const [restoring, setRestoring] = useState(false);
 
   // Default values for options
   const DEFAULT_DISPLAY_OPTIONS = {
@@ -255,6 +260,8 @@ function App() {
     newEmail: "البريد الإلك �روني الجديد",
     newPhone: "رقم الهاتف الجديد",
     notSet: "غير محدد",
+    undoDelete: "تراجع عن الحذف",
+    nothingToUndo: "لا يوجد عملية حذف للتراجع عنها",
   };
 
   useEffect(() => {
@@ -1858,6 +1865,87 @@ function App() {
     }
   };
 
+  // Find the newest deletion that hasn't been undone, so the header can offer it.
+  const loadRestorableDeletion = async () => {
+    if (!currentTree?.id) {
+      setRestorableDeletion(null);
+      return;
+    }
+    try {
+      const rows = await api.deletions.list(currentTree.id);
+      setRestorableDeletion((rows || []).find((d) => !d.restoredAt) || null);
+    } catch (error) {
+      console.error("Failed to load deletions:", error);
+      setRestorableDeletion(null);
+    }
+  };
+
+  useEffect(() => {
+    loadRestorableDeletion();
+  }, [currentTree?.id]);
+
+  // Undo the most recent deletion. Only ever the newest one: if two related
+  // people were deleted in separate actions, the link between them lives only in
+  // the OLDER snapshot, so undoing out of order would bring them back
+  // unconnected. The server enforces the same rule.
+  const handleUndoDelete = async () => {
+    if (!restorableDeletion) return;
+    try {
+      setRestoring(true);
+      const result = await api.deletions.restore(restorableDeletion.id);
+
+      if (currentTree?.id) {
+        const [freshPeople, freshRels] = await Promise.all([
+          api.people.getAll(currentTree.id),
+          api.relationships.getAll(currentTree.id),
+        ]);
+        setPeople(freshPeople);
+        setRelationships(freshRels);
+      }
+
+      // Root the tree on someone who just came back, otherwise they can be
+      // restored into a branch that isn't currently drawn and it looks like
+      // nothing happened.
+      const firstId = result?.restoredPeopleIds?.[0];
+      if (firstId != null) {
+        setSelectedPerson(firstId);
+        setHighlightedPerson(firstId);
+        setCurrentView("tree-builder");
+      }
+      await loadRestorableDeletion();
+    } catch (error) {
+      console.error("Restore failed:", error);
+      alert(error.message);
+    } finally {
+      setRestoring(false);
+    }
+  };
+
+  // Header button offering the undo. ALWAYS rendered — disabled when there is
+  // nothing to undo — so the header never reflows. A button that appears and
+  // disappears shifts the buttons next to it, which invites a misclick on
+  // profile or logout.
+  const renderUndoButton = () => (
+    <Button
+      onClick={handleUndoDelete}
+      disabled={restoring || !restorableDeletion}
+      variant="outline"
+      size="sm"
+      title={
+        restorableDeletion
+          ? restorableDeletion.label || t.undoDelete
+          : t.nothingToUndo
+      }
+    >
+      {restoring ? (
+        <Loader2 className="w-4 h-4 ml-2 animate-spin" />
+      ) : (
+        <RotateCcw className="w-4 h-4 ml-2" />
+      )}
+      {t.undoDelete}
+    </Button>
+  );
+
   const deletePerson = async (personId) => {
     const treeRels = relationships.filter((r) => r.treeId === currentTree?.id);
     const nameOf = (id) => {
@@ -1993,7 +2081,14 @@ function App() {
 
     if (window.confirm(buildDeleteMessage())) {
       try {
-        await Promise.all(deleteIds.map((id) => api.people.delete(id)));
+        // One batched call: the server snapshots every person and every
+        // relationship touching them BEFORE removing anything, so the whole
+        // deletion can be undone as a single action.
+        await api.people.batchDelete(
+          currentTree?.id,
+          deleteIds,
+          deleteIds.map(nameOf).filter(Boolean).join("، ").slice(0, 300),
+        );
 
         setPeople((prev) => {
           const updated = prev.filter((p) => !deletedSet.has(p.id));
@@ -2016,6 +2111,8 @@ function App() {
         setSelectedPerson((prev) => (deletedSet.has(prev) ? neighbour : prev));
         setHighlightedPerson((prev) => (deletedSet.has(prev) ? null : prev));
         setShowActionMenu(false);
+        // Surface the undo for what was just removed.
+        loadRestorableDeletion();
       } catch (error) {
         console.error("Failed to delete person:", error);
         alert("فشل في حذف الشخص: " + error.message);
@@ -2969,6 +3066,7 @@ function App() {
             <h1 className="text-xl font-bold">{t.familyMembers}</h1>
           </div>
           <div className="flex items-center gap-2">
+            {renderUndoButton()}
             <Button onClick={handleOpenProfile} variant="outline" size="sm">
               <User className="w-4 h-4 ml-2" />
               {t.profile}
@@ -3311,6 +3409,7 @@ function App() {
           <h1 className="text-xl font-bold">{t.familyTreeName}</h1>
         </div>
         <div className="flex items-center gap-2">
+          {renderUndoButton()}
           <Button onClick={handleOpenProfile} variant="outline" size="sm">
             <User className="w-4 h-4 ml-2" />
             {t.profile}
