@@ -17,9 +17,10 @@ import {
   relationships,
   auditLogs,
   editHistory,
+  deletions,
   authIdentities,
 } from "../shared/schema.js";
-import { eq, and, or, ilike, desc, lt, inArray } from "drizzle-orm";
+import { eq, and, or, ilike, desc, lt, inArray, sql } from "drizzle-orm";
 import { z } from "zod";
 import fs from "fs";
 
@@ -446,6 +447,12 @@ const birthOrderSchema = z.object({
 });
 
 // Phase 2: Relaxed schema for undo operations (allows encrypted PII fields)
+const batchDeleteSchema = z.object({
+  treeId: z.number().int().positive(),
+  ids: z.array(z.number().int().positive()).min(1).max(500),
+  label: z.string().max(300).optional().nullable(),
+});
+
 const personUndoSchema = z
   .object({
     treeId: z.number().int().positive().optional(),
@@ -1674,6 +1681,249 @@ app.delete("/api/people/:id", authenticateUser, async (req, res) => {
     res.json({ success: true });
   } catch (error) {
     handleError(res, error, "Person delete");
+  }
+});
+
+// List recent deletions for a tree, newest first. Payloads are omitted — only
+// what is needed to show an "undo" list.
+app.get("/api/deletions/:treeId", authenticateUser, async (req, res) => {
+  try {
+    const treeId = validateId(req.params.treeId);
+    if (!treeId) {
+      return res.status(400).json({ error: "Invalid tree ID" });
+    }
+    const ownership = await verifyTreeOwnership(treeId, req.userId);
+    if (!ownership.valid) {
+      return res.status(403).json({ error: ownership.error });
+    }
+
+    const rows = await db
+      .select({
+        id: deletions.id,
+        label: deletions.label,
+        deletedAt: deletions.deletedAt,
+        restoredAt: deletions.restoredAt,
+        peopleCount: sql`jsonb_array_length(${deletions.people})`,
+        relationshipsCount: sql`jsonb_array_length(${deletions.relationships})`,
+      })
+      .from(deletions)
+      .where(eq(deletions.treeId, treeId))
+      .orderBy(desc(deletions.id))
+      .limit(50);
+
+    res.json(rows);
+  } catch (error) {
+    handleError(res, error, "Deletions list", req);
+  }
+});
+
+// Undo one deletion: re-insert the snapshotted people, then the relationships
+// between them, keeping their ORIGINAL ids so the saved relationship rows still
+// point at the right people. Postgres never reuses sequence values, so those ids
+// cannot have been handed to anyone else; the sequences are nudged forward
+// afterwards in case a restored id sits above the current maximum.
+// `onConflictDoNothing` makes this safe to re-run and tolerant of a snapshot
+// that is a superset of what was actually removed.
+app.post("/api/deletions/:id/restore", authenticateUser, async (req, res) => {
+  try {
+    const deletionId = validateId(req.params.id);
+    if (!deletionId) {
+      return res.status(400).json({ error: "Invalid deletion ID" });
+    }
+
+    const [snapshot] = await db
+      .select()
+      .from(deletions)
+      .where(eq(deletions.id, deletionId));
+    if (!snapshot) {
+      return res.status(404).json({ error: "Deletion not found" });
+    }
+
+    const ownership = await verifyTreeOwnership(snapshot.treeId, req.userId);
+    if (!ownership.valid) {
+      return res.status(403).json({ error: ownership.error });
+    }
+
+    if (snapshot.restoredAt) {
+      return res
+        .status(409)
+        .json({ error: "This deletion has already been restored" });
+    }
+
+    // Restores must run newest-first, like an undo stack. If two people who were
+    // related got deleted in SEPARATE actions, the relationship row was captured
+    // only by the FIRST snapshot — by the time the second delete ran it was
+    // already gone. Restoring the older one first would try to re-insert that
+    // relationship while the other person does not exist yet, the foreign key
+    // would reject it, and both people would come back connected to nobody.
+    // Reverse order guarantees the referenced person is always present first.
+    // Compared by ID, not by timestamp. `deleted_at` is microsecond precision in
+    // Postgres but only millisecond precision once it becomes a JS Date, so a
+    // timestamp comparison made a row look NEWER THAN ITSELF (.166202 > .166)
+    // and every undo of the latest deletion was rejected. `id` is a serial:
+    // exact, strictly increasing, no precision to lose.
+    const [newer] = await db
+      .select({ id: deletions.id })
+      .from(deletions)
+      .where(
+        and(
+          eq(deletions.treeId, snapshot.treeId),
+          sql`${deletions.restoredAt} is null`,
+          sql`${deletions.id} > ${snapshot.id}`,
+        ),
+      )
+      .limit(1);
+    if (newer) {
+      return res.status(409).json({
+        error:
+          "يجب التراجع عن عمليات الحذف الأحدث أولاً",
+      });
+    }
+
+    const revive = (row) => ({
+      ...row,
+      createdAt: row.createdAt ? new Date(row.createdAt) : undefined,
+    });
+
+    const peopleRows = (snapshot.people || []).map(revive);
+    const relRows = (snapshot.relationships || []).map(revive);
+
+    let peopleRestored = [];
+    if (peopleRows.length > 0) {
+      peopleRestored = await db
+        .insert(people)
+        .values(peopleRows)
+        .onConflictDoNothing()
+        .returning({ id: people.id });
+    }
+
+    // Relationships go in after the people they reference.
+    let relRestored = [];
+    if (relRows.length > 0) {
+      relRestored = await db
+        .insert(relationships)
+        .values(relRows)
+        .onConflictDoNothing()
+        .returning({ id: relationships.id });
+    }
+
+    // Keep the serial sequences ahead of any id we just re-inserted.
+    await db.execute(
+      sql`SELECT setval(pg_get_serial_sequence('people','id'), GREATEST(COALESCE((SELECT MAX(id) FROM people), 1), 1))`,
+    );
+    await db.execute(
+      sql`SELECT setval(pg_get_serial_sequence('relationships','id'), GREATEST(COALESCE((SELECT MAX(id) FROM relationships), 1), 1))`,
+    );
+
+    await db
+      .update(deletions)
+      .set({ restoredAt: new Date() })
+      .where(eq(deletions.id, deletionId));
+
+    await logAudit(
+      req.userId,
+      "create",
+      "person",
+      peopleRows[0]?.id ?? null,
+      {
+        restore: true,
+        deletionId,
+        peopleRestored: peopleRestored.length,
+        relationshipsRestored: relRestored.length,
+      },
+      req,
+    );
+
+    res.json({
+      success: true,
+      peopleRestored: peopleRestored.length,
+      relationshipsRestored: relRestored.length,
+      restoredPeopleIds: peopleRestored.map((r) => r.id),
+    });
+  } catch (error) {
+    handleError(res, error, "Deletion restore", req);
+  }
+});
+
+// Delete several people as ONE action, snapshotting everything first so the
+// whole action can be undone. This replaces firing N parallel DELETE calls:
+// deleting one person cascades away relationship rows that also touch the
+// others, so a per-person snapshot taken afterwards would silently miss them.
+app.post("/api/people/batch-delete", authenticateUser, async (req, res) => {
+  try {
+    const { treeId, ids, label } = batchDeleteSchema.parse(req.body);
+
+    const ownership = await verifyTreeOwnership(treeId, req.userId);
+    if (!ownership.valid) {
+      return res.status(403).json({ error: ownership.error });
+    }
+
+    // Only ever touch people that belong to THIS tree.
+    const peopleRows = await db
+      .select()
+      .from(people)
+      .where(and(eq(people.treeId, treeId), inArray(people.id, ids)));
+
+    if (peopleRows.length === 0) {
+      return res.status(404).json({ error: "No matching people found" });
+    }
+    const foundIds = peopleRows.map((p) => p.id);
+
+    // Every relationship touching any of them, in any role.
+    const relRows = await db
+      .select()
+      .from(relationships)
+      .where(
+        and(
+          eq(relationships.treeId, treeId),
+          or(
+            inArray(relationships.person1Id, foundIds),
+            inArray(relationships.person2Id, foundIds),
+            inArray(relationships.parentId, foundIds),
+            inArray(relationships.childId, foundIds),
+          ),
+        ),
+      );
+
+    // Snapshot BEFORE deleting. If this insert fails the delete never runs.
+    const [snapshot] = await db
+      .insert(deletions)
+      .values({
+        treeId,
+        deletedBy: req.userId,
+        label: label || null,
+        people: peopleRows,
+        relationships: relRows,
+      })
+      .returning();
+
+    // Now delete. FK cascade removes the relationship rows.
+    await db
+      .delete(people)
+      .where(and(eq(people.treeId, treeId), inArray(people.id, foundIds)));
+
+    await logAudit(
+      req.userId,
+      "delete",
+      "person",
+      foundIds[0],
+      {
+        batch: true,
+        count: foundIds.length,
+        relationships: relRows.length,
+        deletionId: snapshot.id,
+      },
+      req,
+    );
+
+    res.json({
+      success: true,
+      deletionId: snapshot.id,
+      peopleDeleted: peopleRows.length,
+      relationshipsDeleted: relRows.length,
+    });
+  } catch (error) {
+    handleError(res, error, "Batch delete", req);
   }
 });
 
