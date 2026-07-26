@@ -4276,11 +4276,21 @@ function PersonForm({
           <label className="block text-sm font-bold mb-1">{t.phone}</label>
           <input
             type="tel"
+            inputMode="numeric"
             value={formData.phone}
+            maxLength={10}
+            placeholder="0503000223"
             onChange={(e) =>
-              setFormData((prev) => ({ ...prev, phone: e.target.value }))
+              // Digits only, hard-capped at 10 — a UAE number is 10 digits
+              // starting with 0. maxLength alone doesn't stop a paste, so the
+              // value is sliced here too.
+              setFormData((prev) => ({
+                ...prev,
+                phone: e.target.value.replace(/\D/g, "").slice(0, 10),
+              }))
             }
             className="w-full px-3 py-2 border rounded-md"
+            dir="ltr"
           />
         </div>
         <div>
