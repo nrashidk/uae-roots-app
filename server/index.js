@@ -1210,6 +1210,10 @@ app.delete("/api/users/:id", authenticateUser, async (req, res) => {
       await db.delete(relationships).where(eq(relationships.treeId, tree.id));
       await db.delete(people).where(eq(people.treeId, tree.id));
       await db.delete(editHistory).where(eq(editHistory.treeId, tree.id));
+      // Deletion snapshots hold full person rows (names, dates, encrypted
+      // phone/email) for everyone the user ever deleted. They must go with the
+      // account, or "we delete all your data" is not true.
+      await db.delete(deletions).where(eq(deletions.treeId, tree.id));
       await db.delete(trees).where(eq(trees.id, tree.id));
     }
 
@@ -1320,6 +1324,8 @@ app.delete("/api/trees/:id", authenticateUser, async (req, res) => {
     await db.delete(relationships).where(eq(relationships.treeId, treeId));
     await db.delete(people).where(eq(people.treeId, treeId));
     await db.delete(editHistory).where(eq(editHistory.treeId, treeId));
+    // Snapshots belong to the tree — remove them with it.
+    await db.delete(deletions).where(eq(deletions.treeId, treeId));
     await db.delete(trees).where(eq(trees.id, treeId));
 
     await logAudit(
