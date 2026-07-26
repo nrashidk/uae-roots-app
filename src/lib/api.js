@@ -109,10 +109,23 @@ export const api = {
       fetchAPI(`/people/${id}`, {
         method: "DELETE",
       }),
+    batchDelete: (treeId, ids, label) =>
+      fetchAPI("/people/batch-delete", {
+        method: "POST",
+        body: JSON.stringify({ treeId, ids, label }),
+      }),
     updateBirthOrder: (id, birthOrder) =>
       fetchAPI(`/people/${id}/birthOrder`, {
         method: "PATCH",
         body: JSON.stringify({ birthOrder }),
+      }),
+  },
+
+  deletions: {
+    list: (treeId) => fetchAPI(`/deletions/${treeId}`),
+    restore: (deletionId) =>
+      fetchAPI(`/deletions/${deletionId}/restore`, {
+        method: "POST",
       }),
   },
 

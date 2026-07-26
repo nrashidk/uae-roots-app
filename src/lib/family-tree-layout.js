@@ -642,11 +642,14 @@ var FamilyTreeLayoutModule;
                     sb = true;
                 }
             }
+            // 0.425 matches the UPWARD "parents exist but aren't drawn" stub
+            // (y - 0.425) so the marks above and below a box are the same
+            // length. The box covers +/-0.3, so each shows ~11px.
             if (sb) {
-                addLine(d, x, y, x, y + 0.35, "b");
+                addLine(d, x, y, x, y + 0.425, "b");
             }
             if (sg) {
-                addLine(d, x, y, x, y + 0.35, "c");
+                addLine(d, x, y, x, y + 0.425, "c");
             }
         }
     }
@@ -1647,11 +1650,14 @@ var FamilyTreeLayoutModule;
                     sb = true;
                 }
             }
+            // 0.425 matches the UPWARD "parents exist but aren't drawn" stub
+            // (y - 0.425) so the marks above and below a box are the same
+            // length. The box covers +/-0.3, so each shows ~11px.
             if (sb) {
-                addLine(d, x, y, x, y + 0.35, "b");
+                addLine(d, x, y, x, y + 0.425, "b");
             }
             if (sg) {
-                addLine(d, x, y, x, y + 0.35, "c");
+                addLine(d, x, y, x, y + 0.425, "c");
             }
         }
     }
