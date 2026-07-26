@@ -626,7 +626,11 @@ function App() {
       // dialog reappears already-open over the landing page.
       setAuthDialogOpen(false);
       setPublicScreen("landing");
-      navigate("/", { replace: true });
+      // Deliberately NO navigate here. This effect fires on mount for every
+      // signed-out visitor, whatever path they arrived on — navigating would
+      // bounce someone off /privacy before they ever saw it. Where a signed-out
+      // visitor is ALLOWED to be is the guard effect's job; leaving is
+      // handleLogout's job.
       setEmailInput("");
       setPasswordInput("");
       setShowSmsLogin(false);
@@ -1461,6 +1465,8 @@ function App() {
       setPhoneInput("");
       setSmsCode("");
       setSmsError("");
+
+      navigate("/", { replace: true });
 
       // Reset restoration flag so it can run again on next login
       restorationAttemptedRef.current = false;
