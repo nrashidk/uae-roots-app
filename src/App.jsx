@@ -35,7 +35,7 @@ import {
   EyeOff,
   LogOut,
 } from "lucide-react";
-import LandingPage from "./pages/LandingPage.jsx";
+import LandingPage, { LandingNav, LandingFooter } from "./pages/LandingPage.jsx";
 import { PrivacyPolicy } from "./pages/PrivacyPolicy.jsx";
 import FamilyTreeLayout from "./lib/family-tree-layout.js";
 import {
@@ -613,6 +613,12 @@ function App() {
       setSmsError("");
     }
   }, [isAuthenticated]);
+
+  // Switching public screens must start at the top. The privacy link sits in the
+  // footer, so the document is already scrolled down when it's clicked.
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [publicScreen]);
 
   useEffect(() => {
     if (!authLoading && !sessionRestoreLoading) {
@@ -2678,17 +2684,30 @@ function App() {
       <>
         {publicScreen === "privacy" ? (
           <div className="lp" style={{ minHeight: "100vh" }}>
-            <div className="lp-wrap" style={{ padding: "24px 32px" }}>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setPublicScreen("landing")}
-              >
-                <Home className="w-4 h-4 ml-2" />
-                {t.back}
-              </Button>
-            </div>
+            <LandingNav
+              onHome={() => setPublicScreen("landing")}
+              onClaims={() => {
+                setPublicScreen("landing");
+                // The section only exists once the landing page is mounted.
+                setTimeout(
+                  () =>
+                    document
+                      .getElementById("lp-claims")
+                      ?.scrollIntoView({ behavior: "smooth" }),
+                  60,
+                );
+              }}
+              onSignIn={() => {
+                setAuthMode("login");
+                setAuthDialogOpen(true);
+              }}
+              onSignUp={() => {
+                setAuthMode("signup");
+                setAuthDialogOpen(true);
+              }}
+            />
             <PrivacyPolicy />
+            <LandingFooter onPrivacy={() => setPublicScreen("privacy")} />
           </div>
         ) : (
           <LandingPage
