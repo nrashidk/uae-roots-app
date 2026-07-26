@@ -4,14 +4,18 @@ import "./LandingPage.css";
 
 // The lineage chain that assembles itself in the hero. This is the one bold
 // element on the page: Gulf lineage is recited through the fathers, and the
-// app's own getGenealogicalName builds exactly this. Placeholder family —
-// replace with a neutral example before any public launch.
+// app's own getGenealogicalName builds exactly this.
+//
+// The names are deliberately generic and the family name is «آل فلان» — فلان is
+// the Arabic placeholder for "so-and-so", the equivalent of Doe. A real tribal
+// or family name here would attach an invented lineage to actual people, and
+// any Arabic family name plausibly belongs to someone.
 const CHAIN = [
   { rel: "", name: "شيخة" },
   { rel: "بنت", name: "راشد" },
   { rel: "بن", name: "عبيد" },
   { rel: "بن", name: "عيسى" },
-  { rel: "", name: "آل مكتوم" },
+  { rel: "", name: "آل فلان" },
 ];
 
 const CLAIMS = [
@@ -41,7 +45,7 @@ const CLAIMS = [
     num: "٠٣",
     title: "سلسلة النسب",
     body: "الاسم الكامل يُبنى عبر الأب والجد حتى أقدم جدٍّ مسجَّل، لا حقل «اسم أول» و«اسم عائلة».",
-    wrong: <s>شيخة مكتوم</s>,
+    wrong: <s>شيخة فلان</s>,
     right: <>شيخة بنت راشد بن عبيد</>,
   },
 ];
@@ -99,6 +103,7 @@ function LineageChain() {
       >
         {CHAIN.map((s, i) => (
           <span key={i} className={`lp-seg${i < shown ? " on" : ""}`}>
+            {i > 0 && " "}
             {s.rel && <span className="lp-rel">{s.rel} </span>}
             {s.name}
           </span>
