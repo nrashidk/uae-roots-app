@@ -23,6 +23,8 @@ export default function PublicLayout({
   onSignIn,
   onSignUp,
   onPrivacy,
+  signedIn = false,
+  onBackToApp,
 }) {
   return (
     <div className="lp">
@@ -44,15 +46,29 @@ export default function PublicLayout({
             جذور الإمارات
           </button>
           <div className="lp-nav-links">
-            <button type="button" className="lp-plain" onClick={onClaims}>
-              لماذا نحن
-            </button>
-            <button type="button" className="lp-btn lp-btn-line" onClick={onSignIn}>
-              تسجيل الدخول
-            </button>
-            <button type="button" className="lp-btn lp-btn-solid" onClick={onSignUp}>
-              إنشاء حساب
-            </button>
+            {!signedIn && (
+              <button type="button" className="lp-plain" onClick={onClaims}>
+                لماذا نحن
+              </button>
+            )}
+            {signedIn ? (
+              <button
+                type="button"
+                className="lp-btn lp-btn-solid"
+                onClick={onBackToApp}
+              >
+                العودة إلى الشجرة
+              </button>
+            ) : (
+              <>
+                <button type="button" className="lp-btn lp-btn-line" onClick={onSignIn}>
+                  تسجيل الدخول
+                </button>
+                <button type="button" className="lp-btn lp-btn-solid" onClick={onSignUp}>
+                  إنشاء حساب
+                </button>
+              </>
+            )}
           </div>
         </div>
       </nav>

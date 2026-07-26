@@ -45,6 +45,7 @@ import {
   addPersonWithRelationship,
 } from "./lib/dataTransform.js";
 import TreeCanvas from "./components/FamilyTree/TreeCanvas.jsx";
+import { useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "./hooks/useAuth";
 import { api, setAuthToken, clearAuthToken, getAuthToken } from "./lib/api.js";
 
@@ -54,7 +55,27 @@ import { api, setAuthToken, clearAuthToken, getAuthToken } from "./lib/api.js";
 // fire on real failures and carry no form data.
 const DEBUG = false;
 
+// URL <-> view mapping. The app still drives itself through `currentView`;
+// routing is layered on top so every screen has an address, the back button
+// works, and a reload lands where you were. Views keep their internal names so
+// nothing downstream had to change.
+const VIEW_BY_PATH = {
+  "/dashboard": "dashboard",
+  "/tree": "tree-builder",
+  "/members": "family-members",
+  "/relationships": "relationships-detail",
+};
+const PATH_BY_VIEW = {
+  dashboard: "/dashboard",
+  "tree-builder": "/tree",
+  "family-members": "/members",
+  "relationships-detail": "/relationships",
+};
+const PUBLIC_PATHS = ["/", "/privacy"];
+
 function App() {
+  const navigate = useNavigate();
+  const location = useLocation();
   const CARD = { w: 140, h: 90 };
   const REL = {
     PARTNER: "partner",
@@ -605,6 +626,11 @@ function App() {
       // dialog reappears already-open over the landing page.
       setAuthDialogOpen(false);
       setPublicScreen("landing");
+      // Deliberately NO navigate here. This effect fires on mount for every
+      // signed-out visitor, whatever path they arrived on — navigating would
+      // bounce someone off /privacy before they ever saw it. Where a signed-out
+      // visitor is ALLOWED to be is the guard effect's job; leaving is
+      // handleLogout's job.
       setEmailInput("");
       setPasswordInput("");
       setShowSmsLogin(false);
@@ -615,11 +641,98 @@ function App() {
     }
   }, [isAuthenticated]);
 
-  // Switching public screens must start at the top. The privacy link sits in the
-  // footer, so the document is already scrolled down when it's clicked.
+  // Every navigation starts at the top. The privacy link sits in the footer, so
+  // the document is already scrolled down when it's followed. Keyed to the path
+  // rather than to view state, so it covers back/forward and pasted links too.
   useEffect(() => {
     window.scrollTo(0, 0);
-  }, [publicScreen]);
+  }, [location.pathname]);
+
+  // URL -> state. The address bar is the source of truth on load, on back/forward,
+  // and on a pasted link.
+  useEffect(() => {
+    const path = location.pathname;
+
+    if (path === "/privacy") {
+      setPublicScreen("privacy");
+      return;
+    }
+    if (path === "/") {
+      setPublicScreen("landing");
+      return;
+    }
+
+    // /tree/:personId roots the tree on that person, so a branch view survives a
+    // reload and can be shared.
+    const rooted = path.match(/^\/tree\/(\d+)$/);
+    if (rooted) {
+      const id = Number(rooted[1]);
+      setCurrentView("tree-builder");
+      setSelectedPerson((prev) => (prev === id ? prev : id));
+      setHighlightedPerson((prev) => (prev === id ? prev : id));
+      return;
+    }
+
+    const view = VIEW_BY_PATH[path];
+    if (view) setCurrentView(view);
+  }, [location.pathname]);
+
+  // state -> URL. Only once signed in; the public screens are driven the other
+  // way. Re-rooting uses `replace` because clicking through ten relatives
+  // shouldn't leave ten entries in the back button.
+  useEffect(() => {
+    if (!isAuthenticated && !userProfile) return;
+    if (currentView === "auth") return;
+    // /privacy is reachable signed in or out; don't drag the user off it.
+    if (location.pathname === "/privacy") return;
+
+    const want =
+      currentView === "tree-builder"
+        ? selectedPerson
+          ? `/tree/${selectedPerson}`
+          : "/tree"
+        : PATH_BY_VIEW[currentView];
+    if (!want || location.pathname === want) return;
+
+    const rerooting =
+      currentView === "tree-builder" && location.pathname.startsWith("/tree");
+    navigate(want, { replace: rerooting });
+  }, [currentView, selectedPerson, isAuthenticated, userProfile]);
+
+  // Guards. Signed-out visitors can only see the public paths; signed-in users
+  // don't need the marketing page, and land on their tree — which shows the
+  // "start your tree" prompt when it's empty, so first-time users get the right
+  // screen without a separate route.
+  useEffect(() => {
+    if (authLoading || sessionRestoreLoading) return;
+    const signedIn = isAuthenticated || !!userProfile;
+    const path = location.pathname;
+    const isPublic = PUBLIC_PATHS.includes(path);
+
+    if (!signedIn && !isPublic) {
+      navigate("/", { replace: true });
+      return;
+    }
+    if (signedIn && path === "/") {
+      navigate("/tree", { replace: true });
+      return;
+    }
+    // Unknown path for a signed-in user -> their tree.
+    if (
+      signedIn &&
+      !isPublic &&
+      !VIEW_BY_PATH[path] &&
+      !/^\/tree\/\d+$/.test(path)
+    ) {
+      navigate("/tree", { replace: true });
+    }
+  }, [
+    authLoading,
+    sessionRestoreLoading,
+    isAuthenticated,
+    userProfile,
+    location.pathname,
+  ]);
 
   useEffect(() => {
     if (!authLoading && !sessionRestoreLoading) {
@@ -1352,6 +1465,8 @@ function App() {
       setPhoneInput("");
       setSmsCode("");
       setSmsError("");
+
+      navigate("/", { replace: true });
 
       // Reset restoration flag so it can run again on next login
       restorationAttemptedRef.current = false;
@@ -2657,36 +2772,32 @@ function App() {
     );
   }
 
+  if (location.pathname === "/privacy") {
+    const signedIn = isAuthenticated || !!userProfile;
+    return (
+      <PublicLayout
+        signedIn={signedIn}
+        onBackToApp={() => navigate("/tree")}
+        onHome={() => navigate("/")}
+        onClaims={() => navigate("/")}
+        onSignIn={() => {
+          setAuthMode("login");
+          setAuthDialogOpen(true);
+        }}
+        onSignUp={() => {
+          setAuthMode("signup");
+          setAuthDialogOpen(true);
+        }}
+        onPrivacy={() => navigate("/privacy")}
+      >
+        <PrivacyPolicy />
+      </PublicLayout>
+    );
+  }
+
   if (!isAuthenticated && !userProfile) {
     return (
       <>
-        {publicScreen === "privacy" ? (
-          <PublicLayout
-            onHome={() => setPublicScreen("landing")}
-            onClaims={() => {
-              setPublicScreen("landing");
-              // The section only exists once the landing page is mounted.
-              setTimeout(
-                () =>
-                  document
-                    .getElementById("lp-claims")
-                    ?.scrollIntoView({ behavior: "smooth" }),
-                60,
-              );
-            }}
-            onSignIn={() => {
-              setAuthMode("login");
-              setAuthDialogOpen(true);
-            }}
-            onSignUp={() => {
-              setAuthMode("signup");
-              setAuthDialogOpen(true);
-            }}
-            onPrivacy={() => setPublicScreen("privacy")}
-          >
-            <PrivacyPolicy />
-          </PublicLayout>
-        ) : (
           <LandingPage
             onSignIn={() => {
               setAuthMode("login");
@@ -2696,9 +2807,8 @@ function App() {
               setAuthMode("signup");
               setAuthDialogOpen(true);
             }}
-            onPrivacy={() => setPublicScreen("privacy")}
+            onPrivacy={() => navigate("/privacy")}
           />
-        )}
 
         {/* Sign in / register happens in a dialog over the landing page rather
             than on a separate screen: no page switch, and the two entry points
