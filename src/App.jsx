@@ -2657,29 +2657,6 @@ function App() {
     );
   }
 
-  if (!isAuthenticated && !userProfile && publicScreen === "landing") {
-    return (
-      <LandingPage
-        onSignIn={() => setPublicScreen("login")}
-        onPrivacy={() => setPublicScreen("privacy")}
-      />
-    );
-  }
-
-  if (!isAuthenticated && !userProfile && publicScreen === "privacy") {
-    return (
-      <div style={{ minHeight: "100vh", background: "#F4EFE3" }}>
-        <div style={{ maxWidth: "1180px", margin: "0 auto", padding: "24px 32px" }}>
-          <Button variant="outline" size="sm" onClick={() => setPublicScreen("landing")}>
-            <Home className="w-4 h-4 ml-2" />
-            {t.back}
-          </Button>
-        </div>
-        <PrivacyPolicy />
-      </div>
-    );
-  }
-
   if (!isAuthenticated && !userProfile) {
     return (
       <>
