@@ -433,3 +433,16 @@ body {
 .lp .kufi {
   font-family: "Noto Kufi Arabic", "Sakkal Majalla", sans-serif;
 }
+
+/* Auth screens share the landing page's palette and type, so a visitor moving
+   from the homepage into sign-in doesn't cross a visual seam. Same specificity
+   trick as .lp — `* { font-family }` above applies to every element, so a
+   scoped `.auth-shell *` is the minimum that wins it back. */
+.auth-shell,
+.auth-shell * {
+  font-family: "IBM Plex Sans Arabic", "Sakkal Majalla", "Noto Sans Arabic", sans-serif;
+}
+.auth-shell .kufi {
+  font-family: "Noto Kufi Arabic", "Sakkal Majalla", sans-serif;
+  letter-spacing: -0.005em;
+}

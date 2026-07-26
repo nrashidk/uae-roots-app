@@ -2584,9 +2584,9 @@ function App() {
 
   if (authLoading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-purple-400 via-purple-500 to-purple-600 flex items-center justify-center p-4">
-        <div className="bg-white rounded-2xl shadow-xl p-8 w-full max-w-md text-center">
-          <Loader2 className="w-12 h-12 animate-spin mx-auto text-purple-600" />
+      <div className="auth-shell min-h-screen bg-[#F4EFE3] flex items-center justify-center p-4">
+        <div className="bg-white rounded-[3px] border border-[#16233D]/12 p-8 w-full max-w-md text-center">
+          <Loader2 className="w-12 h-12 animate-spin mx-auto text-[#16233D]" />
           <p className="mt-4 text-gray-600">جاري التحميل...</p>
         </div>
       </div>
@@ -2595,9 +2595,9 @@ function App() {
 
   if (sessionRestoreLoading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-purple-400 via-purple-500 to-purple-600 flex items-center justify-center p-4">
-        <div className="bg-white rounded-2xl shadow-xl p-8 w-full max-w-md text-center">
-          <Loader2 className="w-12 h-12 animate-spin mx-auto text-purple-600" />
+      <div className="auth-shell min-h-screen bg-[#F4EFE3] flex items-center justify-center p-4">
+        <div className="bg-white rounded-[3px] border border-[#16233D]/12 p-8 w-full max-w-md text-center">
+          <Loader2 className="w-12 h-12 animate-spin mx-auto text-[#16233D]" />
           <p className="mt-4 text-gray-600">جاري استعادة بيانات العائلة...</p>
         </div>
       </div>
@@ -2629,9 +2629,9 @@ function App() {
 
   if (!isAuthenticated && !userProfile) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-purple-400 via-purple-500 to-purple-600 flex items-center justify-center p-4">
-        <div className="bg-white rounded-2xl shadow-xl p-8 w-full max-w-md">
-          <h1 className="text-4xl font-bold text-gray-800 mb-8 text-center">
+      <div className="auth-shell min-h-screen bg-[#F4EFE3] flex items-center justify-center p-4">
+        <div className="bg-white rounded-[3px] border border-[#16233D]/12 p-8 w-full max-w-md">
+          <h1 className="kufi text-3xl font-medium text-[#16233D] mb-8 text-center leading-relaxed">
             {t.welcome}
           </h1>
 
@@ -2648,7 +2648,7 @@ function App() {
                 value={emailInput}
                 onChange={(e) => setEmailInput(e.target.value)}
                 placeholder="البريد الإلكتروني"
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent text-right"
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#A5813F] focus:border-transparent text-right"
                 dir="rtl"
                 disabled={authProcessing}
               />
@@ -2659,7 +2659,7 @@ function App() {
                 value={passwordInput}
                 onChange={(e) => setPasswordInput(e.target.value)}
                 placeholder="كلمة المرور"
-                className="w-full pl-12 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent text-right"
+                className="w-full pl-12 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#A5813F] focus:border-transparent text-right"
                 dir="rtl"
                 disabled={authProcessing}
               />
@@ -2678,7 +2678,7 @@ function App() {
             <Button
               type="submit"
               disabled={authProcessing || !emailInput || !passwordInput}
-              className="w-full bg-purple-600 hover:bg-purple-700 text-white py-3"
+              className="w-full bg-[#16233D] hover:bg-[#A5813F] text-white py-3 rounded-[3px]"
             >
               {processingMethod === "email" ? (
                 <Loader2 className="w-5 h-5 animate-spin" />
@@ -2696,7 +2696,7 @@ function App() {
               onClick={() =>
                 setAuthMode(authMode === "login" ? "signup" : "login")
               }
-              className="text-purple-600 hover:text-purple-800 text-sm"
+              className="text-[#A5813F] hover:text-[#8A6A2F] text-sm"
             >
               {authMode === "login"
                 ? "ليس لديك حساب؟ إنشاء حساب جديد"
@@ -2717,7 +2717,7 @@ function App() {
             <Button
               onClick={handleGoogleLogin}
               disabled={authProcessing}
-              className="w-full bg-white hover:bg-gray-50 text-gray-700 border border-gray-300 py-3"
+              className="w-full bg-white hover:bg-gray-50 text-gray-700 border border-gray-300 py-3 rounded-[3px]"
             >
               {processingMethod === "google" ? (
                 <Loader2 className="w-5 h-5 animate-spin ml-2" />
@@ -2746,7 +2746,7 @@ function App() {
             <Button
               onClick={handleMicrosoftLogin}
               disabled={authProcessing}
-              className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3"
+              className="w-full bg-white hover:bg-gray-50 text-gray-700 border border-gray-300 py-3 rounded-[3px]"
             >
               {processingMethod === "microsoft" ? (
                 <Loader2 className="w-5 h-5 animate-spin ml-2" />
@@ -2758,7 +2758,7 @@ function App() {
             <Button
               onClick={() => setShowSmsLogin(true)}
               disabled={authProcessing}
-              className="w-full bg-orange-500 hover:bg-orange-600 text-white py-3"
+              className="w-full bg-transparent hover:bg-[#A5813F]/8 text-[#16233D] border border-[#A5813F] py-3 rounded-[3px]"
             >
               <Smartphone className="w-5 h-5 ml-2" />
               {t.uaeMobile}
@@ -2815,7 +2815,7 @@ function App() {
                         }
                       }}
                       placeholder="501234567"
-                      className="flex-1 block w-full rounded-r-md border border-gray-300 px-3 py-2 focus:border-purple-500 focus:ring-purple-500"
+                      className="flex-1 block w-full rounded-r-md border border-gray-300 px-3 py-2 focus:border-[#A5813F] focus:ring-[#A5813F]"
                       maxLength={9}
                     />
                   </div>
@@ -2826,7 +2826,7 @@ function App() {
                 <Button
                   onClick={handleSendSmsCode}
                   disabled={authProcessing || !phoneInput}
-                  className="w-full bg-purple-600 hover:bg-purple-700"
+                  className="w-full bg-[#16233D] hover:bg-[#A5813F] text-white rounded-[3px]"
                 >
                   {processingMethod === "phone" ? (
                     <Loader2 className="w-5 h-5 animate-spin ml-2" />
@@ -2858,7 +2858,7 @@ function App() {
                       }
                     }}
                     placeholder="أدخل الرمز المكون من 6 أرقام"
-                    className="block w-full rounded-md border border-gray-300 px-3 py-2 focus:border-purple-500 focus:ring-purple-500 text-center text-lg tracking-widest"
+                    className="block w-full rounded-md border border-gray-300 px-3 py-2 focus:border-[#A5813F] focus:ring-[#A5813F] text-center text-lg tracking-widest"
                     maxLength={6}
                     dir="ltr"
                   />
@@ -2881,7 +2881,7 @@ function App() {
                   <Button
                     onClick={handleVerifySmsCode}
                     disabled={authProcessing || smsCode.length !== 6}
-                    className="flex-1 bg-purple-600 hover:bg-purple-700"
+                    className="flex-1 bg-[#16233D] hover:bg-[#A5813F] text-white rounded-[3px]"
                   >
                     {processingMethod === "code" ? (
                       <Loader2 className="w-5 h-5 animate-spin ml-2" />
@@ -2892,7 +2892,7 @@ function App() {
                 <button
                   onClick={handleSendSmsCode}
                   disabled={authProcessing}
-                  className="w-full text-sm text-purple-600 hover:text-purple-700 underline"
+                  className="w-full text-sm text-[#A5813F] hover:text-[#8A6A2F] underline"
                 >
                   إعادة إرسال الرمز
                 </button>
