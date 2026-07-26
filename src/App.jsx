@@ -1229,6 +1229,12 @@ function App() {
       DEBUG && console.log("[handleAuthSuccess] User saved:", savedUser);
       setUserProfile(savedUser);
 
+      // Close the auth dialog now that we're in; leaving it true means it
+      // reappears already-open the moment the user signs out.
+      setAuthDialogOpen(false);
+      setEmailInput("");
+      setPasswordInput("");
+
       DEBUG && console.log("[handleAuthSuccess] Loading tree data...");
       await loadUserTreeData(resolvedUserId);
       DEBUG && console.log("[handleAuthSuccess] Complete!");
@@ -1313,6 +1319,19 @@ function App() {
       setUserProfile(null);
       setCurrentView("auth");
 
+      // Return the public view to its starting state. Without this the auth
+      // dialog is still flagged open from before sign-in and pops straight back
+      // up on logout, and the previous user's email stays in the field.
+      setAuthDialogOpen(false);
+      setPublicScreen("landing");
+      setEmailInput("");
+      setPasswordInput("");
+      setShowSmsLogin(false);
+      setSmsStep("phone");
+      setPhoneInput("");
+      setSmsCode("");
+      setSmsError("");
+
       // Reset restoration flag so it can run again on next login
       restorationAttemptedRef.current = false;
       setSessionRestoreError(null);
@@ -1377,6 +1396,10 @@ function App() {
       setUserProfile(null);
       setCurrentView("auth");
       setShowProfile(false);
+      setAuthDialogOpen(false);
+      setPublicScreen("landing");
+      setEmailInput("");
+      setPasswordInput("");
     } catch (err) {
       console.error("Account delete error:", err);
       setProfileMessage("فشل في حذف الحساب");
