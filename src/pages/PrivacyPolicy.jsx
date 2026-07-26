@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button';
 
 export function PrivacyPolicy() {
   return (
-    <div className="min-h-screen bg-[#F4EFE3]" dir="rtl">
+    <div dir="rtl">
       <div className="max-w-4xl mx-auto px-4 py-8">
 
         <div className="bg-white rounded-[3px] border border-[#16233D]/12 p-8 space-y-8">
