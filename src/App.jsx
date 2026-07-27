@@ -2668,10 +2668,29 @@ function App() {
         : t.removeMarriageConfirm;
     if (!window.confirm(message)) return;
 
+    // One label for the undo list. A marriage removal often deletes nobody, so
+    // the couple's names are the only thing that identifies it later.
+    const marriageLabel = [
+      `زواج: ${[nameOf(removed.person1Id), nameOf(removed.person2Id)]
+        .filter(Boolean)
+        .join(" — ")}`,
+      ...(orphaned.length > 0
+        ? [orphaned.map(nameOf).filter(Boolean).join("، ")]
+        : []),
+    ]
+      .join(" | ")
+      .slice(0, 300);
+
     try {
-      await api.relationships.delete(relId);
+      // ONE batched call. The server snapshots the partner row AND any orphaned
+      // people (with every relationship touching them) BEFORE removing
+      // anything, so the whole action is a single undo entry. The old shape —
+      // DELETE the relationship, then fire N person DELETEs — wrote no snapshot
+      // at all, and destroyed the partner row before the people were even read.
+      await api.people.batchDelete(currentTree?.id, orphaned, marriageLabel, [
+        relId,
+      ]);
       if (orphaned.length > 0) {
-        await Promise.all(orphaned.map((id) => api.people.delete(id)));
         setPeople((prev) => prev.filter((p) => !orphaned.includes(p.id)));
       }
       setRelationships(remaining);
