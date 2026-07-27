@@ -323,6 +323,8 @@ function App() {
     removeMarriage: "حذف الزواج",
     removeMarriageConfirm:
       "سيتم حذف هذا الزواج فقط. يبقى الشخصان في الشجرة، ويبقى الأبناء مرتبطين بوالديهم. هل تريد المتابعة؟",
+    removeMarriageOrphan:
+      "سيتم حذف هذا الزواج، ومعه الأشخاص التالية أسماؤهم لأن هذا الزواج هو ارتباطهم الوحيد بالشجرة:",
     reviveBlocked:
       "لا يمكن إرجاع هذا الشخص على قيد الحياة: سيتجاوز شريكه الحد المسموح من الأزواج الأحياء.",
     genderBlockedMale:
@@ -2637,11 +2639,41 @@ function App() {
   // is wrong when the person is real and only the marriage was wrong.
   // Children keep their parent-child rows and stay exactly where they are.
   const removeMarriage = async (relId) => {
-    if (!window.confirm(t.removeMarriageConfirm)) return;
+    const removed = relationships.find((r) => r.id === relId);
+    if (!removed) return;
+    const remaining = relationships.filter((r) => r.id !== relId);
+
+    const stillLinked = (id) =>
+      remaining.some(
+        (r) =>
+          r.treeId === currentTree?.id &&
+          (r.person1Id === id ||
+            r.person2Id === id ||
+            r.parentId === id ||
+            r.childId === id),
+      );
+
+    // A spouse whose ONLY link was this marriage would survive in the database
+    // but could never be drawn again — the invisible-record state. The app's
+    // delete rule already removes anyone left unconnected, so removing a
+    // marriage does the same rather than quietly creating an orphan.
+    const orphaned = [removed.person1Id, removed.person2Id].filter(
+      (id) => id != null && !stillLinked(id),
+    );
+    const nameOf = (id) => people.find((p) => p.id === id)?.firstName || "";
+
+    const message =
+      orphaned.length > 0
+        ? `${t.removeMarriageOrphan}\n${orphaned.map(nameOf).filter(Boolean).join("، ")}\n\nهل تريد المتابعة؟`
+        : t.removeMarriageConfirm;
+    if (!window.confirm(message)) return;
+
     try {
-      const removed = relationships.find((r) => r.id === relId);
-      const remaining = relationships.filter((r) => r.id !== relId);
       await api.relationships.delete(relId);
+      if (orphaned.length > 0) {
+        await Promise.all(orphaned.map((id) => api.people.delete(id)));
+        setPeople((prev) => prev.filter((p) => !orphaned.includes(p.id)));
+      }
       setRelationships(remaining);
       setShowPersonForm(false);
       setEditingPerson(null);
@@ -2651,15 +2683,6 @@ function App() {
       // nothing, and the tree would render them alone as a single box. Fall
       // back to the natural root, or to their former partner if that partner is
       // still connected.
-      const stillLinked = (id) =>
-        remaining.some(
-          (r) =>
-            r.treeId === currentTree?.id &&
-            (r.person1Id === id ||
-              r.person2Id === id ||
-              r.parentId === id ||
-              r.childId === id),
-        );
       if (removed) {
         const partnerOf = (id) =>
           removed.person1Id === id ? removed.person2Id : removed.person1Id;
