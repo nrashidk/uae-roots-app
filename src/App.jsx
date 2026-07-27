@@ -2867,6 +2867,14 @@ function App() {
       if (showPersonForm) {
         setShowPersonForm(false);
       }
+      // The picker occupies the same panel and carries the same
+      // data-person-form marker, so it should dismiss the same way — closing
+      // only via the × was inconsistent with every other panel.
+      if (existingSpouseFor) {
+        setExistingSpouseFor(null);
+        setExistingSpouseSearch("");
+        setExistingSpousePage(0);
+      }
     }
   };
 
@@ -2966,6 +2974,11 @@ function App() {
         setDragStartOffset({ ...panOffset });
         if (showPersonForm) {
           setShowPersonForm(false);
+        }
+        if (existingSpouseFor) {
+          setExistingSpouseFor(null);
+          setExistingSpouseSearch("");
+          setExistingSpousePage(0);
         }
       }
     }
@@ -3425,7 +3438,10 @@ function App() {
   // and height — rather than floating over it as a second box. It pages instead
   // of scrolling: a page is sized to the panel, and the rest is reached with
   // next/previous.
-  const PICKER_PAGE_SIZE = 10;
+  // Sized so a full page fits the panel without clipping: header ~57, search
+  // ~54, pager ~58, padding ~32, and each row ~48. Ten rows overflowed 640 by
+  // about 45px and cut the last one.
+  const PICKER_PAGE_SIZE = 8;
 
   const renderSpousePicker = () => {
     const q = existingSpouseSearch.trim();
