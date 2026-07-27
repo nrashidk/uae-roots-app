@@ -294,6 +294,8 @@ function App() {
     newEmail: "البريد الإلك �روني الجديد",
     newPhone: "رقم الهاتف الجديد",
     notSet: "غير محدد",
+    divorcedM: "مطلق",
+    divorcedF: "مطلقة",
     signInTitle: "تسجيل الدخول",
     signUpTitle: "إنشاء حساب جديد",
     undoDelete: "تراجع عن الحذف",
@@ -1782,6 +1784,30 @@ function App() {
 
   const spouseLimitFor = (person) => (person?.gender === "male" ? 4 : 1);
 
+  // The marriage the «مطلق/ة» tick refers to: a person's MOST RECENT one.
+  // Binding to the most recent (rather than to "the single active one") keeps
+  // the tick visible after it is ticked, so an accidental divorce can be undone,
+  // and it clears itself on remarriage because the new marriage becomes the most
+  // recent and is not divorced.
+  // Hidden when someone has more than one ACTIVE marriage — a man with four
+  // wives would otherwise see a tick bound only to the newest, which is
+  // misleading. Those are ended from the wife's record instead, where her most
+  // recent marriage is the one to him.
+  const latestMarriageOf = (personId) => {
+    if (personId == null) return null;
+    const mine = relationships
+      .filter(
+        (r) =>
+          r.treeId === currentTree?.id &&
+          r.type === "partner" &&
+          (r.person1Id === personId || r.person2Id === personId),
+      )
+      .sort((a, b) => (b.id ?? 0) - (a.id ?? 0));
+    if (mine.length === 0) return null;
+    if (countActiveSpouses(personId) > 1) return null;
+    return mine[0];
+  };
+
   const spouseLimitMessage = (limit) =>
     limit === 1
       ? "لا يمكن إضافة أكثر من زوج واحد"
@@ -2030,6 +2056,20 @@ function App() {
   const updatePerson = async (personData) => {
     try {
       const editingId = editingPerson;
+
+      // The divorce tick lives on the form but belongs to a relationship row,
+      // so it is saved separately from the person's own fields.
+      if (personData.__marriageId != null) {
+        const wanted = personData.__isDivorced ? "divorced" : "married";
+        await api.relationships.setStatus(personData.__marriageId, wanted);
+        setRelationships((prev) =>
+          prev.map((r) =>
+            r.id === personData.__marriageId ? { ...r, status: wanted } : r,
+          ),
+        );
+      }
+      delete personData.__marriageId;
+      delete personData.__isDivorced;
       // milkFatherName/milkMotherName are real person columns now — update them
       // directly on the person. No parent people, no parent-child links.
       const updatedPerson = await api.people.update(editingId, personData);
@@ -3209,6 +3249,7 @@ function App() {
                   setChosenChildOtherParentId(null);
                 }}
                 relationshipType={relationshipType}
+                marriage={editingPerson ? latestMarriageOf(editingPerson) : null}
                 defaultGender={defaultSpouseGender}
                 pendingFatherId={pendingFatherId}
                 pendingMotherId={pendingMotherId}
@@ -4241,6 +4282,7 @@ function PersonForm({
   onSave,
   onCancel,
   relationshipType,
+  marriage,
   t,
   defaultGender,
   defaultFirstName,
@@ -4285,6 +4327,11 @@ function PersonForm({
     return defaultGender || "";
   };
 
+  // NULL status means married, so anything other than "divorced" is married.
+  const [isDivorced, setIsDivorced] = useState(
+    marriage?.status === "divorced",
+  );
+
   const [formData, setFormData] = useState({
     firstName: getDefaultFirstName(),
     lastName: person?.lastName || "",
@@ -4300,6 +4347,10 @@ function PersonForm({
     email: person?.email || "",
     profession: person?.profession || "",
   });
+
+  useEffect(() => {
+    setIsDivorced(marriage?.status === "divorced");
+  }, [marriage?.id, marriage?.status]);
 
   // Reset form when person prop changes
   useEffect(() => {
@@ -4349,7 +4400,11 @@ function PersonForm({
       return;
     }
     DEBUG && console.log("Form data being submitted:", formData);
-    onSave(formData);
+    onSave(
+      marriage
+        ? { ...formData, __marriageId: marriage.id, __isDivorced: isDivorced }
+        : formData,
+    );
   };
 
   return (
@@ -4436,6 +4491,21 @@ function PersonForm({
             {t.isLiving}
           </label>
         </div>
+
+        {marriage && (
+          <div className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              id="isDivorced"
+              checked={isDivorced}
+              onChange={(e) => setIsDivorced(e.target.checked)}
+              className="rounded"
+            />
+            <label htmlFor="isDivorced" className="text-sm font-bold">
+              {person?.gender === "male" ? t.divorcedM : t.divorcedF}
+            </label>
+          </div>
+        )}
 
         {!person && (
           <div className="flex items-center gap-2">
