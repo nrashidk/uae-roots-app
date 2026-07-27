@@ -4789,8 +4789,6 @@ function PersonForm({
     birthPlace: person?.birthPlace || "",
     isLiving: person?.isLiving !== false,
     isBreastfed: person?.isBreastfed === true,
-    milkFatherName: person?.milkFatherName || "",
-    milkMotherName: person?.milkMotherName || "",
     deathDate: person?.deathDate || "",
     phone: person?.phone || "",
     email: person?.email || "",
