@@ -299,9 +299,9 @@ function App() {
     reviveBlocked:
       "لا يمكن إرجاع هذا الشخص على قيد الحياة: سيتجاوز شريكه الحد المسموح من الأزواج الأحياء.",
     genderBlockedMale:
-      "لا يمكن تغيير الجنس إلى ذكر: هذا الشخص متزوج من ذكر.",
+      "لا يمكن تغيير الجنس إلى ذكر: يوجد زواج مسجّل مع ذكر. احذف الزواج أولاً ثم غيّر الجنس.",
     genderBlockedFemale:
-      "لا يمكن تغيير الجنس إلى أنثى: هذا الشخص متزوج من أنثى.",
+      "لا يمكن تغيير الجنس إلى أنثى: يوجد زواج مسجّل مع أنثى. احذف الزواج أولاً ثم غيّر الجنس.",
     signInTitle: "تسجيل الدخول",
     signUpTitle: "إنشاء حساب جديد",
     undoDelete: "تراجع عن الحذف",
@@ -2107,10 +2107,16 @@ function App() {
         }
       }
 
-      // A marriage must be between a man and a woman. Rather than silently
-      // flipping the partner — which would rewrite other records, and change
-      // the name chain of every descendant, since it follows the male line —
-      // the edit is refused and the user decides which record is wrong.
+      // A marriage must be between a man and a woman — and this deliberately
+      // checks EVERY marriage, ended ones included. A gender is almost always
+      // changed to correct a data-entry error, and if the spouse's gender makes
+      // the marriage invalid then it was never valid; divorcing doesn't fix the
+      // record, it just turns a currently-invalid marriage into a historically
+      // invalid one. Blocking forces the honest sequence: remove the marriage,
+      // then correct the gender.
+      // The partner is never silently flipped instead — that would rewrite
+      // another person's record, and rewrite the full name of every descendant,
+      // since the name chain follows the male line.
       const genderChanged =
         personData.gender && before && personData.gender !== before.gender;
       if (genderChanged) {
