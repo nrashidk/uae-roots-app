@@ -174,7 +174,13 @@ const TreeCanvas = ({
         ctx.fillStyle = boxColor;
         ctx.fillRect(boxX, boxY, w, h);
 
-        // Draw border (highlight if this person is the highlighted one)
+        // Draw border (highlight if this person is the highlighted one).
+        // A dashed border marks someone whose marriages have ALL ended — the
+        // gender fill is kept so male/female is still readable, and a dashed
+        // BORDER can't be mistaken for the green dashed رضاعة LINE. The
+        // connector itself is left alone, because the other partner may still
+        // have current marriages of their own.
+        const allEnded = personData.allMarriagesEnded === true;
         if (highlightedPerson === personId) {
           ctx.strokeStyle = "#22c55e"; // green for selected
           ctx.lineWidth = 3;
@@ -182,7 +188,11 @@ const TreeCanvas = ({
           ctx.strokeStyle = "#d1d5db"; // gray
           ctx.lineWidth = 2;
         }
+        if (allEnded && highlightedPerson !== personId) {
+          ctx.setLineDash([5, 3]);
+        }
         ctx.strokeRect(boxX, boxY, w, h);
+        ctx.setLineDash([]);
 
         // Draw text
         ctx.fillStyle = isLiving
