@@ -122,8 +122,12 @@ const TreeCanvas = ({
           return;
         }
 
-        // Extract numeric person ID for looking up in people array (for additional data)
-        const personId = parseInt(entityId.replace("P", ""));
+        // Extract numeric person ID for looking up in people array (for additional data).
+        // A person shown in two places (cousin marriage) gets a SECOND entity keyed
+        // `${baseKey}${Math.random()}` by addEntity, which parseInt cannot resolve.
+        // addEntity stores the original key on `.d`, so prefer that when present.
+        const baseEntityId = entity.d || entityId;
+        const personId = parseInt(baseEntityId.replace("P", ""));
         const person = people.find((p) => p.id === personId);
 
         // Calculate how many lines of text will be shown
@@ -340,7 +344,8 @@ const TreeCanvas = ({
 
       // Check if click is on any person box
       for (const [entityId, entity] of Object.entries(layout.e)) {
-        const personId = parseInt(entityId.replace("P", ""));
+        // Duplicate boxes carry the original key on `.d` — see the render path above.
+        const personId = parseInt((entity.d || entityId).replace("P", ""));
         const x = entity.x * BOX_WIDTH;
         const y = entity.y * BOX_HEIGHT;
         const w = BOX_WIDTH * 0.8;
