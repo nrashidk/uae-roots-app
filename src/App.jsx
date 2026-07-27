@@ -2558,6 +2558,7 @@ function App() {
 
   const openNewSpouseForm = (personId) => {
     setSpouseSourceFor(null);
+    setExistingSpouseFor(null);
     setSelectedPerson(personId);
     setRelationshipType("spouse");
     setEditingPerson(null);
@@ -3532,8 +3533,13 @@ function App() {
     // Milk-parent names now live on the person record (milkFatherName /
     // milkMotherName). The form reads them directly; the fields show whenever the
     // person is a milk-sibling (isBreastfed), which is true on add and edit.
+    // The picker uses this same panel position, and renders BEFORE this in the
+    // markup — so without this guard the form sits invisibly on top of it and
+    // swallows every click.
     return (
-      showPersonForm && (
+      showPersonForm &&
+      !existingSpouseFor &&
+      !spouseSourceFor && (
         <div
           data-person-form
           className="fixed right-4 top-1/2 transform -translate-y-1/2 bg-white shadow-2xl border rounded-lg z-50"
@@ -4422,6 +4428,8 @@ function App() {
                 </Button>
                 <Button
                   onClick={() => {
+                    setShowPersonForm(false);
+                    setEditingPerson(null);
                     setExistingSpouseFor(spouseSourceFor);
                     setExistingSpouseSearch("");
                     setExistingSpousePage(0);
