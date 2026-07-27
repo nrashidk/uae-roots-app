@@ -131,6 +131,15 @@ function App() {
   const [pendingMotherId, setPendingMotherId] = useState(null);
   // Slice 1: when adding a child to a parent with 2+ spouses, pick which spouse is the other parent
   const [motherPickerFor, setMotherPickerFor] = useState(null); // { parentId, candidates, pickLabel, helpText }
+  // Marrying two people who are ALREADY in the tree. No new person is created —
+  // only a partner row. The tree is a rooted view, so each side is drawn when
+  // that person is the root; no connector ever has to span the whole tree.
+  const [spouseSourceFor, setSpouseSourceFor] = useState(null); // personId
+  const [existingSpouseFor, setExistingSpouseFor] = useState(null); // personId
+  const [existingSpouseSearch, setExistingSpouseSearch] = useState("");
+  // The picker fills the same panel as the edit form, so it pages rather than
+  // scrolls — a scrollbar inside a fixed side panel is easy to miss.
+  const [existingSpousePage, setExistingSpousePage] = useState(0);
   const [chosenChildOtherParentId, setChosenChildOtherParentId] = useState(null);
   const [zoom, setZoom] = useState(1);
   const [panOffset, setPanOffset] = useState({ x: 0, y: 0 });
@@ -205,6 +214,13 @@ function App() {
   useEffect(() => {
     setShowPersonForm(false);
     setEditingPerson(null);
+    // The picker blocks the person form from rendering, so leaving it set while
+    // navigating away meant no form would open anywhere — including Family
+    // Members, which has its own copy of the panel.
+    setExistingSpouseFor(null);
+    setExistingSpouseSearch("");
+    setExistingSpousePage(0);
+    setSpouseSourceFor(null);
   }, [currentView]);
 
   useEffect(() => {
@@ -296,6 +312,17 @@ function App() {
     notSet: "غير محدد",
     divorcedM: "مطلق",
     divorcedF: "مطلقة",
+    addSpouseChoice: "إضافة زوج/زوجة",
+    spouseNewPerson: "شخص جديد",
+    spouseExisting: "شخص موجود في الشجرة",
+    pickExistingSpouse: "اختر من الشجرة",
+    searchPlaceholder: "ابحث بالاسم",
+    noEligible: "لا يوجد أشخاص مؤهلون في الشجرة",
+    next: "التالي",
+    previous: "السابق",
+    removeMarriage: "حذف الزواج",
+    removeMarriageConfirm:
+      "سيتم حذف هذا الزواج فقط. يبقى الشخصان في الشجرة، ويبقى الأبناء مرتبطين بوالديهم. هل تريد المتابعة؟",
     reviveBlocked:
       "لا يمكن إرجاع هذا الشخص على قيد الحياة: سيتجاوز شريكه الحد المسموح من الأزواج الأحياء.",
     genderBlockedMale:
@@ -2532,12 +2559,143 @@ function App() {
       return;
     }
 
-    // Open form for adding spouse
+    // Ask whether this is a new person or someone already in the tree.
+    setSpouseSourceFor(personId);
+  };
+
+  const openNewSpouseForm = (personId) => {
+    setSpouseSourceFor(null);
+    setExistingSpouseFor(null);
     setSelectedPerson(personId);
     setRelationshipType("spouse");
     setEditingPerson(null);
     setFormKey((prev) => prev + 1);
     setShowPersonForm(true);
+  };
+
+  // Who may be married to `personId`, out of the people already in the tree.
+  // Excluded: the person themselves, the same gender, anyone already married to
+  // them, direct ancestors and descendants, and anyone already at their own
+  // spouse limit. Wider maḥram rules — siblings, aunts and uncles, milk
+  // relatives — are a separate piece; parent and child are blocked here because
+  // that isn't a refinement.
+  const eligibleSpousesFor = (personId) => {
+    const person = treePeople.find((p) => p.id === personId);
+    if (!person) return [];
+
+    const rels = relationships.filter((r) => r.treeId === currentTree?.id);
+    const parentsOf = (id) =>
+      rels
+        .filter((r) => r.type === "parent-child" && r.childId === id)
+        .map((r) => r.parentId);
+    const childrenOf = (id) =>
+      rels
+        .filter((r) => r.type === "parent-child" && r.parentId === id)
+        .map((r) => r.childId);
+
+    const walk = (startId, step) => {
+      const seen = new Set();
+      const stack = [startId];
+      while (stack.length) {
+        const cur = stack.pop();
+        for (const next of step(cur)) {
+          if (!seen.has(next)) {
+            seen.add(next);
+            stack.push(next);
+          }
+        }
+      }
+      return seen;
+    };
+    const bloodline = new Set([
+      ...walk(personId, parentsOf),
+      ...walk(personId, childrenOf),
+    ]);
+
+    const alreadyMarried = new Set(
+      rels
+        .filter(
+          (r) =>
+            r.type === "partner" &&
+            (r.person1Id === personId || r.person2Id === personId),
+        )
+        .map((r) => (r.person1Id === personId ? r.person2Id : r.person1Id)),
+    );
+
+    return treePeople.filter((c) => {
+      if (c.id === personId) return false;
+      if (!c.gender || c.gender === person.gender) return false;
+      if (alreadyMarried.has(c.id)) return false;
+      if (bloodline.has(c.id)) return false;
+      if (countActiveSpouses(c.id) >= spouseLimitFor(c)) return false;
+      return true;
+    });
+  };
+
+  // Remove a marriage without touching either person. Needed because a
+  // mistaken link could otherwise only be undone by DELETING one of them, which
+  // is wrong when the person is real and only the marriage was wrong.
+  // Children keep their parent-child rows and stay exactly where they are.
+  const removeMarriage = async (relId) => {
+    if (!window.confirm(t.removeMarriageConfirm)) return;
+    try {
+      const removed = relationships.find((r) => r.id === relId);
+      const remaining = relationships.filter((r) => r.id !== relId);
+      await api.relationships.delete(relId);
+      setRelationships(remaining);
+      setShowPersonForm(false);
+      setEditingPerson(null);
+
+      // If the tree is rooted on someone whose ONLY link was this marriage —
+      // a married-in spouse with no parents or children — they now connect to
+      // nothing, and the tree would render them alone as a single box. Fall
+      // back to the natural root, or to their former partner if that partner is
+      // still connected.
+      const stillLinked = (id) =>
+        remaining.some(
+          (r) =>
+            r.treeId === currentTree?.id &&
+            (r.person1Id === id ||
+              r.person2Id === id ||
+              r.parentId === id ||
+              r.childId === id),
+        );
+      if (removed) {
+        const partnerOf = (id) =>
+          removed.person1Id === id ? removed.person2Id : removed.person1Id;
+        setSelectedPerson((prev) => {
+          if (prev == null || stillLinked(prev)) return prev;
+          const other = partnerOf(prev);
+          return stillLinked(other) ? other : null;
+        });
+        setHighlightedPerson((prev) =>
+          prev != null && !stillLinked(prev) ? null : prev,
+        );
+      }
+    } catch (error) {
+      console.error("Failed to remove marriage:", error);
+      alert("فشل في حذف الزواج: " + error.message);
+    }
+  };
+
+  // Marry two people already in the tree: one partner row, nothing else.
+  const linkExistingSpouse = async (personId, spouseId) => {
+    try {
+      const newRel = await api.relationships.create({
+        treeId: currentTree?.id,
+        type: "partner",
+        person1Id: personId,
+        person2Id: spouseId,
+      });
+      setRelationships((prev) => [...prev, newRel]);
+      setExistingSpouseFor(null);
+      setExistingSpouseSearch("");
+      setSelectedPerson(personId);
+      setHighlightedPerson(personId);
+    } catch (error) {
+      console.error("Failed to link spouse:", error);
+      alert("فشل في إضافة الزواج: " + error.message);
+    }
   };
 
   const proceedAddChild = (parentId, otherParentId) => {
@@ -2716,6 +2874,14 @@ function App() {
       if (showPersonForm) {
         setShowPersonForm(false);
       }
+      // The picker occupies the same panel and carries the same
+      // data-person-form marker, so it should dismiss the same way — closing
+      // only via the × was inconsistent with every other panel.
+      if (existingSpouseFor) {
+        setExistingSpouseFor(null);
+        setExistingSpouseSearch("");
+        setExistingSpousePage(0);
+      }
     }
   };
 
@@ -2815,6 +2981,11 @@ function App() {
         setDragStartOffset({ ...panOffset });
         if (showPersonForm) {
           setShowPersonForm(false);
+        }
+        if (existingSpouseFor) {
+          setExistingSpouseFor(null);
+          setExistingSpouseSearch("");
+          setExistingSpousePage(0);
         }
       }
     }
@@ -3270,13 +3441,128 @@ function App() {
   // Reusable person add/edit form panel — rendered in both the tree view and the
   // Family Members dashboard, so people who aren't placed on the tree (e.g. milk
   // siblings) can still be opened and edited from the dashboard.
+  // The picker occupies the SAME panel as the edit form — same position, width
+  // and height — rather than floating over it as a second box. It pages instead
+  // of scrolling: a page is sized to the panel, and the rest is reached with
+  // next/previous.
+  // Sized so a full page fits without clipping: header ~57, search ~54, pager
+  // ~58, padding ~32, and each row ~48. Ten rows overflowed and cut the last;
+  // nine fit once the panel is 680.
+  const PICKER_PAGE_SIZE = 9;
+
+  const renderSpousePicker = () => {
+    const q = existingSpouseSearch.trim();
+    const all = eligibleSpousesFor(existingSpouseFor).filter(
+      (c) => !q || getGenealogicalName(c).includes(q),
+    );
+    const pages = Math.max(1, Math.ceil(all.length / PICKER_PAGE_SIZE));
+    const page = Math.min(existingSpousePage, pages - 1);
+    const slice = all.slice(
+      page * PICKER_PAGE_SIZE,
+      page * PICKER_PAGE_SIZE + PICKER_PAGE_SIZE,
+    );
+
+    return (
+      <div
+        data-person-form
+        className="fixed right-4 top-1/2 transform -translate-y-1/2 bg-white shadow-2xl border rounded-lg z-50"
+        style={{
+          width: "380px",
+          height: "min(680px, 85vh)",
+          overflow: "hidden",
+        }}
+      >
+        <div className="flex flex-col h-full">
+          <div className="flex justify-between items-center p-4 border-b shrink-0">
+            <h2 className="text-xl font-bold">{t.pickExistingSpouse}</h2>
+            <Button
+              onClick={() => {
+                setExistingSpouseFor(null);
+                setExistingSpouseSearch("");
+                setExistingSpousePage(0);
+              }}
+              variant="ghost"
+              size="sm"
+            >
+              <X className="w-4 h-4" />
+            </Button>
+          </div>
+
+          <div className="p-4 flex flex-col gap-3 flex-1 min-h-0" dir="rtl">
+            <input
+              type="text"
+              value={existingSpouseSearch}
+              onChange={(e) => {
+                setExistingSpouseSearch(e.target.value);
+                setExistingSpousePage(0);
+              }}
+              placeholder={t.searchPlaceholder}
+              className="w-full px-3 py-2 border rounded-md"
+              dir="rtl"
+            />
+
+            {all.length === 0 ? (
+              <p className="text-sm text-gray-500 text-right py-6 flex-1">
+                {t.noEligible}
+              </p>
+            ) : (
+              <div className="space-y-2 flex-1 overflow-hidden">
+                {slice.map((c) => (
+                  <Button
+                    key={c.id}
+                    onClick={() => linkExistingSpouse(existingSpouseFor, c.id)}
+                    variant="outline"
+                    className="w-full justify-end text-right whitespace-normal h-auto py-2"
+                  >
+                    {getGenealogicalName(c)}
+                  </Button>
+                ))}
+              </div>
+            )}
+
+            {pages > 1 && (
+              <div className="flex items-center justify-between pt-2 border-t shrink-0">
+                <Button
+                  onClick={() => setExistingSpousePage((n) => Math.max(0, n - 1))}
+                  disabled={page === 0}
+                  variant="outline"
+                  size="sm"
+                >
+                  {t.previous}
+                </Button>
+                <span className="text-sm text-gray-500">
+                  {page + 1} / {pages}
+                </span>
+                <Button
+                  onClick={() =>
+                    setExistingSpousePage((n) => Math.min(pages - 1, n + 1))
+                  }
+                  disabled={page >= pages - 1}
+                  variant="outline"
+                  size="sm"
+                >
+                  {t.next}
+                </Button>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   const renderPersonForm = () => {
     const treePeople = people.filter((p) => p.treeId === currentTree?.id);
     // Milk-parent names now live on the person record (milkFatherName /
     // milkMotherName). The form reads them directly; the fields show whenever the
     // person is a milk-sibling (isBreastfed), which is true on add and edit.
+    // The picker uses this same panel position, and renders BEFORE this in the
+    // markup — so without this guard the form sits invisibly on top of it and
+    // swallows every click.
     return (
-      showPersonForm && (
+      showPersonForm &&
+      !existingSpouseFor &&
+      !spouseSourceFor && (
         <div
           data-person-form
           className="fixed right-4 top-1/2 transform -translate-y-1/2 bg-white shadow-2xl border rounded-lg z-50"
@@ -3322,6 +3608,7 @@ function App() {
                 }}
                 relationshipType={relationshipType}
                 marriage={editingPerson ? latestMarriageOf(editingPerson) : null}
+                onRemoveMarriage={removeMarriage}
                 defaultGender={defaultSpouseGender}
                 pendingFatherId={pendingFatherId}
                 pendingMotherId={pendingMotherId}
@@ -4141,6 +4428,48 @@ function App() {
           </Button>
         </div>
 
+        {spouseSourceFor && (
+          <Dialog
+            open={true}
+            onOpenChange={(open) => {
+              if (!open) setSpouseSourceFor(null);
+            }}
+          >
+            <DialogContent className="sm:max-w-md" dir="rtl">
+              <DialogHeader>
+                <DialogTitle className="text-right text-xl">
+                  {t.addSpouseChoice}
+                </DialogTitle>
+              </DialogHeader>
+              <div className="space-y-2">
+                <Button
+                  onClick={() => openNewSpouseForm(spouseSourceFor)}
+                  variant="outline"
+                  className="w-full justify-end"
+                >
+                  {t.spouseNewPerson}
+                </Button>
+                <Button
+                  onClick={() => {
+                    setShowPersonForm(false);
+                    setEditingPerson(null);
+                    setExistingSpouseFor(spouseSourceFor);
+                    setExistingSpouseSearch("");
+                    setExistingSpousePage(0);
+                    setSpouseSourceFor(null);
+                  }}
+                  variant="outline"
+                  className="w-full justify-end"
+                >
+                  {t.spouseExisting}
+                </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
+        )}
+
+        {existingSpouseFor && renderSpousePicker()}
+
         {motherPickerFor && (
           <Dialog
             open={true}
@@ -4355,6 +4684,7 @@ function PersonForm({
   onCancel,
   relationshipType,
   marriage,
+  onRemoveMarriage,
   t,
   defaultGender,
   defaultFirstName,
@@ -4577,6 +4907,16 @@ function PersonForm({
               {person?.gender === "male" ? t.divorcedM : t.divorcedF}
             </label>
           </div>
+        )}
+
+        {marriage && onRemoveMarriage && (
+          <button
+            type="button"
+            onClick={() => onRemoveMarriage(marriage.id)}
+            className="text-sm text-red-600 hover:text-red-700 underline"
+          >
+            {t.removeMarriage}
+          </button>
         )}
 
         {!person && (
