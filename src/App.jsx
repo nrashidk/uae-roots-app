@@ -2631,10 +2631,39 @@ function App() {
   const removeMarriage = async (relId) => {
     if (!window.confirm(t.removeMarriageConfirm)) return;
     try {
+      const removed = relationships.find((r) => r.id === relId);
+      const remaining = relationships.filter((r) => r.id !== relId);
       await api.relationships.delete(relId);
-      setRelationships((prev) => prev.filter((r) => r.id !== relId));
+      setRelationships(remaining);
       setShowPersonForm(false);
       setEditingPerson(null);
+
+      // If the tree is rooted on someone whose ONLY link was this marriage —
+      // a married-in spouse with no parents or children — they now connect to
+      // nothing, and the tree would render them alone as a single box. Fall
+      // back to the natural root, or to their former partner if that partner is
+      // still connected.
+      const stillLinked = (id) =>
+        remaining.some(
+          (r) =>
+            r.treeId === currentTree?.id &&
+            (r.person1Id === id ||
+              r.person2Id === id ||
+              r.parentId === id ||
+              r.childId === id),
+        );
+      if (removed) {
+        const partnerOf = (id) =>
+          removed.person1Id === id ? removed.person2Id : removed.person1Id;
+        setSelectedPerson((prev) => {
+          if (prev == null || stillLinked(prev)) return prev;
+          const other = partnerOf(prev);
+          return stillLinked(other) ? other : null;
+        });
+        setHighlightedPerson((prev) =>
+          prev != null && !stillLinked(prev) ? null : prev,
+        );
+      }
     } catch (error) {
       console.error("Failed to remove marriage:", error);
       alert("فشل في حذف الزواج: " + error.message);
@@ -3415,12 +3444,12 @@ function App() {
         className="fixed right-4 top-1/2 transform -translate-y-1/2 bg-white shadow-2xl border rounded-lg z-50"
         style={{
           width: "380px",
-          maxHeight: "min(800px, 85vh)",
+          height: "min(640px, 85vh)",
           overflow: "hidden",
         }}
       >
-        <div className="flex flex-col h-full" style={{ maxHeight: "inherit" }}>
-          <div className="flex justify-between items-center p-4 border-b">
+        <div className="flex flex-col h-full">
+          <div className="flex justify-between items-center p-4 border-b shrink-0">
             <h2 className="text-xl font-bold">{t.pickExistingSpouse}</h2>
             <Button
               onClick={() => {
@@ -3435,7 +3464,7 @@ function App() {
             </Button>
           </div>
 
-          <div className="p-4 space-y-3" dir="rtl">
+          <div className="p-4 flex flex-col gap-3 flex-1 min-h-0" dir="rtl">
             <input
               type="text"
               value={existingSpouseSearch}
@@ -3449,11 +3478,11 @@ function App() {
             />
 
             {all.length === 0 ? (
-              <p className="text-sm text-gray-500 text-right py-6">
+              <p className="text-sm text-gray-500 text-right py-6 flex-1">
                 {t.noEligible}
               </p>
             ) : (
-              <div className="space-y-2">
+              <div className="space-y-2 flex-1 overflow-hidden">
                 {slice.map((c) => (
                   <Button
                     key={c.id}
@@ -3468,7 +3497,7 @@ function App() {
             )}
 
             {pages > 1 && (
-              <div className="flex items-center justify-between pt-2 border-t">
+              <div className="flex items-center justify-between pt-2 border-t shrink-0">
                 <Button
                   onClick={() => setExistingSpousePage((n) => Math.max(0, n - 1))}
                   disabled={page === 0}
