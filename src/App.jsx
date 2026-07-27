@@ -131,6 +131,12 @@ function App() {
   const [pendingMotherId, setPendingMotherId] = useState(null);
   // Slice 1: when adding a child to a parent with 2+ spouses, pick which spouse is the other parent
   const [motherPickerFor, setMotherPickerFor] = useState(null); // { parentId, candidates, pickLabel, helpText }
+  // Marrying two people who are ALREADY in the tree. No new person is created —
+  // only a partner row. The tree is a rooted view, so each side is drawn when
+  // that person is the root; no connector ever has to span the whole tree.
+  const [spouseSourceFor, setSpouseSourceFor] = useState(null); // personId
+  const [existingSpouseFor, setExistingSpouseFor] = useState(null); // personId
+  const [existingSpouseSearch, setExistingSpouseSearch] = useState("");
   const [chosenChildOtherParentId, setChosenChildOtherParentId] = useState(null);
   const [zoom, setZoom] = useState(1);
   const [panOffset, setPanOffset] = useState({ x: 0, y: 0 });
@@ -296,6 +302,12 @@ function App() {
     notSet: "غير محدد",
     divorcedM: "مطلق",
     divorcedF: "مطلقة",
+    addSpouseChoice: "إضافة زوج/زوجة",
+    spouseNewPerson: "شخص جديد",
+    spouseExisting: "شخص موجود في الشجرة",
+    pickExistingSpouse: "اختر من الشجرة",
+    searchPlaceholder: "ابحث بالاسم",
+    noEligible: "لا يوجد أشخاص مؤهلون في الشجرة",
     reviveBlocked:
       "لا يمكن إرجاع هذا الشخص على قيد الحياة: سيتجاوز شريكه الحد المسموح من الأزواج الأحياء.",
     genderBlockedMale:
@@ -2532,12 +2544,96 @@ function App() {
       return;
     }
 
-    // Open form for adding spouse
+    // Ask whether this is a new person or someone already in the tree.
+    setSpouseSourceFor(personId);
+  };
+
+  const openNewSpouseForm = (personId) => {
+    setSpouseSourceFor(null);
     setSelectedPerson(personId);
     setRelationshipType("spouse");
     setEditingPerson(null);
     setFormKey((prev) => prev + 1);
     setShowPersonForm(true);
+  };
+
+  // Who may be married to `personId`, out of the people already in the tree.
+  // Excluded: the person themselves, the same gender, anyone already married to
+  // them, direct ancestors and descendants, and anyone already at their own
+  // spouse limit. Wider maḥram rules — siblings, aunts and uncles, milk
+  // relatives — are a separate piece; parent and child are blocked here because
+  // that isn't a refinement.
+  const eligibleSpousesFor = (personId) => {
+    const person = treePeople.find((p) => p.id === personId);
+    if (!person) return [];
+
+    const rels = relationships.filter((r) => r.treeId === currentTree?.id);
+    const parentsOf = (id) =>
+      rels
+        .filter((r) => r.type === "parent-child" && r.childId === id)
+        .map((r) => r.parentId);
+    const childrenOf = (id) =>
+      rels
+        .filter((r) => r.type === "parent-child" && r.parentId === id)
+        .map((r) => r.childId);
+
+    const walk = (startId, step) => {
+      const seen = new Set();
+      const stack = [startId];
+      while (stack.length) {
+        const cur = stack.pop();
+        for (const next of step(cur)) {
+          if (!seen.has(next)) {
+            seen.add(next);
+            stack.push(next);
+          }
+        }
+      }
+      return seen;
+    };
+    const bloodline = new Set([
+      ...walk(personId, parentsOf),
+      ...walk(personId, childrenOf),
+    ]);
+
+    const alreadyMarried = new Set(
+      rels
+        .filter(
+          (r) =>
+            r.type === "partner" &&
+            (r.person1Id === personId || r.person2Id === personId),
+        )
+        .map((r) => (r.person1Id === personId ? r.person2Id : r.person1Id)),
+    );
+
+    return treePeople.filter((c) => {
+      if (c.id === personId) return false;
+      if (!c.gender || c.gender === person.gender) return false;
+      if (alreadyMarried.has(c.id)) return false;
+      if (bloodline.has(c.id)) return false;
+      if (countActiveSpouses(c.id) >= spouseLimitFor(c)) return false;
+      return true;
+    });
+  };
+
+  // Marry two people already in the tree: one partner row, nothing else.
+  const linkExistingSpouse = async (personId, spouseId) => {
+    try {
+      const newRel = await api.relationships.create({
+        treeId: currentTree?.id,
+        type: "partner",
+        person1Id: personId,
+        person2Id: spouseId,
+      });
+      setRelationships((prev) => [...prev, newRel]);
+      setExistingSpouseFor(null);
+      setExistingSpouseSearch("");
+      setSelectedPerson(personId);
+      setHighlightedPerson(personId);
+    } catch (error) {
+      console.error("Failed to link spouse:", error);
+      alert("فشل في إضافة الزواج: " + error.message);
+    }
   };
 
   const proceedAddChild = (parentId, otherParentId) => {
@@ -4140,6 +4236,98 @@ function App() {
             {t.options}
           </Button>
         </div>
+
+        {spouseSourceFor && (
+          <Dialog
+            open={true}
+            onOpenChange={(open) => {
+              if (!open) setSpouseSourceFor(null);
+            }}
+          >
+            <DialogContent className="sm:max-w-md" dir="rtl">
+              <DialogHeader>
+                <DialogTitle className="text-right text-xl">
+                  {t.addSpouseChoice}
+                </DialogTitle>
+              </DialogHeader>
+              <div className="space-y-2">
+                <Button
+                  onClick={() => openNewSpouseForm(spouseSourceFor)}
+                  variant="outline"
+                  className="w-full justify-end"
+                >
+                  {t.spouseNewPerson}
+                </Button>
+                <Button
+                  onClick={() => {
+                    setExistingSpouseFor(spouseSourceFor);
+                    setExistingSpouseSearch("");
+                    setSpouseSourceFor(null);
+                  }}
+                  variant="outline"
+                  className="w-full justify-end"
+                >
+                  {t.spouseExisting}
+                </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
+        )}
+
+        {existingSpouseFor && (
+          <Dialog
+            open={true}
+            onOpenChange={(open) => {
+              if (!open) {
+                setExistingSpouseFor(null);
+                setExistingSpouseSearch("");
+              }
+            }}
+          >
+            <DialogContent className="sm:max-w-md" dir="rtl">
+              <DialogHeader>
+                <DialogTitle className="text-right text-xl">
+                  {t.pickExistingSpouse}
+                </DialogTitle>
+              </DialogHeader>
+              <input
+                type="text"
+                value={existingSpouseSearch}
+                onChange={(e) => setExistingSpouseSearch(e.target.value)}
+                placeholder={t.searchPlaceholder}
+                className="w-full px-3 py-2 border rounded-md"
+                dir="rtl"
+              />
+              <div className="space-y-2 max-h-72 overflow-y-auto">
+                {(() => {
+                  const q = existingSpouseSearch.trim();
+                  const list = eligibleSpousesFor(existingSpouseFor).filter(
+                    (c) => !q || getGenealogicalName(c).includes(q),
+                  );
+                  if (list.length === 0) {
+                    return (
+                      <p className="text-sm text-gray-500 text-right py-4">
+                        {t.noEligible}
+                      </p>
+                    );
+                  }
+                  return list.map((c) => (
+                    <Button
+                      key={c.id}
+                      onClick={() =>
+                        linkExistingSpouse(existingSpouseFor, c.id)
+                      }
+                      variant="outline"
+                      className="w-full justify-end"
+                    >
+                      {getGenealogicalName(c)}
+                    </Button>
+                  ));
+                })()}
+              </div>
+            </DialogContent>
+          </Dialog>
+        )}
 
         {motherPickerFor && (
           <Dialog
