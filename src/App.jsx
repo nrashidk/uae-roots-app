@@ -296,6 +296,12 @@ function App() {
     notSet: "غير محدد",
     divorcedM: "مطلق",
     divorcedF: "مطلقة",
+    reviveBlocked:
+      "لا يمكن إرجاع هذا الشخص على قيد الحياة: سيتجاوز شريكه الحد المسموح من الأزواج الأحياء.",
+    genderBlockedMale:
+      "لا يمكن تغيير الجنس إلى ذكر: هذا الشخص متزوج من ذكر.",
+    genderBlockedFemale:
+      "لا يمكن تغيير الجنس إلى أنثى: هذا الشخص متزوج من أنثى.",
     signInTitle: "تسجيل الدخول",
     signUpTitle: "إنشاء حساب جديد",
     undoDelete: "تراجع عن الحذف",
@@ -2070,6 +2076,66 @@ function App() {
       }
       delete personData.__marriageId;
       delete personData.__isDivorced;
+
+      const before = people.find((p) => p.id === editingId);
+
+      // Bringing someone back from the dead re-occupies a marriage slot. The
+      // limit was only ever checked when ADDING a spouse, so marking a dead
+      // husband alive again could silently leave his wife with two living
+      // husbands. The limit that breaks is the SPOUSE's, not this person's.
+      const beingRevived = before?.isLiving === false && personData.isLiving !== false;
+      if (beingRevived) {
+        const activeSpouseIds = relationships
+          .filter(
+            (r) =>
+              r.treeId === currentTree?.id &&
+              r.type === "partner" &&
+              r.status !== "divorced" &&
+              (r.person1Id === editingId || r.person2Id === editingId),
+          )
+          .map((r) => (r.person1Id === editingId ? r.person2Id : r.person1Id));
+
+        const wouldExceed = activeSpouseIds.some((sid) => {
+          const spouse = people.find((p) => p.id === sid);
+          // countActiveSpouses counts the living ones; this person is about to
+          // become living, so their slot has to be added on.
+          return countActiveSpouses(sid) + 1 > spouseLimitFor(spouse);
+        });
+        if (wouldExceed) {
+          window.alert(t.reviveBlocked);
+          return;
+        }
+      }
+
+      // A marriage must be between a man and a woman. Rather than silently
+      // flipping the partner — which would rewrite other records, and change
+      // the name chain of every descendant, since it follows the male line —
+      // the edit is refused and the user decides which record is wrong.
+      const genderChanged =
+        personData.gender && before && personData.gender !== before.gender;
+      if (genderChanged) {
+        const spouseIds = relationships
+          .filter(
+            (r) =>
+              r.treeId === currentTree?.id &&
+              r.type === "partner" &&
+              (r.person1Id === editingId || r.person2Id === editingId),
+          )
+          .map((r) => (r.person1Id === editingId ? r.person2Id : r.person1Id));
+
+        const clash = spouseIds.some((sid) => {
+          const spouse = people.find((p) => p.id === sid);
+          return spouse && spouse.gender === personData.gender;
+        });
+        if (clash) {
+          window.alert(
+            personData.gender === "male"
+              ? t.genderBlockedMale
+              : t.genderBlockedFemale,
+          );
+          return;
+        }
+      }
       // milkFatherName/milkMotherName are real person columns now — update them
       // directly on the person. No parent people, no parent-child links.
       const updatedPerson = await api.people.update(editingId, personData);
