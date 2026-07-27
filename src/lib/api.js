@@ -144,6 +144,11 @@ export const api = {
       fetchAPI(`/relationships/${id}`, {
         method: "DELETE",
       }),
+    setStatus: (id, status) =>
+      fetchAPI(`/relationships/${id}/status`, {
+        method: "PATCH",
+        body: JSON.stringify({ status }),
+      }),
   },
 
   history: {
