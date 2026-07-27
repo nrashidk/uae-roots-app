@@ -451,11 +451,18 @@ const birthOrderSchema = z.object({
 });
 
 // Phase 2: Relaxed schema for undo operations (allows encrypted PII fields)
-const batchDeleteSchema = z.object({
-  treeId: z.number().int().positive(),
-  ids: z.array(z.number().int().positive()).min(1).max(500),
-  label: z.string().max(300).optional().nullable(),
-});
+const batchDeleteSchema = z
+  .object({
+    treeId: z.number().int().positive(),
+    // May be EMPTY: removing a marriage deletes a relationship row and often no
+    // people at all. At least one of ids / relationshipIds must be populated.
+    ids: z.array(z.number().int().positive()).max(500),
+    relationshipIds: z.array(z.number().int().positive()).max(500).optional(),
+    label: z.string().max(300).optional().nullable(),
+  })
+  .refine((v) => v.ids.length > 0 || (v.relationshipIds || []).length > 0, {
+    message: "Nothing to delete: provide ids or relationshipIds",
+  });
 
 const personUndoSchema = z
   .object({
@@ -1861,7 +1868,10 @@ app.post("/api/deletions/:id/restore", authenticateUser, async (req, res) => {
 // others, so a per-person snapshot taken afterwards would silently miss them.
 app.post("/api/people/batch-delete", authenticateUser, async (req, res) => {
   try {
-    const { treeId, ids, label } = batchDeleteSchema.parse(req.body);
+    const { treeId, ids, relationshipIds, label } = batchDeleteSchema.parse(
+      req.body,
+    );
+    const relIds = relationshipIds || [];
 
     const ownership = await verifyTreeOwnership(treeId, req.userId);
     if (!ownership.valid) {
@@ -1869,31 +1879,41 @@ app.post("/api/people/batch-delete", authenticateUser, async (req, res) => {
     }
 
     // Only ever touch people that belong to THIS tree.
-    const peopleRows = await db
-      .select()
-      .from(people)
-      .where(and(eq(people.treeId, treeId), inArray(people.id, ids)));
+    const peopleRows = ids.length
+      ? await db
+          .select()
+          .from(people)
+          .where(and(eq(people.treeId, treeId), inArray(people.id, ids)))
+      : [];
 
-    if (peopleRows.length === 0) {
-      return res.status(404).json({ error: "No matching people found" });
-    }
     const foundIds = peopleRows.map((p) => p.id);
 
-    // Every relationship touching any of them, in any role.
+    // Every relationship touching any of those people, in any role, PLUS any
+    // relationship named directly by the caller. Removing a marriage names the
+    // partner row even when nobody is deleted alongside it.
+    const relFilters = [];
+    if (foundIds.length) {
+      relFilters.push(
+        or(
+          inArray(relationships.person1Id, foundIds),
+          inArray(relationships.person2Id, foundIds),
+          inArray(relationships.parentId, foundIds),
+          inArray(relationships.childId, foundIds),
+        ),
+      );
+    }
+    if (relIds.length) {
+      relFilters.push(inArray(relationships.id, relIds));
+    }
+
     const relRows = await db
       .select()
       .from(relationships)
-      .where(
-        and(
-          eq(relationships.treeId, treeId),
-          or(
-            inArray(relationships.person1Id, foundIds),
-            inArray(relationships.person2Id, foundIds),
-            inArray(relationships.parentId, foundIds),
-            inArray(relationships.childId, foundIds),
-          ),
-        ),
-      );
+      .where(and(eq(relationships.treeId, treeId), or(...relFilters)));
+
+    if (peopleRows.length === 0 && relRows.length === 0) {
+      return res.status(404).json({ error: "No matching records found" });
+    }
 
     // Snapshot BEFORE deleting. If this insert fails the delete never runs.
     const [snapshot] = await db
@@ -1907,10 +1927,25 @@ app.post("/api/people/batch-delete", authenticateUser, async (req, res) => {
       })
       .returning();
 
-    // Now delete. FK cascade removes the relationship rows.
-    await db
-      .delete(people)
-      .where(and(eq(people.treeId, treeId), inArray(people.id, foundIds)));
+    // Named relationships first: a marriage removal deletes ONLY the partner
+    // row, and it must go whether or not anyone is deleted alongside it.
+    if (relIds.length) {
+      await db
+        .delete(relationships)
+        .where(
+          and(
+            eq(relationships.treeId, treeId),
+            inArray(relationships.id, relIds),
+          ),
+        );
+    }
+
+    // Then the people. FK cascade removes the rest of their relationship rows.
+    if (foundIds.length) {
+      await db
+        .delete(people)
+        .where(and(eq(people.treeId, treeId), inArray(people.id, foundIds)));
+    }
 
     await logAudit(
       req.userId,
