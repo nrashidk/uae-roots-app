@@ -137,6 +137,9 @@ function App() {
   const [spouseSourceFor, setSpouseSourceFor] = useState(null); // personId
   const [existingSpouseFor, setExistingSpouseFor] = useState(null); // personId
   const [existingSpouseSearch, setExistingSpouseSearch] = useState("");
+  // The picker fills the same panel as the edit form, so it pages rather than
+  // scrolls — a scrollbar inside a fixed side panel is easy to miss.
+  const [existingSpousePage, setExistingSpousePage] = useState(0);
   const [chosenChildOtherParentId, setChosenChildOtherParentId] = useState(null);
   const [zoom, setZoom] = useState(1);
   const [panOffset, setPanOffset] = useState({ x: 0, y: 0 });
@@ -308,6 +311,11 @@ function App() {
     pickExistingSpouse: "اختر من الشجرة",
     searchPlaceholder: "ابحث بالاسم",
     noEligible: "لا يوجد أشخاص مؤهلون في الشجرة",
+    next: "التالي",
+    previous: "السابق",
+    removeMarriage: "حذف الزواج",
+    removeMarriageConfirm:
+      "سيتم حذف هذا الزواج فقط. يبقى الشخصان في الشجرة، ويبقى الأبناء مرتبطين بوالديهم. هل تريد المتابعة؟",
     reviveBlocked:
       "لا يمكن إرجاع هذا الشخص على قيد الحياة: سيتجاوز شريكه الحد المسموح من الأزواج الأحياء.",
     genderBlockedMale:
@@ -2616,6 +2624,23 @@ function App() {
     });
   };
 
+  // Remove a marriage without touching either person. Needed because a
+  // mistaken link could otherwise only be undone by DELETING one of them, which
+  // is wrong when the person is real and only the marriage was wrong.
+  // Children keep their parent-child rows and stay exactly where they are.
+  const removeMarriage = async (relId) => {
+    if (!window.confirm(t.removeMarriageConfirm)) return;
+    try {
+      await api.relationships.delete(relId);
+      setRelationships((prev) => prev.filter((r) => r.id !== relId));
+      setShowPersonForm(false);
+      setEditingPerson(null);
+    } catch (error) {
+      console.error("Failed to remove marriage:", error);
+      alert("فشل في حذف الزواج: " + error.message);
+    }
+  };
+
   // Marry two people already in the tree: one partner row, nothing else.
   const linkExistingSpouse = async (personId, spouseId) => {
     try {
@@ -3366,6 +3391,113 @@ function App() {
   // Reusable person add/edit form panel — rendered in both the tree view and the
   // Family Members dashboard, so people who aren't placed on the tree (e.g. milk
   // siblings) can still be opened and edited from the dashboard.
+  // The picker occupies the SAME panel as the edit form — same position, width
+  // and height — rather than floating over it as a second box. It pages instead
+  // of scrolling: a page is sized to the panel, and the rest is reached with
+  // next/previous.
+  const PICKER_PAGE_SIZE = 10;
+
+  const renderSpousePicker = () => {
+    const q = existingSpouseSearch.trim();
+    const all = eligibleSpousesFor(existingSpouseFor).filter(
+      (c) => !q || getGenealogicalName(c).includes(q),
+    );
+    const pages = Math.max(1, Math.ceil(all.length / PICKER_PAGE_SIZE));
+    const page = Math.min(existingSpousePage, pages - 1);
+    const slice = all.slice(
+      page * PICKER_PAGE_SIZE,
+      page * PICKER_PAGE_SIZE + PICKER_PAGE_SIZE,
+    );
+
+    return (
+      <div
+        data-person-form
+        className="fixed right-4 top-1/2 transform -translate-y-1/2 bg-white shadow-2xl border rounded-lg z-50"
+        style={{
+          width: "380px",
+          maxHeight: "min(800px, 85vh)",
+          overflow: "hidden",
+        }}
+      >
+        <div className="flex flex-col h-full" style={{ maxHeight: "inherit" }}>
+          <div className="flex justify-between items-center p-4 border-b">
+            <h2 className="text-xl font-bold">{t.pickExistingSpouse}</h2>
+            <Button
+              onClick={() => {
+                setExistingSpouseFor(null);
+                setExistingSpouseSearch("");
+                setExistingSpousePage(0);
+              }}
+              variant="ghost"
+              size="sm"
+            >
+              <X className="w-4 h-4" />
+            </Button>
+          </div>
+
+          <div className="p-4 space-y-3" dir="rtl">
+            <input
+              type="text"
+              value={existingSpouseSearch}
+              onChange={(e) => {
+                setExistingSpouseSearch(e.target.value);
+                setExistingSpousePage(0);
+              }}
+              placeholder={t.searchPlaceholder}
+              className="w-full px-3 py-2 border rounded-md"
+              dir="rtl"
+            />
+
+            {all.length === 0 ? (
+              <p className="text-sm text-gray-500 text-right py-6">
+                {t.noEligible}
+              </p>
+            ) : (
+              <div className="space-y-2">
+                {slice.map((c) => (
+                  <Button
+                    key={c.id}
+                    onClick={() => linkExistingSpouse(existingSpouseFor, c.id)}
+                    variant="outline"
+                    className="w-full justify-end text-right whitespace-normal h-auto py-2"
+                  >
+                    {getGenealogicalName(c)}
+                  </Button>
+                ))}
+              </div>
+            )}
+
+            {pages > 1 && (
+              <div className="flex items-center justify-between pt-2 border-t">
+                <Button
+                  onClick={() => setExistingSpousePage((n) => Math.max(0, n - 1))}
+                  disabled={page === 0}
+                  variant="outline"
+                  size="sm"
+                >
+                  {t.previous}
+                </Button>
+                <span className="text-sm text-gray-500">
+                  {page + 1} / {pages}
+                </span>
+                <Button
+                  onClick={() =>
+                    setExistingSpousePage((n) => Math.min(pages - 1, n + 1))
+                  }
+                  disabled={page >= pages - 1}
+                  variant="outline"
+                  size="sm"
+                >
+                  {t.next}
+                </Button>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   const renderPersonForm = () => {
     const treePeople = people.filter((p) => p.treeId === currentTree?.id);
     // Milk-parent names now live on the person record (milkFatherName /
@@ -3418,6 +3550,7 @@ function App() {
                 }}
                 relationshipType={relationshipType}
                 marriage={editingPerson ? latestMarriageOf(editingPerson) : null}
+                onRemoveMarriage={removeMarriage}
                 defaultGender={defaultSpouseGender}
                 pendingFatherId={pendingFatherId}
                 pendingMotherId={pendingMotherId}
@@ -4262,6 +4395,7 @@ function App() {
                   onClick={() => {
                     setExistingSpouseFor(spouseSourceFor);
                     setExistingSpouseSearch("");
+                    setExistingSpousePage(0);
                     setSpouseSourceFor(null);
                   }}
                   variant="outline"
@@ -4274,60 +4408,7 @@ function App() {
           </Dialog>
         )}
 
-        {existingSpouseFor && (
-          <Dialog
-            open={true}
-            onOpenChange={(open) => {
-              if (!open) {
-                setExistingSpouseFor(null);
-                setExistingSpouseSearch("");
-              }
-            }}
-          >
-            <DialogContent className="sm:max-w-md" dir="rtl">
-              <DialogHeader>
-                <DialogTitle className="text-right text-xl">
-                  {t.pickExistingSpouse}
-                </DialogTitle>
-              </DialogHeader>
-              <input
-                type="text"
-                value={existingSpouseSearch}
-                onChange={(e) => setExistingSpouseSearch(e.target.value)}
-                placeholder={t.searchPlaceholder}
-                className="w-full px-3 py-2 border rounded-md"
-                dir="rtl"
-              />
-              <div className="space-y-2 max-h-72 overflow-y-auto">
-                {(() => {
-                  const q = existingSpouseSearch.trim();
-                  const list = eligibleSpousesFor(existingSpouseFor).filter(
-                    (c) => !q || getGenealogicalName(c).includes(q),
-                  );
-                  if (list.length === 0) {
-                    return (
-                      <p className="text-sm text-gray-500 text-right py-4">
-                        {t.noEligible}
-                      </p>
-                    );
-                  }
-                  return list.map((c) => (
-                    <Button
-                      key={c.id}
-                      onClick={() =>
-                        linkExistingSpouse(existingSpouseFor, c.id)
-                      }
-                      variant="outline"
-                      className="w-full justify-end"
-                    >
-                      {getGenealogicalName(c)}
-                    </Button>
-                  ));
-                })()}
-              </div>
-            </DialogContent>
-          </Dialog>
-        )}
+        {existingSpouseFor && renderSpousePicker()}
 
         {motherPickerFor && (
           <Dialog
@@ -4543,6 +4624,7 @@ function PersonForm({
   onCancel,
   relationshipType,
   marriage,
+  onRemoveMarriage,
   t,
   defaultGender,
   defaultFirstName,
@@ -4765,6 +4847,16 @@ function PersonForm({
               {person?.gender === "male" ? t.divorcedM : t.divorcedF}
             </label>
           </div>
+        )}
+
+        {marriage && onRemoveMarriage && (
+          <button
+            type="button"
+            onClick={() => onRemoveMarriage(marriage.id)}
+            className="text-sm text-red-600 hover:text-red-700 underline"
+          >
+            {t.removeMarriage}
+          </button>
         )}
 
         {!person && (
