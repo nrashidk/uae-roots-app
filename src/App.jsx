@@ -2714,6 +2714,11 @@ function App() {
           prev != null && !stillLinked(prev) ? null : prev,
         );
       }
+
+      // Surface the undo for what was just removed. Without this the snapshot
+      // exists in the database but the header button stays disabled until the
+      // next tree load, so the deletion looks unrecoverable when it is not.
+      loadRestorableDeletion();
     } catch (error) {
       console.error("Failed to remove marriage:", error);
       alert("فشل في حذف الزواج: " + error.message);
