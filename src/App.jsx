@@ -214,6 +214,13 @@ function App() {
   useEffect(() => {
     setShowPersonForm(false);
     setEditingPerson(null);
+    // The picker blocks the person form from rendering, so leaving it set while
+    // navigating away meant no form would open anywhere — including Family
+    // Members, which has its own copy of the panel.
+    setExistingSpouseFor(null);
+    setExistingSpouseSearch("");
+    setExistingSpousePage(0);
+    setSpouseSourceFor(null);
   }, [currentView]);
 
   useEffect(() => {
@@ -3438,10 +3445,10 @@ function App() {
   // and height — rather than floating over it as a second box. It pages instead
   // of scrolling: a page is sized to the panel, and the rest is reached with
   // next/previous.
-  // Sized so a full page fits the panel without clipping: header ~57, search
-  // ~54, pager ~58, padding ~32, and each row ~48. Ten rows overflowed 640 by
-  // about 45px and cut the last one.
-  const PICKER_PAGE_SIZE = 8;
+  // Sized so a full page fits without clipping: header ~57, search ~54, pager
+  // ~58, padding ~32, and each row ~48. Ten rows overflowed and cut the last;
+  // nine fit once the panel is 680.
+  const PICKER_PAGE_SIZE = 9;
 
   const renderSpousePicker = () => {
     const q = existingSpouseSearch.trim();
@@ -3461,7 +3468,7 @@ function App() {
         className="fixed right-4 top-1/2 transform -translate-y-1/2 bg-white shadow-2xl border rounded-lg z-50"
         style={{
           width: "380px",
-          height: "min(640px, 85vh)",
+          height: "min(680px, 85vh)",
           overflow: "hidden",
         }}
       >
