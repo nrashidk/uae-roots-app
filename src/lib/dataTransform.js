@@ -20,6 +20,9 @@ export function convertToAlgorithmFormat(people, relationships, treeId) {
     // Build relationship maps
     const parentChildMap = {}; // parentId -> [childIds]
     const spouseMap = {}; // personId -> [spouseIds]
+    // personId -> { total, ended } across their marriages, so a person whose
+    // marriages have ALL ended can be drawn differently.
+    const marriageTally = {};
     const siblingMap = {}; // personId -> [siblingIds]
     const milkMap = {}; // SPIKE: personId -> [milkSiblingIds] (رضاعة bonds)
 
@@ -32,6 +35,11 @@ export function convertToAlgorithmFormat(people, relationships, treeId) {
                 parentChildMap[rel.parentId].push(rel.childId);
             }
         } else if (rel.type === "partner") {
+            [rel.person1Id, rel.person2Id].forEach((pid) => {
+                if (!marriageTally[pid]) marriageTally[pid] = { total: 0, ended: 0 };
+                marriageTally[pid].total += 1;
+                if (rel.status === "divorced") marriageTally[pid].ended += 1;
+            });
             if (!spouseMap[rel.person1Id]) {
                 spouseMap[rel.person1Id] = [];
             }
@@ -270,6 +278,18 @@ export function convertToAlgorithmFormat(people, relationships, treeId) {
 
             // Breastfed flag for downstream rendering
             isBreastfed: person.isBreastfed || false,
+
+            // True only when this person HAS marriages and every one has ended,
+            // drawn as a dashed box border. Deliberately not "has a divorce": a
+            // man who divorced one of four wives still has three current
+            // marriages and should look ordinary. Someone with no marriage at
+            // all is unaffected. Remarrying clears it, because the new marriage
+            // is counted and is not ended.
+            allMarriagesEnded: (() => {
+                const tally = marriageTally[person.id];
+                return !!tally && tally.total > 0 && tally.ended === tally.total;
+            })(),
+
 
             // Additional fields (only include if present)
             photo: person.photo || undefined,

@@ -143,6 +143,11 @@ export const relationships = pgTable("relationships", {
   parentId: integer("parent_id").references(() => people.id, {
     onDelete: "cascade",
   }),
+  // Marital status for a 'partner' row. NULL means married, so every existing
+  // row keeps its meaning without a backfill. Until this existed the app had to
+  // infer "still married" from isLiving, which is why marking a dead husband
+  // alive again silently revived the marriage.
+  status: text("status"), // 'married' | 'divorced'  (NULL = married)
   isBreastfeeding: boolean("is_breastfeeding").default(false),
   isDotted: boolean("is_dotted").default(false),
   createdAt: timestamp("created_at").defaultNow().notNull(),

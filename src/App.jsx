@@ -294,6 +294,14 @@ function App() {
     newEmail: "البريد الإلك �روني الجديد",
     newPhone: "رقم الهاتف الجديد",
     notSet: "غير محدد",
+    divorcedM: "مطلق",
+    divorcedF: "مطلقة",
+    reviveBlocked:
+      "لا يمكن إرجاع هذا الشخص على قيد الحياة: سيتجاوز شريكه الحد المسموح من الأزواج الأحياء.",
+    genderBlockedMale:
+      "لا يمكن تغيير الجنس إلى ذكر: يوجد زواج مسجّل مع ذكر. احذف الزواج أولاً ثم غيّر الجنس.",
+    genderBlockedFemale:
+      "لا يمكن تغيير الجنس إلى أنثى: يوجد زواج مسجّل مع أنثى. احذف الزواج أولاً ثم غيّر الجنس.",
     signInTitle: "تسجيل الدخول",
     signUpTitle: "إنشاء حساب جديد",
     undoDelete: "تراجع عن الحذف",
@@ -1757,6 +1765,60 @@ function App() {
     }
   };
 
+  // A marriage occupies a slot only while it is BOTH current and the spouse is
+  // alive. A divorced spouse frees the slot: a man who divorces one of four
+  // wives may marry again, and a divorced woman may remarry — exactly as
+  // widowhood already frees her. Until `status` existed the app could only see
+  // death, so a divorce left the slot occupied forever, and reviving a dead
+  // husband silently revived the marriage.
+  // One helper, used everywhere the limit is checked — it was previously
+  // computed in three places with three slightly different implementations.
+  const countActiveSpouses = (personId) =>
+    relationships
+      .filter(
+        (r) =>
+          r.treeId === currentTree?.id &&
+          r.type === "partner" &&
+          r.status !== "divorced" &&
+          (r.person1Id === personId || r.person2Id === personId),
+      )
+      .reduce((count, r) => {
+        const sid = r.person1Id === personId ? r.person2Id : r.person1Id;
+        const sp = people.find((pp) => pp.id === sid);
+        return sp && sp.isLiving !== false ? count + 1 : count;
+      }, 0);
+
+  const spouseLimitFor = (person) => (person?.gender === "male" ? 4 : 1);
+
+  // The marriage the «مطلق/ة» tick refers to: a person's MOST RECENT one.
+  // Binding to the most recent (rather than to "the single active one") keeps
+  // the tick visible after it is ticked, so an accidental divorce can be undone,
+  // and it clears itself on remarriage because the new marriage becomes the most
+  // recent and is not divorced.
+  // Hidden when someone has more than one ACTIVE marriage — a man with four
+  // wives would otherwise see a tick bound only to the newest, which is
+  // misleading. Those are ended from the wife's record instead, where her most
+  // recent marriage is the one to him.
+  const latestMarriageOf = (personId) => {
+    if (personId == null) return null;
+    const mine = relationships
+      .filter(
+        (r) =>
+          r.treeId === currentTree?.id &&
+          r.type === "partner" &&
+          (r.person1Id === personId || r.person2Id === personId),
+      )
+      .sort((a, b) => (b.id ?? 0) - (a.id ?? 0));
+    if (mine.length === 0) return null;
+    if (countActiveSpouses(personId) > 1) return null;
+    return mine[0];
+  };
+
+  const spouseLimitMessage = (limit) =>
+    limit === 1
+      ? "لا يمكن إضافة أكثر من زوج واحد"
+      : "لا يمكن إضافة أكثر من ٤ زوجات على قيد الحياة";
+
   // Add person using the data transformation utility
   const addPerson = async (personData) => {
     // Remember which person we're adding relative to, so after adding we keep the
@@ -1764,27 +1826,13 @@ function App() {
     const anchorPerson = selectedPerson;
     // Enforce living spouse limit when adding a spouse
     if (relationshipType === "spouse" && selectedPerson) {
-      const spouseRels = relationships.filter(
-        (r) =>
-          r.treeId === currentTree?.id &&
-          r.type === "partner" &&
-          (r.person1Id === selectedPerson || r.person2Id === selectedPerson),
-      );
-      const spouseIds = spouseRels.map((rel) =>
-        rel.person1Id === selectedPerson ? rel.person2Id : rel.person1Id,
-      );
-      const livingSpousesCount = spouseIds.reduce((count, sid) => {
-        const sp = people.find((p) => p.id === sid);
-        return sp && sp.isLiving !== false ? count + 1 : count;
-      }, 0);
       const selected = people.find((p) => p.id === selectedPerson);
-      const spouseLimit = selected?.gender === "male" ? 4 : 1;
-      const limitMessage =
-        spouseLimit === 1
-          ? "Maximum of 1 spouse allowed"
-          : "Maximum of 4 living spouses allowed";
-      if (livingSpousesCount >= spouseLimit && personData.isLiving !== false) {
-        window.alert(limitMessage);
+      const spouseLimit = spouseLimitFor(selected);
+      if (
+        countActiveSpouses(selectedPerson) >= spouseLimit &&
+        personData.isLiving !== false
+      ) {
+        window.alert(spouseLimitMessage(spouseLimit));
         return;
       }
     }
@@ -2014,6 +2062,86 @@ function App() {
   const updatePerson = async (personData) => {
     try {
       const editingId = editingPerson;
+
+      // The divorce tick lives on the form but belongs to a relationship row,
+      // so it is saved separately from the person's own fields.
+      if (personData.__marriageId != null) {
+        const wanted = personData.__isDivorced ? "divorced" : "married";
+        await api.relationships.setStatus(personData.__marriageId, wanted);
+        setRelationships((prev) =>
+          prev.map((r) =>
+            r.id === personData.__marriageId ? { ...r, status: wanted } : r,
+          ),
+        );
+      }
+      delete personData.__marriageId;
+      delete personData.__isDivorced;
+
+      const before = people.find((p) => p.id === editingId);
+
+      // Bringing someone back from the dead re-occupies a marriage slot. The
+      // limit was only ever checked when ADDING a spouse, so marking a dead
+      // husband alive again could silently leave his wife with two living
+      // husbands. The limit that breaks is the SPOUSE's, not this person's.
+      const beingRevived = before?.isLiving === false && personData.isLiving !== false;
+      if (beingRevived) {
+        const activeSpouseIds = relationships
+          .filter(
+            (r) =>
+              r.treeId === currentTree?.id &&
+              r.type === "partner" &&
+              r.status !== "divorced" &&
+              (r.person1Id === editingId || r.person2Id === editingId),
+          )
+          .map((r) => (r.person1Id === editingId ? r.person2Id : r.person1Id));
+
+        const wouldExceed = activeSpouseIds.some((sid) => {
+          const spouse = people.find((p) => p.id === sid);
+          // countActiveSpouses counts the living ones; this person is about to
+          // become living, so their slot has to be added on.
+          return countActiveSpouses(sid) + 1 > spouseLimitFor(spouse);
+        });
+        if (wouldExceed) {
+          window.alert(t.reviveBlocked);
+          return;
+        }
+      }
+
+      // A marriage must be between a man and a woman — and this deliberately
+      // checks EVERY marriage, ended ones included. A gender is almost always
+      // changed to correct a data-entry error, and if the spouse's gender makes
+      // the marriage invalid then it was never valid; divorcing doesn't fix the
+      // record, it just turns a currently-invalid marriage into a historically
+      // invalid one. Blocking forces the honest sequence: remove the marriage,
+      // then correct the gender.
+      // The partner is never silently flipped instead — that would rewrite
+      // another person's record, and rewrite the full name of every descendant,
+      // since the name chain follows the male line.
+      const genderChanged =
+        personData.gender && before && personData.gender !== before.gender;
+      if (genderChanged) {
+        const spouseIds = relationships
+          .filter(
+            (r) =>
+              r.treeId === currentTree?.id &&
+              r.type === "partner" &&
+              (r.person1Id === editingId || r.person2Id === editingId),
+          )
+          .map((r) => (r.person1Id === editingId ? r.person2Id : r.person1Id));
+
+        const clash = spouseIds.some((sid) => {
+          const spouse = people.find((p) => p.id === sid);
+          return spouse && spouse.gender === personData.gender;
+        });
+        if (clash) {
+          window.alert(
+            personData.gender === "male"
+              ? t.genderBlockedMale
+              : t.genderBlockedFemale,
+          );
+          return;
+        }
+      }
       // milkFatherName/milkMotherName are real person columns now — update them
       // directly on the person. No parent people, no parent-child links.
       const updatedPerson = await api.people.update(editingId, personData);
@@ -2398,26 +2526,9 @@ function App() {
     if (!selected) return;
 
     // Enforce living spouse limit per gender
-    const spouseRels = relationships.filter(
-      (r) =>
-        r.treeId === currentTree?.id &&
-        r.type === "partner" &&
-        (r.person1Id === personId || r.person2Id === personId),
-    );
-    const spouseIds = spouseRels.map((rel) =>
-      rel.person1Id === personId ? rel.person2Id : rel.person1Id,
-    );
-    const livingSpousesCount = spouseIds.reduce((count, sid) => {
-      const sp = people.find((pp) => pp.id === sid);
-      return sp && sp.isLiving !== false ? count + 1 : count;
-    }, 0);
-    const spouseLimit = selected.gender === "male" ? 4 : 1;
-    const limitMessage =
-      spouseLimit === 1
-        ? "Maximum of 1 spouse allowed"
-        : "Maximum of 4 living spouses allowed";
-    if (livingSpousesCount >= spouseLimit) {
-      window.alert(limitMessage);
+    const spouseLimit = spouseLimitFor(selected);
+    if (countActiveSpouses(personId) >= spouseLimit) {
+      window.alert(spouseLimitMessage(spouseLimit));
       return;
     }
 
@@ -3210,6 +3321,7 @@ function App() {
                   setChosenChildOtherParentId(null);
                 }}
                 relationshipType={relationshipType}
+                marriage={editingPerson ? latestMarriageOf(editingPerson) : null}
                 defaultGender={defaultSpouseGender}
                 pendingFatherId={pendingFatherId}
                 pendingMotherId={pendingMotherId}
@@ -3705,31 +3817,13 @@ function App() {
                 const y = entity.y * BOX_HEIGHT;
 
                 // Living spouse limit per gender
-                const spouseRels = relationships.filter(
-                  (r) =>
-                    r.treeId === currentTree?.id &&
-                    r.type === "partner" &&
-                    (r.person1Id === selectedPerson ||
-                      r.person2Id === selectedPerson),
-                );
-                const spouseIds = spouseRels.map((rel) =>
-                  rel.person1Id === selectedPerson
-                    ? rel.person2Id
-                    : rel.person1Id,
-                );
-                const livingSpousesCount = spouseIds.reduce((count, sid) => {
-                  const sp = treePeople.find((pp) => pp.id === sid);
-                  return sp && sp.isLiving !== false ? count + 1 : count;
-                }, 0);
                 const selected = treePeople.find(
                   (p) => p.id === selectedPerson,
                 );
-                const spouseLimit = selected?.gender === "male" ? 4 : 1;
-                const limitMessage =
-                  spouseLimit === 1
-                    ? "Maximum of 1 spouse allowed"
-                    : "Maximum of 4 living spouses allowed";
-                const canAddSpouse = livingSpousesCount < spouseLimit;
+                const spouseLimit = spouseLimitFor(selected);
+                const limitMessage = spouseLimitMessage(spouseLimit);
+                const canAddSpouse =
+                  countActiveSpouses(selectedPerson) < spouseLimit;
                 const addSpouseTooltip = canAddSpouse
                   ? t.addSpouse
                   : limitMessage;
@@ -4260,6 +4354,7 @@ function PersonForm({
   onSave,
   onCancel,
   relationshipType,
+  marriage,
   t,
   defaultGender,
   defaultFirstName,
@@ -4304,6 +4399,11 @@ function PersonForm({
     return defaultGender || "";
   };
 
+  // NULL status means married, so anything other than "divorced" is married.
+  const [isDivorced, setIsDivorced] = useState(
+    marriage?.status === "divorced",
+  );
+
   const [formData, setFormData] = useState({
     firstName: getDefaultFirstName(),
     lastName: person?.lastName || "",
@@ -4319,6 +4419,10 @@ function PersonForm({
     email: person?.email || "",
     profession: person?.profession || "",
   });
+
+  useEffect(() => {
+    setIsDivorced(marriage?.status === "divorced");
+  }, [marriage?.id, marriage?.status]);
 
   // Reset form when person prop changes
   useEffect(() => {
@@ -4368,7 +4472,11 @@ function PersonForm({
       return;
     }
     DEBUG && console.log("Form data being submitted:", formData);
-    onSave(formData);
+    onSave(
+      marriage
+        ? { ...formData, __marriageId: marriage.id, __isDivorced: isDivorced }
+        : formData,
+    );
   };
 
   return (
@@ -4455,6 +4563,21 @@ function PersonForm({
             {t.isLiving}
           </label>
         </div>
+
+        {marriage && (
+          <div className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              id="isDivorced"
+              checked={isDivorced}
+              onChange={(e) => setIsDivorced(e.target.checked)}
+              className="rounded"
+            />
+            <label htmlFor="isDivorced" className="text-sm font-bold">
+              {person?.gender === "male" ? t.divorcedM : t.divorcedF}
+            </label>
+          </div>
+        )}
 
         {!person && (
           <div className="flex items-center gap-2">

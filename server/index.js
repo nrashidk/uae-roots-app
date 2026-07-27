@@ -378,6 +378,10 @@ const relationshipSchema = z.object({
   isDotted: z.boolean().optional().default(false),
 });
 
+const relationshipStatusSchema = z.object({
+  status: z.enum(["married", "divorced"]),
+});
+
 const userUpdateSchema = z.object({
   email: z
     .string()
@@ -2081,6 +2085,79 @@ app.post("/api/relationships", authenticateUser, async (req, res) => {
     handleError(res, error, "Relationship create");
   }
 });
+
+// Set the marital status of a partner relationship.
+// Deliberately changes NOTHING else: children keep their parent-child rows, both
+// people stay in the tree, and no other relationship is touched. Divorce is a
+// fact about one marriage, not an instruction to rearrange the tree.
+// Before this column existed the app inferred "still married" from isLiving,
+// which is why reviving a dead husband silently revived the marriage.
+app.patch(
+  "/api/relationships/:id/status",
+  authenticateUser,
+  async (req, res) => {
+    try {
+      const relId = validateId(req.params.id);
+      if (!relId) {
+        return res.status(400).json({ error: "Invalid relationship ID" });
+      }
+
+      const { status } = relationshipStatusSchema.parse(req.body);
+
+      const [existingRel] = await db
+        .select()
+        .from(relationships)
+        .where(eq(relationships.id, relId));
+      if (!existingRel) {
+        return res.status(404).json({ error: "Relationship not found" });
+      }
+
+      // Only a marriage has a marital status.
+      if (existingRel.type !== "partner") {
+        return res
+          .status(400)
+          .json({ error: "Only a partner relationship has a status" });
+      }
+
+      const ownership = await verifyTreeOwnership(
+        existingRel.treeId,
+        req.userId,
+      );
+      if (!ownership.valid) {
+        return res.status(403).json({ error: ownership.error });
+      }
+
+      await recordEdit(
+        req.userId,
+        existingRel.treeId,
+        "update",
+        "relationship",
+        relId,
+        existingRel,
+        { ...existingRel, status },
+      );
+
+      const [updated] = await db
+        .update(relationships)
+        .set({ status })
+        .where(eq(relationships.id, relId))
+        .returning();
+
+      await logAudit(
+        req.userId,
+        "update",
+        "relationship",
+        relId,
+        { status, previous: existingRel.status ?? "married" },
+        req,
+      );
+
+      res.json(updated);
+    } catch (error) {
+      handleError(res, error, "Relationship status update", req);
+    }
+  },
+);
 
 app.delete("/api/relationships/:id", authenticateUser, async (req, res) => {
   try {
