@@ -2947,6 +2947,8 @@ function App() {
       setLinkChildrenFor(null);
       return;
     }
+    if (writeInFlight.current) return;
+    writeInFlight.current = true;
     try {
       const created = await Promise.all(
         ids.map((childId) =>
@@ -2964,6 +2966,8 @@ function App() {
     } catch (error) {
       console.error("Failed to link children:", error);
       window.alert("فشل في ربط الأبناء: " + error.message);
+    } finally {
+      writeInFlight.current = false;
     }
   };
 
@@ -3113,7 +3117,13 @@ function App() {
   };
 
   // Marry two people already in the tree: one partner row, nothing else.
+  // A ref, not state: a second click can land before a state update re-renders,
+  // which is how two identical partner rows appeared 185ms apart.
+  const writeInFlight = useRef(false);
+
   const linkExistingSpouse = async (personId, spouseId) => {
+    if (writeInFlight.current) return;
+    writeInFlight.current = true;
     try {
       const newRel = await api.relationships.create({
         treeId: currentTree?.id,
@@ -3129,6 +3139,8 @@ function App() {
     } catch (error) {
       console.error("Failed to link spouse:", error);
       alert("فشل في إضافة الزواج: " + error.message);
+    } finally {
+      writeInFlight.current = false;
     }
   };
 
@@ -5381,8 +5393,14 @@ function PersonForm({
     pendingMotherId,
   ]);
 
-  const handleSubmit = (e) => {
+  const [submitting, setSubmitting] = useState(false);
+
+  // onSave is async but was never awaited, so a second click landed while the
+  // first request was still in flight and the whole action ran twice — person
+  // AND marriage. Confirmed in the undo stack: two creates, milliseconds apart.
+  const handleSubmit = async (e) => {
     e.preventDefault();
+    if (submitting) return;
     if (!formData.firstName.trim()) {
       alert("يرجى إدخال الاسم الأول");
       return;
@@ -5400,11 +5418,17 @@ function PersonForm({
       return;
     }
     DEBUG && console.log("Form data being submitted:", formData);
-    onSave(
-      marriage
-        ? { ...formData, __marriageId: marriage.id, __isDivorced: isDivorced }
-        : formData,
-    );
+    setSubmitting(true);
+    try {
+      await onSave(
+        marriage
+          ? { ...formData, __marriageId: marriage.id, __isDivorced: isDivorced }
+          : formData,
+      );
+    } finally {
+      // Released on failure too, so a refused save leaves the form usable.
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -5601,7 +5625,9 @@ function PersonForm({
       </div>
 
       <div className="flex justify-end gap-2 pt-3 border-t mt-4">
-        <Button type="submit">{person ? t.update : t.save}</Button>
+        <Button type="submit" disabled={submitting}>
+          {person ? t.update : t.save}
+        </Button>
         <Button type="button" onClick={onCancel} variant="outline">
           {t.cancel}
         </Button>
