@@ -493,6 +493,48 @@ const searchSchema = z.object({
   treeId: z.number().int().positive(),
 });
 
+// One undo stack. Every mutation writes here, not just deletes.
+//
+//   kind='delete'  before=[rows]  after=[]        -> undo re-inserts them
+//   kind='create'  before=[]      after=[rows]    -> undo removes them
+//   kind='update'  before=[old]   after=[new]     -> undo writes old back
+//
+// So undo is a single rule regardless of kind: remove anything in `after` whose
+// id is absent from `before`, then write every `before` row back at its own id.
+// Ids are preserved on purpose — editHistory stripped them on restore, which
+// left every reference to the old id dangling.
+const recordUndo = async ({
+  treeId,
+  userId,
+  kind,
+  label = null,
+  peopleBefore = [],
+  relationshipsBefore = [],
+  peopleAfter = [],
+  relationshipsAfter = [],
+}) => {
+  try {
+    const [row] = await db
+      .insert(deletions)
+      .values({
+        treeId,
+        deletedBy: userId,
+        kind,
+        label,
+        people: peopleBefore,
+        relationships: relationshipsBefore,
+        peopleAfter,
+        relationshipsAfter,
+      })
+      .returning();
+    return row;
+  } catch (error) {
+    // Recording must never break the operation it is recording.
+    console.error("recordUndo failed:", error);
+    return null;
+  }
+};
+
 const logAudit = async (
   userId,
   action,
@@ -1506,6 +1548,14 @@ app.post("/api/people", authenticateUser, async (req, res) => {
     console.log("Saving to DB:", personData);
     const [person] = await db.insert(people).values(personData).returning();
 
+    await recordUndo({
+      treeId: validatedData.treeId,
+      userId: req.userId,
+      kind: "create",
+      label: person.firstName || null,
+      peopleAfter: [person],
+    });
+
     await recordEdit(
       req.userId,
       validatedData.treeId,
@@ -1622,6 +1672,15 @@ app.put("/api/people/:id", authenticateUser, async (req, res) => {
       .where(eq(people.id, personId))
       .returning();
 
+    await recordUndo({
+      treeId: existingPerson.treeId,
+      userId: req.userId,
+      kind: "update",
+      label: existingPerson.firstName || null,
+      peopleBefore: [existingPerson],
+      peopleAfter: [person],
+    });
+
     await recordEdit(
       req.userId,
       existingPerson.treeId,
@@ -1673,6 +1732,30 @@ app.delete("/api/people/:id", authenticateUser, async (req, res) => {
     if (!ownership.valid) {
       return res.status(403).json({ error: ownership.error });
     }
+
+    const personRelRows = await db
+      .select()
+      .from(relationships)
+      .where(
+        and(
+          eq(relationships.treeId, existingPerson.treeId),
+          or(
+            eq(relationships.person1Id, personId),
+            eq(relationships.person2Id, personId),
+            eq(relationships.parentId, personId),
+            eq(relationships.childId, personId),
+          ),
+        ),
+      );
+
+    await recordUndo({
+      treeId: existingPerson.treeId,
+      userId: req.userId,
+      kind: "delete",
+      label: existingPerson.firstName || null,
+      peopleBefore: [existingPerson],
+      relationshipsBefore: personRelRows,
+    });
 
     await recordEdit(
       req.userId,
@@ -1804,24 +1887,62 @@ app.post("/api/deletions/:id/restore", authenticateUser, async (req, res) => {
 
     const peopleRows = (snapshot.people || []).map(revive);
     const relRows = (snapshot.relationships || []).map(revive);
+    const peopleAfterRows = (snapshot.peopleAfter || []).map(revive);
+    const relAfterRows = (snapshot.relationshipsAfter || []).map(revive);
 
-    let peopleRestored = [];
-    if (peopleRows.length > 0) {
-      peopleRestored = await db
-        .insert(people)
-        .values(peopleRows)
-        .onConflictDoNothing()
-        .returning({ id: people.id });
+    // ONE rule for all three kinds:
+    //   remove anything the action ADDED (present in *_after, absent from
+    //   *_before), then write every *_before row back at its own id.
+    //
+    //   delete  before=[rows] after=[]     -> nothing removed, rows re-inserted
+    //   create  before=[]     after=[rows] -> rows removed, nothing restored
+    //   update  before=[old]  after=[new]  -> same id in both, so nothing is
+    //                                         removed and the row is written
+    //                                         back to its old values
+    //
+    // Order matters both ways round the foreign keys: relationships are removed
+    // BEFORE the people they point at, and restored AFTER them.
+    const beforePeopleIds = new Set(peopleRows.map((r) => r.id));
+    const beforeRelIds = new Set(relRows.map((r) => r.id));
+    const relIdsToRemove = relAfterRows
+      .map((r) => r.id)
+      .filter((id) => id != null && !beforeRelIds.has(id));
+    const peopleIdsToRemove = peopleAfterRows
+      .map((r) => r.id)
+      .filter((id) => id != null && !beforePeopleIds.has(id));
+
+    if (relIdsToRemove.length > 0) {
+      await db
+        .delete(relationships)
+        .where(inArray(relationships.id, relIdsToRemove));
+    }
+    if (peopleIdsToRemove.length > 0) {
+      await db.delete(people).where(inArray(people.id, peopleIdsToRemove));
     }
 
-    // Relationships go in after the people they reference.
+    // Upsert, not insert-or-skip: for an update the row still exists, and
+    // onConflictDoNothing would silently leave the new values in place. Done one
+    // row at a time so each row's own values are used in the DO UPDATE clause.
+    let peopleRestored = [];
+    for (const row of peopleRows) {
+      const { id, ...rest } = row;
+      const [out] = await db
+        .insert(people)
+        .values(row)
+        .onConflictDoUpdate({ target: people.id, set: rest })
+        .returning({ id: people.id });
+      if (out) peopleRestored.push(out);
+    }
+
     let relRestored = [];
-    if (relRows.length > 0) {
-      relRestored = await db
+    for (const row of relRows) {
+      const { id, ...rest } = row;
+      const [out] = await db
         .insert(relationships)
-        .values(relRows)
-        .onConflictDoNothing()
+        .values(row)
+        .onConflictDoUpdate({ target: relationships.id, set: rest })
         .returning({ id: relationships.id });
+      if (out) relRestored.push(out);
     }
 
     // Keep the serial sequences ahead of any id we just re-inserted.
@@ -1921,6 +2042,7 @@ app.post("/api/people/batch-delete", authenticateUser, async (req, res) => {
       .values({
         treeId,
         deletedBy: req.userId,
+        kind: "delete",
         label: label || null,
         people: peopleRows,
         relationships: relRows,
@@ -2257,6 +2379,21 @@ const validateParentChild = (rels, ppl, parentId, childId) => {
   if (!parentId || !childId) return "الرابط غير مكتمل";
   if (parentId === childId) return "لا يمكن ربط الشخص بنفسه";
 
+  // One father and one mother — the rule the data model assumes but nothing
+  // checked. A child gained a SECOND father when add-parents ran on a child who
+  // already had one.
+  const parentPerson = ppl.find((p) => p.id === parentId);
+  if (parentPerson?.gender) {
+    const clash = rels
+      .filter((r) => r.type === "parent-child" && r.childId === childId)
+      .map((r) => ppl.find((p) => p.id === r.parentId))
+      .find((p) => p && p.id !== parentId && p.gender === parentPerson.gender);
+    if (clash)
+      return `${clash.firstName} مسجّل بالفعل كـ${
+        parentPerson.gender === "male" ? "أب" : "أم"
+      } لهذا الشخص`;
+  }
+
   const extra = [{ type: "parent-child", parentId, childId }];
   const affected = new Set([
     childId,
@@ -2314,11 +2451,13 @@ app.post("/api/relationships", authenticateUser, async (req, res) => {
       validatedData.parentId,
     ].filter((id) => id != null);
 
+    let referencedPeople = [];
     if (referencedIds.length > 0) {
       const referenced = await db
         .select()
         .from(people)
         .where(inArray(people.id, referencedIds));
+      referencedPeople = referenced;
       const allInTree =
         referenced.length === referencedIds.length &&
         referenced.every((p) => p.treeId === validatedData.treeId);
@@ -2366,6 +2505,30 @@ app.post("/api/relationships", authenticateUser, async (req, res) => {
       .insert(relationships)
       .values(relationshipData)
       .returning();
+
+    const nameOfId = (id) =>
+      referencedPeople.find((p) => p.id === id)?.firstName || "";
+    const relLabel = (() => {
+      if (relationship.type === "partner")
+        return `زواج: ${[nameOfId(relationship.person1Id), nameOfId(relationship.person2Id)]
+          .filter(Boolean)
+          .join(" — ")}`.slice(0, 300);
+      if (relationship.type === "parent-child")
+        return `نسب: ${[nameOfId(relationship.parentId), nameOfId(relationship.childId)]
+          .filter(Boolean)
+          .join(" — ")}`.slice(0, 300);
+      return `${relationship.type}: ${[nameOfId(relationship.person1Id), nameOfId(relationship.person2Id)]
+        .filter(Boolean)
+        .join(" — ")}`.slice(0, 300);
+    })();
+
+    await recordUndo({
+      treeId: validatedData.treeId,
+      userId: req.userId,
+      kind: "create",
+      label: relLabel,
+      relationshipsAfter: [relationship],
+    });
 
     await recordEdit(
       req.userId,
@@ -2453,6 +2616,15 @@ app.patch(
         .where(eq(relationships.id, relId))
         .returning();
 
+      await recordUndo({
+        treeId: existingRel.treeId,
+        userId: req.userId,
+        kind: "update",
+        label: existingRel.type,
+        relationshipsBefore: [existingRel],
+        relationshipsAfter: [updated],
+      });
+
       await logAudit(
         req.userId,
         "update",
@@ -2488,6 +2660,14 @@ app.delete("/api/relationships/:id", authenticateUser, async (req, res) => {
     if (!ownership.valid) {
       return res.status(403).json({ error: ownership.error });
     }
+
+    await recordUndo({
+      treeId: existingRel.treeId,
+      userId: req.userId,
+      kind: "delete",
+      label: existingRel.type,
+      relationshipsBefore: [existingRel],
+    });
 
     await recordEdit(
       req.userId,

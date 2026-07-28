@@ -81,8 +81,17 @@ export const deletions = pgTable("deletions", {
   deletedBy: text("deleted_by"),
   deletedAt: timestamp("deleted_at").defaultNow().notNull(),
   label: text("label"), // e.g. "هنادي +6"
+  // BEFORE state — the rows to put back. For a delete this is what was removed;
+  // for an update the old values; for a create it is empty.
   people: jsonb("people").notNull(),
   relationships: jsonb("relationships").notNull(),
+  // AFTER state — the rows the action produced. For a create this is what was
+  // added; for an update the new values; for a delete it is empty.
+  // Undo is then ONE rule for all three kinds: remove anything in *_after whose
+  // id is absent from *_before, then write every *_before row back at its own id.
+  kind: text("kind").notNull().default("delete"), // 'delete' | 'create' | 'update'
+  peopleAfter: jsonb("people_after").notNull().default([]),
+  relationshipsAfter: jsonb("relationships_after").notNull().default([]),
   restoredAt: timestamp("restored_at"),
 }, (table) => [
   index("deletions_tree_idx").on(table.treeId),

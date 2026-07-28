@@ -2258,9 +2258,17 @@ function App() {
     }
   };
 
+  // Follow the data rather than listing call sites. setPeople/setRelationships
+  // hand back a NEW array on every mutation, so this fires after creates,
+  // updates, deletes and undos alike — including any path added later.
+  //
+  // Listing sites individually is what broke it: only delete refreshed the
+  // pointer, so adding anything left the button aimed at an older entry, and the
+  // server correctly refused it as not-newest. The stack was fine; the button
+  // was stale.
   useEffect(() => {
     loadRestorableDeletion();
-  }, [currentTree?.id]);
+  }, [currentTree?.id, people, relationships]);
 
   // Undo the most recent deletion. Only ever the newest one: if two related
   // people were deleted in separate actions, the link between them lives only in
@@ -2530,59 +2538,89 @@ function App() {
       return;
     }
 
+    // Create only what is MISSING. With neither parent recorded this still makes
+    // the pair in one action; with a father already there it adds the mother and
+    // marries her to him, instead of inventing a second father — which is how
+    // one child ended up with two.
+    const existingFather = parentPeople.find((p) => p?.gender === "male");
+    const existingMother = parentPeople.find((p) => p?.gender === "female");
+
+    if (writeInFlight.current) return;
+    writeInFlight.current = true;
     try {
-      // Create father
-      const father = await api.people.create({
-        treeId: currentTree?.id,
-        firstName: `والد ${child.firstName}`,
-        lastName: child.lastName || "",
-        gender: "male",
-        isLiving: true,
-      });
+      const created = [];
+      const newRels = [];
 
-      // Create mother
-      const mother = await api.people.create({
-        treeId: currentTree?.id,
-        firstName: `والدة ${child.firstName}`,
-        lastName: child.lastName || "",
-        gender: "female",
-        isLiving: true,
-      });
+      const father =
+        existingFather ||
+        (await api.people.create({
+          treeId: currentTree?.id,
+          firstName: `والد ${child.firstName}`,
+          lastName: child.lastName || "",
+          gender: "male",
+          isLiving: true,
+        }));
+      if (!existingFather) created.push(father);
 
-      // Create parent-child relationships
-      const fatherChildRel = await api.relationships.create({
-        treeId: currentTree?.id,
-        type: "parent-child",
-        parentId: father.id,
-        childId: childId,
-      });
+      const mother =
+        existingMother ||
+        (await api.people.create({
+          treeId: currentTree?.id,
+          firstName: `والدة ${child.firstName}`,
+          lastName: child.lastName || "",
+          gender: "female",
+          isLiving: true,
+        }));
+      if (!existingMother) created.push(mother);
 
-      const motherChildRel = await api.relationships.create({
-        treeId: currentTree?.id,
-        type: "parent-child",
-        parentId: mother.id,
-        childId: childId,
-      });
+      // Only link a parent that was just created — the existing one already is.
+      if (!existingFather) {
+        newRels.push(
+          await api.relationships.create({
+            treeId: currentTree?.id,
+            type: "parent-child",
+            parentId: father.id,
+            childId: childId,
+          }),
+        );
+      }
+      if (!existingMother) {
+        newRels.push(
+          await api.relationships.create({
+            treeId: currentTree?.id,
+            type: "parent-child",
+            parentId: mother.id,
+            childId: childId,
+          }),
+        );
+      }
 
-      // Create partner relationship between father and mother
-      const partnerRel = await api.relationships.create({
-        treeId: currentTree?.id,
-        type: "partner",
-        person1Id: father.id,
-        person2Id: mother.id,
-      });
+      // Marry them, unless they already are.
+      const alreadyMarried = relationships.some(
+        (r) =>
+          r.treeId === currentTree?.id &&
+          r.type === "partner" &&
+          ((r.person1Id === father.id && r.person2Id === mother.id) ||
+            (r.person1Id === mother.id && r.person2Id === father.id)),
+      );
+      if (!alreadyMarried) {
+        newRels.push(
+          await api.relationships.create({
+            treeId: currentTree?.id,
+            type: "partner",
+            person1Id: father.id,
+            person2Id: mother.id,
+          }),
+        );
+      }
 
-      // Update local state
-      setPeople((prev) => [...prev, father, mother]);
-      setRelationships((prev) => [
-        ...prev,
-        fatherChildRel,
-        motherChildRel,
-        partnerRel,
-      ]);
+      if (created.length) setPeople((prev) => [...prev, ...created]);
+      if (newRels.length) setRelationships((prev) => [...prev, ...newRels]);
     } catch (error) {
       console.error("Failed to create parents:", error);
       alert("فشل في إضافة الوالدين: " + error.message);
+    } finally {
+      writeInFlight.current = false;
     }
   };
 
@@ -2847,6 +2885,20 @@ function App() {
       if (!changed) break;
     }
 
+    // A milk-sibling joined the ANCHOR's family, so they belong at the anchor's
+    // level — not at whatever depth their own blood parents happen to sit. Same
+    // direction rule as everywhere else: person1 is the anchor, person2 nursed
+    // from person1's mother. Without this, a milk-sibling whose own parents are
+    // roots shows a generation ABOVE the person they nursed with.
+    const milkRows = rels.filter(
+      (r) => r.type === "sibling" && r.isBreastfeeding,
+    );
+    for (const r of milkRows) {
+      if (gen[r.person1Id] !== undefined && r.person2Id != null) {
+        gen[r.person2Id] = gen[r.person1Id];
+      }
+    }
+
     // married-in people inherit their spouse's generation
     for (let pass = 0; pass < 3; pass++) {
       for (const p of treePeople) {
@@ -2947,6 +2999,8 @@ function App() {
       setLinkChildrenFor(null);
       return;
     }
+    if (writeInFlight.current) return;
+    writeInFlight.current = true;
     try {
       const created = await Promise.all(
         ids.map((childId) =>
@@ -2964,6 +3018,8 @@ function App() {
     } catch (error) {
       console.error("Failed to link children:", error);
       window.alert("فشل في ربط الأبناء: " + error.message);
+    } finally {
+      writeInFlight.current = false;
     }
   };
 
@@ -3113,7 +3169,13 @@ function App() {
   };
 
   // Marry two people already in the tree: one partner row, nothing else.
+  // A ref, not state: a second click can land before a state update re-renders,
+  // which is how two identical partner rows appeared 185ms apart.
+  const writeInFlight = useRef(false);
+
   const linkExistingSpouse = async (personId, spouseId) => {
+    if (writeInFlight.current) return;
+    writeInFlight.current = true;
     try {
       const newRel = await api.relationships.create({
         treeId: currentTree?.id,
@@ -3129,6 +3191,8 @@ function App() {
     } catch (error) {
       console.error("Failed to link spouse:", error);
       alert("فشل في إضافة الزواج: " + error.message);
+    } finally {
+      writeInFlight.current = false;
     }
   };
 
@@ -5381,8 +5445,14 @@ function PersonForm({
     pendingMotherId,
   ]);
 
-  const handleSubmit = (e) => {
+  const [submitting, setSubmitting] = useState(false);
+
+  // onSave is async but was never awaited, so a second click landed while the
+  // first request was still in flight and the whole action ran twice — person
+  // AND marriage. Confirmed in the undo stack: two creates, milliseconds apart.
+  const handleSubmit = async (e) => {
     e.preventDefault();
+    if (submitting) return;
     if (!formData.firstName.trim()) {
       alert("يرجى إدخال الاسم الأول");
       return;
@@ -5400,11 +5470,17 @@ function PersonForm({
       return;
     }
     DEBUG && console.log("Form data being submitted:", formData);
-    onSave(
-      marriage
-        ? { ...formData, __marriageId: marriage.id, __isDivorced: isDivorced }
-        : formData,
-    );
+    setSubmitting(true);
+    try {
+      await onSave(
+        marriage
+          ? { ...formData, __marriageId: marriage.id, __isDivorced: isDivorced }
+          : formData,
+      );
+    } finally {
+      // Released on failure too, so a refused save leaves the form usable.
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -5601,7 +5677,9 @@ function PersonForm({
       </div>
 
       <div className="flex justify-end gap-2 pt-3 border-t mt-4">
-        <Button type="submit">{person ? t.update : t.save}</Button>
+        <Button type="submit" disabled={submitting}>
+          {person ? t.update : t.save}
+        </Button>
         <Button type="button" onClick={onCancel} variant="outline">
           {t.cancel}
         </Button>
