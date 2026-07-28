@@ -1889,6 +1889,7 @@ function App() {
       }
     }
 
+    let createdPersonId = null;
     try {
       // Create person via API
       DEBUG && console.log("=== ADDING PERSON ===");
@@ -1941,6 +1942,7 @@ function App() {
         ...(childBirthOrder != null ? { birthOrder: childBirthOrder } : {}),
       });
 
+      createdPersonId = newPerson.id;
       DEBUG && console.log("New person created:", newPerson);
 
       // If there's a relationship, create it
@@ -2107,6 +2109,18 @@ function App() {
       setHighlightedPerson(anchorPerson);
     } catch (error) {
       console.error("Failed to add person:", error);
+      // The person row is written BEFORE its relationship. When the server
+      // refuses the relationship — same-gender marriage, spouse limit, mahram —
+      // the person is already saved and would be left in the tree unconnected.
+      // Remove it so a refused action leaves nothing behind.
+      if (createdPersonId != null) {
+        try {
+          await api.people.delete(createdPersonId);
+          setPeople((prev) => prev.filter((p) => p.id !== createdPersonId));
+        } catch (cleanupError) {
+          console.error("Failed to remove orphan after refusal:", cleanupError);
+        }
+      }
       alert("فشل في إضافة الشخص: " + error.message);
     }
   };
