@@ -1807,10 +1807,7 @@ app.get("/api/deletions/:treeId", authenticateUser, async (req, res) => {
         relationshipsCount: sql`jsonb_array_length(${deletions.relationships})`,
       })
       .from(deletions)
-      // Slice 1 records creates and updates but does not yet undo them, so the
-      // list the button reads stays restricted to deletes. Widening this is
-      // slice 2, together with generalising the restore endpoint.
-      .where(and(eq(deletions.treeId, treeId), eq(deletions.kind, "delete")))
+      .where(eq(deletions.treeId, treeId))
       .orderBy(desc(deletions.id))
       .limit(50);
 
@@ -1853,16 +1850,6 @@ app.post("/api/deletions/:id/restore", authenticateUser, async (req, res) => {
         .json({ error: "This deletion has already been restored" });
     }
 
-    // Slice 1 records creates and updates but cannot reverse them yet. Refusing
-    // is deliberate — silently doing nothing while reporting success is exactly
-    // the failure mode found in the old editHistory undo, where undoing a
-    // relationship create matched no branch and returned success anyway.
-    if (snapshot.kind && snapshot.kind !== "delete") {
-      return res
-        .status(400)
-        .json({ error: "لا يمكن التراجع عن هذا النوع بعد" });
-    }
-
     // Restores must run newest-first, like an undo stack. If two people who were
     // related got deleted in SEPARATE actions, the relationship row was captured
     // only by the FIRST snapshot — by the time the second delete ran it was
@@ -1900,24 +1887,62 @@ app.post("/api/deletions/:id/restore", authenticateUser, async (req, res) => {
 
     const peopleRows = (snapshot.people || []).map(revive);
     const relRows = (snapshot.relationships || []).map(revive);
+    const peopleAfterRows = (snapshot.peopleAfter || []).map(revive);
+    const relAfterRows = (snapshot.relationshipsAfter || []).map(revive);
 
-    let peopleRestored = [];
-    if (peopleRows.length > 0) {
-      peopleRestored = await db
-        .insert(people)
-        .values(peopleRows)
-        .onConflictDoNothing()
-        .returning({ id: people.id });
+    // ONE rule for all three kinds:
+    //   remove anything the action ADDED (present in *_after, absent from
+    //   *_before), then write every *_before row back at its own id.
+    //
+    //   delete  before=[rows] after=[]     -> nothing removed, rows re-inserted
+    //   create  before=[]     after=[rows] -> rows removed, nothing restored
+    //   update  before=[old]  after=[new]  -> same id in both, so nothing is
+    //                                         removed and the row is written
+    //                                         back to its old values
+    //
+    // Order matters both ways round the foreign keys: relationships are removed
+    // BEFORE the people they point at, and restored AFTER them.
+    const beforePeopleIds = new Set(peopleRows.map((r) => r.id));
+    const beforeRelIds = new Set(relRows.map((r) => r.id));
+    const relIdsToRemove = relAfterRows
+      .map((r) => r.id)
+      .filter((id) => id != null && !beforeRelIds.has(id));
+    const peopleIdsToRemove = peopleAfterRows
+      .map((r) => r.id)
+      .filter((id) => id != null && !beforePeopleIds.has(id));
+
+    if (relIdsToRemove.length > 0) {
+      await db
+        .delete(relationships)
+        .where(inArray(relationships.id, relIdsToRemove));
+    }
+    if (peopleIdsToRemove.length > 0) {
+      await db.delete(people).where(inArray(people.id, peopleIdsToRemove));
     }
 
-    // Relationships go in after the people they reference.
+    // Upsert, not insert-or-skip: for an update the row still exists, and
+    // onConflictDoNothing would silently leave the new values in place. Done one
+    // row at a time so each row's own values are used in the DO UPDATE clause.
+    let peopleRestored = [];
+    for (const row of peopleRows) {
+      const { id, ...rest } = row;
+      const [out] = await db
+        .insert(people)
+        .values(row)
+        .onConflictDoUpdate({ target: people.id, set: rest })
+        .returning({ id: people.id });
+      if (out) peopleRestored.push(out);
+    }
+
     let relRestored = [];
-    if (relRows.length > 0) {
-      relRestored = await db
+    for (const row of relRows) {
+      const { id, ...rest } = row;
+      const [out] = await db
         .insert(relationships)
-        .values(relRows)
-        .onConflictDoNothing()
+        .values(row)
+        .onConflictDoUpdate({ target: relationships.id, set: rest })
         .returning({ id: relationships.id });
+      if (out) relRestored.push(out);
     }
 
     // Keep the serial sequences ahead of any id we just re-inserted.
@@ -2159,11 +2184,13 @@ app.post("/api/relationships", authenticateUser, async (req, res) => {
       validatedData.parentId,
     ].filter((id) => id != null);
 
+    let referencedPeople = [];
     if (referencedIds.length > 0) {
       const referenced = await db
         .select()
         .from(people)
         .where(inArray(people.id, referencedIds));
+      referencedPeople = referenced;
       const allInTree =
         referenced.length === referencedIds.length &&
         referenced.every((p) => p.treeId === validatedData.treeId);
@@ -2189,11 +2216,30 @@ app.post("/api/relationships", authenticateUser, async (req, res) => {
       .values(relationshipData)
       .returning();
 
+    // "partner" tells the user nothing when this appears in the undo list.
+    // `referenced` was already fetched above for the tree-membership check, so
+    // the names are free — matching the delete path, which builds "زواج: X — Y".
+    const nameOfId = (id) =>
+      referencedPeople.find((p) => p.id === id)?.firstName || "";
+    const relLabel = (() => {
+      if (relationship.type === "partner")
+        return `زواج: ${[nameOfId(relationship.person1Id), nameOfId(relationship.person2Id)]
+          .filter(Boolean)
+          .join(" — ")}`.slice(0, 300);
+      if (relationship.type === "parent-child")
+        return `نسب: ${[nameOfId(relationship.parentId), nameOfId(relationship.childId)]
+          .filter(Boolean)
+          .join(" — ")}`.slice(0, 300);
+      return `${relationship.type}: ${[nameOfId(relationship.person1Id), nameOfId(relationship.person2Id)]
+        .filter(Boolean)
+        .join(" — ")}`.slice(0, 300);
+    })();
+
     await recordUndo({
       treeId: validatedData.treeId,
       userId: req.userId,
       kind: "create",
-      label: relationship.type,
+      label: relLabel,
       relationshipsAfter: [relationship],
     });
     await recordEdit(
