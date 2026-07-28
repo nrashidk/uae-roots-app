@@ -18,6 +18,7 @@ import {
   Baby,
   Users,
   UserPlus,
+  Link2,
   Trash2,
   X,
   Settings,
@@ -136,6 +137,8 @@ function App() {
   // that person is the root; no connector ever has to span the whole tree.
   const [spouseSourceFor, setSpouseSourceFor] = useState(null); // personId
   const [existingSpouseFor, setExistingSpouseFor] = useState(null); // personId
+  const [linkChildrenFor, setLinkChildrenFor] = useState(null); // personId
+  const [linkChildrenSelected, setLinkChildrenSelected] = useState(new Set());
   const [existingSpouseSearch, setExistingSpouseSearch] = useState("");
   // The picker fills the same panel as the edit form, so it pages rather than
   // scrolls — a scrollbar inside a fixed side panel is easy to miss.
@@ -345,6 +348,12 @@ function App() {
     mahramTwoSisters: "لا يجوز الجمع بين الأختين في وقت واحد.",
     mahramWomanAndAunt:
       "لا يجوز الجمع بين المرأة وعمتها أو خالتها في وقت واحد.",
+    linkChildren: "ربط الأبناء",
+    linkChildrenHintMother: "أبناء الزوج المسجّلون بدون أم",
+    linkChildrenHintFather: "أبناء الزوجة المسجّلون بدون أب",
+    linkChildrenNone: "لا يوجد أبناء بحاجة إلى ربط",
+    linkChildrenSelected: "محدَّد",
+    linkChildrenOf: "أبناء",
   };
 
   useEffect(() => {
@@ -2613,9 +2622,15 @@ function App() {
   // الجمع بين الأختين is the one TEMPORAL rule — it lifts when the first marriage
   // ends by divorce or death, so it reads status and isLiving. Everything above is
   // permanent and ignores both.
-  const mahramReason = (aId, bId) => {
+  // extraRels lets a caller ask "would this pair become mahram IF these rows
+  // existed?" — used before creating a parent-child link, since that is the
+  // mutation which can retroactively make an already-recorded marriage forbidden.
+  const mahramReason = (aId, bId, extraRels = []) => {
     if (!aId || !bId || aId === bId) return null;
-    const rels = relationships.filter((r) => r.treeId === currentTree?.id);
+    const rels = [
+      ...relationships.filter((r) => r.treeId === currentTree?.id),
+      ...extraRels,
+    ];
 
     const bloodParentsOf = (id) =>
       rels
@@ -2768,6 +2783,113 @@ function App() {
       return t.mahramWomanAndAunt;
 
     return null;
+  };
+
+  // Children already recorded for this person's SPOUSE but missing a parent of
+  // this person's gender. That single filter carries the safety: it cannot offer
+  // a child who already has a mother (no two-mother rows), cannot offer another
+  // wife's children, and cannot offer strangers. Grouped by spouse so a person
+  // with several marriages stays unambiguous.
+  const linkableChildrenFor = (personId) => {
+    const person = treePeople.find((p) => p.id === personId);
+    if (!person || !person.gender) return [];
+    const rels = relationships.filter((r) => r.treeId === currentTree?.id);
+
+    const spouseIds = rels
+      .filter(
+        (r) =>
+          r.type === "partner" &&
+          (r.person1Id === personId || r.person2Id === personId),
+      )
+      .map((r) => (r.person1Id === personId ? r.person2Id : r.person1Id));
+
+    return spouseIds
+      .map((sid) => {
+        const spouse = treePeople.find((p) => p.id === sid);
+        const children = rels
+          .filter((r) => r.type === "parent-child" && r.parentId === sid)
+          .map((r) => treePeople.find((p) => p.id === r.childId))
+          .filter(Boolean)
+          .filter((c) => {
+            const alreadyMine = rels.some(
+              (r) =>
+                r.type === "parent-child" &&
+                r.parentId === personId &&
+                r.childId === c.id,
+            );
+            if (alreadyMine) return false;
+            const hasSameGenderParent = rels
+              .filter((r) => r.type === "parent-child" && r.childId === c.id)
+              .some((r) => {
+                const par = treePeople.find((p) => p.id === r.parentId);
+                return par && par.gender === person.gender;
+              });
+            return !hasSameGenderParent;
+          });
+        return { spouse, children };
+      })
+      .filter((g) => g.spouse && g.children.length > 0);
+  };
+
+  // Linking a child can make two ALREADY-married people siblings. Simulate the
+  // new row and re-check every marriage of everyone whose parentage would change.
+  const linkChildBlockedBy = (personId, childId) => {
+    const hypothetical = [
+      {
+        id: -1,
+        treeId: currentTree?.id,
+        type: "parent-child",
+        parentId: personId,
+        childId,
+      },
+    ];
+    const rels = relationships.filter((r) => r.treeId === currentTree?.id);
+    const affected = new Set([
+      childId,
+      ...rels
+        .filter((r) => r.type === "parent-child" && r.parentId === personId)
+        .map((r) => r.childId),
+    ]);
+    for (const pid of affected) {
+      const spouses = rels
+        .filter(
+          (r) =>
+            r.type === "partner" &&
+            (r.person1Id === pid || r.person2Id === pid),
+        )
+        .map((r) => (r.person1Id === pid ? r.person2Id : r.person1Id));
+      for (const sp of spouses) {
+        const reason = mahramReason(pid, sp, hypothetical);
+        if (reason) return reason;
+      }
+    }
+    return null;
+  };
+
+  const saveLinkedChildren = async () => {
+    const ids = [...linkChildrenSelected];
+    if (ids.length === 0) {
+      setLinkChildrenFor(null);
+      return;
+    }
+    try {
+      const created = await Promise.all(
+        ids.map((childId) =>
+          api.relationships.create({
+            treeId: currentTree?.id,
+            type: "parent-child",
+            parentId: linkChildrenFor,
+            childId,
+          }),
+        ),
+      );
+      setRelationships((prev) => [...prev, ...created]);
+      setLinkChildrenFor(null);
+      setLinkChildrenSelected(new Set());
+    } catch (error) {
+      console.error("Failed to link children:", error);
+      window.alert("فشل في ربط الأبناء: " + error.message);
+    }
   };
 
   const eligibleSpousesFor = (personId) => {
@@ -4469,6 +4591,22 @@ function App() {
                       >
                         <Users className="w-4 h-4" />
                       </Button>
+                      {linkableChildrenFor(selectedPerson).length > 0 && (
+                        <Button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setLinkChildrenSelected(new Set());
+                            setLinkChildrenFor(selectedPerson);
+                            setShowActionMenu(false);
+                          }}
+                          size="sm"
+                          variant="ghost"
+                          className="w-8 h-8 p-0"
+                          title={t.linkChildren}
+                        >
+                          <Link2 className="w-4 h-4" />
+                        </Button>
+                      )}
                       <Button
                         onClick={(e) => {
                           e.stopPropagation();
@@ -4706,6 +4844,120 @@ function App() {
         )}
 
         {existingSpouseFor && renderSpousePicker()}
+
+        {linkChildrenFor && (
+          <Dialog
+            open={true}
+            onOpenChange={(open) => {
+              if (!open) {
+                setLinkChildrenFor(null);
+                setLinkChildrenSelected(new Set());
+              }
+            }}
+          >
+            <DialogContent className="sm:max-w-md" dir="rtl">
+              <DialogHeader>
+                <DialogTitle className="text-right text-xl">
+                  {t.linkChildren}
+                </DialogTitle>
+              </DialogHeader>
+
+              {(() => {
+                const person = treePeople.find(
+                  (p) => p.id === linkChildrenFor,
+                );
+                const groups = linkableChildrenFor(linkChildrenFor);
+                if (groups.length === 0) {
+                  return (
+                    <p className="text-sm text-gray-500 text-right py-6">
+                      {t.linkChildrenNone}
+                    </p>
+                  );
+                }
+                return (
+                  <div className="space-y-4">
+                    <p className="text-sm text-gray-500 text-right">
+                      {person?.gender === "female"
+                        ? t.linkChildrenHintMother
+                        : t.linkChildrenHintFather}
+                    </p>
+                    {groups.map((g) => (
+                      <div key={g.spouse.id} className="space-y-2">
+                        <p className="text-xs text-gray-400 text-right">
+                          {t.linkChildrenOf} {g.spouse.firstName}
+                        </p>
+                        {g.children.map((c) => {
+                          const blocked = linkChildBlockedBy(
+                            linkChildrenFor,
+                            c.id,
+                          );
+                          const checked = linkChildrenSelected.has(c.id);
+                          return (
+                            <label
+                              key={c.id}
+                              className={
+                                "flex items-center gap-2 w-full border rounded-md px-3 py-2 " +
+                                (blocked
+                                  ? "opacity-60 cursor-not-allowed"
+                                  : "cursor-pointer")
+                              }
+                            >
+                              <input
+                                type="checkbox"
+                                disabled={!!blocked}
+                                checked={checked}
+                                onChange={() => {
+                                  setLinkChildrenSelected((prev) => {
+                                    const next = new Set(prev);
+                                    if (next.has(c.id)) next.delete(c.id);
+                                    else next.add(c.id);
+                                    return next;
+                                  });
+                                }}
+                              />
+                              <span className="flex-1 text-right text-sm">
+                                {c.firstName}
+                              </span>
+                              {blocked && (
+                                <span className="text-xs text-red-600">
+                                  {blocked}
+                                </span>
+                              )}
+                            </label>
+                          );
+                        })}
+                      </div>
+                    ))}
+                    <div className="flex items-center justify-between pt-2 border-t">
+                      <span className="text-sm text-gray-500">
+                        {linkChildrenSelected.size} {t.linkChildrenSelected}
+                      </span>
+                      <div className="flex gap-2">
+                        <Button
+                          onClick={() => {
+                            setLinkChildrenFor(null);
+                            setLinkChildrenSelected(new Set());
+                          }}
+                          variant="outline"
+                          size="sm"
+                        >
+                          {t.cancel}
+                        </Button>
+                        <Button
+                          onClick={saveLinkedChildren}
+                          disabled={linkChildrenSelected.size === 0}
+                          size="sm"
+                        >
+                          {t.save}
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
+            </DialogContent>
+          </Dialog>
+        )}
 
         {motherPickerFor && (
           <Dialog
