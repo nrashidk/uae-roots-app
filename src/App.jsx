@@ -3836,7 +3836,7 @@ function App() {
         className="fixed right-4 top-1/2 transform -translate-y-1/2 bg-white shadow-2xl border rounded-lg z-50"
         style={{
           width: "380px",
-          height: "min(800px, 85vh)",
+          height: "min(680px, 85vh)",
           overflow: "hidden",
         }}
       >
