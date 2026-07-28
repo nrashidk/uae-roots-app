@@ -343,6 +343,8 @@ function App() {
     mahramInLawLineal: "لا يجوز الزواج: أم الزوجة أو بنت الزوجة (الربيبة).",
     mahramSpouseOfLineal: "لا يجوز الزواج: زوجة الأب أو زوجة الابن.",
     mahramTwoSisters: "لا يجوز الجمع بين الأختين في وقت واحد.",
+    mahramWomanAndAunt:
+      "لا يجوز الجمع بين المرأة وعمتها أو خالتها في وقت واحد.",
   };
 
   useEffect(() => {
@@ -2615,14 +2617,42 @@ function App() {
     if (!aId || !bId || aId === bId) return null;
     const rels = relationships.filter((r) => r.treeId === currentTree?.id);
 
-    const parentsOf = (id) =>
+    const bloodParentsOf = (id) =>
       rels
         .filter((r) => r.type === "parent-child" && r.childId === id)
         .map((r) => r.parentId);
-    const childrenOf = (id) =>
+    const bloodChildrenOf = (id) =>
       rels
         .filter((r) => r.type === "parent-child" && r.parentId === id)
         .map((r) => r.childId);
+
+    const milkRows = rels.filter(
+      (r) => r.type === "sibling" && r.isBreastfeeding,
+    );
+
+    // DIRECTION MATTERS, and it is already recorded: addPerson writes
+    // person1Id = the existing anchor, person2Id = the newly added milk-sibling.
+    // So person2 nursed from person1's MOTHER, making person1's parents the
+    // milk-mother and the milk-father (صاحب اللبن) of person2 — never the reverse.
+    // Modelling that as a parent edge lets every nasab rule below produce the full
+    // رضاعة mirror on its own, with no separate milk rules needed:
+    //   - milk-father and milk-mother blocked as أصول
+    //   - ALL the wet-nurse's children become milk-siblings, and so do the
+    //     milk-father's children by his other wives
+    //   - the milk-father's siblings become milk-aunts and milk-uncles
+    // The asymmetry is the point: the nursed child joins the wet-nurse's family,
+    // while that family gains nothing from the nursed child's own blood relatives.
+    const milkParentsOf = (id) =>
+      milkRows
+        .filter((r) => r.person2Id === id)
+        .flatMap((r) => bloodParentsOf(r.person1Id));
+    const milkChildrenOf = (id) =>
+      milkRows
+        .filter((r) => bloodParentsOf(r.person1Id).includes(id))
+        .map((r) => r.person2Id);
+
+    const parentsOf = (id) => [...bloodParentsOf(id), ...milkParentsOf(id)];
+    const childrenOf = (id) => [...bloodChildrenOf(id), ...milkChildrenOf(id)];
 
     const walk = (startId, step) => {
       const seen = new Set();
@@ -2643,8 +2673,8 @@ function App() {
 
     const bloodSiblingsOf = (id) => {
       const out = new Set();
-      for (const par of parentsOf(id))
-        for (const c of childrenOf(par)) if (c !== id) out.add(c);
+      for (const par of bloodParentsOf(id))
+        for (const c of bloodChildrenOf(par)) if (c !== id) out.add(c);
       return out;
     };
     const milkSiblingsOf = (id) =>
@@ -2718,6 +2748,24 @@ function App() {
     const aSibs = sibsOf(aId);
     if (marriagesOf(bId).filter(ongoing).some((m) => aSibs.has(m.other)))
       return t.mahramTwoSisters;
+
+    // الجمع بين المرأة وعمتها أو خالتها — temporal like the rule above, and from
+    // the hadith rather than An-Nisa 23: «لا يُجمع بين المرأة وعمتها، ولا بين
+    // المرأة وخالتها». Either direction counts; the aunt may be full, paternal
+    // or maternal, which auntLine already covers.
+    const auntPair = (x, y) => auntLine(x, y) || auntLine(y, x);
+    if (
+      marriagesOf(aId)
+        .filter(ongoing)
+        .some((m) => m.other !== bId && auntPair(bId, m.other))
+    )
+      return t.mahramWomanAndAunt;
+    if (
+      marriagesOf(bId)
+        .filter(ongoing)
+        .some((m) => m.other !== aId && auntPair(aId, m.other))
+    )
+      return t.mahramWomanAndAunt;
 
     return null;
   };
