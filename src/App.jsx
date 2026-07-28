@@ -335,6 +335,16 @@ function App() {
     signUpTitle: "إنشاء حساب جديد",
     undoDelete: "تراجع عن الحذف",
     nothingToUndo: "لا يوجد عملية حذف للتراجع عنها",
+    mahramLineal: "لا يجوز الزواج: قرابة مباشرة (أصل أو فرع).",
+    mahramSibling: "لا يجوز الزواج: أخ أو أخت.",
+    mahramMilkSibling: "لا يجوز الزواج: أخ أو أخت بالرضاعة.",
+    mahramNieceNephew: "لا يجوز الزواج: ابن الأخ أو بنت الأخ أو ابن الأخت أو بنت الأخت.",
+    mahramAuntUncle: "لا يجوز الزواج: عمّ أو عمّة أو خال أو خالة.",
+    mahramInLawLineal: "لا يجوز الزواج: أم الزوجة أو بنت الزوجة (الربيبة).",
+    mahramSpouseOfLineal: "لا يجوز الزواج: زوجة الأب أو زوجة الابن.",
+    mahramTwoSisters: "لا يجوز الجمع بين الأختين في وقت واحد.",
+    mahramWomanAndAunt:
+      "لا يجوز الجمع بين المرأة وعمتها أو خالتها في وقت واحد.",
   };
 
   useEffect(() => {
@@ -2581,6 +2591,185 @@ function App() {
   // spouse limit. Wider maḥram rules — siblings, aunts and uncles, milk
   // relatives — are a separate piece; parent and child are blocked here because
   // that isn't a refinement.
+  // مَحرم — permanently forbidden marriage. Returns null when the pair MAY marry,
+  // or an Arabic reason when they may not. Mirrors sql/mahram_audit.sql, which is
+  // validated against the staging fixture.
+  //
+  //   1 ancestors, any depth              2 descendants, any depth
+  //   3 descendants of a parent           4 children of an ancestor
+  //
+  // Rule 4 stops at CHILDREN, which is what keeps cousins permitted: an aunt is a
+  // child of a grandparent and is caught; her daughter is a grandchild and is not.
+  // Rule 3 has no such stop, so grand-nieces stay forbidden. That asymmetry is
+  // deliberate — confirmed against An-Nisa 23.
+  //
+  // رضاعة carries the same weight as blood, but only DIRECT milk-siblings exist in
+  // the data today. The derived milk relations (milk-mother, milk-aunt) need a
+  // column naming which woman nursed; until then they cannot be computed.
+  //
+  // Musaharah: ONLY the four relations named in the verse. General in-law
+  // connection is permitted and must never be blocked.
+  //
+  // الجمع بين الأختين is the one TEMPORAL rule — it lifts when the first marriage
+  // ends by divorce or death, so it reads status and isLiving. Everything above is
+  // permanent and ignores both.
+  const mahramReason = (aId, bId) => {
+    if (!aId || !bId || aId === bId) return null;
+    const rels = relationships.filter((r) => r.treeId === currentTree?.id);
+
+    const bloodParentsOf = (id) =>
+      rels
+        .filter((r) => r.type === "parent-child" && r.childId === id)
+        .map((r) => r.parentId);
+    const bloodChildrenOf = (id) =>
+      rels
+        .filter((r) => r.type === "parent-child" && r.parentId === id)
+        .map((r) => r.childId);
+
+    const milkRows = rels.filter(
+      (r) => r.type === "sibling" && r.isBreastfeeding,
+    );
+
+    // DIRECTION MATTERS, and it is already recorded: addPerson writes
+    // person1Id = the existing anchor, person2Id = the newly added milk-sibling.
+    // So person2 nursed from person1's MOTHER, making person1's parents the
+    // milk-mother and the milk-father (صاحب اللبن) of person2 — never the reverse.
+    // Modelling that as a parent edge lets every nasab rule below produce the full
+    // رضاعة mirror on its own, with no separate milk rules needed:
+    //   - milk-father and milk-mother blocked as أصول
+    //   - ALL the wet-nurse's children become milk-siblings, and so do the
+    //     milk-father's children by his other wives
+    //   - the milk-father's siblings become milk-aunts and milk-uncles
+    // The asymmetry is the point: the nursed child joins the wet-nurse's family,
+    // while that family gains nothing from the nursed child's own blood relatives.
+    const milkParentsOf = (id) =>
+      milkRows
+        .filter((r) => r.person2Id === id)
+        .flatMap((r) => bloodParentsOf(r.person1Id));
+    const milkChildrenOf = (id) =>
+      milkRows
+        .filter((r) => bloodParentsOf(r.person1Id).includes(id))
+        .map((r) => r.person2Id);
+
+    const parentsOf = (id) => [...bloodParentsOf(id), ...milkParentsOf(id)];
+    const childrenOf = (id) => [...bloodChildrenOf(id), ...milkChildrenOf(id)];
+
+    const walk = (startId, step) => {
+      const seen = new Set();
+      const stack = [startId];
+      while (stack.length) {
+        const cur = stack.pop();
+        for (const next of step(cur)) {
+          if (next != null && !seen.has(next)) {
+            seen.add(next);
+            stack.push(next);
+          }
+        }
+      }
+      return seen;
+    };
+    const ancestorsOf = (id) => walk(id, parentsOf);
+    const descendantsOf = (id) => walk(id, childrenOf);
+
+    const bloodSiblingsOf = (id) => {
+      const out = new Set();
+      for (const par of bloodParentsOf(id))
+        for (const c of bloodChildrenOf(par)) if (c !== id) out.add(c);
+      return out;
+    };
+    const milkSiblingsOf = (id) =>
+      new Set(
+        rels
+          .filter(
+            (r) =>
+              r.type === "sibling" &&
+              r.isBreastfeeding &&
+              (r.person1Id === id || r.person2Id === id),
+          )
+          .map((r) => (r.person1Id === id ? r.person2Id : r.person1Id)),
+      );
+    const marriagesOf = (id) =>
+      rels
+        .filter(
+          (r) =>
+            r.type === "partner" &&
+            (r.person1Id === id || r.person2Id === id),
+        )
+        .map((r) => ({
+          other: r.person1Id === id ? r.person2Id : r.person1Id,
+          status: r.status,
+        }));
+
+    // 1 + 2 — the vertical line, any depth
+    if (ancestorsOf(aId).has(bId) || descendantsOf(aId).has(bId))
+      return t.mahramLineal;
+
+    // 3 — siblings: full, paternal or maternal (any shared parent)
+    if (bloodSiblingsOf(aId).has(bId)) return t.mahramSibling;
+
+    // رضاعة, identical weight to blood
+    if (milkSiblingsOf(aId).has(bId)) return t.mahramMilkSibling;
+
+    // Both directions are checked for every rule below, but the LABEL is chosen
+    // from b's relation to a, since that is what the user is being told. The same
+    // pair seen from the other side has a different name: a's aunt is the woman
+    // whose nephew he is.
+    const nieceLine = (x, y) =>
+      parentsOf(x).some((par) => descendantsOf(par).has(y));
+    const auntLine = (x, y) =>
+      [...ancestorsOf(x)].some((anc) => childrenOf(anc).includes(y));
+
+    // b is a's niece/nephew (or below)
+    if (nieceLine(aId, bId) || auntLine(bId, aId)) return t.mahramNieceNephew;
+    // b is a's aunt/uncle (at any level)
+    if (auntLine(aId, bId) || nieceLine(bId, aId)) return t.mahramAuntUncle;
+
+    // b is an ancestor or descendant of someone a married — أم الزوجة / الربيبة
+    const inLawLineal = (x, y) =>
+      marriagesOf(x).some(
+        (m) => ancestorsOf(m.other).has(y) || descendantsOf(m.other).has(y),
+      );
+    if (inLawLineal(aId, bId)) return t.mahramInLawLineal;
+    // the same check reversed — b married a's ancestor or descendant:
+    // زوجة الأب / زوجة الابن
+    if (inLawLineal(bId, aId)) return t.mahramSpouseOfLineal;
+
+    // الجمع بين الأختين — temporal; only while the other marriage is ongoing
+    const ongoing = (m) => {
+      if (m.status === "divorced") return false;
+      const sp = people.find((pp) => pp.id === m.other);
+      return !sp || sp.isLiving !== false;
+    };
+    const sibsOf = (id) =>
+      new Set([...bloodSiblingsOf(id), ...milkSiblingsOf(id)]);
+    const bSibs = sibsOf(bId);
+    if (marriagesOf(aId).filter(ongoing).some((m) => bSibs.has(m.other)))
+      return t.mahramTwoSisters;
+    const aSibs = sibsOf(aId);
+    if (marriagesOf(bId).filter(ongoing).some((m) => aSibs.has(m.other)))
+      return t.mahramTwoSisters;
+
+    // الجمع بين المرأة وعمتها أو خالتها — temporal like the rule above, and from
+    // the hadith rather than An-Nisa 23: «لا يُجمع بين المرأة وعمتها، ولا بين
+    // المرأة وخالتها». Either direction counts; the aunt may be full, paternal
+    // or maternal, which auntLine already covers.
+    const auntPair = (x, y) => auntLine(x, y) || auntLine(y, x);
+    if (
+      marriagesOf(aId)
+        .filter(ongoing)
+        .some((m) => m.other !== bId && auntPair(bId, m.other))
+    )
+      return t.mahramWomanAndAunt;
+    if (
+      marriagesOf(bId)
+        .filter(ongoing)
+        .some((m) => m.other !== aId && auntPair(aId, m.other))
+    )
+      return t.mahramWomanAndAunt;
+
+    return null;
+  };
+
   const eligibleSpousesFor = (personId) => {
     const person = treePeople.find((p) => p.id === personId);
     if (!person) return [];
@@ -2629,6 +2818,7 @@ function App() {
       if (!c.gender || c.gender === person.gender) return false;
       if (alreadyMarried.has(c.id)) return false;
       if (bloodline.has(c.id)) return false;
+      if (mahramReason(personId, c.id)) return false;
       if (countActiveSpouses(c.id) >= spouseLimitFor(c)) return false;
       return true;
     });
