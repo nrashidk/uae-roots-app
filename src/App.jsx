@@ -2538,59 +2538,89 @@ function App() {
       return;
     }
 
+    // Create only what is MISSING. With neither parent recorded this still makes
+    // the pair in one action; with a father already there it adds the mother and
+    // marries her to him, instead of inventing a second father — which is how
+    // one child ended up with two.
+    const existingFather = parentPeople.find((p) => p?.gender === "male");
+    const existingMother = parentPeople.find((p) => p?.gender === "female");
+
+    if (writeInFlight.current) return;
+    writeInFlight.current = true;
     try {
-      // Create father
-      const father = await api.people.create({
-        treeId: currentTree?.id,
-        firstName: `والد ${child.firstName}`,
-        lastName: child.lastName || "",
-        gender: "male",
-        isLiving: true,
-      });
+      const created = [];
+      const newRels = [];
 
-      // Create mother
-      const mother = await api.people.create({
-        treeId: currentTree?.id,
-        firstName: `والدة ${child.firstName}`,
-        lastName: child.lastName || "",
-        gender: "female",
-        isLiving: true,
-      });
+      const father =
+        existingFather ||
+        (await api.people.create({
+          treeId: currentTree?.id,
+          firstName: `والد ${child.firstName}`,
+          lastName: child.lastName || "",
+          gender: "male",
+          isLiving: true,
+        }));
+      if (!existingFather) created.push(father);
 
-      // Create parent-child relationships
-      const fatherChildRel = await api.relationships.create({
-        treeId: currentTree?.id,
-        type: "parent-child",
-        parentId: father.id,
-        childId: childId,
-      });
+      const mother =
+        existingMother ||
+        (await api.people.create({
+          treeId: currentTree?.id,
+          firstName: `والدة ${child.firstName}`,
+          lastName: child.lastName || "",
+          gender: "female",
+          isLiving: true,
+        }));
+      if (!existingMother) created.push(mother);
 
-      const motherChildRel = await api.relationships.create({
-        treeId: currentTree?.id,
-        type: "parent-child",
-        parentId: mother.id,
-        childId: childId,
-      });
+      // Only link a parent that was just created — the existing one already is.
+      if (!existingFather) {
+        newRels.push(
+          await api.relationships.create({
+            treeId: currentTree?.id,
+            type: "parent-child",
+            parentId: father.id,
+            childId: childId,
+          }),
+        );
+      }
+      if (!existingMother) {
+        newRels.push(
+          await api.relationships.create({
+            treeId: currentTree?.id,
+            type: "parent-child",
+            parentId: mother.id,
+            childId: childId,
+          }),
+        );
+      }
 
-      // Create partner relationship between father and mother
-      const partnerRel = await api.relationships.create({
-        treeId: currentTree?.id,
-        type: "partner",
-        person1Id: father.id,
-        person2Id: mother.id,
-      });
+      // Marry them, unless they already are.
+      const alreadyMarried = relationships.some(
+        (r) =>
+          r.treeId === currentTree?.id &&
+          r.type === "partner" &&
+          ((r.person1Id === father.id && r.person2Id === mother.id) ||
+            (r.person1Id === mother.id && r.person2Id === father.id)),
+      );
+      if (!alreadyMarried) {
+        newRels.push(
+          await api.relationships.create({
+            treeId: currentTree?.id,
+            type: "partner",
+            person1Id: father.id,
+            person2Id: mother.id,
+          }),
+        );
+      }
 
-      // Update local state
-      setPeople((prev) => [...prev, father, mother]);
-      setRelationships((prev) => [
-        ...prev,
-        fatherChildRel,
-        motherChildRel,
-        partnerRel,
-      ]);
+      if (created.length) setPeople((prev) => [...prev, ...created]);
+      if (newRels.length) setRelationships((prev) => [...prev, ...newRels]);
     } catch (error) {
       console.error("Failed to create parents:", error);
       alert("فشل في إضافة الوالدين: " + error.message);
+    } finally {
+      writeInFlight.current = false;
     }
   };
 
