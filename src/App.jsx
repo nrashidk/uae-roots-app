@@ -3836,11 +3836,11 @@ function App() {
         className="fixed right-4 top-1/2 transform -translate-y-1/2 bg-white shadow-2xl border rounded-lg z-50"
         style={{
           width: "380px",
-          maxHeight: "min(800px, 85vh)",
+          height: "min(800px, 85vh)",
           overflow: "hidden",
         }}
       >
-        <div className="flex flex-col h-full" style={{ maxHeight: "inherit" }}>
+        <div className="flex flex-col h-full">
           <div className="flex justify-between items-center p-4 border-b shrink-0">
             <div className="text-right">
               <h2 className="text-xl font-bold">{t.linkChildren}</h2>
@@ -3853,9 +3853,9 @@ function App() {
             </Button>
           </div>
 
-          <div className="p-4 flex flex-col gap-3 min-h-0" dir="rtl">
+          <div className="p-4 flex flex-col gap-3 flex-1 min-h-0" dir="rtl">
             {groups.length === 0 ? (
-              <p className="text-sm text-gray-500 text-right py-6">
+              <p className="text-sm text-gray-500 text-right py-6 flex-1">
                 {t.linkChildrenNone}
               </p>
             ) : (
@@ -3865,7 +3865,7 @@ function App() {
                     ? t.linkChildrenHintMother
                     : t.linkChildrenHintFather}
                 </p>
-                <div className="overflow-y-auto space-y-3">
+                <div className="flex-1 overflow-y-auto space-y-3">
                   {groups.map((g) => (
                     <div key={g.spouse.id} className="space-y-2">
                       <p className="text-xs text-gray-400 text-right">
