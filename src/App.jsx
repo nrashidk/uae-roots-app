@@ -224,6 +224,8 @@ function App() {
     setExistingSpouseSearch("");
     setExistingSpousePage(0);
     setSpouseSourceFor(null);
+    setLinkChildrenFor(null);
+    setLinkChildrenSelected(new Set());
   }, [currentView]);
 
   useEffect(() => {
@@ -3241,6 +3243,10 @@ function App() {
         setExistingSpouseSearch("");
         setExistingSpousePage(0);
       }
+      if (linkChildrenFor) {
+        setLinkChildrenFor(null);
+        setLinkChildrenSelected(new Set());
+      }
     }
   };
 
@@ -3345,6 +3351,10 @@ function App() {
           setExistingSpouseFor(null);
           setExistingSpouseSearch("");
           setExistingSpousePage(0);
+        }
+        if (linkChildrenFor) {
+          setLinkChildrenFor(null);
+          setLinkChildrenSelected(new Set());
         }
       }
     }
@@ -3808,6 +3818,125 @@ function App() {
   // ~58, padding ~32, and each row ~48. Ten rows overflowed and cut the last;
   // nine fit once the panel is 680.
   const PICKER_PAGE_SIZE = 9;
+
+  // Same right-hand panel as the spouse picker — fixed position, 380px, capped
+  // height — so every "pick something" surface in the app sits in one place and
+  // the click-away handler treats them identically via data-person-form.
+  const renderLinkChildrenPanel = () => {
+    const person = treePeople.find((p) => p.id === linkChildrenFor);
+    const groups = linkableChildrenFor(linkChildrenFor);
+    const close = () => {
+      setLinkChildrenFor(null);
+      setLinkChildrenSelected(new Set());
+    };
+
+    return (
+      <div
+        data-person-form
+        className="fixed right-4 top-1/2 transform -translate-y-1/2 bg-white shadow-2xl border rounded-lg z-50"
+        style={{
+          width: "380px",
+          maxHeight: "min(800px, 85vh)",
+          overflow: "hidden",
+        }}
+      >
+        <div className="flex flex-col h-full" style={{ maxHeight: "inherit" }}>
+          <div className="flex justify-between items-center p-4 border-b shrink-0">
+            <div className="text-right">
+              <h2 className="text-xl font-bold">{t.linkChildren}</h2>
+              {person && (
+                <p className="text-sm text-gray-500">{person.firstName}</p>
+              )}
+            </div>
+            <Button onClick={close} variant="ghost" size="sm">
+              <X className="w-4 h-4" />
+            </Button>
+          </div>
+
+          <div className="p-4 flex flex-col gap-3 min-h-0" dir="rtl">
+            {groups.length === 0 ? (
+              <p className="text-sm text-gray-500 text-right py-6">
+                {t.linkChildrenNone}
+              </p>
+            ) : (
+              <>
+                <p className="text-sm text-gray-500 text-right shrink-0">
+                  {person?.gender === "female"
+                    ? t.linkChildrenHintMother
+                    : t.linkChildrenHintFather}
+                </p>
+                <div className="overflow-y-auto space-y-3">
+                  {groups.map((g) => (
+                    <div key={g.spouse.id} className="space-y-2">
+                      <p className="text-xs text-gray-400 text-right">
+                        {t.linkChildrenOf} {g.spouse.firstName}
+                      </p>
+                      {g.children.map((c) => {
+                        const blocked = linkChildBlockedBy(
+                          linkChildrenFor,
+                          c.id,
+                        );
+                        return (
+                          <label
+                            key={c.id}
+                            className={
+                              "flex items-center gap-2 w-full border rounded-md px-3 py-2 " +
+                              (blocked
+                                ? "opacity-60 cursor-not-allowed"
+                                : "cursor-pointer")
+                            }
+                          >
+                            <input
+                              type="checkbox"
+                              disabled={!!blocked}
+                              checked={linkChildrenSelected.has(c.id)}
+                              onChange={() => {
+                                setLinkChildrenSelected((prev) => {
+                                  const next = new Set(prev);
+                                  if (next.has(c.id)) next.delete(c.id);
+                                  else next.add(c.id);
+                                  return next;
+                                });
+                              }}
+                            />
+                            <span className="flex-1 text-right text-sm">
+                              {c.firstName}
+                            </span>
+                            {blocked && (
+                              <span className="text-xs text-red-600">
+                                {blocked}
+                              </span>
+                            )}
+                          </label>
+                        );
+                      })}
+                    </div>
+                  ))}
+                </div>
+                <div className="flex items-center justify-between pt-2 border-t shrink-0">
+                  <span className="text-sm text-gray-500">
+                    {linkChildrenSelected.size} {t.linkChildrenSelected}
+                  </span>
+                  <div className="flex gap-2">
+                    <Button onClick={close} variant="outline" size="sm">
+                      {t.cancel}
+                    </Button>
+                    <Button
+                      onClick={saveLinkedChildren}
+                      disabled={linkChildrenSelected.size === 0}
+                      size="sm"
+                    >
+                      {t.save}
+                    </Button>
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  };
 
   const renderSpousePicker = () => {
     const q = existingSpouseSearch.trim();
@@ -4575,6 +4704,22 @@ function App() {
                       <Button
                         onClick={(e) => {
                           e.stopPropagation();
+                          setShowPersonForm(false);
+                          setEditingPerson(null);
+                          setLinkChildrenSelected(new Set());
+                          setLinkChildrenFor(selectedPerson);
+                          setShowActionMenu(false);
+                        }}
+                        size="sm"
+                        variant="ghost"
+                        className="w-8 h-8 p-0"
+                        title={t.linkChildren}
+                      >
+                        <Link2 className="w-4 h-4" />
+                      </Button>
+                      <Button
+                        onClick={(e) => {
+                          e.stopPropagation();
                           if (!canAddParents) {
                             window.alert("Both parents already exist");
                             return;
@@ -4591,22 +4736,6 @@ function App() {
                       >
                         <Users className="w-4 h-4" />
                       </Button>
-                      {linkableChildrenFor(selectedPerson).length > 0 && (
-                        <Button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setLinkChildrenSelected(new Set());
-                            setLinkChildrenFor(selectedPerson);
-                            setShowActionMenu(false);
-                          }}
-                          size="sm"
-                          variant="ghost"
-                          className="w-8 h-8 p-0"
-                          title={t.linkChildren}
-                        >
-                          <Link2 className="w-4 h-4" />
-                        </Button>
-                      )}
                       <Button
                         onClick={(e) => {
                           e.stopPropagation();
@@ -4845,119 +4974,7 @@ function App() {
 
         {existingSpouseFor && renderSpousePicker()}
 
-        {linkChildrenFor && (
-          <Dialog
-            open={true}
-            onOpenChange={(open) => {
-              if (!open) {
-                setLinkChildrenFor(null);
-                setLinkChildrenSelected(new Set());
-              }
-            }}
-          >
-            <DialogContent className="sm:max-w-md" dir="rtl">
-              <DialogHeader>
-                <DialogTitle className="text-right text-xl">
-                  {t.linkChildren}
-                </DialogTitle>
-              </DialogHeader>
-
-              {(() => {
-                const person = treePeople.find(
-                  (p) => p.id === linkChildrenFor,
-                );
-                const groups = linkableChildrenFor(linkChildrenFor);
-                if (groups.length === 0) {
-                  return (
-                    <p className="text-sm text-gray-500 text-right py-6">
-                      {t.linkChildrenNone}
-                    </p>
-                  );
-                }
-                return (
-                  <div className="space-y-4">
-                    <p className="text-sm text-gray-500 text-right">
-                      {person?.gender === "female"
-                        ? t.linkChildrenHintMother
-                        : t.linkChildrenHintFather}
-                    </p>
-                    {groups.map((g) => (
-                      <div key={g.spouse.id} className="space-y-2">
-                        <p className="text-xs text-gray-400 text-right">
-                          {t.linkChildrenOf} {g.spouse.firstName}
-                        </p>
-                        {g.children.map((c) => {
-                          const blocked = linkChildBlockedBy(
-                            linkChildrenFor,
-                            c.id,
-                          );
-                          const checked = linkChildrenSelected.has(c.id);
-                          return (
-                            <label
-                              key={c.id}
-                              className={
-                                "flex items-center gap-2 w-full border rounded-md px-3 py-2 " +
-                                (blocked
-                                  ? "opacity-60 cursor-not-allowed"
-                                  : "cursor-pointer")
-                              }
-                            >
-                              <input
-                                type="checkbox"
-                                disabled={!!blocked}
-                                checked={checked}
-                                onChange={() => {
-                                  setLinkChildrenSelected((prev) => {
-                                    const next = new Set(prev);
-                                    if (next.has(c.id)) next.delete(c.id);
-                                    else next.add(c.id);
-                                    return next;
-                                  });
-                                }}
-                              />
-                              <span className="flex-1 text-right text-sm">
-                                {c.firstName}
-                              </span>
-                              {blocked && (
-                                <span className="text-xs text-red-600">
-                                  {blocked}
-                                </span>
-                              )}
-                            </label>
-                          );
-                        })}
-                      </div>
-                    ))}
-                    <div className="flex items-center justify-between pt-2 border-t">
-                      <span className="text-sm text-gray-500">
-                        {linkChildrenSelected.size} {t.linkChildrenSelected}
-                      </span>
-                      <div className="flex gap-2">
-                        <Button
-                          onClick={() => {
-                            setLinkChildrenFor(null);
-                            setLinkChildrenSelected(new Set());
-                          }}
-                          variant="outline"
-                          size="sm"
-                        >
-                          {t.cancel}
-                        </Button>
-                        <Button
-                          onClick={saveLinkedChildren}
-                          disabled={linkChildrenSelected.size === 0}
-                          size="sm"
-                        >
-                          {t.save}
-                        </Button>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })()}
-            </DialogContent>
-          </Dialog>
-        )}
+        {linkChildrenFor && renderLinkChildrenPanel()}
 
         {motherPickerFor && (
           <Dialog
