@@ -2885,6 +2885,20 @@ function App() {
       if (!changed) break;
     }
 
+    // A milk-sibling joined the ANCHOR's family, so they belong at the anchor's
+    // level — not at whatever depth their own blood parents happen to sit. Same
+    // direction rule as everywhere else: person1 is the anchor, person2 nursed
+    // from person1's mother. Without this, a milk-sibling whose own parents are
+    // roots shows a generation ABOVE the person they nursed with.
+    const milkRows = rels.filter(
+      (r) => r.type === "sibling" && r.isBreastfeeding,
+    );
+    for (const r of milkRows) {
+      if (gen[r.person1Id] !== undefined && r.person2Id != null) {
+        gen[r.person2Id] = gen[r.person1Id];
+      }
+    }
+
     // married-in people inherit their spouse's generation
     for (let pass = 0; pass < 3; pass++) {
       for (const p of treePeople) {
