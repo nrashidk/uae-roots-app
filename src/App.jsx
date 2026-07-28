@@ -3842,12 +3842,7 @@ function App() {
       >
         <div className="flex flex-col h-full">
           <div className="flex justify-between items-center p-4 border-b shrink-0">
-            <div className="text-right">
-              <h2 className="text-xl font-bold">{t.linkChildren}</h2>
-              {person && (
-                <p className="text-sm text-gray-500">{person.firstName}</p>
-              )}
-            </div>
+            <h2 className="text-xl font-bold">{t.linkChildren}</h2>
             <Button onClick={close} variant="ghost" size="sm">
               <X className="w-4 h-4" />
             </Button>
@@ -3860,11 +3855,16 @@ function App() {
               </p>
             ) : (
               <>
-                <p className="text-sm text-gray-500 text-right shrink-0">
-                  {person?.gender === "female"
-                    ? t.linkChildrenHintMother
-                    : t.linkChildrenHintFather}
-                </p>
+                <div className="text-right shrink-0">
+                  {person && (
+                    <p className="text-base font-medium">{person.firstName}</p>
+                  )}
+                  <p className="text-sm text-gray-500">
+                    {person?.gender === "female"
+                      ? t.linkChildrenHintMother
+                      : t.linkChildrenHintFather}
+                  </p>
+                </div>
                 <div className="flex-1 overflow-y-auto space-y-3">
                   {groups.map((g) => (
                     <div key={g.spouse.id} className="space-y-2">
@@ -4701,22 +4701,24 @@ function App() {
                       >
                         <Baby className="w-4 h-4" />
                       </Button>
-                      <Button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setShowPersonForm(false);
-                          setEditingPerson(null);
-                          setLinkChildrenSelected(new Set());
-                          setLinkChildrenFor(selectedPerson);
-                          setShowActionMenu(false);
-                        }}
-                        size="sm"
-                        variant="ghost"
-                        className="w-8 h-8 p-0"
-                        title={t.linkChildren}
-                      >
-                        <Link2 className="w-4 h-4" />
-                      </Button>
+                      {linkableChildrenFor(selectedPerson).length > 0 && (
+                        <Button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setShowPersonForm(false);
+                            setEditingPerson(null);
+                            setLinkChildrenSelected(new Set());
+                            setLinkChildrenFor(selectedPerson);
+                            setShowActionMenu(false);
+                          }}
+                          size="sm"
+                          variant="ghost"
+                          className="w-8 h-8 p-0"
+                          title={t.linkChildren}
+                        >
+                          <Link2 className="w-4 h-4" />
+                        </Button>
+                      )}
                       <Button
                         onClick={(e) => {
                           e.stopPropagation();
