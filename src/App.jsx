@@ -356,6 +356,8 @@ function App() {
     linkChildrenNone: "لا يوجد أبناء بحاجة إلى ربط",
     linkChildrenSelected: "محدَّد",
     linkChildrenOf: "أبناء",
+    genAbove: "جيل أعلى",
+    genBelow: "جيل أدنى",
   };
 
   useEffect(() => {
@@ -1887,6 +1889,7 @@ function App() {
       }
     }
 
+    let createdPersonId = null;
     try {
       // Create person via API
       DEBUG && console.log("=== ADDING PERSON ===");
@@ -1939,6 +1942,7 @@ function App() {
         ...(childBirthOrder != null ? { birthOrder: childBirthOrder } : {}),
       });
 
+      createdPersonId = newPerson.id;
       DEBUG && console.log("New person created:", newPerson);
 
       // If there's a relationship, create it
@@ -2105,6 +2109,18 @@ function App() {
       setHighlightedPerson(anchorPerson);
     } catch (error) {
       console.error("Failed to add person:", error);
+      // The person row is written BEFORE its relationship. When the server
+      // refuses the relationship — same-gender marriage, spouse limit, mahram —
+      // the person is already saved and would be left in the tree unconnected.
+      // Remove it so a refused action leaves nothing behind.
+      if (createdPersonId != null) {
+        try {
+          await api.people.delete(createdPersonId);
+          setPeople((prev) => prev.filter((p) => p.id !== createdPersonId));
+        } catch (cleanupError) {
+          console.error("Failed to remove orphan after refusal:", cleanupError);
+        }
+      }
       alert("فشل في إضافة الشخص: " + error.message);
     }
   };
@@ -2786,6 +2802,63 @@ function App() {
 
     return null;
   };
+
+  // Generation depth for every person in the tree. Used to ORDER the spouse
+  // picker, never to filter it — marrying across a generation is permitted and
+  // does happen, so hiding those candidates would make real marriages
+  // unrecordable. It only decides what appears first.
+  //
+  // Two passes, because lineage alone is not enough: someone who married INTO
+  // the tree has no parents recorded, so counting ancestors puts them at
+  // generation 0 no matter whose generation they actually joined. The second
+  // pass gives them their spouse's depth.
+  const generationDepths = useMemo(() => {
+    const rels = relationships.filter((r) => r.treeId === currentTree?.id);
+    const parentsOf = (id) =>
+      rels
+        .filter((r) => r.type === "parent-child" && r.childId === id)
+        .map((r) => r.parentId);
+    const spousesOf = (id) =>
+      rels
+        .filter(
+          (r) =>
+            r.type === "partner" &&
+            (r.person1Id === id || r.person2Id === id),
+        )
+        .map((r) => (r.person1Id === id ? r.person2Id : r.person1Id));
+
+    const gen = {};
+    treePeople.forEach((p) => {
+      gen[p.id] = 0;
+    });
+
+    // depth = 1 + deepest parent, relaxed until stable
+    for (let pass = 0; pass < treePeople.length; pass++) {
+      let changed = false;
+      for (const p of treePeople) {
+        const ps = parentsOf(p.id);
+        if (!ps.length) continue;
+        const d = Math.max(...ps.map((x) => gen[x] ?? 0)) + 1;
+        if (d > gen[p.id]) {
+          gen[p.id] = d;
+          changed = true;
+        }
+      }
+      if (!changed) break;
+    }
+
+    // married-in people inherit their spouse's generation
+    for (let pass = 0; pass < 3; pass++) {
+      for (const p of treePeople) {
+        if (parentsOf(p.id).length) continue;
+        const vals = spousesOf(p.id)
+          .map((sid) => gen[sid])
+          .filter((v) => v !== undefined);
+        if (vals.length) gen[p.id] = Math.max(...vals);
+      }
+    }
+    return gen;
+  }, [relationships, treePeople, currentTree?.id]);
 
   // Children already recorded for this person's SPOUSE but missing a parent of
   // this person's gender. That single filter carries the safety: it cannot offer
@@ -3940,9 +4013,18 @@ function App() {
 
   const renderSpousePicker = () => {
     const q = existingSpouseSearch.trim();
-    const all = eligibleSpousesFor(existingSpouseFor).filter(
-      (c) => !q || getGenealogicalName(c).includes(q),
-    );
+    const selfGen = generationDepths[existingSpouseFor] ?? 0;
+    const all = eligibleSpousesFor(existingSpouseFor)
+      .filter((c) => !q || getGenealogicalName(c).includes(q))
+      // Nearest generation first. Everyone eligible is still listed — this only
+      // stops the one person you probably want being buried under forty you
+      // do not.
+      .sort((a, b) => {
+        const da = Math.abs((generationDepths[a.id] ?? 0) - selfGen);
+        const db = Math.abs((generationDepths[b.id] ?? 0) - selfGen);
+        if (da !== db) return da - db;
+        return getGenealogicalName(a).localeCompare(getGenealogicalName(b), "ar");
+      });
     const pages = Math.max(1, Math.ceil(all.length / PICKER_PAGE_SIZE));
     const page = Math.min(existingSpousePage, pages - 1);
     const slice = all.slice(
@@ -3995,16 +4077,26 @@ function App() {
               </p>
             ) : (
               <div className="space-y-2 flex-1 overflow-hidden">
-                {slice.map((c) => (
-                  <Button
-                    key={c.id}
-                    onClick={() => linkExistingSpouse(existingSpouseFor, c.id)}
-                    variant="outline"
-                    className="w-full justify-end text-right whitespace-normal h-auto py-2"
-                  >
-                    {getGenealogicalName(c)}
-                  </Button>
-                ))}
+                {slice.map((c) => {
+                  const diff = (generationDepths[c.id] ?? 0) - selfGen;
+                  return (
+                    <Button
+                      key={c.id}
+                      onClick={() => linkExistingSpouse(existingSpouseFor, c.id)}
+                      variant="outline"
+                      className="w-full justify-between text-right whitespace-normal h-auto py-2"
+                    >
+                      {diff !== 0 && (
+                        <span className="text-xs text-gray-400">
+                          {diff < 0 ? t.genAbove : t.genBelow}
+                        </span>
+                      )}
+                      <span className="flex-1 text-right">
+                        {getGenealogicalName(c)}
+                      </span>
+                    </Button>
+                  );
+                })}
               </div>
             )}
 
