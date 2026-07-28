@@ -493,6 +493,48 @@ const searchSchema = z.object({
   treeId: z.number().int().positive(),
 });
 
+// One undo stack. Every mutation writes here, not just deletes.
+//
+//   kind='delete'  before=[rows]  after=[]        -> undo re-inserts them
+//   kind='create'  before=[]      after=[rows]    -> undo removes them
+//   kind='update'  before=[old]   after=[new]     -> undo writes old back
+//
+// So undo is a single rule regardless of kind: remove anything in `after` whose
+// id is absent from `before`, then write every `before` row back at its own id.
+// Ids are preserved on purpose — editHistory stripped them on restore, which
+// left every reference to the old id dangling.
+const recordUndo = async ({
+  treeId,
+  userId,
+  kind,
+  label = null,
+  peopleBefore = [],
+  relationshipsBefore = [],
+  peopleAfter = [],
+  relationshipsAfter = [],
+}) => {
+  try {
+    const [row] = await db
+      .insert(deletions)
+      .values({
+        treeId,
+        deletedBy: userId,
+        kind,
+        label,
+        people: peopleBefore,
+        relationships: relationshipsBefore,
+        peopleAfter,
+        relationshipsAfter,
+      })
+      .returning();
+    return row;
+  } catch (error) {
+    // Recording must never break the operation it is recording.
+    console.error("recordUndo failed:", error);
+    return null;
+  }
+};
+
 const logAudit = async (
   userId,
   action,
@@ -1506,6 +1548,13 @@ app.post("/api/people", authenticateUser, async (req, res) => {
     console.log("Saving to DB:", personData);
     const [person] = await db.insert(people).values(personData).returning();
 
+    await recordUndo({
+      treeId: validatedData.treeId,
+      userId: req.userId,
+      kind: "create",
+      label: person.firstName || null,
+      peopleAfter: [person],
+    });
     await recordEdit(
       req.userId,
       validatedData.treeId,
@@ -1622,6 +1671,14 @@ app.put("/api/people/:id", authenticateUser, async (req, res) => {
       .where(eq(people.id, personId))
       .returning();
 
+    await recordUndo({
+      treeId: existingPerson.treeId,
+      userId: req.userId,
+      kind: "update",
+      label: existingPerson.firstName || null,
+      peopleBefore: [existingPerson],
+      peopleAfter: [person],
+    });
     await recordEdit(
       req.userId,
       existingPerson.treeId,
@@ -1674,6 +1731,32 @@ app.delete("/api/people/:id", authenticateUser, async (req, res) => {
       return res.status(403).json({ error: ownership.error });
     }
 
+    // Capture every relationship touching this person BEFORE the delete. The FK
+    // cascade removes them, and without this the undo would put the person back
+    // with no links at all — the defect that made editHistory unusable.
+    const personRelRows = await db
+      .select()
+      .from(relationships)
+      .where(
+        and(
+          eq(relationships.treeId, existingPerson.treeId),
+          or(
+            eq(relationships.person1Id, personId),
+            eq(relationships.person2Id, personId),
+            eq(relationships.parentId, personId),
+            eq(relationships.childId, personId),
+          ),
+        ),
+      );
+
+    await recordUndo({
+      treeId: existingPerson.treeId,
+      userId: req.userId,
+      kind: "delete",
+      label: existingPerson.firstName || null,
+      peopleBefore: [existingPerson],
+      relationshipsBefore: personRelRows,
+    });
     await recordEdit(
       req.userId,
       existingPerson.treeId,
@@ -1724,7 +1807,10 @@ app.get("/api/deletions/:treeId", authenticateUser, async (req, res) => {
         relationshipsCount: sql`jsonb_array_length(${deletions.relationships})`,
       })
       .from(deletions)
-      .where(eq(deletions.treeId, treeId))
+      // Slice 1 records creates and updates but does not yet undo them, so the
+      // list the button reads stays restricted to deletes. Widening this is
+      // slice 2, together with generalising the restore endpoint.
+      .where(and(eq(deletions.treeId, treeId), eq(deletions.kind, "delete")))
       .orderBy(desc(deletions.id))
       .limit(50);
 
@@ -1765,6 +1851,16 @@ app.post("/api/deletions/:id/restore", authenticateUser, async (req, res) => {
       return res
         .status(409)
         .json({ error: "This deletion has already been restored" });
+    }
+
+    // Slice 1 records creates and updates but cannot reverse them yet. Refusing
+    // is deliberate — silently doing nothing while reporting success is exactly
+    // the failure mode found in the old editHistory undo, where undoing a
+    // relationship create matched no branch and returned success anyway.
+    if (snapshot.kind && snapshot.kind !== "delete") {
+      return res
+        .status(400)
+        .json({ error: "لا يمكن التراجع عن هذا النوع بعد" });
     }
 
     // Restores must run newest-first, like an undo stack. If two people who were
@@ -1921,6 +2017,7 @@ app.post("/api/people/batch-delete", authenticateUser, async (req, res) => {
       .values({
         treeId,
         deletedBy: req.userId,
+        kind: "delete",
         label: label || null,
         people: peopleRows,
         relationships: relRows,
@@ -2041,258 +2138,6 @@ app.get("/api/relationships", authenticateUser, async (req, res) => {
   }
 });
 
-// ---------------------------------------------------------------------------
-// Marriage and parentage rules, enforced HERE rather than in the browser.
-//
-// The same rules exist in src/App.jsx and gate the buttons, but a rule that
-// lives only in the UI binds only the paths that remember to call it. Everything
-// else — restore, a direct API call, a flow nobody thought of — writes straight
-// to the table. A woman ended up recorded as both her husband's wife and his
-// daughter on staging through a path that could not be identified from the
-// frontend code, which is the case this exists to make impossible.
-//
-// Mirrors src/App.jsx: spouseLimitFor, countActiveSpouses, mahramReason.
-// Rules validated against sql/mahram_audit.sql and the tree-65 fixture.
-// ---------------------------------------------------------------------------
-const spouseLimitForGender = (gender) => (gender === "male" ? 4 : 1);
-
-const buildKin = (rels, ppl) => {
-  const personOf = (id) => ppl.find((p) => p.id === id);
-
-  const bloodParentsOf = (id) =>
-    rels
-      .filter((r) => r.type === "parent-child" && r.childId === id)
-      .map((r) => r.parentId);
-  const bloodChildrenOf = (id) =>
-    rels
-      .filter((r) => r.type === "parent-child" && r.parentId === id)
-      .map((r) => r.childId);
-
-  const milkRows = rels.filter(
-    (r) => r.type === "sibling" && r.isBreastfeeding,
-  );
-  // person1Id is the existing anchor, person2Id the newly added milk-sibling,
-  // so person2 nursed from person1's mother and inherits person1's parents as
-  // milk-parents. Modelling that as a parent edge makes every rule below produce
-  // the full رضاعة mirror without separate milk rules.
-  const milkParentsOf = (id) =>
-    milkRows
-      .filter((r) => r.person2Id === id)
-      .flatMap((r) => bloodParentsOf(r.person1Id));
-  const milkChildrenOf = (id) =>
-    milkRows
-      .filter((r) => bloodParentsOf(r.person1Id).includes(id))
-      .map((r) => r.person2Id);
-
-  const parentsOf = (id) => [...bloodParentsOf(id), ...milkParentsOf(id)];
-  const childrenOf = (id) => [...bloodChildrenOf(id), ...milkChildrenOf(id)];
-
-  const walk = (startId, step) => {
-    const seen = new Set();
-    const stack = [startId];
-    while (stack.length) {
-      const cur = stack.pop();
-      for (const next of step(cur)) {
-        if (next != null && !seen.has(next)) {
-          seen.add(next);
-          stack.push(next);
-        }
-      }
-    }
-    return seen;
-  };
-  const ancestorsOf = (id) => walk(id, parentsOf);
-  const descendantsOf = (id) => walk(id, childrenOf);
-
-  const bloodSiblingsOf = (id) => {
-    const out = new Set();
-    for (const par of bloodParentsOf(id))
-      for (const c of bloodChildrenOf(par)) if (c !== id) out.add(c);
-    return out;
-  };
-  const milkSiblingsOf = (id) =>
-    new Set(
-      milkRows
-        .filter((r) => r.person1Id === id || r.person2Id === id)
-        .map((r) => (r.person1Id === id ? r.person2Id : r.person1Id)),
-    );
-  const marriagesOf = (id) =>
-    rels
-      .filter(
-        (r) =>
-          r.type === "partner" && (r.person1Id === id || r.person2Id === id),
-      )
-      .map((r) => ({
-        other: r.person1Id === id ? r.person2Id : r.person1Id,
-        status: r.status,
-      }));
-
-  return {
-    personOf,
-    parentsOf,
-    childrenOf,
-    ancestorsOf,
-    descendantsOf,
-    bloodSiblingsOf,
-    milkSiblingsOf,
-    marriagesOf,
-  };
-};
-
-const mahramReason = (rels, ppl, aId, bId, extraRels = []) => {
-  if (!aId || !bId || aId === bId) return null;
-  const k = buildKin([...rels, ...extraRels], ppl);
-
-  if (k.ancestorsOf(aId).has(bId) || k.descendantsOf(aId).has(bId))
-    return "قرابة مباشرة (أصل أو فرع)";
-  if (k.bloodSiblingsOf(aId).has(bId)) return "أخ أو أخت";
-  if (k.milkSiblingsOf(aId).has(bId)) return "أخ أو أخت بالرضاعة";
-
-  const nieceLine = (x, y) =>
-    k.parentsOf(x).some((par) => k.descendantsOf(par).has(y));
-  const auntLine = (x, y) =>
-    [...k.ancestorsOf(x)].some((anc) => k.childrenOf(anc).includes(y));
-  if (nieceLine(aId, bId) || auntLine(bId, aId))
-    return "ابن أو بنت الأخ أو الأخت";
-  if (auntLine(aId, bId) || nieceLine(bId, aId))
-    return "عمّ أو عمّة أو خال أو خالة";
-
-  const inLawLineal = (x, y) =>
-    k
-      .marriagesOf(x)
-      .some(
-        (m) => k.ancestorsOf(m.other).has(y) || k.descendantsOf(m.other).has(y),
-      );
-  if (inLawLineal(aId, bId)) return "أم الزوجة أو بنت الزوجة";
-  if (inLawLineal(bId, aId)) return "زوجة الأب أو زوجة الابن";
-
-  // Temporal — lifts when the other marriage ends by divorce or death.
-  const ongoing = (m) => {
-    if (m.status === "divorced") return false;
-    const sp = k.personOf(m.other);
-    return !sp || sp.isLiving !== false;
-  };
-  const sibsOf = (id) =>
-    new Set([...k.bloodSiblingsOf(id), ...k.milkSiblingsOf(id)]);
-  const bSibs = sibsOf(bId);
-  if (k.marriagesOf(aId).filter(ongoing).some((m) => bSibs.has(m.other)))
-    return "الجمع بين الأختين";
-  const aSibs = sibsOf(aId);
-  if (k.marriagesOf(bId).filter(ongoing).some((m) => aSibs.has(m.other)))
-    return "الجمع بين الأختين";
-
-  const auntPair = (x, y) => auntLine(x, y) || auntLine(y, x);
-  if (
-    k
-      .marriagesOf(aId)
-      .filter(ongoing)
-      .some((m) => m.other !== bId && auntPair(bId, m.other))
-  )
-    return "الجمع بين المرأة وعمتها أو خالتها";
-  if (
-    k
-      .marriagesOf(bId)
-      .filter(ongoing)
-      .some((m) => m.other !== aId && auntPair(aId, m.other))
-  )
-    return "الجمع بين المرأة وعمتها أو خالتها";
-
-  return null;
-};
-
-const validatePartner = (rels, ppl, aId, bId) => {
-  const a = ppl.find((p) => p.id === aId);
-  const b = ppl.find((p) => p.id === bId);
-  if (!a || !b) return "شخص غير موجود في هذه الشجرة";
-  if (aId === bId) return "لا يمكن ربط الشخص بنفسه";
-
-  if (a.gender && b.gender && a.gender === b.gender)
-    return "لا يمكن تسجيل زواج بين شخصين من نفس الجنس";
-
-  const already = rels.some(
-    (r) =>
-      r.type === "partner" &&
-      ((r.person1Id === aId && r.person2Id === bId) ||
-        (r.person1Id === bId && r.person2Id === aId)),
-  );
-  if (already) return "هذا الزواج مسجّل بالفعل";
-
-  const activeSpouses = (id) =>
-    rels
-      .filter(
-        (r) =>
-          r.type === "partner" &&
-          r.status !== "divorced" &&
-          (r.person1Id === id || r.person2Id === id),
-      )
-      .reduce((n, r) => {
-        const sid = r.person1Id === id ? r.person2Id : r.person1Id;
-        const sp = ppl.find((p) => p.id === sid);
-        return sp && sp.isLiving !== false ? n + 1 : n;
-      }, 0);
-
-  // Mahram BEFORE the spouse limit. Telling someone their sister "already has a
-  // husband" implies the marriage would be fine once she divorces, which is the
-  // opposite of true. The permanent reason has to be the one reported.
-  const reason = mahramReason(rels, ppl, aId, bId);
-  if (reason) return `لا يجوز الزواج: ${reason}`;
-
-  for (const [self, other] of [
-    [a, b],
-    [b, a],
-  ]) {
-    if (other.isLiving === false) continue;
-    const limit = spouseLimitForGender(self.gender);
-    if (activeSpouses(self.id) >= limit)
-      return `${self.firstName} بلغ الحد المسموح من الأزواج (${limit})`;
-  }
-
-  return null;
-};
-
-// A parent-child link can make an ALREADY-married couple mahram — marry
-// someone, then record a parent link that makes them your sister. Simulate the
-// new row and re-check every marriage of everyone whose parentage would change.
-const validateParentChild = (rels, ppl, parentId, childId) => {
-  if (!parentId || !childId) return "الرابط غير مكتمل";
-  if (parentId === childId) return "لا يمكن ربط الشخص بنفسه";
-
-  const extra = [{ type: "parent-child", parentId, childId }];
-  const affected = new Set([
-    childId,
-    parentId,
-    ...rels
-      .filter((r) => r.type === "parent-child" && r.parentId === parentId)
-      .map((r) => r.childId),
-  ]);
-
-  for (const pid of affected) {
-    const spouses = rels
-      .filter(
-        (r) =>
-          r.type === "partner" && (r.person1Id === pid || r.person2Id === pid),
-      )
-      .map((r) => (r.person1Id === pid ? r.person2Id : r.person1Id));
-    for (const sp of spouses) {
-      const reason = mahramReason(rels, ppl, pid, sp, extra);
-      if (reason) {
-        const x = ppl.find((p) => p.id === pid);
-        const y = ppl.find((p) => p.id === sp);
-        return `${x?.firstName} و ${y?.firstName} متزوجان، وهذا الرابط يجعل بينهما: ${reason}. احذف الزواج أولاً.`;
-      }
-    }
-  }
-  return null;
-};
-
-const loadTreeGraph = async (treeId) => {
-  const [rels, ppl] = await Promise.all([
-    db.select().from(relationships).where(eq(relationships.treeId, treeId)),
-    db.select().from(people).where(eq(people.treeId, treeId)),
-  ]);
-  return { rels, ppl };
-};
-
 app.post("/api/relationships", authenticateUser, async (req, res) => {
   try {
     const validatedData = relationshipSchema.parse(req.body);
@@ -2329,29 +2174,6 @@ app.post("/api/relationships", authenticateUser, async (req, res) => {
       }
     }
 
-    // Rules that used to live only in the browser. Applied to EVERY create,
-    // whatever produced it.
-    if (validatedData.type === "partner" || validatedData.type === "parent-child") {
-      const { rels, ppl } = await loadTreeGraph(validatedData.treeId);
-      const problem =
-        validatedData.type === "partner"
-          ? validatePartner(
-              rels,
-              ppl,
-              validatedData.person1Id,
-              validatedData.person2Id,
-            )
-          : validateParentChild(
-              rels,
-              ppl,
-              validatedData.parentId,
-              validatedData.childId,
-            );
-      if (problem) {
-        return res.status(400).json({ error: problem });
-      }
-    }
-
     const relationshipData = {
       treeId: validatedData.treeId,
       type: validatedData.type,
@@ -2367,6 +2189,13 @@ app.post("/api/relationships", authenticateUser, async (req, res) => {
       .values(relationshipData)
       .returning();
 
+    await recordUndo({
+      treeId: validatedData.treeId,
+      userId: req.userId,
+      kind: "create",
+      label: relationship.type,
+      relationshipsAfter: [relationship],
+    });
     await recordEdit(
       req.userId,
       validatedData.treeId,
@@ -2453,6 +2282,15 @@ app.patch(
         .where(eq(relationships.id, relId))
         .returning();
 
+      await recordUndo({
+        treeId: existingRel.treeId,
+        userId: req.userId,
+        kind: "update",
+        label: existingRel.type,
+        relationshipsBefore: [existingRel],
+        relationshipsAfter: [updated],
+      });
+
       await logAudit(
         req.userId,
         "update",
@@ -2489,6 +2327,13 @@ app.delete("/api/relationships/:id", authenticateUser, async (req, res) => {
       return res.status(403).json({ error: ownership.error });
     }
 
+    await recordUndo({
+      treeId: existingRel.treeId,
+      userId: req.userId,
+      kind: "delete",
+      label: existingRel.type,
+      relationshipsBefore: [existingRel],
+    });
     await recordEdit(
       req.userId,
       existingRel.treeId,
