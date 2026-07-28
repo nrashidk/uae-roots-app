@@ -2258,9 +2258,17 @@ function App() {
     }
   };
 
+  // Follow the data rather than listing call sites. setPeople/setRelationships
+  // hand back a NEW array on every mutation, so this fires after creates,
+  // updates, deletes and undos alike — including any path added later.
+  //
+  // Listing sites individually is what broke it: only delete refreshed the
+  // pointer, so adding anything left the button aimed at an older entry, and the
+  // server correctly refused it as not-newest. The stack was fine; the button
+  // was stale.
   useEffect(() => {
     loadRestorableDeletion();
-  }, [currentTree?.id]);
+  }, [currentTree?.id, people, relationships]);
 
   // Undo the most recent deletion. Only ever the newest one: if two related
   // people were deleted in separate actions, the link between them lives only in
