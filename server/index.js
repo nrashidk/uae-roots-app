@@ -1407,7 +1407,15 @@ app.post("/api/auth/logout", authenticateUser, async (req, res) => {
 
 app.get("/api/auth/check", optionalAuth, (req, res) => {
   if (req.userId) {
-    res.json({ authenticated: true, userId: req.userId });
+    // sessionType comes from the JWT, which records how this session was
+    // created. The client cannot infer it: linking Google deliberately destroys
+    // the Firebase session, so "is there a Firebase session" answers a different
+    // question and gets it wrong for anyone who has linked.
+    res.json({
+      authenticated: true,
+      userId: req.userId,
+      sessionType: req.userType || null,
+    });
   } else {
     res.json({ authenticated: false });
   }
