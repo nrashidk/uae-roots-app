@@ -384,6 +384,14 @@ function App() {
   // Track if an interactive login is in progress (prevents race with session restore)
   const interactiveLoginInProgressRef = useRef(false);
   const [sessionRestoreLoading, setSessionRestoreLoading] = useState(false);
+  // Has the cookie restore RUN yet — separate from whether it is running.
+  // The route guard needs "we have finished deciding", and sessionRestoreLoading
+  // only covers the in-flight window. A phone user has no Firebase, so
+  // authLoading resolves false immediately while the restore has not started:
+  // the guard saw signed-out on a private path and bounced to "/" before the
+  // cookie was ever checked. Set on EVERY exit of that effect, early returns
+  // included, or the guard waits forever.
+  const [sessionChecked, setSessionChecked] = useState(false);
   // Only show a loader if the wait is long enough to notice.
   const [loaderVisible, setLoaderVisible] = useState(false);
   const [sessionRestoreError, setSessionRestoreError] = useState(null);
@@ -395,6 +403,7 @@ function App() {
       // Skip if Firebase says authenticated (Firebase-based restoration will handle it)
       if (isAuthenticated) {
         DEBUG && console.log("[Cookie Restore] Skipping - Firebase session exists");
+        setSessionChecked(true);
         return;
       }
 
@@ -407,6 +416,7 @@ function App() {
       // Skip if tree already loaded
       if (currentTree) {
         DEBUG && console.log("[Cookie Restore] Skipping - tree already loaded");
+        setSessionChecked(true);
         return;
       }
 
@@ -435,6 +445,7 @@ function App() {
       // Prevent multiple restoration attempts
       if (restorationAttemptedRef.current) {
         DEBUG && console.log("[Cookie Restore] Already attempted");
+        setSessionChecked(true);
         return;
       }
 
@@ -453,6 +464,7 @@ function App() {
         if (!backendAuth?.authenticated || !backendAuth?.userId) {
           DEBUG && console.log("[Cookie Restore] No valid backend session found");
           setSessionRestoreLoading(false);
+          setSessionChecked(true);
           // Keep restorationAttemptedRef = true to prevent infinite loop
           // It will be reset on logout or when user successfully logs in
           return;
@@ -487,12 +499,14 @@ function App() {
           "[Cookie Restore] Session restored successfully from cookie!",
         );
         setSessionRestoreLoading(false);
+        setSessionChecked(true);
       } catch (error) {
         console.error("[Cookie Restore] Failed to restore session:", error);
         setSessionRestoreError(
           "فشل استعادة الجلسة. يرجى تسجيل الدخول مرة أخرى.",
         );
         setSessionRestoreLoading(false);
+        setSessionChecked(true);
         clearAuthToken();
         // Keep restorationAttemptedRef = true to prevent infinite loop
         // User will need to click login button to try again
@@ -781,7 +795,14 @@ function App() {
   // "start your tree" prompt when it's empty, so first-time users get the right
   // screen without a separate route.
   useEffect(() => {
-    if (authLoading || sessionRestoreLoading) return;
+    // Wait until the session question has actually been ANSWERED. authLoading
+    // covers Firebase and sessionRestoreLoading covers the in-flight cookie
+    // check, but neither covers "the cookie check has not started yet" — which
+    // is where a phone user sits on first paint, since there is no Firebase to
+    // wait for. Without sessionChecked the guard read signed-out on a private
+    // path and bounced to "/", then the restore pulled the user back: the URL
+    // flicker. Ordering, not logic, was making it come out right.
+    if (authLoading || sessionRestoreLoading || !sessionChecked) return;
     const signedIn = isAuthenticated || !!userProfile;
     const path = location.pathname;
     const isPublic = PUBLIC_PATHS.includes(path);
@@ -806,6 +827,7 @@ function App() {
   }, [
     authLoading,
     sessionRestoreLoading,
+    sessionChecked,
     isAuthenticated,
     userProfile,
     location.pathname,
