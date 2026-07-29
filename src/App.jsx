@@ -173,6 +173,10 @@ function App() {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleteConfirmText, setDeleteConfirmText] = useState("");
   const [profileMessage, setProfileMessage] = useState("");
+  // Tone is set explicitly rather than inferred from the text. It used to be
+  // `message.includes("نجاح") ? green : red`, so anything that was neither a
+  // success nor a failure — "code sent" — came out red and read as an error.
+  const [profileMessageTone, setProfileMessageTone] = useState("error");
   // Login methods for the current account. One person can reach the same tree
   // by phone or by Google; these are the rows that make that true.
   const [identities, setIdentities] = useState([]);
@@ -1615,6 +1619,7 @@ function App() {
     setShowProfile(true);
     setShowDeleteConfirm(false);
     setDeleteConfirmText("");
+    setProfileMessageTone("error");
     setProfileMessage("");
   };
 
@@ -1623,20 +1628,24 @@ function App() {
     if (!userId) return;
     try {
       setProfileSaving(true);
-      setProfileMessage("");
+      setProfileMessageTone("error");
+    setProfileMessage("");
       const updatedUser = await api.users.update(userId, {
         email: profileEmail || null,
         phoneNumber: profilePhone || null,
         displayName: userProfile?.displayName || user?.displayName || null,
       });
       setUserProfile(updatedUser);
+      setProfileMessageTone("success");
       setProfileMessage("تم حفظ التغييرات بنجاح");
       setTimeout(() => {
         setShowProfile(false);
-        setProfileMessage("");
+        setProfileMessageTone("error");
+    setProfileMessage("");
       }, 1500);
     } catch (err) {
       console.error("Profile save error:", err);
+      setProfileMessageTone("error");
       setProfileMessage("فشل في حفظ التغييرات");
     } finally {
       setProfileSaving(false);
@@ -1675,6 +1684,7 @@ function App() {
       setPasswordInput("");
     } catch (err) {
       console.error("Account delete error:", err);
+      setProfileMessageTone("error");
       setProfileMessage("فشل في حذف الحساب");
     } finally {
       setProfileSaving(false);
@@ -1703,13 +1713,15 @@ function App() {
       setLinkPhoneSent(false);
       setLinkPhoneNumber("");
       setLinkPhoneCode("");
-      setProfileMessage("");
+      setProfileMessageTone("error");
+    setProfileMessage("");
     }
   }, [showProfile]);
 
   const handleLinkGoogle = async () => {
     if (linkBusy) return;
     setLinkBusy(true);
+    setProfileMessageTone("error");
     setProfileMessage("");
     // Stop the app's restore effects reacting to the brief Firebase session the
     // popup creates — we are linking, not switching accounts.
@@ -1718,9 +1730,11 @@ function App() {
       const idToken = await getGoogleIdTokenForLink();
       await api.identities.linkGoogle(idToken);
       await loadIdentities();
+      setProfileMessageTone("success");
       setProfileMessage(t.linkedOk);
     } catch (error) {
       console.error("Link Google failed:", error);
+      setProfileMessageTone("error");
       setProfileMessage(error.message || "تعذّر الربط");
     } finally {
       interactiveLoginInProgressRef.current = false;
@@ -1731,15 +1745,18 @@ function App() {
   const handleSendLinkCode = async () => {
     if (linkBusy || !linkPhoneNumber.trim()) return;
     setLinkBusy(true);
+    setProfileMessageTone("error");
     setProfileMessage("");
     try {
       // NOT api.auth.sendSmsCode — that is the login path, which sends first
       // and asks questions later. This one refuses a taken number before Twilio.
       await api.identities.sendPhoneCode(linkPhoneNumber.trim());
       setLinkPhoneSent(true);
+      setProfileMessageTone("info");
       setProfileMessage(t.codeSent);
     } catch (error) {
       console.error("Send link code failed:", error);
+      setProfileMessageTone("error");
       setProfileMessage(error.message || "تعذّر إرسال الرمز");
     } finally {
       setLinkBusy(false);
@@ -1749,6 +1766,7 @@ function App() {
   const handleLinkPhone = async () => {
     if (linkBusy || !linkPhoneCode.trim()) return;
     setLinkBusy(true);
+    setProfileMessageTone("error");
     setProfileMessage("");
     try {
       await api.identities.linkPhone(linkPhoneNumber.trim(), linkPhoneCode.trim());
@@ -1757,9 +1775,11 @@ function App() {
       setLinkPhoneSent(false);
       setLinkPhoneNumber("");
       setLinkPhoneCode("");
+      setProfileMessageTone("success");
       setProfileMessage(t.linkedOk);
     } catch (error) {
       console.error("Link phone failed:", error);
+      setProfileMessageTone("error");
       setProfileMessage(error.message || "تعذّر الربط");
     } finally {
       setLinkBusy(false);
@@ -1769,13 +1789,16 @@ function App() {
   const handleUnlinkIdentity = async (id) => {
     if (linkBusy) return;
     setLinkBusy(true);
+    setProfileMessageTone("error");
     setProfileMessage("");
     try {
       await api.identities.unlink(id);
       await loadIdentities();
+      setProfileMessageTone("success");
       setProfileMessage(t.unlinkedOk);
     } catch (error) {
       console.error("Unlink failed:", error);
+      setProfileMessageTone("error");
       setProfileMessage(error.message || "تعذّرت الإزالة");
     } finally {
       setLinkBusy(false);
@@ -1954,7 +1977,13 @@ function App() {
 
             {profileMessage && (
               <div
-                className={`p-3 rounded-lg text-center text-sm ${profileMessage.includes("نجاح") ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"}`}
+                className={`p-3 rounded-lg text-center text-sm ${
+                  profileMessageTone === "success"
+                    ? "bg-green-100 text-green-700"
+                    : profileMessageTone === "info"
+                      ? "bg-amber-50 text-amber-700"
+                      : "bg-red-100 text-red-700"
+                }`}
               >
                 {profileMessage}
               </div>
