@@ -182,6 +182,8 @@ function App() {
   const [identities, setIdentities] = useState([]);
   const [identitiesLoading, setIdentitiesLoading] = useState(false);
   const [linkBusy, setLinkBusy] = useState(false);
+  // "phone" or a provider name, straight from the JWT — see /api/auth/check.
+  const [sessionType, setSessionType] = useState(null);
   // Linking a phone is two steps — send a code, then check it — so the profile
   // needs a small amount of its own state. Google needs none: the popup returns
   // a token in one go.
@@ -1696,6 +1698,8 @@ function App() {
     setIdentitiesLoading(true);
     try {
       setIdentities(await api.identities.list());
+      const check = await api.auth.check();
+      setSessionType(check?.sessionType || null);
     } catch (error) {
       console.error("Failed to load identities:", error);
       setIdentities([]);
@@ -1822,7 +1826,7 @@ function App() {
     // user came in through Google; a cookie-only session means phone. Worth
     // showing, because otherwise it is possible to remove the very method you
     // are signed in with and only find out at the next login.
-    const activeMethod = isAuthenticated ? "google" : "phone";
+    const activeMethod = sessionType === "phone" ? "phone" : "google";
 
     return (
       <Dialog open={showProfile} onOpenChange={setShowProfile}>
@@ -1867,14 +1871,21 @@ function App() {
                   )}
                 </div>
                 <div className="text-right">
-                  <div className="text-sm font-medium" dir="ltr">
-                    {phoneIdentity ? phoneIdentity.identityValue : t.methodPhone}
+                  <div
+                    className="text-sm font-medium flex items-center gap-2 justify-end"
+                    dir="ltr"
+                  >
+                    {phoneIdentity && activeMethod === "phone" && (
+                      <span className="text-xs text-[#A5813F]">
+                        {t.currentSession}
+                      </span>
+                    )}
+                    <span>
+                      {phoneIdentity
+                        ? phoneIdentity.identityValue
+                        : t.methodPhone}
+                    </span>
                   </div>
-                  {phoneIdentity && activeMethod === "phone" && (
-                    <div className="text-xs text-[#A5813F]">
-                      {t.currentSession}
-                    </div>
-                  )}
                 </div>
               </div>
 
@@ -1913,16 +1924,21 @@ function App() {
                   )}
                 </div>
                 <div className="text-right">
-                  <div className="text-sm font-medium" dir="ltr">
-                    {googleIdentity
-                      ? googleIdentity.identityValue
-                      : t.methodGoogle}
+                  <div
+                    className="text-sm font-medium flex items-center gap-2 justify-end"
+                    dir="ltr"
+                  >
+                    {googleIdentity && activeMethod === "google" && (
+                      <span className="text-xs text-[#A5813F]">
+                        {t.currentSession}
+                      </span>
+                    )}
+                    <span>
+                      {googleIdentity
+                        ? googleIdentity.identityValue
+                        : t.methodGoogle}
+                    </span>
                   </div>
-                  {googleIdentity && activeMethod === "google" && (
-                    <div className="text-xs text-[#A5813F]">
-                      {t.currentSession}
-                    </div>
-                  )}
                 </div>
               </div>
             </div>
