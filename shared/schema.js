@@ -20,6 +20,10 @@ export const users = pgTable("users", {
   displayName: text("display_name"),
   phoneNumber: text("phone_number"),
   provider: text("provider"), // 'google' | 'microsoft' | 'email' | 'phone'
+  // When this person accepted the terms and privacy policy. NULL for accounts
+  // created before the sign-up gate existed — they were never asked. Recorded
+  // because a screen saying someone agreed is not evidence that they did.
+  termsAcceptedAt: timestamp("terms_accepted_at"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   lastLoginAt: timestamp("last_login_at").defaultNow().notNull(),
 });
