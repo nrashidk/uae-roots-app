@@ -1848,9 +1848,9 @@ function App() {
                     <Button
                       onClick={() => handleUnlinkIdentity(phoneIdentity.id)}
                       disabled={linkBusy}
-                      variant="ghost"
+                      variant="outline"
                       size="sm"
-                      className="text-red-600"
+                      className="text-red-600 border-red-200 hover:bg-red-50"
                     >
                       {t.unlinkAction}
                     </Button>
@@ -1872,19 +1872,19 @@ function App() {
                 </div>
                 <div className="text-right">
                   <div
-                    className="text-sm font-medium flex items-center gap-2 justify-end"
+                    className="text-sm font-medium flex items-center gap-3"
                     dir="ltr"
                   >
-                    {phoneIdentity && activeMethod === "phone" && (
-                      <span className="text-xs text-[#A5813F]">
-                        {t.currentSession}
-                      </span>
-                    )}
                     <span>
                       {phoneIdentity
                         ? phoneIdentity.identityValue
                         : t.methodPhone}
                     </span>
+                    {phoneIdentity && activeMethod === "phone" && (
+                      <span className="text-xs text-[#A5813F]">
+                        {t.currentSession}
+                      </span>
+                    )}
                   </div>
                 </div>
               </div>
@@ -1925,19 +1925,19 @@ function App() {
                 </div>
                 <div className="text-right">
                   <div
-                    className="text-sm font-medium flex items-center gap-2 justify-end"
+                    className="text-sm font-medium flex items-center gap-3"
                     dir="ltr"
                   >
-                    {googleIdentity && activeMethod === "google" && (
-                      <span className="text-xs text-[#A5813F]">
-                        {t.currentSession}
-                      </span>
-                    )}
                     <span>
                       {googleIdentity
                         ? googleIdentity.identityValue
                         : t.methodGoogle}
                     </span>
+                    {googleIdentity && activeMethod === "google" && (
+                      <span className="text-xs text-[#A5813F]">
+                        {t.currentSession}
+                      </span>
+                    )}
                   </div>
                 </div>
               </div>
