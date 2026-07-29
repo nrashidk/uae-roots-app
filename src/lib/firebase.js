@@ -19,8 +19,7 @@ export const auth = getAuth(app);
 export const googleProvider = new GoogleAuthProvider();
 // Always ask WHICH Google account. Without this Firebase silently reuses the
 // browser's existing session, so someone with several Gmail addresses cannot
-// choose — and linking picks whichever they last used, which is how a link
-// attempt hit the "belongs to another account" refusal by accident.
+// choose — and linking picks whichever they last used.
 googleProvider.setCustomParameters({ prompt: "select_account" });
 export const microsoftProvider = new OAuthProvider("microsoft.com");
 
