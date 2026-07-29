@@ -182,6 +182,10 @@ function App() {
   const [identities, setIdentities] = useState([]);
   const [identitiesLoading, setIdentitiesLoading] = useState(false);
   const [linkBusy, setLinkBusy] = useState(false);
+  // An account is NOT created until this is confirmed. The server has already
+  // issued a session cookie by then, but no `users` row exists — so cancelling
+  // leaves nothing behind.
+  const [pendingSignup, setPendingSignup] = useState(null);
   // "phone" or a provider name, straight from the JWT — see /api/auth/check.
   const [sessionType, setSessionType] = useState(null);
   // Linking a phone is two steps — send a code, then check it — so the profile
@@ -345,6 +349,12 @@ function App() {
     unlinkAction: "إزالة",
     lastMethodLocked: "طريقة الدخول الوحيدة",
     linkedOk: "تم الربط بنجاح",
+    signupTitle: "إنشاء حساب جديد",
+    signupBody: "لا يوجد حساب مرتبط بـ",
+    signupTerms: "بالمتابعة أنت توافق على سياسة الخصوصية",
+    signupPrivacy: "سياسة الخصوصية",
+    signupConfirm: "إنشاء الحساب",
+    signupCancel: "إلغاء",
     currentSession: "الجلسة الحالية",
     enterPhone: "أدخل رقم الهاتف",
     sendCode: "إرسال الرمز",
@@ -467,6 +477,10 @@ function App() {
       // cost is one auth check for an anonymous visitor on a public page, which
       // returns unauthenticated and stops.
 
+      // Same reason as the Firebase effect: this path calls loadUserTreeData,
+      // which creates a default TREE — for a user that does not exist yet.
+      if (pendingSignup) return;
+
       // Skip if an interactive login is in progress
       if (interactiveLoginInProgressRef.current) {
         DEBUG && console.log(
@@ -500,6 +514,23 @@ function App() {
           setSessionChecked(true);
           // Keep restorationAttemptedRef = true to prevent infinite loop
           // It will be reset on logout or when user successfully logs in
+          return;
+        }
+
+        // A valid session whose id has no account: the sign-up gate was open and
+        // the page reloaded. Reopen it rather than restoring — restoring would
+        // create the account the person never agreed to, which is the whole
+        // thing the gate exists to prevent.
+        if (backendAuth.hasAccount === false) {
+          setPendingSignup({
+            resolvedUserId: backendAuth.userId,
+            email: null,
+            displayName: null,
+            phoneNumber: null,
+            provider: backendAuth.sessionType || "unknown",
+          });
+          setSessionRestoreLoading(false);
+          setSessionChecked(true);
           return;
         }
 
@@ -549,7 +580,7 @@ function App() {
     restoreFromCookie();
     // currentView is no longer a dependency — the effect does not read it, and
     // leaving it in would re-run this on every navigation for no reason.
-  }, [authLoading, isAuthenticated, currentTree]);
+  }, [authLoading, isAuthenticated, currentTree, pendingSignup]);
 
   // Robust session restoration when Firebase restores authentication
   useEffect(() => {
@@ -559,6 +590,13 @@ function App() {
 
       // Skip if an interactive login is happening (handleAuthSuccess will handle it)
       if (interactiveLoginInProgressRef.current) return;
+
+      // A signup decision is pending: no account exists and nobody has agreed to
+      // anything yet. This effect creates a user record of its own, so without
+      // this it performs exactly the silent creation the gate exists to stop —
+      // handleGoogleLogin clears interactiveLoginInProgress in its finally, which
+      // runs the moment the gate returns, so that guard is already down.
+      if (pendingSignup) return;
 
       // Wait for Firebase auth to finish loading
       if (authLoading) return;
@@ -592,6 +630,24 @@ function App() {
             "[Session Restore] Backend auth check failed:",
             e.message,
           );
+        }
+
+        // Same as the cookie path: a valid session with no account means the
+        // gate was open when the page reloaded. Reopen it instead of carrying on
+        // to STEP 4, which creates the user record.
+        if (backendAuth?.authenticated && backendAuth?.hasAccount === false) {
+          setPendingSignup({
+            resolvedUserId: backendAuth.userId,
+            email: user?.email || null,
+            displayName: user?.displayName || null,
+            phoneNumber: user?.phoneNumber || null,
+            provider:
+              user?.providerData?.[0]?.providerId ||
+              backendAuth.sessionType ||
+              "unknown",
+          });
+          setSessionRestoreLoading(false);
+          return;
         }
 
         // STEP 2: If backend cookie is valid, use that userId
@@ -736,7 +792,7 @@ function App() {
     };
 
     restoreSession();
-  }, [authLoading, isAuthenticated, user, currentTree, logout]);
+  }, [authLoading, isAuthenticated, user, currentTree, logout, pendingSignup]);
 
   // Reset restoration flag when user logs out
   useEffect(() => {
@@ -1447,6 +1503,52 @@ function App() {
     setCurrentView((prev) => (prev === "auth" ? "tree-builder" : prev));
   };
 
+  const confirmSignup = async () => {
+    if (!pendingSignup || linkBusy) return;
+    setLinkBusy(true);
+    try {
+      const saved = await api.users.createOrUpdate({
+        id: pendingSignup.resolvedUserId,
+        email: pendingSignup.email,
+        displayName: pendingSignup.displayName,
+        phoneNumber: pendingSignup.phoneNumber,
+        provider: pendingSignup.provider,
+      });
+      setUserProfile(saved);
+      setAuthDialogOpen(false);
+      setPendingSignup(null);
+      await loadUserTreeData(pendingSignup.resolvedUserId);
+    } catch (error) {
+      console.error("Signup failed:", error);
+      window.alert("تعذّر إنشاء الحساب: " + error.message);
+    } finally {
+      setLinkBusy(false);
+    }
+  };
+
+  // Cancel leaves nothing behind: the server issued a session cookie, but no
+  // `users` row was ever written, so clearing the session is a full undo.
+  const cancelSignup = async () => {
+    setPendingSignup(null);
+    try {
+      await api.auth.logout();
+    } catch (error) {
+      console.error("Signup cancel: logout failed:", error);
+    }
+    try {
+      await logout();
+    } catch (error) {
+      console.error("Signup cancel: firebase logout failed:", error);
+    }
+    clearAuthToken();
+    setUserProfile(null);
+    setCurrentTree(null);
+    setPeople([]);
+    setRelationships([]);
+    setIdentities([]);
+    restorationAttemptedRef.current = false;
+  };
+
   const handleAuthSuccess = async (phoneUser = null, authToken = null) => {
     try {
       const currentUser = phoneUser || user;
@@ -1455,6 +1557,11 @@ function App() {
         console.error("No user found after auth success");
         return;
       }
+
+      // Set by whichever path issued the session. The phone path passes it in
+      // through authToken's caller; the Firebase path reads it off the token
+      // response below.
+      let isNewUser = !!currentUser.__isNewUser;
 
       const userId =
         currentUser.uid || currentUser.phoneNumber || currentUser.id;
@@ -1484,8 +1591,23 @@ function App() {
           resolvedUserId = tokenResponse.userId;
           DEBUG && console.log("Resolved to linked account:", resolvedUserId);
         }
+        isNewUser = !!tokenResponse.isNewUser;
         // Store token with resolved userId
         setAuthToken(tokenResponse.token, resolvedUserId);
+      }
+
+      // No account for this identity yet — ask before making one. Pressing
+      // "login" with an unrecognised Google address used to create an account
+      // silently, with no confirmation and no terms.
+      if (isNewUser) {
+        setPendingSignup({
+          resolvedUserId,
+          email: currentUser.email || null,
+          displayName: currentUser.displayName || null,
+          phoneNumber: currentUser.phoneNumber || null,
+          provider,
+        });
+        return;
       }
 
       DEBUG && console.log("[handleAuthSuccess] Calling createOrUpdate with:", { id: resolvedUserId, provider });
@@ -1808,6 +1930,56 @@ function App() {
     } finally {
       setLinkBusy(false);
     }
+  };
+
+  // Shown INSTEAD of creating an account. Minimum content: what will be created,
+  // under which identity, a link to the policy, and a way out.
+  const renderSignupGate = () => {
+    if (!pendingSignup) return null;
+    const identity =
+      pendingSignup.email || pendingSignup.phoneNumber || pendingSignup.resolvedUserId;
+    return (
+      <Dialog open={true} onOpenChange={(open) => !open && cancelSignup()}>
+        <DialogContent className="sm:max-w-sm" dir="rtl">
+          <DialogHeader>
+            <DialogTitle className="text-right text-xl">
+              {t.signupTitle}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <p className="text-sm text-right">
+              {t.signupBody}{" "}
+              <span className="font-medium" dir="ltr">
+                {identity}
+              </span>
+            </p>
+            <p className="text-xs text-gray-500 text-right">
+              {t.signupTerms} —{" "}
+              <a
+                href="/privacy"
+                target="_blank"
+                rel="noreferrer"
+                className="text-[#A5813F] underline"
+              >
+                {t.signupPrivacy}
+              </a>
+            </p>
+            <div className="flex gap-2 justify-end pt-2" dir="ltr">
+              <Button onClick={cancelSignup} variant="outline" size="sm">
+                {t.signupCancel}
+              </Button>
+              <Button onClick={confirmSignup} disabled={linkBusy} size="sm">
+                {linkBusy ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  t.signupConfirm
+                )}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+    );
   };
 
   const renderProfileDialog = () => {
@@ -2172,6 +2344,9 @@ function App() {
           phoneNumber: formattedPhone,
           displayName: null,
           email: null,
+          // The phone path issues its own session, so the flag travels with the
+          // user object rather than through the token response.
+          __isNewUser: !!data.isNewUser,
         };
         setShowSmsLogin(false);
         setSmsStep("phone");
@@ -4000,6 +4175,12 @@ function App() {
             onPrivacy={() => navigate("/privacy")}
           />
 
+        {/* A new PHONE user sits here: no Firebase session and no profile yet,
+            so this branch renders rather than the app shell. Google users have a
+            Firebase session and fall through to the shell, where the gate is
+            already rendered alongside the profile dialog. */}
+        {renderSignupGate()}
+
         {/* Sign in / register happens in a dialog over the landing page rather
             than on a separate screen: no page switch, and the two entry points
             differ only by which mode the form opens in. */}
@@ -4827,6 +5008,7 @@ function App() {
         </div>
         {renderPersonForm()}
         {renderProfileDialog()}
+        {renderSignupGate()}
       </div>
     );
   }
@@ -5008,6 +5190,7 @@ function App() {
           )}
         </div>
         {renderProfileDialog()}
+        {renderSignupGate()}
       </div>
     );
   }
@@ -5062,6 +5245,7 @@ function App() {
           </div>
         </div>
         {renderProfileDialog()}
+        {renderSignupGate()}
       </div>
     );
   }
@@ -5746,6 +5930,7 @@ function App() {
           </div>
         )}
         {renderProfileDialog()}
+        {renderSignupGate()}
       </div>
     </div>
   );
