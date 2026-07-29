@@ -1237,6 +1237,168 @@ app.delete("/api/auth/identities/:id", authenticateUser, async (req, res) => {
   }
 });
 
+// Send a verification code FOR LINKING. Deliberately separate from
+// /api/sms/send-code, which is the login path and knows nothing about who is
+// asking — it will happily message a number that already belongs to someone
+// else, and the refusal then arrives after Twilio has been paid. Checking here
+// means a number that cannot be linked never costs a message.
+app.post(
+  "/api/auth/link/phone/send",
+  authenticateUser,
+  smsLimiter,
+  async (req, res) => {
+    try {
+      const { phoneNumber } = req.body;
+      const formattedPhone = normalizePhone(phoneNumber);
+      if (!formattedPhone) {
+        return res.status(400).json({ error: "رقم هاتف غير صالح" });
+      }
+
+      const [claimed] = await db
+        .select()
+        .from(authIdentities)
+        .where(
+          and(
+            eq(authIdentities.identityType, "phone"),
+            eq(authIdentities.identityValue, formattedPhone),
+          ),
+        );
+      if (claimed && claimed.userId !== req.userId) {
+        await logAudit(
+          req.userId,
+          "link_failed",
+          "auth",
+          null,
+          { reason: "identity_belongs_to_another_user", phone: formattedPhone },
+          req,
+        );
+        return res.status(409).json({
+          error:
+            "رقم الهاتف هذا مرتبط بحساب آخر. سجّل الدخول به أولاً أو استخدم رقماً غيره.",
+        });
+      }
+      if (claimed) {
+        return res.status(400).json({ error: "هذا الرقم مرتبط بحسابك بالفعل" });
+      }
+
+      try {
+        const twilio = (await import("twilio")).default;
+        // Same credentials and the same service SID as the login path. Reading
+        // env vars directly here, and inventing TWILIO_VERIFY_SERVICE_SID for
+        // the service, meant services(undefined) and every send failed.
+        const { accountSid, authToken } = await getTwilioCredentials();
+        const client = twilio(accountSid, authToken);
+        const verifySid = process.env.TWILIO_VERIFY_SID;
+        if (!verifySid) {
+          return res.status(500).json({ error: "خدمة التحقق غير مهيأة" });
+        }
+        await client.verify.v2
+          .services(verifySid)
+          .verifications.create({ to: formattedPhone, channel: "sms" });
+      } catch (twilioError) {
+        console.error("Link phone: Twilio send failed:", twilioError);
+        return res.status(500).json({ error: "تعذّر إرسال رمز التحقق" });
+      }
+
+      res.json({ success: true });
+    } catch (error) {
+      handleError(res, error, "Link phone send", req);
+    }
+  },
+);
+
+// Linking a phone is the mirror of linking Google, but the proof is different:
+// Google's popup proves ownership by returning a signed token, a phone proves it
+// by receiving an SMS code. Same Twilio verification as login — it just attaches
+// the identity instead of issuing a session.
+//
+// The code is sent by the existing /api/sms/send-code. Only the check differs.
+app.post(
+  "/api/auth/link/phone",
+  authenticateUser,
+  smsLimiter,
+  async (req, res) => {
+    try {
+      const { phoneNumber, code } = req.body;
+      if (!phoneNumber || !code) {
+        return res
+          .status(400)
+          .json({ error: "رقم الهاتف ورمز التحقق مطلوبان" });
+      }
+
+      const formattedPhone = normalizePhone(phoneNumber);
+      if (!formattedPhone) {
+        return res.status(400).json({ error: "رقم هاتف غير صالح" });
+      }
+
+      // Refuse BEFORE spending a verification: no point proving ownership of a
+      // number that is already someone else's way in.
+      const [claimed] = await db
+        .select()
+        .from(authIdentities)
+        .where(
+          and(
+            eq(authIdentities.identityType, "phone"),
+            eq(authIdentities.identityValue, formattedPhone),
+          ),
+        );
+      if (claimed && claimed.userId !== req.userId) {
+        await logAudit(
+          req.userId,
+          "link_failed",
+          "auth",
+          null,
+          { reason: "identity_belongs_to_another_user", phone: formattedPhone },
+          req,
+        );
+        return res.status(409).json({
+          error:
+            "رقم الهاتف هذا مرتبط بحساب آخر. سجّل الدخول به أولاً أو استخدم رقماً غيره.",
+        });
+      }
+      if (claimed) {
+        return res.json({ success: true, alreadyLinked: true });
+      }
+
+      let verification;
+      try {
+        const twilio = (await import("twilio")).default;
+        const { accountSid, authToken } = await getTwilioCredentials();
+        const client = twilio(accountSid, authToken);
+        const verifySid = process.env.TWILIO_VERIFY_SID;
+        if (!verifySid) {
+          return res.status(500).json({ error: "خدمة التحقق غير مهيأة" });
+        }
+        verification = await client.verify.v2
+          .services(verifySid)
+          .verificationChecks.create({ to: formattedPhone, code });
+      } catch (twilioError) {
+        console.error("Link phone: Twilio check failed:", twilioError);
+        return res.status(500).json({ error: "تعذّر التحقق من الرمز" });
+      }
+
+      if (verification.status !== "approved") {
+        return res.status(400).json({ error: "رمز التحقق غير صحيح" });
+      }
+
+      await linkIdentityToUser(req.userId, "phone", formattedPhone, null, true);
+
+      await logAudit(
+        req.userId,
+        "link",
+        "auth",
+        null,
+        { provider: "phone", phone: formattedPhone },
+        req,
+      );
+
+      res.json({ success: true });
+    } catch (error) {
+      handleError(res, error, "Link phone", req);
+    }
+  },
+);
+
 app.post("/api/auth/logout", authenticateUser, async (req, res) => {
   await logAudit(req.userId, "logout", "auth", null, null, req);
   res.clearCookie("auth_token", COOKIE_OPTIONS);
@@ -1245,7 +1407,15 @@ app.post("/api/auth/logout", authenticateUser, async (req, res) => {
 
 app.get("/api/auth/check", optionalAuth, (req, res) => {
   if (req.userId) {
-    res.json({ authenticated: true, userId: req.userId });
+    // sessionType comes from the JWT, which records how this session was
+    // created. The client cannot infer it: linking Google deliberately destroys
+    // the Firebase session, so "is there a Firebase session" answers a different
+    // question and gets it wrong for anyone who has linked.
+    res.json({
+      authenticated: true,
+      userId: req.userId,
+      sessionType: req.userType || null,
+    });
   } else {
     res.json({ authenticated: false });
   }

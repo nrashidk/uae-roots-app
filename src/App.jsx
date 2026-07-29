@@ -173,11 +173,24 @@ function App() {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleteConfirmText, setDeleteConfirmText] = useState("");
   const [profileMessage, setProfileMessage] = useState("");
+  // Tone is set explicitly rather than inferred from the text. It used to be
+  // `message.includes("نجاح") ? green : red`, so anything that was neither a
+  // success nor a failure — "code sent" — came out red and read as an error.
+  const [profileMessageTone, setProfileMessageTone] = useState("error");
   // Login methods for the current account. One person can reach the same tree
   // by phone or by Google; these are the rows that make that true.
   const [identities, setIdentities] = useState([]);
   const [identitiesLoading, setIdentitiesLoading] = useState(false);
   const [linkBusy, setLinkBusy] = useState(false);
+  // "phone" or a provider name, straight from the JWT — see /api/auth/check.
+  const [sessionType, setSessionType] = useState(null);
+  // Linking a phone is two steps — send a code, then check it — so the profile
+  // needs a small amount of its own state. Google needs none: the popup returns
+  // a token in one go.
+  const [linkPhoneOpen, setLinkPhoneOpen] = useState(false);
+  const [linkPhoneNumber, setLinkPhoneNumber] = useState("");
+  const [linkPhoneCode, setLinkPhoneCode] = useState("");
+  const [linkPhoneSent, setLinkPhoneSent] = useState(false);
   const [userProfile, setUserProfile] = useState(null);
   // The most recent deletion that has not been undone yet, if any. Drives the
   // «تراجع عن الحذف» button in the header. Restores must run newest-first, so
@@ -332,6 +345,12 @@ function App() {
     unlinkAction: "إزالة",
     lastMethodLocked: "طريقة الدخول الوحيدة",
     linkedOk: "تم الربط بنجاح",
+    currentSession: "الجلسة الحالية",
+    enterPhone: "أدخل رقم الهاتف",
+    sendCode: "إرسال الرمز",
+    enterCode: "أدخل رمز التحقق",
+    confirmCode: "تأكيد",
+    codeSent: "تم إرسال الرمز",
     unlinkedOk: "تمت الإزالة بنجاح",
     newEmail: "البريد الإلك �روني الجديد",
     newPhone: "رقم الهاتف الجديد",
@@ -1603,6 +1622,7 @@ function App() {
     setShowProfile(true);
     setShowDeleteConfirm(false);
     setDeleteConfirmText("");
+    setProfileMessageTone("error");
     setProfileMessage("");
   };
 
@@ -1611,20 +1631,24 @@ function App() {
     if (!userId) return;
     try {
       setProfileSaving(true);
-      setProfileMessage("");
+      setProfileMessageTone("error");
+    setProfileMessage("");
       const updatedUser = await api.users.update(userId, {
         email: profileEmail || null,
         phoneNumber: profilePhone || null,
         displayName: userProfile?.displayName || user?.displayName || null,
       });
       setUserProfile(updatedUser);
+      setProfileMessageTone("success");
       setProfileMessage("تم حفظ التغييرات بنجاح");
       setTimeout(() => {
         setShowProfile(false);
-        setProfileMessage("");
+        setProfileMessageTone("error");
+    setProfileMessage("");
       }, 1500);
     } catch (err) {
       console.error("Profile save error:", err);
+      setProfileMessageTone("error");
       setProfileMessage("فشل في حفظ التغييرات");
     } finally {
       setProfileSaving(false);
@@ -1663,6 +1687,7 @@ function App() {
       setPasswordInput("");
     } catch (err) {
       console.error("Account delete error:", err);
+      setProfileMessageTone("error");
       setProfileMessage("فشل في حذف الحساب");
     } finally {
       setProfileSaving(false);
@@ -1673,6 +1698,8 @@ function App() {
     setIdentitiesLoading(true);
     try {
       setIdentities(await api.identities.list());
+      const check = await api.auth.check();
+      setSessionType(check?.sessionType || null);
     } catch (error) {
       console.error("Failed to load identities:", error);
       setIdentities([]);
@@ -1682,12 +1709,24 @@ function App() {
   };
 
   useEffect(() => {
-    if (showProfile) loadIdentities();
+    if (showProfile) {
+      loadIdentities();
+    } else {
+      // Reset the phone form so reopening the dialog does not resume a
+      // half-finished verification against a number the user has forgotten.
+      setLinkPhoneOpen(false);
+      setLinkPhoneSent(false);
+      setLinkPhoneNumber("");
+      setLinkPhoneCode("");
+      setProfileMessageTone("error");
+    setProfileMessage("");
+    }
   }, [showProfile]);
 
   const handleLinkGoogle = async () => {
     if (linkBusy) return;
     setLinkBusy(true);
+    setProfileMessageTone("error");
     setProfileMessage("");
     // Stop the app's restore effects reacting to the brief Firebase session the
     // popup creates — we are linking, not switching accounts.
@@ -1696,9 +1735,11 @@ function App() {
       const idToken = await getGoogleIdTokenForLink();
       await api.identities.linkGoogle(idToken);
       await loadIdentities();
+      setProfileMessageTone("success");
       setProfileMessage(t.linkedOk);
     } catch (error) {
       console.error("Link Google failed:", error);
+      setProfileMessageTone("error");
       setProfileMessage(error.message || "تعذّر الربط");
     } finally {
       interactiveLoginInProgressRef.current = false;
@@ -1706,16 +1747,63 @@ function App() {
     }
   };
 
+  const handleSendLinkCode = async () => {
+    if (linkBusy || !linkPhoneNumber.trim()) return;
+    setLinkBusy(true);
+    setProfileMessageTone("error");
+    setProfileMessage("");
+    try {
+      // NOT api.auth.sendSmsCode — that is the login path, which sends first
+      // and asks questions later. This one refuses a taken number before Twilio.
+      await api.identities.sendPhoneCode(linkPhoneNumber.trim());
+      setLinkPhoneSent(true);
+      setProfileMessageTone("info");
+      setProfileMessage(t.codeSent);
+    } catch (error) {
+      console.error("Send link code failed:", error);
+      setProfileMessageTone("error");
+      setProfileMessage(error.message || "تعذّر إرسال الرمز");
+    } finally {
+      setLinkBusy(false);
+    }
+  };
+
+  const handleLinkPhone = async () => {
+    if (linkBusy || !linkPhoneCode.trim()) return;
+    setLinkBusy(true);
+    setProfileMessageTone("error");
+    setProfileMessage("");
+    try {
+      await api.identities.linkPhone(linkPhoneNumber.trim(), linkPhoneCode.trim());
+      await loadIdentities();
+      setLinkPhoneOpen(false);
+      setLinkPhoneSent(false);
+      setLinkPhoneNumber("");
+      setLinkPhoneCode("");
+      setProfileMessageTone("success");
+      setProfileMessage(t.linkedOk);
+    } catch (error) {
+      console.error("Link phone failed:", error);
+      setProfileMessageTone("error");
+      setProfileMessage(error.message || "تعذّر الربط");
+    } finally {
+      setLinkBusy(false);
+    }
+  };
+
   const handleUnlinkIdentity = async (id) => {
     if (linkBusy) return;
     setLinkBusy(true);
+    setProfileMessageTone("error");
     setProfileMessage("");
     try {
       await api.identities.unlink(id);
       await loadIdentities();
+      setProfileMessageTone("success");
       setProfileMessage(t.unlinkedOk);
     } catch (error) {
       console.error("Unlink failed:", error);
+      setProfileMessageTone("error");
       setProfileMessage(error.message || "تعذّرت الإزالة");
     } finally {
       setLinkBusy(false);
@@ -1734,6 +1822,11 @@ function App() {
     // perfectly — because resolution reads the `email` row, not the provider one.
     const googleIdentity = identities.find((i) => i.identityType !== "phone");
     const methodCount = new Set(identities.map((i) => i.identityValue)).size;
+    // Which method is this session actually using? A Firebase session means the
+    // user came in through Google; a cookie-only session means phone. Worth
+    // showing, because otherwise it is possible to remove the very method you
+    // are signed in with and only find out at the next login.
+    const activeMethod = sessionType === "phone" ? "phone" : "google";
 
     return (
       <Dialog open={showProfile} onOpenChange={setShowProfile}>
@@ -1755,9 +1848,9 @@ function App() {
                     <Button
                       onClick={() => handleUnlinkIdentity(phoneIdentity.id)}
                       disabled={linkBusy}
-                      variant="ghost"
+                      variant="outline"
                       size="sm"
-                      className="text-red-600"
+                      className="text-red-600 border-red-200 hover:bg-red-50"
                     >
                       {t.unlinkAction}
                     </Button>
@@ -1765,11 +1858,33 @@ function App() {
                     <span className="text-xs text-gray-400">
                       {t.lastMethodLocked}
                     </span>
-                  ) : null}
+                  ) : (
+                    <Button
+                      onClick={() => setLinkPhoneOpen(true)}
+                      disabled={linkBusy || identitiesLoading}
+                      variant="outline"
+                      size="sm"
+                      className="border-[#A5813F] text-[#A5813F] hover:bg-[#F4EFE3]"
+                    >
+                      {t.linkAction}
+                    </Button>
+                  )}
                 </div>
                 <div className="text-right">
-                  <div className="text-sm font-medium" dir="ltr">
-                    {phoneIdentity ? phoneIdentity.identityValue : t.methodPhone}
+                  <div
+                    className="text-sm font-medium flex items-center gap-3"
+                    dir="ltr"
+                  >
+                    <span>
+                      {phoneIdentity
+                        ? phoneIdentity.identityValue
+                        : t.methodPhone}
+                    </span>
+                    {phoneIdentity && activeMethod === "phone" && (
+                      <span className="text-xs text-[#A5813F]">
+                        {t.currentSession}
+                      </span>
+                    )}
                   </div>
                 </div>
               </div>
@@ -1781,9 +1896,9 @@ function App() {
                       <Button
                         onClick={() => handleUnlinkIdentity(googleIdentity.id)}
                         disabled={linkBusy}
-                        variant="ghost"
+                        variant="outline"
                         size="sm"
-                        className="text-red-600"
+                        className="text-red-600 border-red-200 hover:bg-red-50"
                       >
                         {t.unlinkAction}
                       </Button>
@@ -1809,18 +1924,98 @@ function App() {
                   )}
                 </div>
                 <div className="text-right">
-                  <div className="text-sm font-medium" dir="ltr">
-                    {googleIdentity
-                      ? googleIdentity.identityValue
-                      : t.methodGoogle}
+                  <div
+                    className="text-sm font-medium flex items-center gap-3"
+                    dir="ltr"
+                  >
+                    <span>
+                      {googleIdentity
+                        ? googleIdentity.identityValue
+                        : t.methodGoogle}
+                    </span>
+                    {googleIdentity && activeMethod === "google" && (
+                      <span className="text-xs text-[#A5813F]">
+                        {t.currentSession}
+                      </span>
+                    )}
                   </div>
                 </div>
               </div>
             </div>
 
+            {linkPhoneOpen && !phoneIdentity && (
+              <div className="space-y-2 border rounded-lg p-3">
+                <input
+                  type="tel"
+                  value={linkPhoneNumber}
+                  onChange={(e) => setLinkPhoneNumber(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      handleSendLinkCode();
+                    }
+                  }}
+                  placeholder={t.enterPhone}
+                  dir="ltr"
+                  className="w-full px-3 py-2 border rounded-lg text-right"
+                />
+                {!linkPhoneSent ? (
+                  <Button
+                    onClick={handleSendLinkCode}
+                    disabled={linkBusy || !linkPhoneNumber.trim()}
+                    className="w-full"
+                    size="sm"
+                  >
+                    {linkBusy ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      t.sendCode
+                    )}
+                  </Button>
+                ) : (
+                  <>
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      value={linkPhoneCode}
+                      onChange={(e) => setLinkPhoneCode(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          handleLinkPhone();
+                        }
+                      }}
+                      placeholder={t.enterCode}
+                      dir="ltr"
+                      className="w-full px-3 py-2 border rounded-lg text-right"
+                      autoFocus
+                    />
+                    <Button
+                      onClick={handleLinkPhone}
+                      disabled={linkBusy || !linkPhoneCode.trim()}
+                      className="w-full"
+                      size="sm"
+                    >
+                      {linkBusy ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        t.confirmCode
+                      )}
+                    </Button>
+                  </>
+                )}
+              </div>
+            )}
+
             {profileMessage && (
               <div
-                className={`p-3 rounded-lg text-center text-sm ${profileMessage.includes("نجاح") ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"}`}
+                className={`p-3 rounded-lg text-center text-sm ${
+                  profileMessageTone === "success"
+                    ? "bg-green-100 text-green-700"
+                    : profileMessageTone === "info"
+                      ? "bg-amber-50 text-amber-700"
+                      : "bg-red-100 text-red-700"
+                }`}
               >
                 {profileMessage}
               </div>
