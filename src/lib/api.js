@@ -182,6 +182,11 @@ export const api = {
       }),
     // The code itself is sent by api.auth.sendSmsCode — this only checks it and
     // attaches the identity, instead of issuing a session the way login does.
+    sendPhoneCode: (phoneNumber) =>
+      fetchAPI("/auth/link/phone/send", {
+        method: "POST",
+        body: JSON.stringify({ phoneNumber }),
+      }),
     linkPhone: (phoneNumber, code) =>
       fetchAPI("/auth/link/phone", {
         method: "POST",
