@@ -1896,9 +1896,9 @@ function App() {
                       <Button
                         onClick={() => handleUnlinkIdentity(googleIdentity.id)}
                         disabled={linkBusy}
-                        variant="ghost"
+                        variant="outline"
                         size="sm"
-                        className="text-red-600"
+                        className="text-red-600 border-red-200 hover:bg-red-50"
                       >
                         {t.unlinkAction}
                       </Button>
