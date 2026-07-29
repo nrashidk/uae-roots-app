@@ -97,6 +97,7 @@ function App() {
     isLoading: authLoading,
     error: authError,
     loginWithGoogle,
+    getGoogleIdTokenForLink,
     loginWithMicrosoft,
     loginWithEmail,
     signUpWithEmail,
@@ -172,6 +173,11 @@ function App() {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleteConfirmText, setDeleteConfirmText] = useState("");
   const [profileMessage, setProfileMessage] = useState("");
+  // Login methods for the current account. One person can reach the same tree
+  // by phone or by Google; these are the rows that make that true.
+  const [identities, setIdentities] = useState([]);
+  const [identitiesLoading, setIdentitiesLoading] = useState(false);
+  const [linkBusy, setLinkBusy] = useState(false);
   const [userProfile, setUserProfile] = useState(null);
   // The most recent deletion that has not been undone yet, if any. Drives the
   // «تراجع عن الحذف» button in the header. Restores must run newest-first, so
@@ -319,6 +325,15 @@ function App() {
     back: "رجوع",
     currentEmail: "البريد الإلكتروني الحالي",
     currentPhone: "رقم الهاتف الحالي",
+    loginMethods: "طرق تسجيل الدخول",
+    methodPhone: "الهاتف",
+    methodGoogle: "Google",
+    notLinked: "غير مرتبط",
+    linkAction: "ربط",
+    unlinkAction: "إزالة",
+    lastMethodLocked: "طريقة الدخول الوحيدة",
+    linkedOk: "تم الربط بنجاح",
+    unlinkedOk: "تمت الإزالة بنجاح",
     newEmail: "البريد الإلك �روني الجديد",
     newPhone: "رقم الهاتف الجديد",
     notSet: "غير محدد",
@@ -384,14 +399,6 @@ function App() {
   // Track if an interactive login is in progress (prevents race with session restore)
   const interactiveLoginInProgressRef = useRef(false);
   const [sessionRestoreLoading, setSessionRestoreLoading] = useState(false);
-  // Has the cookie restore RUN yet — separate from whether it is running.
-  // The route guard needs "we have finished deciding", and sessionRestoreLoading
-  // only covers the in-flight window. A phone user has no Firebase, so
-  // authLoading resolves false immediately while the restore has not started:
-  // the guard saw signed-out on a private path and bounced to "/" before the
-  // cookie was ever checked. Set on EVERY exit of that effect, early returns
-  // included, or the guard waits forever.
-  const [sessionChecked, setSessionChecked] = useState(false);
   // Only show a loader if the wait is long enough to notice.
   const [loaderVisible, setLoaderVisible] = useState(false);
   const [sessionRestoreError, setSessionRestoreError] = useState(null);
@@ -403,7 +410,6 @@ function App() {
       // Skip if Firebase says authenticated (Firebase-based restoration will handle it)
       if (isAuthenticated) {
         DEBUG && console.log("[Cookie Restore] Skipping - Firebase session exists");
-        setSessionChecked(true);
         return;
       }
 
@@ -416,23 +422,14 @@ function App() {
       // Skip if tree already loaded
       if (currentTree) {
         DEBUG && console.log("[Cookie Restore] Skipping - tree already loaded");
-        setSessionChecked(true);
         return;
       }
 
-      // NO currentView guard. It used to be `if (currentView !== "auth") return`,
-      // which was harmless when the app always started on the auth view — that
-      // was the same as "restore on load". Once URL routing made /tree and
-      // /dashboard real entry points, it became "never restore if you arrive
-      // anywhere useful": a hard refresh on /tree set currentView to the tree,
-      // this returned early, and the perfectly valid cookie was never checked.
-      // Phone users were logged out on every refresh; Google users were not,
-      // because Firebase restores from its own storage and never reaches here.
-      //
-      // Removing it is safe — isAuthenticated, authLoading, currentTree and
-      // restorationAttemptedRef already prevent double-runs and loops. The only
-      // cost is one auth check for an anonymous visitor on a public page, which
-      // returns unauthenticated and stops.
+      // Skip if not on auth view (user navigated elsewhere)
+      if (currentView !== "auth") {
+        DEBUG && console.log("[Cookie Restore] Skipping - not on auth view");
+        return;
+      }
 
       // Skip if an interactive login is in progress
       if (interactiveLoginInProgressRef.current) {
@@ -445,7 +442,6 @@ function App() {
       // Prevent multiple restoration attempts
       if (restorationAttemptedRef.current) {
         DEBUG && console.log("[Cookie Restore] Already attempted");
-        setSessionChecked(true);
         return;
       }
 
@@ -464,7 +460,6 @@ function App() {
         if (!backendAuth?.authenticated || !backendAuth?.userId) {
           DEBUG && console.log("[Cookie Restore] No valid backend session found");
           setSessionRestoreLoading(false);
-          setSessionChecked(true);
           // Keep restorationAttemptedRef = true to prevent infinite loop
           // It will be reset on logout or when user successfully logs in
           return;
@@ -499,14 +494,12 @@ function App() {
           "[Cookie Restore] Session restored successfully from cookie!",
         );
         setSessionRestoreLoading(false);
-        setSessionChecked(true);
       } catch (error) {
         console.error("[Cookie Restore] Failed to restore session:", error);
         setSessionRestoreError(
           "فشل استعادة الجلسة. يرجى تسجيل الدخول مرة أخرى.",
         );
         setSessionRestoreLoading(false);
-        setSessionChecked(true);
         clearAuthToken();
         // Keep restorationAttemptedRef = true to prevent infinite loop
         // User will need to click login button to try again
@@ -514,9 +507,7 @@ function App() {
     };
 
     restoreFromCookie();
-    // currentView is no longer a dependency — the effect does not read it, and
-    // leaving it in would re-run this on every navigation for no reason.
-  }, [authLoading, isAuthenticated, currentTree]);
+  }, [authLoading, isAuthenticated, currentTree, currentView]);
 
   // Robust session restoration when Firebase restores authentication
   useEffect(() => {
@@ -683,7 +674,7 @@ function App() {
           setRelationships([]);
         }
 
-        setCurrentView((prev) => (prev === "auth" ? "tree-builder" : prev));
+        setCurrentView("tree-builder");
         DEBUG && console.log("[Session Restore] Session restored successfully");
         setSessionRestoreLoading(false);
       } catch (error) {
@@ -795,14 +786,7 @@ function App() {
   // "start your tree" prompt when it's empty, so first-time users get the right
   // screen without a separate route.
   useEffect(() => {
-    // Wait until the session question has actually been ANSWERED. authLoading
-    // covers Firebase and sessionRestoreLoading covers the in-flight cookie
-    // check, but neither covers "the cookie check has not started yet" — which
-    // is where a phone user sits on first paint, since there is no Firebase to
-    // wait for. Without sessionChecked the guard read signed-out on a private
-    // path and bounced to "/", then the restore pulled the user back: the URL
-    // flicker. Ordering, not logic, was making it come out right.
-    if (authLoading || sessionRestoreLoading || !sessionChecked) return;
+    if (authLoading || sessionRestoreLoading) return;
     const signedIn = isAuthenticated || !!userProfile;
     const path = location.pathname;
     const isPublic = PUBLIC_PATHS.includes(path);
@@ -827,7 +811,6 @@ function App() {
   }, [
     authLoading,
     sessionRestoreLoading,
-    sessionChecked,
     isAuthenticated,
     userProfile,
     location.pathname,
@@ -1407,11 +1390,7 @@ function App() {
       setRelationships([]);
     }
 
-    // Default to the tree ONLY if no view has been chosen yet. URL routing runs
-    // first and may already have selected /members or /relationships from the
-    // path; forcing tree-builder here overwrote it, so a hard refresh on those
-    // pages bounced to the tree. "auth" means nothing else claimed the view.
-    setCurrentView((prev) => (prev === "auth" ? "tree-builder" : prev));
+    setCurrentView("tree-builder");
   };
 
   const handleAuthSuccess = async (phoneUser = null, authToken = null) => {
@@ -1647,8 +1626,68 @@ function App() {
     }
   };
 
+  const loadIdentities = async () => {
+    setIdentitiesLoading(true);
+    try {
+      setIdentities(await api.identities.list());
+    } catch (error) {
+      console.error("Failed to load identities:", error);
+      setIdentities([]);
+    } finally {
+      setIdentitiesLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (showProfile) loadIdentities();
+  }, [showProfile]);
+
+  const handleLinkGoogle = async () => {
+    if (linkBusy) return;
+    setLinkBusy(true);
+    setProfileMessage("");
+    // Stop the app's restore effects reacting to the brief Firebase session the
+    // popup creates — we are linking, not switching accounts.
+    interactiveLoginInProgressRef.current = true;
+    try {
+      const idToken = await getGoogleIdTokenForLink();
+      await api.identities.linkGoogle(idToken);
+      await loadIdentities();
+      setProfileMessage(t.linkedOk);
+    } catch (error) {
+      console.error("Link Google failed:", error);
+      setProfileMessage(error.message || "تعذّر الربط");
+    } finally {
+      interactiveLoginInProgressRef.current = false;
+      setLinkBusy(false);
+    }
+  };
+
+  const handleUnlinkIdentity = async (id) => {
+    if (linkBusy) return;
+    setLinkBusy(true);
+    setProfileMessage("");
+    try {
+      await api.identities.unlink(id);
+      await loadIdentities();
+      setProfileMessage(t.unlinkedOk);
+    } catch (error) {
+      console.error("Unlink failed:", error);
+      setProfileMessage(error.message || "تعذّرت الإزالة");
+    } finally {
+      setLinkBusy(false);
+    }
+  };
+
   const renderProfileDialog = () => {
-    const isPhoneUser = userProfile?.provider === "phone";
+    // One login method can write several identity rows — a Google link writes
+    // both `email` and `google.com`. Collapse to methods so the screen shows what
+    // a person actually has, not the storage behind it.
+    const phoneIdentity = identities.find((i) => i.identityType === "phone");
+    const googleIdentity = identities.find(
+      (i) => i.identityType === "google.com",
+    );
+    const methodCount = new Set(identities.map((i) => i.identityValue)).size;
 
     return (
       <Dialog open={showProfile} onOpenChange={setShowProfile}>
@@ -1659,32 +1698,78 @@ function App() {
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-6 py-4" dir="rtl">
-            {isPhoneUser ? (
-              <div className="space-y-2">
-                <label className="block text-sm font-medium">
-                  {t.currentPhone}
-                </label>
-                <input
-                  type="tel"
-                  value={profilePhone}
-                  readOnly
-                  className="w-full px-3 py-2 border rounded-lg text-right bg-gray-100"
-                  dir="ltr"
-                />
+            <div className="space-y-2">
+              <label className="block text-sm font-medium">
+                {t.loginMethods}
+              </label>
+
+              <div className="flex items-center justify-between border rounded-lg px-3 py-2">
+                <div className="flex items-center gap-2">
+                  {phoneIdentity && methodCount > 1 ? (
+                    <Button
+                      onClick={() => handleUnlinkIdentity(phoneIdentity.id)}
+                      disabled={linkBusy}
+                      variant="ghost"
+                      size="sm"
+                      className="text-red-600"
+                    >
+                      {t.unlinkAction}
+                    </Button>
+                  ) : phoneIdentity ? (
+                    <span className="text-xs text-gray-400">
+                      {t.lastMethodLocked}
+                    </span>
+                  ) : null}
+                </div>
+                <div className="text-right">
+                  <div className="text-sm font-medium">{t.methodPhone}</div>
+                  <div className="text-xs text-gray-500" dir="ltr">
+                    {phoneIdentity ? phoneIdentity.identityValue : t.notLinked}
+                  </div>
+                </div>
               </div>
-            ) : (
-              <div className="space-y-2">
-                <label className="block text-sm font-medium">
-                  {t.currentEmail}
-                </label>
-                <input
-                  type="email"
-                  value={profileEmail}
-                  readOnly
-                  className="w-full px-3 py-2 border rounded-lg text-right bg-gray-100"
-                />
+
+              <div className="flex items-center justify-between border rounded-lg px-3 py-2">
+                <div className="flex items-center gap-2">
+                  {googleIdentity ? (
+                    methodCount > 1 ? (
+                      <Button
+                        onClick={() => handleUnlinkIdentity(googleIdentity.id)}
+                        disabled={linkBusy}
+                        variant="ghost"
+                        size="sm"
+                        className="text-red-600"
+                      >
+                        {t.unlinkAction}
+                      </Button>
+                    ) : (
+                      <span className="text-xs text-gray-400">
+                        {t.lastMethodLocked}
+                      </span>
+                    )
+                  ) : (
+                    <Button
+                      onClick={handleLinkGoogle}
+                      disabled={linkBusy || identitiesLoading}
+                      variant="outline"
+                      size="sm"
+                    >
+                      {linkBusy ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        t.linkAction
+                      )}
+                    </Button>
+                  )}
+                </div>
+                <div className="text-right">
+                  <div className="text-sm font-medium">{t.methodGoogle}</div>
+                  <div className="text-xs text-gray-500" dir="ltr">
+                    {googleIdentity ? googleIdentity.identityValue : t.notLinked}
+                  </div>
+                </div>
               </div>
-            )}
+            </div>
 
             {profileMessage && (
               <div
@@ -3791,15 +3876,18 @@ function App() {
               )}
               تسجيل الدخول عبر Google
             </Button>
-            {/* Microsoft sign-in is hidden, not removed. The provider has never
-                been enabled in the Firebase project (only Google is), so every
-                attempt returned auth/operation-not-allowed — a button offering a
-                login that cannot succeed. Enabling it needs an Azure app
-                registration with a client id and a secret that expires, and no
-                user can have a Microsoft identity because nobody could ever
-                complete the flow. handleMicrosoftLogin and the 'microsoft'
-                identityType are left in place, so re-enabling is this block plus
-                the Azure setup. */}
+            <Button
+              onClick={handleMicrosoftLogin}
+              disabled={authProcessing}
+              className="w-full bg-white hover:bg-gray-50 text-gray-700 border border-gray-300 py-3 rounded-[3px]"
+            >
+              {processingMethod === "microsoft" ? (
+                <Loader2 className="w-5 h-5 animate-spin ml-2" />
+              ) : (
+                <User className="w-5 h-5 ml-2" />
+              )}
+              تسجيل الدخول عبر Microsoft
+            </Button>
             <Button
               onClick={() => setShowSmsLogin(true)}
               disabled={authProcessing}
