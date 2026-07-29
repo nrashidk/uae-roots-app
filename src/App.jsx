@@ -1918,7 +1918,7 @@ function App() {
                 {t.signupPrivacy}
               </a>
             </p>
-            <div className="flex gap-2 justify-end pt-2">
+            <div className="flex gap-2 justify-end pt-2" dir="ltr">
               <Button onClick={cancelSignup} variant="outline" size="sm">
                 {t.signupCancel}
               </Button>
