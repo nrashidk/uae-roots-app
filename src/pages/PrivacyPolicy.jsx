@@ -1,4 +1,14 @@
-import { Shield, Lock, Eye, Database, UserCheck, Mail } from 'lucide-react';
+import {
+  Shield,
+  Lock,
+  Eye,
+  Database,
+  UserCheck,
+  Mail,
+  Share2,
+  Cookie,
+  Clock,
+} from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 export function PrivacyPolicy() {
@@ -81,26 +91,35 @@ export function PrivacyPolicy() {
             <ul className="list-disc list-inside space-y-2 text-gray-700 mr-4">
               <li><strong>التصحيح:</strong> يمكنك تعديل بياناتك من خلال الموقع</li>
               <li><strong>الحذف:</strong> يمكنك حذف حسابك وجميع بياناتك</li>
-              <li>
-                <strong>سحب الموافقة:</strong> يمكنك سحب موافقتك بحذف حسابك، أو
-                بمراسلتنا على البريد أدناه
-              </li>
             </ul>
           </section>
 
           <section className="space-y-4">
-            <h2 className="text-xl font-medium text-[#16233D]">مشاركة البيانات مع أطراف ثالثة</h2>
+            <div className="flex items-center gap-3">
+              <Share2 className="h-6 w-6 text-[#A5813F]" />
+              <h2 className="text-xl font-medium text-[#16233D]">
+                مشاركة البيانات مع أطراف ثالثة
+              </h2>
+            </div>
             <p className="text-gray-700 leading-relaxed">
               لا نبيع أو نؤجر بياناتك الشخصية لأي طرف ثالث. قد نشارك بياناتك فقط في الحالات التالية:
             </p>
             <ul className="list-disc list-inside space-y-2 text-gray-700 mr-4">
-              <li>مع موفري الخدمات الذين يساعدوننا في تشغيل الموقع</li>
+              <li>
+                مع موفري الخدمات الذين يساعدوننا في تشغيل الموقع (رقم الهاتف أو
+                البريد الإلكتروني للدخول للموقع)
+              </li>
               <li>عندما يكون ذلك مطلوبًا بموجب القانون</li>
             </ul>
           </section>
 
           <section className="space-y-4">
-            <h2 className="text-xl font-medium text-[#16233D]">ملفات تعريف الارتباط</h2>
+            <div className="flex items-center gap-3">
+              <Cookie className="h-6 w-6 text-[#A5813F]" />
+              <h2 className="text-xl font-medium text-[#16233D]">
+                ملفات تعريف الارتباط
+              </h2>
+            </div>
             <p className="text-gray-700 leading-relaxed">
               نستخدم ملفات تعريف الارتباط الضرورية لتشغيل الموقع وتأمين جلسة المستخدم. 
               هذه الملفات ضرورية لعمل الموقع بشكل صحيح ولا يمكن تعطيلها.
@@ -108,10 +127,16 @@ export function PrivacyPolicy() {
           </section>
 
           <section className="space-y-4">
-            <h2 className="text-xl font-medium text-[#16233D]">الاحتفاظ بالبيانات</h2>
+            <div className="flex items-center gap-3">
+              <Clock className="h-6 w-6 text-[#A5813F]" />
+              <h2 className="text-xl font-medium text-[#16233D]">
+                الاحتفاظ بالبيانات
+              </h2>
+            </div>
             <p className="text-gray-700 leading-relaxed">
-              نحتفظ ببياناتك طالما أن حسابك نشط. عند حذف حسابك، نحذف جميع بياناتك الشخصية 
-              وبيانات شجرة العائلة خلال 30 يومًا، باستثناء ما يلزمنا الاحتفاظ به بموجب القانون.
+              نحتفظ ببياناتك طالما أن حسابك نشط. عند حذف حسابك، تُحذف جميع
+              بياناتك الشخصية وبيانات شجرة العائلة وسجلات النشاط فوراً ولا يبقى
+              منها شيء.
             </p>
           </section>
 
