@@ -90,6 +90,12 @@ export const deletions = pgTable("deletions", {
   // Undo is then ONE rule for all three kinds: remove anything in *_after whose
   // id is absent from *_before, then write every *_before row back at its own id.
   kind: text("kind").notNull().default("delete"), // 'delete' | 'create' | 'update'
+  // One USER action can span several HTTP calls — adding a person with two
+  // parents writes three rows. They share a groupId so undo reverses the whole
+  // action in one press. Generated in the browser; the server only records it.
+  // NULL on rows written before this existed: those undo individually, exactly
+  // as they did before.
+  groupId: text("group_id"),
   peopleAfter: jsonb("people_after").notNull().default([]),
   relationshipsAfter: jsonb("relationships_after").notNull().default([]),
   restoredAt: timestamp("restored_at"),
