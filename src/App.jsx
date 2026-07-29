@@ -1733,7 +1733,9 @@ function App() {
     setLinkBusy(true);
     setProfileMessage("");
     try {
-      await api.auth.sendSmsCode(linkPhoneNumber.trim());
+      // NOT api.auth.sendSmsCode — that is the login path, which sends first
+      // and asks questions later. This one refuses a taken number before Twilio.
+      await api.identities.sendPhoneCode(linkPhoneNumber.trim());
       setLinkPhoneSent(true);
       setProfileMessage(t.codeSent);
     } catch (error) {
