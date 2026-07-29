@@ -2157,6 +2157,18 @@ app.patch("/api/people/:id/birthOrder", authenticateUser, async (req, res) => {
       .set({ birthOrder: validatedData.birthOrder })
       .where(eq(people.id, personId))
       .returning();
+    // Reordering siblings is a mutation like any other. Without this the stack
+    // is not a complete log, and a birth-order change silently cannot be undone.
+    await recordUndo({
+      treeId: existingPerson.treeId,
+      userId: req.userId,
+      groupId: req.headers["x-action-group"] || null,
+      kind: "update",
+      label: existingPerson.firstName || null,
+      peopleBefore: [existingPerson],
+      peopleAfter: [person],
+    });
+
     res.json(person);
   } catch (error) {
     if (error instanceof z.ZodError) {
@@ -2758,93 +2770,22 @@ app.get("/api/history/:treeId", authenticateUser, async (req, res) => {
 });
 
 // Phase 2: Undo handler with Zod validation for previousData
-app.post("/api/history/undo/:id", authenticateUser, async (req, res) => {
-  try {
-    const historyId = validateId(req.params.id);
-    if (!historyId) {
-      return res.status(400).json({ error: "Invalid history ID" });
-    }
+// REMOVED: POST /api/history/undo/:id
+//
+// The old editHistory undo. Deleted rather than wired up, because it was tested
+// and found unusable AND it was the last write path with no validation and no
+// recording:
+//   - undoing a relationship create matched no branch and returned success anyway
+//   - restoring a deleted person gave it a NEW id, leaving every reference dangling
+//   - the cascade was never captured, so a restored person came back unconnected
+//   - nothing marked an entry as undone, so pressing twice inserted twice
+//   - no ordering, and no validation — it could restore a gender that makes an
+//     existing marriage same-sex, or push someone past their spouse limit
+//
+// `deletions` replaces it: ids preserved, cascade captured, restored_at tracked,
+// strict newest-first, grouped by user action. GET /api/history/:treeId is left
+// in place — reading the edit log is harmless and it is still written.
 
-    const [historyEntry] = await db
-      .select()
-      .from(editHistory)
-      .where(eq(editHistory.id, historyId));
-    if (!historyEntry) {
-      return res.status(404).json({ error: "History entry not found" });
-    }
-
-    const ownership = await verifyTreeOwnership(
-      historyEntry.treeId,
-      req.userId,
-    );
-    if (!ownership.valid) {
-      return res.status(403).json({ error: ownership.error });
-    }
-
-    if (
-      historyEntry.action === "create" &&
-      historyEntry.resourceType === "person"
-    ) {
-      await db.delete(people).where(eq(people.id, historyEntry.resourceId));
-    } else if (historyEntry.action === "update" && historyEntry.previousData) {
-      if (historyEntry.resourceType === "person") {
-        // Phase 2: Validate previousData before restoring (uses relaxed schema for encrypted fields)
-        const validatedData = personUndoSchema.parse(historyEntry.previousData);
-        await db
-          .update(people)
-          .set(validatedData)
-          .where(eq(people.id, historyEntry.resourceId));
-      } else if (historyEntry.resourceType === "relationship") {
-        // Phase 2: Validate relationship data before restoring
-        const { id, createdAt, ...relData } = historyEntry.previousData;
-        const validatedData = relationshipUndoSchema.parse(relData);
-        await db
-          .update(relationships)
-          .set(validatedData)
-          .where(eq(relationships.id, historyEntry.resourceId));
-      }
-    } else if (historyEntry.action === "delete" && historyEntry.previousData) {
-      if (historyEntry.resourceType === "person") {
-        // Phase 2: Validate person data before restoring (uses relaxed schema for encrypted fields)
-        const { id, createdAt, ...personData } = historyEntry.previousData;
-        const validatedData = personUndoSchema.parse({
-          ...personData,
-          treeId: historyEntry.treeId,
-        });
-        await db.insert(people).values(validatedData);
-      } else if (historyEntry.resourceType === "relationship") {
-        // Phase 2: Validate relationship data before restoring
-        const { id, createdAt, ...relData } = historyEntry.previousData;
-        const validatedData = relationshipUndoSchema.parse({
-          ...relData,
-          treeId: historyEntry.treeId,
-        });
-        await db.insert(relationships).values(validatedData);
-      }
-    }
-
-    await logAudit(
-      req.userId,
-      "undo",
-      historyEntry.resourceType,
-      historyEntry.resourceId,
-      { action: historyEntry.action },
-      req,
-    );
-
-    res.json({ success: true, message: "تم التراجع بنجاح" });
-  } catch (error) {
-    if (error instanceof z.ZodError) {
-      return res
-        .status(400)
-        .json({
-          error: "لا يمكن التراجع: بيانات غير صالحة",
-          details: error.errors,
-        });
-    }
-    handleError(res, error, "Undo operation");
-  }
-});
 
 app.get("/api/export/:treeId", authenticateUser, async (req, res) => {
   try {

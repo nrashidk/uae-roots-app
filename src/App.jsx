@@ -3366,7 +3366,10 @@ function App() {
       }),
     );
 
-    // Persist to database via API
+    // Persist to database via API. One swap writes TWO rows — both siblings
+    // change — so they share an action group and undo reverses the swap in a
+    // single press rather than leaving it half-applied after one.
+    beginAction();
     try {
       await Promise.all([
         api.people.updateBirthOrder(personId, targetOrder),
@@ -3383,6 +3386,8 @@ function App() {
           return p;
         }),
       );
+    } finally {
+      endAction();
     }
   };
 

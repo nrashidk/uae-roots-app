@@ -174,11 +174,8 @@ export const api = {
   },
 
   history: {
+    // Read-only. The undo path was removed — see the note in server/index.js.
     get: (treeId) => fetchAPI(`/history/${treeId}`),
-    undo: (historyId) =>
-      fetchAPI(`/history/undo/${historyId}`, {
-        method: "POST",
-      }),
   },
 
   export: {
