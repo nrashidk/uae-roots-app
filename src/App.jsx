@@ -410,11 +410,19 @@ function App() {
         return;
       }
 
-      // Skip if not on auth view (user navigated elsewhere)
-      if (currentView !== "auth") {
-        DEBUG && console.log("[Cookie Restore] Skipping - not on auth view");
-        return;
-      }
+      // NO currentView guard. It used to be `if (currentView !== "auth") return`,
+      // which was harmless when the app always started on the auth view — that
+      // was the same as "restore on load". Once URL routing made /tree and
+      // /dashboard real entry points, it became "never restore if you arrive
+      // anywhere useful": a hard refresh on /tree set currentView to the tree,
+      // this returned early, and the perfectly valid cookie was never checked.
+      // Phone users were logged out on every refresh; Google users were not,
+      // because Firebase restores from its own storage and never reaches here.
+      //
+      // Removing it is safe — isAuthenticated, authLoading, currentTree and
+      // restorationAttemptedRef already prevent double-runs and loops. The only
+      // cost is one auth check for an anonymous visitor on a public page, which
+      // returns unauthenticated and stops.
 
       // Skip if an interactive login is in progress
       if (interactiveLoginInProgressRef.current) {
@@ -492,7 +500,9 @@ function App() {
     };
 
     restoreFromCookie();
-  }, [authLoading, isAuthenticated, currentTree, currentView]);
+    // currentView is no longer a dependency — the effect does not read it, and
+    // leaving it in would re-run this on every navigation for no reason.
+  }, [authLoading, isAuthenticated, currentTree]);
 
   // Robust session restoration when Firebase restores authentication
   useEffect(() => {
