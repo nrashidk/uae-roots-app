@@ -1788,6 +1788,7 @@ function App() {
                       disabled={linkBusy || identitiesLoading}
                       variant="outline"
                       size="sm"
+                      className="border-[#A5813F] text-[#A5813F] hover:bg-[#F4EFE3]"
                     >
                       {linkBusy ? (
                         <Loader2 className="w-4 h-4 animate-spin" />
