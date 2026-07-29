@@ -477,6 +477,10 @@ function App() {
       // cost is one auth check for an anonymous visitor on a public page, which
       // returns unauthenticated and stops.
 
+      // Same reason as the Firebase effect: this path calls loadUserTreeData,
+      // which creates a default TREE — for a user that does not exist yet.
+      if (pendingSignup) return;
+
       // Skip if an interactive login is in progress
       if (interactiveLoginInProgressRef.current) {
         DEBUG && console.log(
@@ -559,7 +563,7 @@ function App() {
     restoreFromCookie();
     // currentView is no longer a dependency — the effect does not read it, and
     // leaving it in would re-run this on every navigation for no reason.
-  }, [authLoading, isAuthenticated, currentTree]);
+  }, [authLoading, isAuthenticated, currentTree, pendingSignup]);
 
   // Robust session restoration when Firebase restores authentication
   useEffect(() => {
@@ -569,6 +573,13 @@ function App() {
 
       // Skip if an interactive login is happening (handleAuthSuccess will handle it)
       if (interactiveLoginInProgressRef.current) return;
+
+      // A signup decision is pending: no account exists and nobody has agreed to
+      // anything yet. This effect creates a user record of its own, so without
+      // this it performs exactly the silent creation the gate exists to stop —
+      // handleGoogleLogin clears interactiveLoginInProgress in its finally, which
+      // runs the moment the gate returns, so that guard is already down.
+      if (pendingSignup) return;
 
       // Wait for Firebase auth to finish loading
       if (authLoading) return;
@@ -746,7 +757,7 @@ function App() {
     };
 
     restoreSession();
-  }, [authLoading, isAuthenticated, user, currentTree, logout]);
+  }, [authLoading, isAuthenticated, user, currentTree, logout, pendingSignup]);
 
   // Reset restoration flag when user logs out
   useEffect(() => {
