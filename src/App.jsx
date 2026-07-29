@@ -343,6 +343,7 @@ function App() {
     unlinkAction: "إزالة",
     lastMethodLocked: "طريقة الدخول الوحيدة",
     linkedOk: "تم الربط بنجاح",
+    currentSession: "الجلسة الحالية",
     enterPhone: "أدخل رقم الهاتف",
     sendCode: "إرسال الرمز",
     enterCode: "أدخل رمز التحقق",
@@ -1817,6 +1818,11 @@ function App() {
     // perfectly — because resolution reads the `email` row, not the provider one.
     const googleIdentity = identities.find((i) => i.identityType !== "phone");
     const methodCount = new Set(identities.map((i) => i.identityValue)).size;
+    // Which method is this session actually using? A Firebase session means the
+    // user came in through Google; a cookie-only session means phone. Worth
+    // showing, because otherwise it is possible to remove the very method you
+    // are signed in with and only find out at the next login.
+    const activeMethod = isAuthenticated ? "google" : "phone";
 
     return (
       <Dialog open={showProfile} onOpenChange={setShowProfile}>
@@ -1864,6 +1870,11 @@ function App() {
                   <div className="text-sm font-medium" dir="ltr">
                     {phoneIdentity ? phoneIdentity.identityValue : t.methodPhone}
                   </div>
+                  {phoneIdentity && activeMethod === "phone" && (
+                    <div className="text-xs text-[#A5813F]">
+                      {t.currentSession}
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -1907,6 +1918,11 @@ function App() {
                       ? googleIdentity.identityValue
                       : t.methodGoogle}
                   </div>
+                  {googleIdentity && activeMethod === "google" && (
+                    <div className="text-xs text-[#A5813F]">
+                      {t.currentSession}
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
