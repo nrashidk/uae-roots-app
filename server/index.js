@@ -1237,6 +1237,71 @@ app.delete("/api/auth/identities/:id", authenticateUser, async (req, res) => {
   }
 });
 
+// Send a verification code FOR LINKING. Deliberately separate from
+// /api/sms/send-code, which is the login path and knows nothing about who is
+// asking — it will happily message a number that already belongs to someone
+// else, and the refusal then arrives after Twilio has been paid. Checking here
+// means a number that cannot be linked never costs a message.
+app.post(
+  "/api/auth/link/phone/send",
+  authenticateUser,
+  smsLimiter,
+  async (req, res) => {
+    try {
+      const { phoneNumber } = req.body;
+      const formattedPhone = normalizePhone(phoneNumber);
+      if (!formattedPhone) {
+        return res.status(400).json({ error: "رقم هاتف غير صالح" });
+      }
+
+      const [claimed] = await db
+        .select()
+        .from(authIdentities)
+        .where(
+          and(
+            eq(authIdentities.identityType, "phone"),
+            eq(authIdentities.identityValue, formattedPhone),
+          ),
+        );
+      if (claimed && claimed.userId !== req.userId) {
+        await logAudit(
+          req.userId,
+          "link_failed",
+          "auth",
+          null,
+          { reason: "identity_belongs_to_another_user", phone: formattedPhone },
+          req,
+        );
+        return res.status(409).json({
+          error:
+            "رقم الهاتف هذا مرتبط بحساب آخر. سجّل الدخول به أولاً أو استخدم رقماً غيره.",
+        });
+      }
+      if (claimed) {
+        return res.status(400).json({ error: "هذا الرقم مرتبط بحسابك بالفعل" });
+      }
+
+      try {
+        const twilio = (await import("twilio")).default;
+        const client = twilio(
+          process.env.TWILIO_ACCOUNT_SID,
+          process.env.TWILIO_AUTH_TOKEN,
+        );
+        await client.verify.v2
+          .services(process.env.TWILIO_VERIFY_SERVICE_SID)
+          .verifications.create({ to: formattedPhone, channel: "sms" });
+      } catch (twilioError) {
+        console.error("Link phone: Twilio send failed:", twilioError);
+        return res.status(500).json({ error: "تعذّر إرسال رمز التحقق" });
+      }
+
+      res.json({ success: true });
+    } catch (error) {
+      handleError(res, error, "Link phone send", req);
+    }
+  },
+);
+
 // Linking a phone is the mirror of linking Google, but the proof is different:
 // Google's popup proves ownership by returning a signed token, a phone proves it
 // by receiving an SMS code. Same Twilio verification as login — it just attaches
