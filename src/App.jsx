@@ -517,6 +517,23 @@ function App() {
           return;
         }
 
+        // A valid session whose id has no account: the sign-up gate was open and
+        // the page reloaded. Reopen it rather than restoring — restoring would
+        // create the account the person never agreed to, which is the whole
+        // thing the gate exists to prevent.
+        if (backendAuth.hasAccount === false) {
+          setPendingSignup({
+            resolvedUserId: backendAuth.userId,
+            email: null,
+            displayName: null,
+            phoneNumber: null,
+            provider: backendAuth.sessionType || "unknown",
+          });
+          setSessionRestoreLoading(false);
+          setSessionChecked(true);
+          return;
+        }
+
         const resolvedUserId = backendAuth.userId;
         DEBUG && console.log(
           "[Cookie Restore] Found valid session for userId:",
@@ -613,6 +630,24 @@ function App() {
             "[Session Restore] Backend auth check failed:",
             e.message,
           );
+        }
+
+        // Same as the cookie path: a valid session with no account means the
+        // gate was open when the page reloaded. Reopen it instead of carrying on
+        // to STEP 4, which creates the user record.
+        if (backendAuth?.authenticated && backendAuth?.hasAccount === false) {
+          setPendingSignup({
+            resolvedUserId: backendAuth.userId,
+            email: user?.email || null,
+            displayName: user?.displayName || null,
+            phoneNumber: user?.phoneNumber || null,
+            provider:
+              user?.providerData?.[0]?.providerId ||
+              backendAuth.sessionType ||
+              "unknown",
+          });
+          setSessionRestoreLoading(false);
+          return;
         }
 
         // STEP 2: If backend cookie is valid, use that userId
