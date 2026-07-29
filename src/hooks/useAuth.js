@@ -35,6 +35,18 @@ export function useAuth() {
     }
   };
 
+  // Linking is NOT logging in. signInWithPopup creates a Firebase session for
+  // the Google account, which for a phone user would make the app think it just
+  // switched accounts. So take the token, then drop the Firebase session
+  // immediately — the phone session lives in an httpOnly cookie and is
+  // untouched by this.
+  const getGoogleIdTokenForLink = async () => {
+    const result = await signInWithPopup(auth, googleProvider);
+    const idToken = await result.user.getIdToken();
+    await signOut(auth);
+    return idToken;
+  };
+
   const loginWithMicrosoft = async () => {
     try {
       setError(null);
@@ -106,6 +118,7 @@ export function useAuth() {
     isAuthenticated: !!user,
     error,
     loginWithGoogle,
+    getGoogleIdTokenForLink,
     loginWithMicrosoft,
     loginWithEmail,
     signUpWithEmail,
