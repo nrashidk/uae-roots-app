@@ -178,6 +178,13 @@ function App() {
   const [identities, setIdentities] = useState([]);
   const [identitiesLoading, setIdentitiesLoading] = useState(false);
   const [linkBusy, setLinkBusy] = useState(false);
+  // Linking a phone is two steps — send a code, then check it — so the profile
+  // needs a small amount of its own state. Google needs none: the popup returns
+  // a token in one go.
+  const [linkPhoneOpen, setLinkPhoneOpen] = useState(false);
+  const [linkPhoneNumber, setLinkPhoneNumber] = useState("");
+  const [linkPhoneCode, setLinkPhoneCode] = useState("");
+  const [linkPhoneSent, setLinkPhoneSent] = useState(false);
   const [userProfile, setUserProfile] = useState(null);
   // The most recent deletion that has not been undone yet, if any. Drives the
   // «تراجع عن الحذف» button in the header. Restores must run newest-first, so
@@ -332,6 +339,11 @@ function App() {
     unlinkAction: "إزالة",
     lastMethodLocked: "طريقة الدخول الوحيدة",
     linkedOk: "تم الربط بنجاح",
+    enterPhone: "أدخل رقم الهاتف",
+    sendCode: "إرسال الرمز",
+    enterCode: "أدخل رمز التحقق",
+    confirmCode: "تأكيد",
+    codeSent: "تم إرسال الرمز",
     unlinkedOk: "تمت الإزالة بنجاح",
     newEmail: "البريد الإلك �روني الجديد",
     newPhone: "رقم الهاتف الجديد",
@@ -1682,7 +1694,17 @@ function App() {
   };
 
   useEffect(() => {
-    if (showProfile) loadIdentities();
+    if (showProfile) {
+      loadIdentities();
+    } else {
+      // Reset the phone form so reopening the dialog does not resume a
+      // half-finished verification against a number the user has forgotten.
+      setLinkPhoneOpen(false);
+      setLinkPhoneSent(false);
+      setLinkPhoneNumber("");
+      setLinkPhoneCode("");
+      setProfileMessage("");
+    }
   }, [showProfile]);
 
   const handleLinkGoogle = async () => {
@@ -1702,6 +1724,42 @@ function App() {
       setProfileMessage(error.message || "تعذّر الربط");
     } finally {
       interactiveLoginInProgressRef.current = false;
+      setLinkBusy(false);
+    }
+  };
+
+  const handleSendLinkCode = async () => {
+    if (linkBusy || !linkPhoneNumber.trim()) return;
+    setLinkBusy(true);
+    setProfileMessage("");
+    try {
+      await api.auth.sendSmsCode(linkPhoneNumber.trim());
+      setLinkPhoneSent(true);
+      setProfileMessage(t.codeSent);
+    } catch (error) {
+      console.error("Send link code failed:", error);
+      setProfileMessage(error.message || "تعذّر إرسال الرمز");
+    } finally {
+      setLinkBusy(false);
+    }
+  };
+
+  const handleLinkPhone = async () => {
+    if (linkBusy || !linkPhoneCode.trim()) return;
+    setLinkBusy(true);
+    setProfileMessage("");
+    try {
+      await api.identities.linkPhone(linkPhoneNumber.trim(), linkPhoneCode.trim());
+      await loadIdentities();
+      setLinkPhoneOpen(false);
+      setLinkPhoneSent(false);
+      setLinkPhoneNumber("");
+      setLinkPhoneCode("");
+      setProfileMessage(t.linkedOk);
+    } catch (error) {
+      console.error("Link phone failed:", error);
+      setProfileMessage(error.message || "تعذّر الربط");
+    } finally {
       setLinkBusy(false);
     }
   };
@@ -1765,7 +1823,17 @@ function App() {
                     <span className="text-xs text-gray-400">
                       {t.lastMethodLocked}
                     </span>
-                  ) : null}
+                  ) : (
+                    <Button
+                      onClick={() => setLinkPhoneOpen(true)}
+                      disabled={linkBusy || identitiesLoading}
+                      variant="outline"
+                      size="sm"
+                      className="border-[#A5813F] text-[#A5813F] hover:bg-[#F4EFE3]"
+                    >
+                      {t.linkAction}
+                    </Button>
+                  )}
                 </div>
                 <div className="text-right">
                   <div className="text-sm font-medium" dir="ltr">
@@ -1817,6 +1885,57 @@ function App() {
                 </div>
               </div>
             </div>
+
+            {linkPhoneOpen && !phoneIdentity && (
+              <div className="space-y-2 border rounded-lg p-3">
+                <input
+                  type="tel"
+                  value={linkPhoneNumber}
+                  onChange={(e) => setLinkPhoneNumber(e.target.value)}
+                  placeholder={t.enterPhone}
+                  dir="ltr"
+                  className="w-full px-3 py-2 border rounded-lg text-right"
+                />
+                {!linkPhoneSent ? (
+                  <Button
+                    onClick={handleSendLinkCode}
+                    disabled={linkBusy || !linkPhoneNumber.trim()}
+                    className="w-full"
+                    size="sm"
+                  >
+                    {linkBusy ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      t.sendCode
+                    )}
+                  </Button>
+                ) : (
+                  <>
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      value={linkPhoneCode}
+                      onChange={(e) => setLinkPhoneCode(e.target.value)}
+                      placeholder={t.enterCode}
+                      dir="ltr"
+                      className="w-full px-3 py-2 border rounded-lg text-right"
+                    />
+                    <Button
+                      onClick={handleLinkPhone}
+                      disabled={linkBusy || !linkPhoneCode.trim()}
+                      className="w-full"
+                      size="sm"
+                    >
+                      {linkBusy ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        t.confirmCode
+                      )}
+                    </Button>
+                  </>
+                )}
+              </div>
+            )}
 
             {profileMessage && (
               <div
