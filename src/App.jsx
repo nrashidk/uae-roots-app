@@ -1568,6 +1568,10 @@ function App() {
       setPeople([]);
       setRelationships([]);
       setUserProfile(null);
+      // Login methods belong to the account that just left. Without this the
+      // next user sees the previous one's methods until a full reload — which
+      // made a phone-only account show an إزالة button it should not have.
+      setIdentities([]);
       setCurrentView("auth");
 
       // Return the public view to its starting state. Without this the auth
@@ -1647,6 +1651,10 @@ function App() {
       setPeople([]);
       setRelationships([]);
       setUserProfile(null);
+      // Login methods belong to the account that just left. Without this the
+      // next user sees the previous one's methods until a full reload — which
+      // made a phone-only account show an إزالة button it should not have.
+      setIdentities([]);
       setCurrentView("auth");
       setShowProfile(false);
       setAuthDialogOpen(false);
@@ -1720,9 +1728,11 @@ function App() {
     // a person actually has, not the storage behind it.
 
     const phoneIdentity = identities.find((i) => i.identityType === "phone");
-    const googleIdentity = identities.find(
-      (i) => i.identityType === "google.com",
-    );
+    // Anything that is not the phone IS the other login method. Matching on
+    // "google.com" exactly was too narrow: a row written by hand, or a
+    // microsoft.com row, left the screen saying "not linked" while login worked
+    // perfectly — because resolution reads the `email` row, not the provider one.
+    const googleIdentity = identities.find((i) => i.identityType !== "phone");
     const methodCount = new Set(identities.map((i) => i.identityValue)).size;
 
     return (
