@@ -4620,7 +4620,7 @@ function App() {
                         أخوات من الرضاعة: {counts.breastfeedingSisters}
                       </div>
                     )}
-                    <div className="text-purple-600">
+                    <div className="text-[#A5813F]">
                       عدد الزوجات: {counts.wives}
                     </div>
                     <div className="text-blue-600">
@@ -4666,7 +4666,7 @@ function App() {
             onClick={() => currentTree && setCurrentView("tree-builder")}
           >
             <h3 className="text-xl font-bold mb-4">{t.myFamilyTrees}</h3>
-            <div className="text-3xl font-bold text-purple-600">
+            <div className="text-3xl font-bold text-[#16233D]">
               {currentTree ? 1 : 0}
             </div>
           </div>
