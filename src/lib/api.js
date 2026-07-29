@@ -180,6 +180,13 @@ export const api = {
         method: "POST",
         body: JSON.stringify({ firebaseIdToken }),
       }),
+    // The code itself is sent by api.auth.sendSmsCode — this only checks it and
+    // attaches the identity, instead of issuing a session the way login does.
+    linkPhone: (phoneNumber, code) =>
+      fetchAPI("/auth/link/phone", {
+        method: "POST",
+        body: JSON.stringify({ phoneNumber, code }),
+      }),
     unlink: (id) =>
       fetchAPI(`/auth/identities/${id}`, { method: "DELETE" }),
   },
