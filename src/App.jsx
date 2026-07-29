@@ -97,6 +97,7 @@ function App() {
     isLoading: authLoading,
     error: authError,
     loginWithGoogle,
+    getGoogleIdTokenForLink,
     loginWithMicrosoft,
     loginWithEmail,
     signUpWithEmail,
@@ -172,6 +173,11 @@ function App() {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleteConfirmText, setDeleteConfirmText] = useState("");
   const [profileMessage, setProfileMessage] = useState("");
+  // Login methods for the current account. One person can reach the same tree
+  // by phone or by Google; these are the rows that make that true.
+  const [identities, setIdentities] = useState([]);
+  const [identitiesLoading, setIdentitiesLoading] = useState(false);
+  const [linkBusy, setLinkBusy] = useState(false);
   const [userProfile, setUserProfile] = useState(null);
   // The most recent deletion that has not been undone yet, if any. Drives the
   // «تراجع عن الحذف» button in the header. Restores must run newest-first, so
@@ -319,6 +325,14 @@ function App() {
     back: "رجوع",
     currentEmail: "البريد الإلكتروني الحالي",
     currentPhone: "رقم الهاتف الحالي",
+    loginMethods: "طرق تسجيل الدخول",
+    methodPhone: "الهاتف",
+    methodGoogle: "Google",
+    linkAction: "ربط الحساب",
+    unlinkAction: "إزالة",
+    lastMethodLocked: "طريقة الدخول الوحيدة",
+    linkedOk: "تم الربط بنجاح",
+    unlinkedOk: "تمت الإزالة بنجاح",
     newEmail: "البريد الإلك �روني الجديد",
     newPhone: "رقم الهاتف الجديد",
     notSet: "غير محدد",
@@ -1647,8 +1661,69 @@ function App() {
     }
   };
 
+  const loadIdentities = async () => {
+    setIdentitiesLoading(true);
+    try {
+      setIdentities(await api.identities.list());
+    } catch (error) {
+      console.error("Failed to load identities:", error);
+      setIdentities([]);
+    } finally {
+      setIdentitiesLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (showProfile) loadIdentities();
+  }, [showProfile]);
+
+  const handleLinkGoogle = async () => {
+    if (linkBusy) return;
+    setLinkBusy(true);
+    setProfileMessage("");
+    // Stop the app's restore effects reacting to the brief Firebase session the
+    // popup creates — we are linking, not switching accounts.
+    interactiveLoginInProgressRef.current = true;
+    try {
+      const idToken = await getGoogleIdTokenForLink();
+      await api.identities.linkGoogle(idToken);
+      await loadIdentities();
+      setProfileMessage(t.linkedOk);
+    } catch (error) {
+      console.error("Link Google failed:", error);
+      setProfileMessage(error.message || "تعذّر الربط");
+    } finally {
+      interactiveLoginInProgressRef.current = false;
+      setLinkBusy(false);
+    }
+  };
+
+  const handleUnlinkIdentity = async (id) => {
+    if (linkBusy) return;
+    setLinkBusy(true);
+    setProfileMessage("");
+    try {
+      await api.identities.unlink(id);
+      await loadIdentities();
+      setProfileMessage(t.unlinkedOk);
+    } catch (error) {
+      console.error("Unlink failed:", error);
+      setProfileMessage(error.message || "تعذّرت الإزالة");
+    } finally {
+      setLinkBusy(false);
+    }
+  };
+
   const renderProfileDialog = () => {
-    const isPhoneUser = userProfile?.provider === "phone";
+    // One login method can write several identity rows — a Google link writes
+    // both `email` and `google.com`. Collapse to methods so the screen shows what
+    // a person actually has, not the storage behind it.
+
+    const phoneIdentity = identities.find((i) => i.identityType === "phone");
+    const googleIdentity = identities.find(
+      (i) => i.identityType === "google.com",
+    );
+    const methodCount = new Set(identities.map((i) => i.identityValue)).size;
 
     return (
       <Dialog open={showProfile} onOpenChange={setShowProfile}>
@@ -1659,32 +1734,79 @@ function App() {
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-6 py-4" dir="rtl">
-            {isPhoneUser ? (
-              <div className="space-y-2">
-                <label className="block text-sm font-medium">
-                  {t.currentPhone}
-                </label>
-                <input
-                  type="tel"
-                  value={profilePhone}
-                  readOnly
-                  className="w-full px-3 py-2 border rounded-lg text-right bg-gray-100"
-                  dir="ltr"
-                />
+            <div className="space-y-2">
+              <label className="block text-sm font-medium">
+                {t.loginMethods}
+              </label>
+
+              <div className="flex items-center justify-between border rounded-lg px-3 py-2">
+                <div className="flex items-center gap-2">
+                  {phoneIdentity && methodCount > 1 ? (
+                    <Button
+                      onClick={() => handleUnlinkIdentity(phoneIdentity.id)}
+                      disabled={linkBusy}
+                      variant="ghost"
+                      size="sm"
+                      className="text-red-600"
+                    >
+                      {t.unlinkAction}
+                    </Button>
+                  ) : phoneIdentity ? (
+                    <span className="text-xs text-gray-400">
+                      {t.lastMethodLocked}
+                    </span>
+                  ) : null}
+                </div>
+                <div className="text-right">
+                  <div className="text-sm font-medium" dir="ltr">
+                    {phoneIdentity ? phoneIdentity.identityValue : t.methodPhone}
+                  </div>
+                </div>
               </div>
-            ) : (
-              <div className="space-y-2">
-                <label className="block text-sm font-medium">
-                  {t.currentEmail}
-                </label>
-                <input
-                  type="email"
-                  value={profileEmail}
-                  readOnly
-                  className="w-full px-3 py-2 border rounded-lg text-right bg-gray-100"
-                />
+
+              <div className="flex items-center justify-between border rounded-lg px-3 py-2">
+                <div className="flex items-center gap-2">
+                  {googleIdentity ? (
+                    methodCount > 1 ? (
+                      <Button
+                        onClick={() => handleUnlinkIdentity(googleIdentity.id)}
+                        disabled={linkBusy}
+                        variant="ghost"
+                        size="sm"
+                        className="text-red-600"
+                      >
+                        {t.unlinkAction}
+                      </Button>
+                    ) : (
+                      <span className="text-xs text-gray-400">
+                        {t.lastMethodLocked}
+                      </span>
+                    )
+                  ) : (
+                    <Button
+                      onClick={handleLinkGoogle}
+                      disabled={linkBusy || identitiesLoading}
+                      variant="outline"
+                      size="sm"
+                      className="border-[#A5813F] text-[#A5813F] hover:bg-[#F4EFE3]"
+                    >
+                      {linkBusy ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        t.linkAction
+                      )}
+                    </Button>
+                  )}
+                </div>
+                <div className="text-right">
+                  <div className="text-sm font-medium" dir="ltr">
+                    {googleIdentity
+                      ? googleIdentity.identityValue
+                      : t.methodGoogle}
+                  </div>
+                </div>
               </div>
-            )}
+            </div>
 
             {profileMessage && (
               <div

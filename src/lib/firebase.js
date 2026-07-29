@@ -17,6 +17,10 @@ const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 
 export const googleProvider = new GoogleAuthProvider();
+// Always ask WHICH Google account. Without this Firebase silently reuses the
+// browser's existing session, so someone with several Gmail addresses cannot
+// choose — and linking picks whichever they last used.
+googleProvider.setCustomParameters({ prompt: "select_account" });
 export const microsoftProvider = new OAuthProvider("microsoft.com");
 
 export default app;
