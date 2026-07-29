@@ -1894,6 +1894,12 @@ function App() {
                   type="tel"
                   value={linkPhoneNumber}
                   onChange={(e) => setLinkPhoneNumber(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      handleSendLinkCode();
+                    }
+                  }}
                   placeholder={t.enterPhone}
                   dir="ltr"
                   className="w-full px-3 py-2 border rounded-lg text-right"
@@ -1918,9 +1924,16 @@ function App() {
                       inputMode="numeric"
                       value={linkPhoneCode}
                       onChange={(e) => setLinkPhoneCode(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          handleLinkPhone();
+                        }
+                      }}
                       placeholder={t.enterCode}
                       dir="ltr"
                       className="w-full px-3 py-2 border rounded-lg text-right"
+                      autoFocus
                     />
                     <Button
                       onClick={handleLinkPhone}
