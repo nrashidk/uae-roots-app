@@ -45,7 +45,7 @@ const exportFormats = [
     name: 'JSON',
     description: 'بيانات خام للمطورين',
     icon: FileJson,
-    color: 'text-purple-600 bg-purple-100'
+    color: 'text-[#A5813F] bg-[#F4EFE3]'
   }
 ];
 
