@@ -4666,7 +4666,7 @@ function App() {
             onClick={() => currentTree && setCurrentView("tree-builder")}
           >
             <h3 className="text-xl font-bold mb-4">{t.myFamilyTrees}</h3>
-            <div className="text-3xl font-bold text-[#16233D]">
+            <div className="text-3xl font-bold text-[#A5813F]">
               {currentTree ? 1 : 0}
             </div>
           </div>
