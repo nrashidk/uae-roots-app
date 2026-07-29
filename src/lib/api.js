@@ -173,6 +173,17 @@ export const api = {
       }),
   },
 
+  identities: {
+    list: () => fetchAPI("/auth/identities"),
+    linkGoogle: (firebaseIdToken) =>
+      fetchAPI("/auth/link/google", {
+        method: "POST",
+        body: JSON.stringify({ firebaseIdToken }),
+      }),
+    unlink: (id) =>
+      fetchAPI(`/auth/identities/${id}`, { method: "DELETE" }),
+  },
+
   history: {
     // Read-only. The undo path was removed — see the note in server/index.js.
     get: (treeId) => fetchAPI(`/history/${treeId}`),
