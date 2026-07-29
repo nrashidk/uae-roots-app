@@ -3375,6 +3375,12 @@ function App() {
         api.people.updateBirthOrder(personId, targetOrder),
         api.people.updateBirthOrder(targetPerson.id, currentOrder),
       ]);
+      // Refresh the undo pointer HERE, not just from the effect on `people`.
+      // This handler updates the UI optimistically BEFORE calling the API, so
+      // the effect fires while the stack rows do not exist yet — the pointer
+      // then lands on the previous entry and the server rejects it as
+      // not-newest. Any optimistic update has this race.
+      await loadRestorableDeletion();
     } catch (error) {
       console.error("Failed to persist birthOrder swap:", error);
       // Rollback on error
