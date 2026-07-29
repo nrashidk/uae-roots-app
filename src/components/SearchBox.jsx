@@ -90,7 +90,7 @@ export function SearchBox({ treeId, onSelectPerson, className }) {
                 <li key={person.id}>
                   <button
                     onClick={() => handleSelectPerson(person)}
-                    className="w-full px-4 py-2 text-right hover:bg-purple-50 flex items-center gap-3 transition-colors"
+                    className="w-full px-4 py-2 text-right hover:bg-[#F4EFE3] flex items-center gap-3 transition-colors"
                   >
                     <div className={`h-8 w-8 rounded-full flex items-center justify-center ${
                       person.gender === 'male' ? 'bg-blue-100 text-blue-600' : 'bg-pink-100 text-pink-600'

@@ -4610,22 +4610,32 @@ function App() {
                     <div className="text-pink-600">
                       عدد الأخوات: {counts.sisters}
                     </div>
-                    {counts.breastfeedingBrothers > 0 && (
-                      <div className="text-green-400 border-t border-green-400 pt-1">
-                        أخوة من الرضاعة: {counts.breastfeedingBrothers}
-                      </div>
-                    )}
-                    {counts.breastfeedingSisters > 0 && (
-                      <div className="text-pink-400">
-                        أخوات من الرضاعة: {counts.breastfeedingSisters}
-                      </div>
-                    )}
-                    <div className="text-purple-600">
+                    <div className="text-[#A5813F]">
                       عدد الزوجات: {counts.wives}
                     </div>
                     <div className="text-blue-600">
                       عدد الأبناء: {counts.children}
                     </div>
+                    {/* رضاعة last, under a neutral rule, so every card reads the
+                        same shape whether or not milk relations exist. The rule
+                        sits on the GROUP, not on the brothers row — it used to be
+                        hardcoded there, so a person with only milk sisters got no
+                        separator at all. */}
+                    {(counts.breastfeedingBrothers > 0 ||
+                      counts.breastfeedingSisters > 0) && (
+                      <div className="border-t border-gray-300 pt-1 mt-1">
+                        {counts.breastfeedingBrothers > 0 && (
+                          <div className="text-green-400">
+                            أخوة من الرضاعة: {counts.breastfeedingBrothers}
+                          </div>
+                        )}
+                        {counts.breastfeedingSisters > 0 && (
+                          <div className="text-pink-400">
+                            أخوات من الرضاعة: {counts.breastfeedingSisters}
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </div>
               );
@@ -4666,7 +4676,7 @@ function App() {
             onClick={() => currentTree && setCurrentView("tree-builder")}
           >
             <h3 className="text-xl font-bold mb-4">{t.myFamilyTrees}</h3>
-            <div className="text-3xl font-bold text-purple-600">
+            <div className="text-3xl font-bold text-[#A5813F]">
               {currentTree ? 1 : 0}
             </div>
           </div>
