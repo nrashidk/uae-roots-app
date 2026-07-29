@@ -966,6 +966,13 @@ app.post("/api/sms/verify-code", smsLimiter, async (req, res) => {
 
     const userId = existingUser ? existingUser.id : formattedPhone;
 
+    // Same as the Firebase path: tell the client whether an account exists yet,
+    // so it can ask before creating one.
+    const [existingAccount] = await db
+      .select({ id: users.id })
+      .from(users)
+      .where(eq(users.id, userId));
+
     const token = jwt.sign({ userId: userId, type: "phone" }, JWT_SECRET, {
       expiresIn: "24h",
     });
@@ -987,6 +994,7 @@ app.post("/api/sms/verify-code", smsLimiter, async (req, res) => {
       phoneNumber: formattedPhone,
       userId: userId,
       isLinkedAccount: !!existingUser,
+      isNewUser: !existingAccount,
       token,
     });
   } catch (error) {
@@ -1051,6 +1059,14 @@ app.post("/api/auth/token", loginLimiter, async (req, res) => {
       : null;
     const resolvedUserId = existingUser ? existingUser.id : userId;
 
+    // Does this id already have an account? The client needs to know BEFORE it
+    // creates one — pressing "login" with an unrecognised Google address used to
+    // make a new account silently, with no confirmation and no terms.
+    const [existingAccount] = await db
+      .select({ id: users.id })
+      .from(users)
+      .where(eq(users.id, resolvedUserId));
+
     const token = jwt.sign(
       { userId: resolvedUserId, type: provider || "firebase" },
       JWT_SECRET,
@@ -1072,6 +1088,7 @@ app.post("/api/auth/token", loginLimiter, async (req, res) => {
       token,
       userId: resolvedUserId,
       isLinkedAccount: !!existingUser,
+      isNewUser: !existingAccount,
     });
   } catch (error) {
     handleError(res, error, "Token generation");
@@ -1464,6 +1481,8 @@ app.post("/api/users", authenticateUser, async (req, res) => {
       return res.json(updatedUser);
     }
 
+    // Creation only happens after the sign-up screen is confirmed, so this is
+    // the moment consent was actually given.
     const [user] = await db
       .insert(users)
       .values({
@@ -1472,6 +1491,7 @@ app.post("/api/users", authenticateUser, async (req, res) => {
         displayName: validatedData.displayName || null,
         phoneNumber: validatedData.phoneNumber || null,
         provider: validatedData.provider || "unknown",
+        termsAcceptedAt: new Date(),
       })
       .returning();
 
