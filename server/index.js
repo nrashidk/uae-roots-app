@@ -507,6 +507,7 @@ const recordUndo = async ({
   treeId,
   userId,
   kind,
+  groupId = null,
   label = null,
   peopleBefore = [],
   relationshipsBefore = [],
@@ -520,6 +521,7 @@ const recordUndo = async ({
         treeId,
         deletedBy: userId,
         kind,
+        groupId,
         label,
         people: peopleBefore,
         relationships: relationshipsBefore,
@@ -1551,6 +1553,7 @@ app.post("/api/people", authenticateUser, async (req, res) => {
     await recordUndo({
       treeId: validatedData.treeId,
       userId: req.userId,
+      groupId: req.headers["x-action-group"] || null,
       kind: "create",
       label: person.firstName || null,
       peopleAfter: [person],
@@ -1675,6 +1678,7 @@ app.put("/api/people/:id", authenticateUser, async (req, res) => {
     await recordUndo({
       treeId: existingPerson.treeId,
       userId: req.userId,
+      groupId: req.headers["x-action-group"] || null,
       kind: "update",
       label: existingPerson.firstName || null,
       peopleBefore: [existingPerson],
@@ -1751,6 +1755,7 @@ app.delete("/api/people/:id", authenticateUser, async (req, res) => {
     await recordUndo({
       treeId: existingPerson.treeId,
       userId: req.userId,
+      groupId: req.headers["x-action-group"] || null,
       kind: "delete",
       label: existingPerson.firstName || null,
       peopleBefore: [existingPerson],
@@ -1862,6 +1867,29 @@ app.post("/api/deletions/:id/restore", authenticateUser, async (req, res) => {
     // timestamp comparison made a row look NEWER THAN ITSELF (.166202 > .166)
     // and every undo of the latest deletion was rejected. `id` is a serial:
     // exact, strictly increasing, no precision to lose.
+    // ONE user action can be several rows — adding a person with two parents
+    // writes three. They share a groupId, and the whole group is reversed in one
+    // press. Rows written before groupId existed have NULL and undo alone, which
+    // is exactly how they behaved before.
+    const groupRows = snapshot.groupId
+      ? await db
+          .select()
+          .from(deletions)
+          .where(
+            and(
+              eq(deletions.treeId, snapshot.treeId),
+              eq(deletions.groupId, snapshot.groupId),
+              sql`${deletions.restoredAt} is null`,
+            ),
+          )
+          .orderBy(desc(deletions.id))
+      : [snapshot];
+
+    const groupIds = groupRows.map((r) => r.id);
+    const groupTop = Math.max(...groupIds);
+
+    // Newest-first, but measured against the GROUP rather than the row: the
+    // other entries of this same action are not "newer work".
     const [newer] = await db
       .select({ id: deletions.id })
       .from(deletions)
@@ -1869,14 +1897,13 @@ app.post("/api/deletions/:id/restore", authenticateUser, async (req, res) => {
         and(
           eq(deletions.treeId, snapshot.treeId),
           sql`${deletions.restoredAt} is null`,
-          sql`${deletions.id} > ${snapshot.id}`,
+          sql`${deletions.id} > ${groupTop}`,
         ),
       )
       .limit(1);
     if (newer) {
       return res.status(409).json({
-        error:
-          "يجب التراجع عن عمليات الحذف الأحدث أولاً",
+        error: "يجب التراجع عن العملية الأحدث أولاً",
       });
     }
 
@@ -1885,10 +1912,15 @@ app.post("/api/deletions/:id/restore", authenticateUser, async (req, res) => {
       createdAt: row.createdAt ? new Date(row.createdAt) : undefined,
     });
 
-    const peopleRows = (snapshot.people || []).map(revive);
-    const relRows = (snapshot.relationships || []).map(revive);
-    const peopleAfterRows = (snapshot.peopleAfter || []).map(revive);
-    const relAfterRows = (snapshot.relationshipsAfter || []).map(revive);
+    // Merge the whole group into one before/after set, then apply the single
+    // rule once. Order within the group stops mattering after the merge — a row
+    // created and then referenced by a later row in the SAME action ends up in
+    // *_after either way, so both are removed together.
+    const flat = (key) => groupRows.flatMap((r) => r[key] || []).map(revive);
+    const peopleRows = flat("people");
+    const relRows = flat("relationships");
+    const peopleAfterRows = flat("peopleAfter");
+    const relAfterRows = flat("relationshipsAfter");
 
     // ONE rule for all three kinds:
     //   remove anything the action ADDED (present in *_after, absent from
@@ -1956,7 +1988,7 @@ app.post("/api/deletions/:id/restore", authenticateUser, async (req, res) => {
     await db
       .update(deletions)
       .set({ restoredAt: new Date() })
-      .where(eq(deletions.id, deletionId));
+      .where(inArray(deletions.id, groupIds));
 
     await logAudit(
       req.userId,
@@ -2043,6 +2075,7 @@ app.post("/api/people/batch-delete", authenticateUser, async (req, res) => {
         treeId,
         deletedBy: req.userId,
         kind: "delete",
+        groupId: req.headers["x-action-group"] || null,
         label: label || null,
         people: peopleRows,
         relationships: relRows,
@@ -2525,6 +2558,7 @@ app.post("/api/relationships", authenticateUser, async (req, res) => {
     await recordUndo({
       treeId: validatedData.treeId,
       userId: req.userId,
+      groupId: req.headers["x-action-group"] || null,
       kind: "create",
       label: relLabel,
       relationshipsAfter: [relationship],
@@ -2619,6 +2653,7 @@ app.patch(
       await recordUndo({
         treeId: existingRel.treeId,
         userId: req.userId,
+        groupId: req.headers["x-action-group"] || null,
         kind: "update",
         label: existingRel.type,
         relationshipsBefore: [existingRel],
@@ -2664,6 +2699,7 @@ app.delete("/api/relationships/:id", authenticateUser, async (req, res) => {
     await recordUndo({
       treeId: existingRel.treeId,
       userId: req.userId,
+      groupId: req.headers["x-action-group"] || null,
       kind: "delete",
       label: existingRel.type,
       relationshipsBefore: [existingRel],

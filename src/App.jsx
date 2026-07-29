@@ -48,7 +48,14 @@ import {
 import TreeCanvas from "./components/FamilyTree/TreeCanvas.jsx";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "./hooks/useAuth";
-import { api, setAuthToken, clearAuthToken, getAuthToken } from "./lib/api.js";
+import {
+  api,
+  setAuthToken,
+  clearAuthToken,
+  getAuthToken,
+  beginAction,
+  endAction,
+} from "./lib/api.js";
 
 // Verbose tracing. Several of these print whole person/user objects — names,
 // phone, email — so they are OFF in production and gated rather than deleted.
@@ -1890,6 +1897,9 @@ function App() {
     }
 
     let createdPersonId = null;
+    // One user action, several calls — tag them so undo reverses the lot in one
+    // press instead of one press per row.
+    beginAction();
     try {
       // Create person via API
       DEBUG && console.log("=== ADDING PERSON ===");
@@ -2122,6 +2132,8 @@ function App() {
         }
       }
       alert("فشل في إضافة الشخص: " + error.message);
+    } finally {
+      endAction();
     }
   };
 
@@ -2251,7 +2263,17 @@ function App() {
     }
     try {
       const rows = await api.deletions.list(currentTree.id);
-      setRestorableDeletion((rows || []).find((d) => !d.restoredAt) || null);
+      const pending = (rows || []).filter((d) => !d.restoredAt);
+      const newest = pending[0] || null;
+      if (newest?.groupId) {
+        // Same action, several rows. Label from the FIRST row of the group —
+        // "عبد الله" rather than "نسب: هند — عبد الله".
+        const group = pending.filter((d) => d.groupId === newest.groupId);
+        const primary = group.reduce((a, b) => (a.id < b.id ? a : b), group[0]);
+        setRestorableDeletion({ ...newest, label: primary.label });
+      } else {
+        setRestorableDeletion(newest);
+      }
     } catch (error) {
       console.error("Failed to load deletions:", error);
       setRestorableDeletion(null);
@@ -2547,6 +2569,7 @@ function App() {
 
     if (writeInFlight.current) return;
     writeInFlight.current = true;
+    beginAction();
     try {
       const created = [];
       const newRels = [];
@@ -2620,6 +2643,7 @@ function App() {
       console.error("Failed to create parents:", error);
       alert("فشل في إضافة الوالدين: " + error.message);
     } finally {
+      endAction();
       writeInFlight.current = false;
     }
   };
@@ -3001,6 +3025,7 @@ function App() {
     }
     if (writeInFlight.current) return;
     writeInFlight.current = true;
+    beginAction();
     try {
       const created = await Promise.all(
         ids.map((childId) =>
@@ -3019,6 +3044,7 @@ function App() {
       console.error("Failed to link children:", error);
       window.alert("فشل في ربط الأبناء: " + error.message);
     } finally {
+      endAction();
       writeInFlight.current = false;
     }
   };
@@ -3176,6 +3202,7 @@ function App() {
   const linkExistingSpouse = async (personId, spouseId) => {
     if (writeInFlight.current) return;
     writeInFlight.current = true;
+    beginAction();
     try {
       const newRel = await api.relationships.create({
         treeId: currentTree?.id,
@@ -3192,6 +3219,7 @@ function App() {
       console.error("Failed to link spouse:", error);
       alert("فشل في إضافة الزواج: " + error.message);
     } finally {
+      endAction();
       writeInFlight.current = false;
     }
   };

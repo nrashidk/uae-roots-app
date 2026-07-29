@@ -4,10 +4,32 @@ const API_BASE_URL = "/api";
 // console.error is left active so failures still surface.
 const DEBUG = false;
 
+// One user action can be several HTTP calls — adding a person with two parents
+// is three. The undo stack needs to know they belong together, and only the
+// BROWSER knows that: three separate requests would otherwise be three separate
+// groups server-side, which is exactly the problem.
+//
+// Held in a module variable rather than threaded through every call signature.
+// Safe because the write guards (writeInFlight, the submit lock) prevent two
+// actions overlapping; beginAction/endAction are always paired in try/finally.
+let currentActionGroup = null;
+
+export function beginAction() {
+  currentActionGroup =
+    globalThis.crypto?.randomUUID?.() ||
+    `a${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  return currentActionGroup;
+}
+
+export function endAction() {
+  currentActionGroup = null;
+}
+
 async function fetchAPI(endpoint, options = {}) {
   try {
     const headers = {
       "Content-Type": "application/json",
+      ...(currentActionGroup ? { "X-Action-Group": currentActionGroup } : {}),
       ...options.headers,
     };
 
