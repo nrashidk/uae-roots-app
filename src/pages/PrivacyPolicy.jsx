@@ -1,4 +1,14 @@
-import { Shield, Lock, Eye, Database, UserCheck, Mail } from 'lucide-react';
+import {
+  Shield,
+  Lock,
+  Eye,
+  Database,
+  UserCheck,
+  Mail,
+  Share2,
+  Cookie,
+  Clock,
+} from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 export function PrivacyPolicy() {
@@ -39,10 +49,17 @@ export function PrivacyPolicy() {
               نستخدم إجراءات أمنية متقدمة لحماية معلوماتك الشخصية:
             </p>
             <ul className="list-disc list-inside space-y-2 text-gray-700 mr-4">
-              <li>تشفير البيانات أثناء النقل باستخدام HTTPS/TLS</li>
-              <li>تشفير المعلومات الحساسة (أرقام الهواتف، البريد الإلكتروني، أرقام الهوية) في قاعدة البيانات</li>
-              <li>المصادقة الآمنة عبر Firebase وJWT</li>
-              <li>تخزين رموز المصادقة في ملفات تعريف ارتباط آمنة (HttpOnly)</li>
+              <li>تشفير البيانات أثناء النقل</li>
+              <li>
+                تشفير بيانات أفراد العائلة الحساسة (أرقام الهواتف، البريد
+                الإلكتروني، أرقام الهوية) في قاعدة البيانات
+              </li>
+              <li>
+                يُحفظ بريدك الإلكتروني أو رقم هاتفك المستخدم لتسجيل الدخول دون
+                تشفير، لأنه يُستخدم للتعرّف على حسابك عند الدخول
+              </li>
+              <li>مصادقة آمنة للحسابات</li>
+              <li>تخزين رموز الجلسة في ملفات تعريف ارتباط محمية</li>
               <li>سجلات تدقيق للعمليات الحساسة</li>
             </ul>
           </section>
@@ -56,10 +73,9 @@ export function PrivacyPolicy() {
               نستخدم المعلومات التي نجمعها للأغراض التالية:
             </p>
             <ul className="list-disc list-inside space-y-2 text-gray-700 mr-4">
-              <li>توفير خدمة شجرة العائلة وتشغيلها</li>
+              <li>توفير وعرض شجرة العائلة وتشغيلها</li>
               <li>التحقق من هويتك وتأمين حسابك</li>
               <li>تحسين تجربة المستخدم</li>
-              <li>التواصل معك بخصوص حسابك</li>
               <li>الامتثال للمتطلبات القانونية</li>
             </ul>
           </section>
@@ -73,39 +89,54 @@ export function PrivacyPolicy() {
               لديك الحقوق التالية فيما يتعلق ببياناتك الشخصية:
             </p>
             <ul className="list-disc list-inside space-y-2 text-gray-700 mr-4">
-              <li><strong>الوصول:</strong> يمكنك طلب نسخة من بياناتك في أي وقت</li>
-              <li><strong>التصحيح:</strong> يمكنك تعديل بياناتك من خلال التطبيق</li>
+              <li><strong>التصحيح:</strong> يمكنك تعديل بياناتك من خلال الموقع</li>
               <li><strong>الحذف:</strong> يمكنك حذف حسابك وجميع بياناتك</li>
-              <li><strong>التصدير:</strong> يمكنك تصدير بيانات شجرة العائلة بتنسيقات متعددة</li>
-              <li><strong>الإلغاء:</strong> يمكنك سحب موافقتك في أي وقت</li>
             </ul>
           </section>
 
           <section className="space-y-4">
-            <h2 className="text-xl font-medium text-[#16233D]">مشاركة البيانات مع أطراف ثالثة</h2>
+            <div className="flex items-center gap-3">
+              <Share2 className="h-6 w-6 text-[#A5813F]" />
+              <h2 className="text-xl font-medium text-[#16233D]">
+                مشاركة البيانات مع أطراف ثالثة
+              </h2>
+            </div>
             <p className="text-gray-700 leading-relaxed">
               لا نبيع أو نؤجر بياناتك الشخصية لأي طرف ثالث. قد نشارك بياناتك فقط في الحالات التالية:
             </p>
             <ul className="list-disc list-inside space-y-2 text-gray-700 mr-4">
-              <li>مع موفري الخدمات الذين يساعدوننا في تشغيل التطبيق (Firebase، Twilio)</li>
+              <li>
+                مع موفري الخدمات الذين يساعدوننا في تشغيل الموقع (رقم الهاتف أو
+                البريد الإلكتروني للدخول للموقع)
+              </li>
               <li>عندما يكون ذلك مطلوبًا بموجب القانون</li>
-              <li>بموافقتك الصريحة</li>
             </ul>
           </section>
 
           <section className="space-y-4">
-            <h2 className="text-xl font-medium text-[#16233D]">ملفات تعريف الارتباط</h2>
+            <div className="flex items-center gap-3">
+              <Cookie className="h-6 w-6 text-[#A5813F]" />
+              <h2 className="text-xl font-medium text-[#16233D]">
+                ملفات تعريف الارتباط
+              </h2>
+            </div>
             <p className="text-gray-700 leading-relaxed">
-              نستخدم ملفات تعريف الارتباط الضرورية لتشغيل التطبيق وتأمين جلسة المستخدم. 
-              هذه الملفات ضرورية لعمل التطبيق بشكل صحيح ولا يمكن تعطيلها.
+              نستخدم ملفات تعريف الارتباط الضرورية لتشغيل الموقع وتأمين جلسة المستخدم. 
+              هذه الملفات ضرورية لعمل الموقع بشكل صحيح ولا يمكن تعطيلها.
             </p>
           </section>
 
           <section className="space-y-4">
-            <h2 className="text-xl font-medium text-[#16233D]">الاحتفاظ بالبيانات</h2>
+            <div className="flex items-center gap-3">
+              <Clock className="h-6 w-6 text-[#A5813F]" />
+              <h2 className="text-xl font-medium text-[#16233D]">
+                الاحتفاظ بالبيانات
+              </h2>
+            </div>
             <p className="text-gray-700 leading-relaxed">
-              نحتفظ ببياناتك طالما أن حسابك نشط. عند حذف حسابك، نحذف جميع بياناتك الشخصية 
-              وبيانات شجرة العائلة خلال 30 يومًا، باستثناء ما يلزمنا الاحتفاظ به بموجب القانون.
+              نحتفظ ببياناتك طالما أن حسابك نشط. عند حذف حسابك، تُحذف جميع
+              بياناتك الشخصية وبيانات شجرة العائلة وسجلات النشاط فوراً ولا يبقى
+              منها شيء.
             </p>
           </section>
 

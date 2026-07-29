@@ -1422,26 +1422,16 @@ app.post("/api/auth/logout", authenticateUser, async (req, res) => {
   res.json({ success: true });
 });
 
-app.get("/api/auth/check", optionalAuth, async (req, res) => {
+app.get("/api/auth/check", optionalAuth, (req, res) => {
   if (req.userId) {
     // sessionType comes from the JWT, which records how this session was
     // created. The client cannot infer it: linking Google deliberately destroys
     // the Firebase session, so "is there a Firebase session" answers a different
     // question and gets it wrong for anyone who has linked.
-    const [existingAccount] = await db
-      .select({ id: users.id })
-      .from(users)
-      .where(eq(users.id, req.userId));
-
-    // hasAccount is what makes the sign-up gate survive a reload. pendingSignup
-    // is in-memory state, so a refresh loses it and the restore effects create
-    // the account nobody agreed to. Asking the server "does this session's id
-    // have a users row" turns a remembered decision into a detected fact.
     res.json({
       authenticated: true,
       userId: req.userId,
       sessionType: req.userType || null,
-      hasAccount: !!existingAccount,
     });
   } else {
     res.json({ authenticated: false });
@@ -1641,6 +1631,13 @@ app.delete("/api/users/:id", authenticateUser, async (req, res) => {
       { deletedTrees: userTrees.length },
       req,
     );
+
+    // Audit rows outlived the account: user id, IP address and user agent for
+    // every login and every edit, kept indefinitely. Nothing required that — it
+    // was simply never cleared — and it contradicted "we delete all your data".
+    // Removed AFTER the entry above, so the deletion record goes with the rest
+    // and no personal trace of the account survives.
+    await db.delete(auditLogs).where(eq(auditLogs.userId, userId));
 
     res.clearCookie("auth_token", COOKIE_OPTIONS);
     res.json({ success: true, message: "Account deleted successfully" });
