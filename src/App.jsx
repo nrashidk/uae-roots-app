@@ -669,7 +669,7 @@ function App() {
           setRelationships([]);
         }
 
-        setCurrentView("tree-builder");
+        setCurrentView((prev) => (prev === "auth" ? "tree-builder" : prev));
         DEBUG && console.log("[Session Restore] Session restored successfully");
         setSessionRestoreLoading(false);
       } catch (error) {
@@ -1385,7 +1385,11 @@ function App() {
       setRelationships([]);
     }
 
-    setCurrentView("tree-builder");
+    // Default to the tree ONLY if no view has been chosen yet. URL routing runs
+    // first and may already have selected /members or /relationships from the
+    // path; forcing tree-builder here overwrote it, so a hard refresh on those
+    // pages bounced to the tree. "auth" means nothing else claimed the view.
+    setCurrentView((prev) => (prev === "auth" ? "tree-builder" : prev));
   };
 
   const handleAuthSuccess = async (phoneUser = null, authToken = null) => {
