@@ -328,8 +328,7 @@ function App() {
     loginMethods: "طرق تسجيل الدخول",
     methodPhone: "الهاتف",
     methodGoogle: "Google",
-    notLinked: "غير مرتبط",
-    linkAction: "ربط",
+    linkAction: "ربط الحساب",
     unlinkAction: "إزالة",
     lastMethodLocked: "طريقة الدخول الوحيدة",
     linkedOk: "تم الربط بنجاح",
@@ -1722,9 +1721,8 @@ function App() {
                   ) : null}
                 </div>
                 <div className="text-right">
-                  <div className="text-sm font-medium">{t.methodPhone}</div>
-                  <div className="text-xs text-gray-500" dir="ltr">
-                    {phoneIdentity ? phoneIdentity.identityValue : t.notLinked}
+                  <div className="text-sm font-medium" dir="ltr">
+                    {phoneIdentity ? phoneIdentity.identityValue : t.methodPhone}
                   </div>
                 </div>
               </div>
@@ -1763,9 +1761,10 @@ function App() {
                   )}
                 </div>
                 <div className="text-right">
-                  <div className="text-sm font-medium">{t.methodGoogle}</div>
-                  <div className="text-xs text-gray-500" dir="ltr">
-                    {googleIdentity ? googleIdentity.identityValue : t.notLinked}
+                  <div className="text-sm font-medium" dir="ltr">
+                    {googleIdentity
+                      ? googleIdentity.identityValue
+                      : t.methodGoogle}
                   </div>
                 </div>
               </div>
