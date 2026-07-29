@@ -3791,18 +3791,15 @@ function App() {
               )}
               تسجيل الدخول عبر Google
             </Button>
-            <Button
-              onClick={handleMicrosoftLogin}
-              disabled={authProcessing}
-              className="w-full bg-white hover:bg-gray-50 text-gray-700 border border-gray-300 py-3 rounded-[3px]"
-            >
-              {processingMethod === "microsoft" ? (
-                <Loader2 className="w-5 h-5 animate-spin ml-2" />
-              ) : (
-                <User className="w-5 h-5 ml-2" />
-              )}
-              تسجيل الدخول عبر Microsoft
-            </Button>
+            {/* Microsoft sign-in is hidden, not removed. The provider has never
+                been enabled in the Firebase project (only Google is), so every
+                attempt returned auth/operation-not-allowed — a button offering a
+                login that cannot succeed. Enabling it needs an Azure app
+                registration with a client id and a secret that expires, and no
+                user can have a Microsoft identity because nobody could ever
+                complete the flow. handleMicrosoftLogin and the 'microsoft'
+                identityType are left in place, so re-enabling is this block plus
+                the Azure setup. */}
             <Button
               onClick={() => setShowSmsLogin(true)}
               disabled={authProcessing}
