@@ -1078,6 +1078,165 @@ app.post("/api/auth/token", loginLimiter, async (req, res) => {
   }
 });
 
+// ---------------------------------------------------------------------------
+// Account linking. One person, several ways in.
+//
+// Resolution already worked before this existed: the phone path looks up a
+// `phone` identity, the Firebase path an `email` one, and each falls back to
+// creating a new user. What was missing is anything that records that a given
+// phone and a given email are the SAME person — nothing can infer it, so it has
+// to be proved by the user while signed in.
+//
+// Proof comes from Google itself: the client runs the popup and sends the
+// resulting Firebase ID token, which the server verifies. A typed email would be
+// a claim, not a proof, and would let anyone attach someone else's address.
+// ---------------------------------------------------------------------------
+app.get("/api/auth/identities", authenticateUser, async (req, res) => {
+  try {
+    const rows = await db
+      .select()
+      .from(authIdentities)
+      .where(eq(authIdentities.userId, req.userId))
+      .orderBy(authIdentities.id);
+    res.json(rows);
+  } catch (error) {
+    handleError(res, error, "List identities", req);
+  }
+});
+
+app.post("/api/auth/link/google", authenticateUser, async (req, res) => {
+  try {
+    const { firebaseIdToken } = req.body;
+    if (!firebaseIdToken) {
+      return res.status(400).json({ error: "Firebase ID token required" });
+    }
+
+    let decoded;
+    try {
+      const admin = (await import("firebase-admin")).default;
+      if (!admin.apps.length) {
+        admin.initializeApp({
+          projectId: process.env.VITE_FIREBASE_PROJECT_ID,
+        });
+      }
+      decoded = await admin.auth().verifyIdToken(firebaseIdToken);
+    } catch (firebaseError) {
+      console.error("Link: Firebase token verification failed:", firebaseError);
+      return res.status(401).json({ error: "تعذّر التحقق من حساب Google" });
+    }
+
+    const email = decoded?.email;
+    if (!email) {
+      return res
+        .status(400)
+        .json({ error: "لا يوجد بريد إلكتروني في حساب Google" });
+    }
+
+    // Collision: refuse and name it. NEVER merge — moving a tree between accounts
+    // on the strength of a matching address is not something to do silently.
+    const normalized = normalizeEmail(email);
+    const [claimed] = await db
+      .select()
+      .from(authIdentities)
+      .where(
+        and(
+          eq(authIdentities.identityType, "email"),
+          eq(authIdentities.identityValue, normalized),
+        ),
+      );
+    if (claimed && claimed.userId !== req.userId) {
+      await logAudit(
+        req.userId,
+        "link_failed",
+        "auth",
+        null,
+        { reason: "identity_belongs_to_another_user", email: normalized },
+        req,
+      );
+      return res.status(409).json({
+        error:
+          "هذا البريد الإلكتروني مرتبط بحساب آخر. سجّل الدخول به أولاً أو استخدم بريداً غيره.",
+      });
+    }
+    if (claimed) {
+      return res.json({ success: true, alreadyLinked: true });
+    }
+
+    await linkIdentityToUser(req.userId, "email", email, decoded.uid, true);
+    await linkIdentityToUser(req.userId, "google.com", email, decoded.uid, true);
+
+    await logAudit(
+      req.userId,
+      "link",
+      "auth",
+      null,
+      { provider: "google.com", email: normalized },
+      req,
+    );
+
+    res.json({ success: true });
+  } catch (error) {
+    handleError(res, error, "Link Google", req);
+  }
+});
+
+app.delete("/api/auth/identities/:id", authenticateUser, async (req, res) => {
+  try {
+    const identityId = validateId(req.params.id);
+    if (!identityId) {
+      return res.status(400).json({ error: "Invalid identity ID" });
+    }
+
+    const [identity] = await db
+      .select()
+      .from(authIdentities)
+      .where(eq(authIdentities.id, identityId));
+    if (!identity || identity.userId !== req.userId) {
+      return res.status(404).json({ error: "Identity not found" });
+    }
+
+    // A person must always keep a way in. Removing the last identity would lock
+    // them out of their own tree with no way back and no support channel.
+    const own = await db
+      .select()
+      .from(authIdentities)
+      .where(eq(authIdentities.userId, req.userId));
+
+    // One login method writes SEVERAL rows — a Google link writes both `email`
+    // and `google.com`, a Microsoft one `email` and `microsoft.com`, and they
+    // share the same identityValue. So group by value, not by type: counting
+    // rows would let someone remove the `google.com` row and keep an orphan
+    // `email` row that no longer corresponds to any way in.
+    const methods = new Set(own.map((r) => r.identityValue));
+    if (methods.size <= 1) {
+      return res.status(400).json({
+        error: "لا يمكن إزالة طريقة تسجيل الدخول الوحيدة.",
+      });
+    }
+
+    const toRemove = own.filter((r) => r.identityValue === identity.identityValue);
+    await db.delete(authIdentities).where(
+      inArray(
+        authIdentities.id,
+        toRemove.map((r) => r.id),
+      ),
+    );
+
+    await logAudit(
+      req.userId,
+      "unlink",
+      "auth",
+      null,
+      { method: identity.identityValue, rows: toRemove.length },
+      req,
+    );
+
+    res.json({ success: true, removed: toRemove.length });
+  } catch (error) {
+    handleError(res, error, "Unlink identity", req);
+  }
+});
+
 app.post("/api/auth/logout", authenticateUser, async (req, res) => {
   await logAudit(req.userId, "logout", "auth", null, null, req);
   res.clearCookie("auth_token", COOKIE_OPTIONS);
