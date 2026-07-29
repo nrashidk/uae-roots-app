@@ -1283,12 +1283,17 @@ app.post(
 
       try {
         const twilio = (await import("twilio")).default;
-        const client = twilio(
-          process.env.TWILIO_ACCOUNT_SID,
-          process.env.TWILIO_AUTH_TOKEN,
-        );
+        // Same credentials and the same service SID as the login path. Reading
+        // env vars directly here, and inventing TWILIO_VERIFY_SERVICE_SID for
+        // the service, meant services(undefined) and every send failed.
+        const { accountSid, authToken } = await getTwilioCredentials();
+        const client = twilio(accountSid, authToken);
+        const verifySid = process.env.TWILIO_VERIFY_SID;
+        if (!verifySid) {
+          return res.status(500).json({ error: "خدمة التحقق غير مهيأة" });
+        }
         await client.verify.v2
-          .services(process.env.TWILIO_VERIFY_SERVICE_SID)
+          .services(verifySid)
           .verifications.create({ to: formattedPhone, channel: "sms" });
       } catch (twilioError) {
         console.error("Link phone: Twilio send failed:", twilioError);
@@ -1358,12 +1363,14 @@ app.post(
       let verification;
       try {
         const twilio = (await import("twilio")).default;
-        const client = twilio(
-          process.env.TWILIO_ACCOUNT_SID,
-          process.env.TWILIO_AUTH_TOKEN,
-        );
+        const { accountSid, authToken } = await getTwilioCredentials();
+        const client = twilio(accountSid, authToken);
+        const verifySid = process.env.TWILIO_VERIFY_SID;
+        if (!verifySid) {
+          return res.status(500).json({ error: "خدمة التحقق غير مهيأة" });
+        }
         verification = await client.verify.v2
-          .services(process.env.TWILIO_VERIFY_SERVICE_SID)
+          .services(verifySid)
           .verificationChecks.create({ to: formattedPhone, code });
       } catch (twilioError) {
         console.error("Link phone: Twilio check failed:", twilioError);
