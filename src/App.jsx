@@ -353,6 +353,7 @@ function App() {
     willDelete: "سيُحذف",
     willRevert: "سيُعاد",
     andLinks: "و {n} روابط",
+    andOthers: "و {n} آخرين",
     signupTitle: "إنشاء حساب جديد",
     signupBody: "لا يوجد حساب مرتبط بـ",
     signupTerms: "بالمتابعة أنت توافق على سياسة الخصوصية",
@@ -2840,8 +2841,22 @@ function App() {
         const restored = before.filter((p) => !afterIds.has(String(p.id)));
         const reverted = before.filter((p) => afterIds.has(String(p.id)));
 
-        const names = (list) =>
-          list.map((p) => p.firstName).filter(Boolean).join("، ");
+        // Cap the list. Deleting a bridge person on the real tree takes 28
+        // people, and 28 names is neither readable nor a panel that fits on
+        // screen. Recognition is the point, not enumeration.
+        const NAME_CAP = 4;
+        const names = (list) => {
+          const all = list.map((p) => p.firstName).filter(Boolean);
+          // Show everything when hiding would save only one name — both because
+          // it is pointless and because "و 1 آخرين" puts a plural on a single
+          // item. The remainder is therefore always 2 or more.
+          if (all.length <= NAME_CAP + 1) return all.join("، ");
+          return (
+            all.slice(0, NAME_CAP).join("، ") +
+            "، " +
+            t.andOthers.replace("{n}", all.length - NAME_CAP)
+          );
+        };
 
         if (removed.length)
           return { verb: t.willDelete, names: names(removed), relCount };
