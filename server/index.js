@@ -585,12 +585,46 @@ const recordEdit = async (
   }
 };
 
+// ONE window for both the cookie and the JWT. They disagreed — cookie 7 days,
+// token 24 hours — so after a day the browser held a cookie the server would not
+// accept, and the app could not tell that apart from having no session at all.
+// Every user was silently logged out daily.
+// 48 hours: long enough to survive a weekend, short enough that a shared or
+// unattended laptop is not signed in all week. The bug being fixed was the
+// MISMATCH — cookie 7 days, token 24 hours — not the length, and the slide below
+// means an active user is never logged out mid-session regardless of the window.
+const SESSION_HOURS = 48;
+const SESSION_MS = SESSION_HOURS * 60 * 60 * 1000;
+const SESSION_EXPIRES_IN = `${SESSION_HOURS}h`;
+
 const COOKIE_OPTIONS = {
   httpOnly: true,
   secure: true, // Always use secure cookies (H1: prevents cookie interception)
   sameSite: isProduction ? "strict" : "lax",
-  maxAge: 7 * 24 * 60 * 60 * 1000,
+  maxAge: SESSION_MS,
   path: "/",
+};
+
+// Slide the session forward for anyone still using the app. Without this a
+// 7-day window is a hard cut-off: someone active on day 7 is logged out mid-task.
+// Re-issued only past the halfway mark, so most requests set no cookie.
+const slideSession = (req, res, decoded) => {
+  try {
+    if (!decoded?.exp) return;
+    const remainingMs = decoded.exp * 1000 - Date.now();
+    if (remainingMs > SESSION_MS / 2) return;
+
+    const token = jwt.sign(
+      { userId: decoded.userId, type: decoded.type },
+      JWT_SECRET,
+      { expiresIn: SESSION_EXPIRES_IN },
+    );
+    res.cookie("auth_token", token, COOKIE_OPTIONS);
+  } catch (error) {
+    // A failed refresh must never break the request it was riding on — the
+    // existing token is still valid for whatever is left of its life.
+    console.error("Session slide failed:", error);
+  }
 };
 
 const authenticateUser = async (req, res, next) => {
@@ -614,6 +648,7 @@ const authenticateUser = async (req, res, next) => {
     const decoded = jwt.verify(token, JWT_SECRET);
     req.userId = decoded.userId;
     req.userType = decoded.type;
+    slideSession(req, res, decoded);
     debugLog(`[${rid}][Auth] Token valid - userId: ${req.userId}`);
     next();
   } catch (jwtError) {
@@ -638,6 +673,10 @@ const optionalAuth = async (req, res, next) => {
       const decoded = jwt.verify(token, JWT_SECRET);
       req.userId = decoded.userId;
       req.userType = decoded.type;
+      // /api/auth/check runs through here, and it is the FIRST request a
+      // returning user makes — the natural place to renew a session that is
+      // most of the way through its life.
+      slideSession(req, res, decoded);
     } catch (error) {
       res.clearCookie("auth_token", COOKIE_OPTIONS);
     }
@@ -974,7 +1013,7 @@ app.post("/api/sms/verify-code", smsLimiter, async (req, res) => {
       .where(eq(users.id, userId));
 
     const token = jwt.sign({ userId: userId, type: "phone" }, JWT_SECRET, {
-      expiresIn: "24h",
+      expiresIn: SESSION_EXPIRES_IN,
     });
 
     res.cookie("auth_token", token, COOKIE_OPTIONS);
@@ -1070,7 +1109,7 @@ app.post("/api/auth/token", loginLimiter, async (req, res) => {
     const token = jwt.sign(
       { userId: resolvedUserId, type: provider || "firebase" },
       JWT_SECRET,
-      { expiresIn: "24h" },
+      { expiresIn: SESSION_EXPIRES_IN },
     );
 
     res.cookie("auth_token", token, COOKIE_OPTIONS);
