@@ -18,10 +18,7 @@
     "build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "deploy": "npm run build && gh-pages -d dist",
-    "db:push": "drizzle-kit push",
-    "db:generate": "drizzle-kit generate",
-    "db:studio": "drizzle-kit studio"
+    "deploy": "npm run build && gh-pages -d dist"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.0.1",
@@ -63,7 +60,6 @@
     "cors": "^2.8.5",
     "crypto-js": "^4.2.0",
     "dotenv": "^17.2.3",
-    "drizzle-kit": "^0.31.5",
     "drizzle-orm": "^0.45.2",
     "embla-carousel-react": "^8.6.0",
     "express": "^5.1.0",

@@ -197,7 +197,7 @@ function App() {
   const [linkPhoneSent, setLinkPhoneSent] = useState(false);
   const [userProfile, setUserProfile] = useState(null);
   // The most recent deletion that has not been undone yet, if any. Drives the
-  // «تراجع عن الحذف» button in the header. Restores must run newest-first, so
+  // «تراجع» button in the header. Restores must run newest-first, so
   // there is only ever one candidate — which is exactly what one button offers.
   const [restorableDeletion, setRestorableDeletion] = useState(null);
   const [restoring, setRestoring] = useState(false);
@@ -352,7 +352,15 @@ function App() {
     willRestore: "سيُستعاد",
     willDelete: "سيُحذف",
     willRevert: "سيُعاد",
-    andLinks: "و {n} روابط",
+    // Arabic number agreement, not a single template. One takes the singular,
+    // two the dual, 3-10 the plural, and 11 upward the singular again.
+    linkOne: "ورابط واحد",
+    linkTwo: "ورابطان",
+    linkFew: "و {n} روابط",
+    linkMany: "و {n} رابط",
+    otherTwo: "وآخران",
+    otherFew: "و {n} آخرين",
+    otherMany: "و {n} آخر",
     signupTitle: "إنشاء حساب جديد",
     signupBody: "لا يوجد حساب مرتبط بـ",
     signupTerms: "بالمتابعة أنت توافق على سياسة الخصوصية",
@@ -392,8 +400,10 @@ function App() {
       "لا يمكن تغيير الجنس إلى أنثى: يوجد زواج مسجّل مع أنثى. احذف الزواج أولاً ثم غيّر الجنس.",
     signInTitle: "تسجيل الدخول",
     signUpTitle: "إنشاء حساب جديد",
-    undoDelete: "تراجع عن الحذف",
-    nothingToUndo: "لا يوجد عملية حذف للتراجع عنها",
+    // Just "undo". It said "undo the delete" when deletes were the only thing
+    // the stack held; it now reverses creates, edits and reorders too.
+    undoDelete: "تراجع",
+    nothingToUndo: "لا يوجد عملية للتراجع عنها",
     mahramLineal: "لا يجوز الزواج: قرابة مباشرة (أصل أو فرع).",
     mahramSibling: "لا يجوز الزواج: أخ أو أخت.",
     mahramMilkSibling: "لا يجوز الزواج: أخ أو أخت بالرضاعة.",
@@ -2809,27 +2819,93 @@ function App() {
       // before/after arrays, so this is a read, not extra data: people by NAME
       // because that is what a person recognises, relationships as a COUNT
       // because nobody needs to read "نسب: عبير — بدر".
+      // Arabic counted nouns: 1 singular, 2 dual, 3-10 plural, 11+ singular.
+      // A single "{n} روابط" template is wrong for every case except 3-10.
+      const countedLinks = (n) => {
+        if (n === 1) return t.linkOne;
+        if (n === 2) return t.linkTwo;
+        if (n <= 10) return t.linkFew.replace("{n}", n);
+        return t.linkMany.replace("{n}", n);
+      };
+      const countedOthers = (n) => {
+        if (n === 2) return t.otherTwo;
+        if (n <= 10) return t.otherFew.replace("{n}", n);
+        return t.otherMany.replace("{n}", n);
+      };
+
+      // Reads the fields /api/deletions/:treeId actually sends — names and ids
+      // extracted server-side, not the full jsonb rows. Getting this wrong is
+      // what made the preview silently empty: it read `r.people`, which the
+      // endpoint never returned.
       const summarise = (rows) => {
-        const before = rows.flatMap((r) => r.people || []);
-        const after = rows.flatMap((r) => r.peopleAfter || []);
-        const relCount =
-          rows.flatMap((r) => r.relationships || []).length +
-          rows.flatMap((r) => r.relationshipsAfter || []).length;
+        const arr = (v) => (Array.isArray(v) ? v : []);
+        const zip = (names, ids) =>
+          arr(names).map((firstName, i) => ({
+            firstName,
+            id: arr(ids)[i],
+          }));
 
-        // Ids present in BOTH are an update — the row stays, its values revert.
-        const beforeIds = new Set(before.map((p) => p.id));
-        const afterIds = new Set(after.map((p) => p.id));
-        const removed = after.filter((p) => !beforeIds.has(p.id));
-        const restored = before.filter((p) => !afterIds.has(p.id));
-        const reverted = before.filter((p) => afterIds.has(p.id));
+        const before = rows.flatMap((r) => zip(r.peopleNames, r.peopleIds));
+        const after = rows.flatMap((r) =>
+          zip(r.peopleAfterNames, r.peopleAfterIds),
+        );
+        const relCount = rows.reduce(
+          (n, r) =>
+            n + (r.relationshipsCount || 0) + (r.relationshipsAfterCount || 0),
+          0,
+        );
 
-        const names = (list) =>
-          list.map((p) => p.firstName).filter(Boolean).join("، ");
+        // Ids in BOTH are an update — the row stays, its values revert.
+        const beforeIds = new Set(before.map((p) => String(p.id)));
+        const afterIds = new Set(after.map((p) => String(p.id)));
+        const removed = after.filter((p) => !beforeIds.has(String(p.id)));
+        const restored = before.filter((p) => !afterIds.has(String(p.id)));
+        const reverted = before.filter((p) => afterIds.has(String(p.id)));
 
-        if (removed.length) return { verb: t.willDelete, names: names(removed), relCount };
-        if (restored.length) return { verb: t.willRestore, names: names(restored), relCount };
-        if (reverted.length) return { verb: t.willRevert, names: names(reverted), relCount: 0 };
-        return { verb: t.willRestore, names: "", relCount };
+        // Cap the list. Deleting a bridge person on the real tree takes 28
+        // people, and 28 names is neither readable nor a panel that fits on
+        // screen. Recognition is the point, not enumeration.
+        const NAME_CAP = 4;
+        const names = (list) => {
+          const all = list.map((p) => p.firstName).filter(Boolean);
+          // Show everything when hiding would save only one name — both because
+          // it is pointless and because "و 1 آخرين" puts a plural on a single
+          // item. The remainder is therefore always 2 or more.
+          if (all.length <= NAME_CAP + 1) return all.join("، ");
+          return (
+            all.slice(0, NAME_CAP).join("، ") +
+            "، " +
+            countedOthers(all.length - NAME_CAP)
+          );
+        };
+
+        // The counted-noun form belongs here, where the number is known — the
+        // render used a `t.andLinks` string that no longer exists, so that line
+        // produced undefined.
+        const linksText = relCount > 0 ? countedLinks(relCount) : "";
+
+        if (removed.length)
+          return {
+            verb: t.willDelete,
+            names: names(removed),
+            relCount,
+            linksText,
+          };
+        if (restored.length)
+          return {
+            verb: t.willRestore,
+            names: names(restored),
+            relCount,
+            linksText,
+          };
+        if (reverted.length)
+          return {
+            verb: t.willRevert,
+            names: names(reverted),
+            relCount: 0,
+            linksText: "",
+          };
+        return { verb: t.willRestore, names: "", relCount, linksText };
       };
 
       if (newest?.groupId) {
@@ -2887,11 +2963,15 @@ function App() {
       // Root the tree on someone who just came back, otherwise they can be
       // restored into a branch that isn't currently drawn and it looks like
       // nothing happened.
+      //
+      // ONLY when already in the tree. Undoing from the members dashboard used
+      // to throw the user into the tree view — they were reading a list, pressed
+      // undo, and the page changed under them. The list refreshes on its own from
+      // the setPeople above.
       const firstId = result?.restoredPeopleIds?.[0];
-      if (firstId != null) {
+      if (firstId != null && currentView === "tree-builder") {
         setSelectedPerson(firstId);
         setHighlightedPerson(firstId);
-        setCurrentView("tree-builder");
       }
       await loadRestorableDeletion();
     } catch (error) {
@@ -2906,38 +2986,68 @@ function App() {
   // nothing to undo — so the header never reflows. A button that appears and
   // disappears shifts the buttons next to it, which invites a misclick on
   // profile or logout.
+  // The preview lives in a panel below the button, not in a `title` tooltip. A
+  // native tooltip appears after a delay, renders newlines inconsistently, and
+  // vanishes on any movement — it was easy to miss entirely, which defeats the
+  // point of a confirmation. Two lines at most: people by NAME, relationships as
+  // a COUNT.
+  // min-w on the button: "تراجع" is shorter than its neighbours, so without a
+  // floor it sat noticeably narrower than الملف الشخصي and تسجيل الخروج.
   const renderUndoButton = () => (
-    <Button
-      onClick={handleUndoDelete}
-      disabled={restoring || !restorableDeletion}
-      variant="outline"
-      size="sm"
-      title={
-        restorableDeletion
-          ? [
-              restorableDeletion.label || t.undoDelete,
-              restorableDeletion.preview?.names
-                ? `${restorableDeletion.preview.verb}: ${restorableDeletion.preview.names}`
-                : null,
-              restorableDeletion.preview?.relCount
-                ? t.andLinks.replace(
-                    "{n}",
-                    restorableDeletion.preview.relCount,
-                  )
-                : null,
-            ]
-              .filter(Boolean)
-              .join("\n")
-          : t.nothingToUndo
-      }
-    >
-      {restoring ? (
-        <Loader2 className="w-4 h-4 ml-2 animate-spin" />
-      ) : (
-        <RotateCcw className="w-4 h-4 ml-2" />
+    <div className="relative group">
+      <Button
+        onClick={handleUndoDelete}
+        disabled={restoring || !restorableDeletion}
+        variant="outline"
+        size="sm"
+        className="min-w-[120px] justify-center"
+        title={restorableDeletion ? undefined : t.nothingToUndo}
+      >
+        {restoring ? (
+          <Loader2 className="w-4 h-4 ml-2 animate-spin" />
+        ) : (
+          <RotateCcw className="w-4 h-4 ml-2" />
+        )}
+        {t.undoDelete}
+      </Button>
+
+      {/* Anchored under the button. It was briefly `fixed` on a guess that
+          `overflow-hidden` was clipping it — the real reason it never appeared is
+          that the list endpoint returned counts, not names, so there was nothing
+          to render. `fixed` put it on the far side of the screen.
+
+          Render when there is EITHER a name or a count. A relationship-only entry
+          — "نسب: عمر — طفل عمر" — has no people in it, so keying the whole panel
+          off `names` hid it exactly when the label was least informative. */}
+      {(restorableDeletion?.preview?.names ||
+        restorableDeletion?.preview?.relCount > 0) && (
+        <div
+          dir="rtl"
+          className="absolute top-full mt-1 left-0 z-[60] hidden group-hover:block bg-white border rounded-lg shadow-lg px-3 py-2 whitespace-nowrap text-right"
+        >
+          {restorableDeletion.preview.names && (
+            <div className="text-xs">
+              <span className="text-gray-500">
+                {restorableDeletion.preview.verb}:
+              </span>{" "}
+              <span className="text-[#16233D]">
+                {restorableDeletion.preview.names}
+              </span>
+            </div>
+          )}
+          {restorableDeletion.preview.relCount > 0 && (
+            <div className="text-xs text-gray-500">
+              {restorableDeletion.preview.names
+                ? restorableDeletion.preview.linksText
+                : `${restorableDeletion.preview.verb}: ${restorableDeletion.preview.linksText.replace(
+                    /^و\s?/,
+                    "",
+                  )}`}
+            </div>
+          )}
+        </div>
       )}
-      {t.undoDelete}
-    </Button>
+    </div>
   );
 
   const deletePerson = async (personId) => {
