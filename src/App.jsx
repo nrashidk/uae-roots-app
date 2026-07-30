@@ -349,6 +349,10 @@ function App() {
     unlinkAction: "إزالة",
     lastMethodLocked: "طريقة الدخول الوحيدة",
     linkedOk: "تم الربط بنجاح",
+    willRestore: "سيُستعاد",
+    willDelete: "سيُحذف",
+    willRevert: "سيُعاد",
+    andLinks: "و {n} روابط",
     signupTitle: "إنشاء حساب جديد",
     signupBody: "لا يوجد حساب مرتبط بـ",
     signupTerms: "بالمتابعة أنت توافق على سياسة الخصوصية",
@@ -517,6 +521,22 @@ function App() {
           return;
         }
 
+        // A valid session whose id has no account: the sign-up gate was open and
+        // the page reloaded. Reopen it rather than restoring — restoring would
+        // create the account the person never agreed to.
+        if (backendAuth.hasAccount === false) {
+          setPendingSignup({
+            resolvedUserId: backendAuth.userId,
+            email: null,
+            displayName: null,
+            phoneNumber: null,
+            provider: backendAuth.sessionType || "unknown",
+          });
+          setSessionRestoreLoading(false);
+          setSessionChecked(true);
+          return;
+        }
+
         const resolvedUserId = backendAuth.userId;
         DEBUG && console.log(
           "[Cookie Restore] Found valid session for userId:",
@@ -613,6 +633,23 @@ function App() {
             "[Session Restore] Backend auth check failed:",
             e.message,
           );
+        }
+
+        // Same as the cookie path: a valid session with no account means the
+        // gate was open when the page reloaded.
+        if (backendAuth?.authenticated && backendAuth?.hasAccount === false) {
+          setPendingSignup({
+            resolvedUserId: backendAuth.userId,
+            email: user?.email || null,
+            displayName: user?.displayName || null,
+            phoneNumber: user?.phoneNumber || null,
+            provider:
+              user?.providerData?.[0]?.providerId ||
+              backendAuth.sessionType ||
+              "unknown",
+          });
+          setSessionRestoreLoading(false);
+          return;
         }
 
         // STEP 2: If backend cookie is valid, use that userId
@@ -2768,14 +2805,47 @@ function App() {
       const rows = await api.deletions.list(currentTree.id);
       const pending = (rows || []).filter((d) => !d.restoredAt);
       const newest = pending[0] || null;
+      // What the button would actually do. Every row already carries the full
+      // before/after arrays, so this is a read, not extra data: people by NAME
+      // because that is what a person recognises, relationships as a COUNT
+      // because nobody needs to read "نسب: عبير — بدر".
+      const summarise = (rows) => {
+        const before = rows.flatMap((r) => r.people || []);
+        const after = rows.flatMap((r) => r.peopleAfter || []);
+        const relCount =
+          rows.flatMap((r) => r.relationships || []).length +
+          rows.flatMap((r) => r.relationshipsAfter || []).length;
+
+        // Ids present in BOTH are an update — the row stays, its values revert.
+        const beforeIds = new Set(before.map((p) => p.id));
+        const afterIds = new Set(after.map((p) => p.id));
+        const removed = after.filter((p) => !beforeIds.has(p.id));
+        const restored = before.filter((p) => !afterIds.has(p.id));
+        const reverted = before.filter((p) => afterIds.has(p.id));
+
+        const names = (list) =>
+          list.map((p) => p.firstName).filter(Boolean).join("، ");
+
+        if (removed.length) return { verb: t.willDelete, names: names(removed), relCount };
+        if (restored.length) return { verb: t.willRestore, names: names(restored), relCount };
+        if (reverted.length) return { verb: t.willRevert, names: names(reverted), relCount: 0 };
+        return { verb: t.willRestore, names: "", relCount };
+      };
+
       if (newest?.groupId) {
         // Same action, several rows. Label from the FIRST row of the group —
         // "عبد الله" rather than "نسب: هند — عبد الله".
         const group = pending.filter((d) => d.groupId === newest.groupId);
         const primary = group.reduce((a, b) => (a.id < b.id ? a : b), group[0]);
-        setRestorableDeletion({ ...newest, label: primary.label });
+        setRestorableDeletion({
+          ...newest,
+          label: primary.label,
+          preview: summarise(group),
+        });
+      } else if (newest) {
+        setRestorableDeletion({ ...newest, preview: summarise([newest]) });
       } else {
-        setRestorableDeletion(newest);
+        setRestorableDeletion(null);
       }
     } catch (error) {
       console.error("Failed to load deletions:", error);
@@ -2844,7 +2914,20 @@ function App() {
       size="sm"
       title={
         restorableDeletion
-          ? restorableDeletion.label || t.undoDelete
+          ? [
+              restorableDeletion.label || t.undoDelete,
+              restorableDeletion.preview?.names
+                ? `${restorableDeletion.preview.verb}: ${restorableDeletion.preview.names}`
+                : null,
+              restorableDeletion.preview?.relCount
+                ? t.andLinks.replace(
+                    "{n}",
+                    restorableDeletion.preview.relCount,
+                  )
+                : null,
+            ]
+              .filter(Boolean)
+              .join("\n")
           : t.nothingToUndo
       }
     >
