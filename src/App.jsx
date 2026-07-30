@@ -292,10 +292,12 @@ function App() {
     dashboard: "لوحة التحكم",
     myFamilyTrees: "أشجار عائلتي",
     familyMembers: "أفراد العائلة",
-    // "الأسر", not "العلاقات". Each card is one man with his wives and children
-    // — a household. عائلة is the wider unit: the whole tree is one عائلة
-    // containing many أسر, and the app is already شجرة عائلتي at that level.
-    relationships: "الأسر",
+    // "العائلات", not "العلاقات". Each card is one man with his wives and
+    // children, so the page shows families rather than every relationship.
+    // العائلات over الأسر for CONSISTENCY: the neighbouring labels are already
+    // أشجار عائلتي and أفراد العائلة, and a third word for the same family would
+    // read as three different things.
+    relationships: "العائلات",
     startBuilding: "ابدأ ببناء شجرة عائلتك",
     addFirstMember: "أضف أول فرد من العائلة للبدء",
     addPerson: "إضافة شخص",
@@ -5332,7 +5334,7 @@ function App() {
           </div>
           {maleParents.length === 0 && (
             <div className="text-center text-gray-500 py-8">
-              لا توجد أسر بعد
+              لا توجد عائلات بعد
             </div>
           )}
         </div>
