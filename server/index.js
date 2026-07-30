@@ -303,7 +303,7 @@ const extractUserIdFromCookie = (req) => {
 const readLimiter = rateLimit({
   windowMs: 1 * 60 * 1000,
   max: 200,
-  message: { error: "تم تجاوز الحد الأقصى للطلبات. حاول مرة أخرى لاحقاً" },
+  message: { error: "عمليات كثيرة خلال وقت قصير. انتظر قليلاً ثم أعد المحاولة" },
   standardHeaders: true,
   legacyHeaders: false,
   validate: false,
@@ -333,7 +333,7 @@ const exportLimiter = rateLimit({
 const apiLimiter = rateLimit({
   windowMs: 1 * 60 * 1000,
   max: 50,
-  message: { error: "تم تجاوز الحد الأقصى للطلبات. حاول مرة أخرى لاحقاً" },
+  message: { error: "عمليات كثيرة خلال وقت قصير. انتظر قليلاً ثم أعد المحاولة" },
   standardHeaders: true,
   legacyHeaders: false,
   validate: false,
