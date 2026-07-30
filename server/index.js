@@ -152,28 +152,11 @@ const normalizePhotoUrl = (url) => {
   return url;
 };
 
-// XSS sanitization - escapes HTML special characters to prevent script injection
-const sanitizeText = (text) => {
-  if (!text || typeof text !== "string") return text;
-  return text
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#x27;");
-};
+// sanitizeText and sanitizeUserInput removed. They escaped & < > " ' on the way
+// INTO the database. React escapes on render, so stored values were encoded twice
+// and a name containing & displayed as &amp;. Their only genuine consumer was the
+// HTML export, which is gone. Encode at output, never at input.
 
-// Sanitize object fields that contain user-generated text
-const sanitizeUserInput = (obj, fieldsToSanitize) => {
-  if (!obj || typeof obj !== "object") return obj;
-  const sanitized = { ...obj };
-  for (const field of fieldsToSanitize) {
-    if (sanitized[field] && typeof sanitized[field] === "string") {
-      sanitized[field] = sanitizeText(sanitized[field]);
-    }
-  }
-  return sanitized;
-};
 
 const developmentOrigins = [
   "http://localhost:5000",
@@ -304,22 +287,6 @@ const readLimiter = rateLimit({
   windowMs: 1 * 60 * 1000,
   max: 200,
   message: { error: "عمليات كثيرة خلال وقت قصير. انتظر قليلاً ثم أعد المحاولة" },
-  standardHeaders: true,
-  legacyHeaders: false,
-  validate: false,
-  keyGenerator: (req) => {
-    const userId = extractUserIdFromCookie(req) || "anonymous";
-    const ip = req.ip || req.connection?.remoteAddress || "unknown";
-    return `${userId}:${ip}`;
-  },
-});
-
-// Bulk extraction. Strict — a person exports their tree occasionally, never in a
-// loop.
-const exportLimiter = rateLimit({
-  windowMs: 60 * 60 * 1000,
-  max: 20,
-  message: { error: "تم تجاوز الحد الأقصى لعمليات التصدير. حاول لاحقاً" },
   standardHeaders: true,
   legacyHeaders: false,
   validate: false,
@@ -1543,10 +1510,6 @@ app.use("/api/relationships", apiLimiter);
 app.use("/api/deletions", readLimiter);
 app.use("/api/history", readLimiter);
 
-// Export is different: one call returns the entire tree, which makes it the
-// cheapest way to pull every name and relationship repeatedly. It is never called
-// in a loop by the app, so it can be strict.
-app.use("/api/export", exportLimiter);
 
 app.post("/api/users", authenticateUser, async (req, res) => {
   const rid = req.requestId || "";
@@ -1786,11 +1749,11 @@ app.post("/api/trees", authenticateUser, async (req, res) => {
       return res.status(403).json({ error: "غير مصرح بالوصول" });
     }
 
-    // Sanitize text fields to prevent XSS
-    const sanitizedData = sanitizeUserInput(validatedData, [
-      "name",
-      "description",
-    ]);
+    // No HTML escaping on the way in. React encodes at render, which is where
+    // encoding belongs; escaping here too produced DOUBLE encoding, so a name
+    // containing & was stored and displayed as &amp;. The escaping was only
+    // load-bearing for the HTML export, which is gone.
+    const sanitizedData = validatedData;
 
     const [tree] = await db
       .insert(trees)
@@ -1977,13 +1940,7 @@ app.post("/api/people", authenticateUser, async (req, res) => {
       return res.status(403).json({ error: ownership.error });
     }
 
-    // Sanitize text fields to prevent XSS
-    const sanitizedData = sanitizeUserInput(validatedData, [
-      "firstName",
-      "lastName",
-      "milkFatherName",
-      "milkMotherName",
-    ]);
+    const sanitizedData = validatedData;
 
     const personData = {
       treeId: sanitizedData.treeId,
@@ -2067,15 +2024,9 @@ app.put("/api/people/:id", authenticateUser, async (req, res) => {
     const validatedData = personUpdateSchema.parse(req.body);
     console.log("After validation:", validatedData);
 
-    // Sanitize text fields to prevent XSS
-    const sanitizedData = sanitizeUserInput(validatedData, [
-      "firstName",
-      "lastName",
-      "birthPlace",
-      "profession",
-      "milkFatherName",
-      "milkMotherName",
-    ]);
+    // Note the create path escaped four fields and this one escaped six, so the
+    // same field was stored escaped or not depending on which endpoint wrote it.
+    const sanitizedData = validatedData;
 
     const [existingPerson] = await db
       .select()
@@ -3279,163 +3230,21 @@ app.get("/api/history/:treeId", authenticateUser, async (req, res) => {
 // in place — reading the edit log is harmless and it is still written.
 
 
-app.get("/api/export/:treeId", authenticateUser, async (req, res) => {
-  try {
-    const treeId = validateId(req.params.treeId);
-    const format = req.query.format || "json";
+// REMOVED: GET /api/export/:treeId
+//
+// Four formats — csv, html, text, gedcom — built before the move off Replit and
+// never wired into the UI. ExportDialog.jsx was its only caller and was deleted.
+//
+// Removing it also removes the app's only HTML sink: the html format interpolated
+// tree and person names straight into a document, and the filename into a
+// Content-Disposition header. That is what made the input-time HTML escaping
+// load-bearing. With it gone, escaping on write protects nothing — React encodes
+// at render, which is where encoding belongs.
+//
+// If export ever returns, encode at OUTPUT for each format, do not reinstate
+// escaping on write: CSV needs formula-injection handling (a leading = + - @),
+// HTML needs entity encoding, and the filename header needs its own sanitising.
 
-    if (!treeId) {
-      return res.status(400).json({ error: "Invalid tree ID" });
-    }
-
-    const ownership = await verifyTreeOwnership(treeId, req.userId);
-    if (!ownership.valid) {
-      return res.status(403).json({ error: ownership.error });
-    }
-
-    const [tree] = await db.select().from(trees).where(eq(trees.id, treeId));
-    const allPeople = await db
-      .select()
-      .from(people)
-      .where(eq(people.treeId, treeId));
-    const allRelationships = await db
-      .select()
-      .from(relationships)
-      .where(eq(relationships.treeId, treeId));
-
-    const decryptedPeople = allPeople.map((p) => ({
-      ...p,
-      phone: decryptPII(p.phone),
-      email: decryptPII(p.email),
-      identificationNumber: decryptPII(p.identificationNumber),
-      photoUrl: normalizePhotoUrl(p.photoUrl),
-    }));
-
-    await logAudit(req.userId, "export", "tree", treeId, { format }, req);
-
-    if (format === "gedcom") {
-      let gedcom =
-        "0 HEAD\n1 SOUR UAE Roots\n1 GEDC\n2 VERS 5.5.1\n1 CHAR UTF-8\n";
-
-      decryptedPeople.forEach((p) => {
-        gedcom += `0 @I${p.id}@ INDI\n`;
-        gedcom += `1 NAME ${p.firstName} /${p.lastName || ""}/\n`;
-        gedcom += `1 SEX ${p.gender === "male" ? "M" : "F"}\n`;
-        if (p.birthDate) gedcom += `1 BIRT\n2 DATE ${p.birthDate}\n`;
-        if (p.deathDate) gedcom += `1 DEAT\n2 DATE ${p.deathDate}\n`;
-      });
-
-      let famId = 1;
-      const partnerRels = allRelationships.filter((r) => r.type === "partner");
-      partnerRels.forEach((r) => {
-        gedcom += `0 @F${famId}@ FAM\n`;
-        if (r.person1Id) gedcom += `1 HUSB @I${r.person1Id}@\n`;
-        if (r.person2Id) gedcom += `1 WIFE @I${r.person2Id}@\n`;
-        famId++;
-      });
-
-      gedcom += "0 TRLR\n";
-
-      res.setHeader("Content-Type", "text/plain; charset=utf-8");
-      res.setHeader(
-        "Content-Disposition",
-        `attachment; filename="${tree.name}.ged"`,
-      );
-      return res.send(gedcom);
-    }
-
-    if (format === "csv") {
-      let csv =
-        "الاسم الأول,اسم العائلة,الجنس,تاريخ الميلاد,تاريخ الوفاة,على قيد الحياة,الهاتف,البريد الإلكتروني\n";
-
-      decryptedPeople.forEach((p) => {
-        csv += `"${p.firstName}","${p.lastName || ""}","${p.gender === "male" ? "ذكر" : "أنثى"}","${p.birthDate || ""}","${p.deathDate || ""}","${p.isLiving ? "نعم" : "لا"}","${p.phone || ""}","${p.email || ""}"\n`;
-      });
-
-      res.setHeader("Content-Type", "text/csv; charset=utf-8");
-      res.setHeader(
-        "Content-Disposition",
-        `attachment; filename="${tree.name}.csv"`,
-      );
-      return res.send("\uFEFF" + csv);
-    }
-
-    if (format === "html") {
-      let html = `<!DOCTYPE html>
-<html dir="rtl" lang="ar">
-<head>
-  <meta charset="UTF-8">
-  <title>${tree.name} - شجرة العائلة</title>
-  <style>
-    body { font-family: 'Sakkal Majalla', Arial, sans-serif; padding: 20px; background: #f5f5f5; }
-    h1 { color: #7c3aed; text-align: center; }
-    .person { background: white; border-radius: 8px; padding: 15px; margin: 10px; display: inline-block; min-width: 200px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
-    .male { border-right: 4px solid #3b82f6; }
-    .female { border-right: 4px solid #ec4899; }
-    .name { font-size: 18px; font-weight: bold; margin-bottom: 5px; }
-    .info { color: #666; font-size: 14px; }
-  </style>
-</head>
-<body>
-  <h1>${tree.name}</h1>
-  <p style="text-align:center">${tree.description || ""}</p>
-  <div style="display: flex; flex-wrap: wrap; justify-content: center;">`;
-
-      decryptedPeople.forEach((p) => {
-        html += `
-    <div class="person ${p.gender}">
-      <div class="name">${p.firstName} ${p.lastName || ""}</div>
-      <div class="info">${p.gender === "male" ? "ذكر" : "أنثى"}</div>
-      ${p.birthDate ? `<div class="info">الميلاد: ${p.birthDate}</div>` : ""}
-      ${p.deathDate ? `<div class="info">الوفاة: ${p.deathDate}</div>` : ""}
-    </div>`;
-      });
-
-      html += `
-  </div>
-  <p style="text-align:center; margin-top: 40px; color: #888;">تم التصدير من جذور الإمارات</p>
-</body>
-</html>`;
-
-      res.setHeader("Content-Type", "text/html; charset=utf-8");
-      res.setHeader(
-        "Content-Disposition",
-        `attachment; filename="${tree.name}.html"`,
-      );
-      return res.send(html);
-    }
-
-    if (format === "text") {
-      let text = `${tree.name}\n${"=".repeat(tree.name.length)}\n\n`;
-      if (tree.description) text += `${tree.description}\n\n`;
-
-      text += `أفراد العائلة (${decryptedPeople.length}):\n${"─".repeat(30)}\n\n`;
-
-      decryptedPeople.forEach((p, i) => {
-        text += `${i + 1}. ${p.firstName} ${p.lastName || ""}\n`;
-        text += `   الجنس: ${p.gender === "male" ? "ذكر" : "أنثى"}\n`;
-        if (p.birthDate) text += `   تاريخ الميلاد: ${p.birthDate}\n`;
-        if (p.deathDate) text += `   تاريخ الوفاة: ${p.deathDate}\n`;
-        text += `   الحالة: ${p.isLiving ? "على قيد الحياة" : "متوفى"}\n\n`;
-      });
-
-      res.setHeader("Content-Type", "text/plain; charset=utf-8");
-      res.setHeader(
-        "Content-Disposition",
-        `attachment; filename="${tree.name}.txt"`,
-      );
-      return res.send(text);
-    }
-
-    res.json({
-      tree,
-      people: decryptedPeople,
-      relationships: allRelationships,
-    });
-  } catch (error) {
-    handleError(res, error, "Export");
-  }
-});
 
 // Audit log cleanup - removes logs older than 90 days
 const AUDIT_LOG_RETENTION_DAYS = 90;
