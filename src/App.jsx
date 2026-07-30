@@ -1952,7 +1952,7 @@ function App() {
       pendingSignup.email || pendingSignup.phoneNumber || pendingSignup.resolvedUserId;
     return (
       <Dialog open={true} onOpenChange={(open) => !open && cancelSignup()}>
-        <DialogContent className="sm:max-w-sm" dir="rtl">
+        <DialogContent className="sm:max-w-sm" dir="rtl" aria-describedby={undefined}>
           <DialogHeader>
             <DialogTitle className="text-right text-xl">
               {t.signupTitle}
@@ -2014,7 +2014,7 @@ function App() {
 
     return (
       <Dialog open={showProfile} onOpenChange={setShowProfile}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-md" aria-describedby={undefined}>
           <DialogHeader>
             <DialogTitle className="text-right">
               {t.profileSettings}
@@ -4349,7 +4349,7 @@ function App() {
             than on a separate screen: no page switch, and the two entry points
             differ only by which mode the form opens in. */}
         <Dialog open={authDialogOpen} onOpenChange={setAuthDialogOpen}>
-          <DialogContent className="auth-shell sm:max-w-md" dir="rtl">
+          <DialogContent className="auth-shell sm:max-w-md" dir="rtl" aria-describedby={undefined}>
             <DialogHeader>
               <DialogTitle className="kufi text-right text-2xl font-medium text-[#16233D]">
                 {authMode === "login" ? t.signInTitle : t.signUpTitle}
@@ -4496,7 +4496,7 @@ function App() {
             }
           }}
         >
-          <DialogContent className="sm:max-w-md" dir="rtl">
+          <DialogContent className="sm:max-w-md" dir="rtl" aria-describedby={undefined}>
             <DialogHeader>
               <DialogTitle className="text-right text-xl">
                 الدخول عبر الهاتف الإماراتي
@@ -5854,7 +5854,7 @@ function App() {
               if (!open) setSpouseSourceFor(null);
             }}
           >
-            <DialogContent className="sm:max-w-md" dir="rtl">
+            <DialogContent className="sm:max-w-md" dir="rtl" aria-describedby={undefined}>
               <DialogHeader>
                 <DialogTitle className="text-right text-xl">
                   {t.addSpouseChoice}
@@ -5898,7 +5898,7 @@ function App() {
               if (!open) setMotherPickerFor(null);
             }}
           >
-            <DialogContent className="sm:max-w-md" dir="rtl">
+            <DialogContent className="sm:max-w-md" dir="rtl" aria-describedby={undefined}>
               <DialogHeader>
                 <DialogTitle className="text-right text-xl">
                   {motherPickerFor.pickLabel}
