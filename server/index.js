@@ -270,6 +270,16 @@ app.use(express.json({ limit: "1mb" }));
 app.use((req, res, next) => {
   req.requestId = uuidv4().substring(0, 8);
   res.setHeader("X-Request-ID", req.requestId);
+
+  // Every API response carries family members' names and relationships. Without
+  // this a shared or corporate proxy may hold a full tree, and the browser cache
+  // keeps it after logout. Applied to /api only — the static bundle SHOULD be
+  // cached, and caching it is how the app loads quickly.
+  if (req.path.startsWith("/api")) {
+    res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, private");
+    res.setHeader("Pragma", "no-cache");
+    res.setHeader("Expires", "0");
+  }
   next();
 });
 
@@ -288,10 +298,42 @@ const extractUserIdFromCookie = (req) => {
 
 // Phase 1: Adjusted rate limiting (100 → 50 req/min for better security)
 // Enhanced with user ID + IP combination for authenticated endpoints
+// Reads the app itself polls. Generous, because loadRestorableDeletion fires on
+// every mutation and a user editing quickly must not be blocked.
+const readLimiter = rateLimit({
+  windowMs: 1 * 60 * 1000,
+  max: 200,
+  message: { error: "عمليات كثيرة خلال وقت قصير. انتظر قليلاً ثم أعد المحاولة" },
+  standardHeaders: true,
+  legacyHeaders: false,
+  validate: false,
+  keyGenerator: (req) => {
+    const userId = extractUserIdFromCookie(req) || "anonymous";
+    const ip = req.ip || req.connection?.remoteAddress || "unknown";
+    return `${userId}:${ip}`;
+  },
+});
+
+// Bulk extraction. Strict — a person exports their tree occasionally, never in a
+// loop.
+const exportLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 20,
+  message: { error: "تم تجاوز الحد الأقصى لعمليات التصدير. حاول لاحقاً" },
+  standardHeaders: true,
+  legacyHeaders: false,
+  validate: false,
+  keyGenerator: (req) => {
+    const userId = extractUserIdFromCookie(req) || "anonymous";
+    const ip = req.ip || req.connection?.remoteAddress || "unknown";
+    return `${userId}:${ip}`;
+  },
+});
+
 const apiLimiter = rateLimit({
   windowMs: 1 * 60 * 1000,
   max: 50,
-  message: { error: "تم تجاوز الحد الأقصى للطلبات. حاول مرة أخرى لاحقاً" },
+  message: { error: "عمليات كثيرة خلال وقت قصير. انتظر قليلاً ثم أعد المحاولة" },
   standardHeaders: true,
   legacyHeaders: false,
   validate: false,
@@ -1491,6 +1533,20 @@ app.use("/api/users", apiLimiter);
 app.use("/api/trees", apiLimiter);
 app.use("/api/people", apiLimiter);
 app.use("/api/relationships", apiLimiter);
+
+// SEPARATE budgets, not the same one. `apiLimiter` is a single instance, so every
+// path mounted on it shares one 50/minute allowance. /api/deletions is polled by
+// the app itself — loadRestorableDeletion runs on every change to people or
+// relationships — so adding a person with two parents costs three writes plus
+// three polls. Putting all of that on one budget would rate-limit ordinary
+// editing.
+app.use("/api/deletions", readLimiter);
+app.use("/api/history", readLimiter);
+
+// Export is different: one call returns the entire tree, which makes it the
+// cheapest way to pull every name and relationship repeatedly. It is never called
+// in a loop by the app, so it can be strict.
+app.use("/api/export", exportLimiter);
 
 app.post("/api/users", authenticateUser, async (req, res) => {
   const rid = req.requestId || "";
