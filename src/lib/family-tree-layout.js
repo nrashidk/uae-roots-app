@@ -733,7 +733,7 @@ var FamilyTreeLayoutModule;
         i,
         si,
         h,
-        drCall,
+        dr,
         fx,
         cy,
         fl,
@@ -761,22 +761,7 @@ var FamilyTreeLayoutModule;
         let ly = cy + (LINE_STEP * (yt - 1)) / 2;
         const uo = 0.1 / (yt + 1);
         let uy = cy - 0.5 + uo * (yt + 1);
-        // EXPERIMENT — balanced lateral placement.
-        //
-        // Every additional partner used to land on ONE side, because the incoming
-        // direction was a single flag for the whole call:
-        // `px = dr ? d.r : d.l - 1`. With one wife placed opposite during tree
-        // building, a man with three wives and a milk-sibling sat far off-centre.
-        //
-        // The side now alternates per partner. Two things make that safe:
-        //   • the boundaries update in ONE place (addEntity) from whatever x is
-        //     actually used, so d.l and d.r extend correctly on their own;
-        //   • `ax` — the already-placed positions a connector routes around — is
-        //     kept PER SIDE, because the routing reads ax[0] and ax[last] and
-        //     would otherwise reach straight across the person.
-        const axL = [];
-        const axR = [];
-        let flip = false;
+        const ax = [];
         // Overhead lanes: any connector that has to route OVER already-placed
         // boxes (a 2nd/3rd/4th spouse, or a milk bond) gets its own horizontal
         // lane above this person. One shared counter so spouse lanes and milk
@@ -792,22 +777,7 @@ var FamilyTreeLayoutModule;
         const laneStep = LINE_STEP;
         let lanesUsed = 0;
         const nextLaneY = () => cy - LANE_BASE - lanesUsed * laneStep;
-
-        // Wives before milk-siblings on each side, so a spouse always sits nearer
-        // the person than a milk bond. `ps` is insertion-ordered — spouses first,
-        // milk appended — so a stable partition preserves the marriage order.
-        const isMilkBond = (pid) =>
-            (p.gp && p.gp[pid] === "R") || (p.milk && p.milk[pid]);
-        const orderedPartnerIds = [
-            ...Object.keys(ps).filter((pid) => !isMilkBond(pid)),
-            ...Object.keys(ps).filter((pid) => isMilkBond(pid)),
-        ];
-
-        for (const pi of orderedPartnerIds) {
-            // Side alternates per partner, so the person stays centred.
-            const dr = flip ? !drCall : drCall;
-            const ax = dr ? axR : axL;
-            flip = !flip;
+        for (const pi in ps) {
             // SPIKE v3: a milk bond (رضاعة) is NOT a marriage. Place the node
             // using the same childless-partner position math, draw ONLY a
             // dashed connector, and skip the partnership line + partner label
