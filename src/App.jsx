@@ -2809,26 +2809,44 @@ function App() {
       // before/after arrays, so this is a read, not extra data: people by NAME
       // because that is what a person recognises, relationships as a COUNT
       // because nobody needs to read "نسب: عبير — بدر".
+      // Reads the fields /api/deletions/:treeId actually sends — names and ids
+      // extracted server-side, not the full jsonb rows. Getting this wrong is
+      // what made the preview silently empty: it read `r.people`, which the
+      // endpoint never returned.
       const summarise = (rows) => {
-        const before = rows.flatMap((r) => r.people || []);
-        const after = rows.flatMap((r) => r.peopleAfter || []);
-        const relCount =
-          rows.flatMap((r) => r.relationships || []).length +
-          rows.flatMap((r) => r.relationshipsAfter || []).length;
+        const arr = (v) => (Array.isArray(v) ? v : []);
+        const zip = (names, ids) =>
+          arr(names).map((firstName, i) => ({
+            firstName,
+            id: arr(ids)[i],
+          }));
 
-        // Ids present in BOTH are an update — the row stays, its values revert.
-        const beforeIds = new Set(before.map((p) => p.id));
-        const afterIds = new Set(after.map((p) => p.id));
-        const removed = after.filter((p) => !beforeIds.has(p.id));
-        const restored = before.filter((p) => !afterIds.has(p.id));
-        const reverted = before.filter((p) => afterIds.has(p.id));
+        const before = rows.flatMap((r) => zip(r.peopleNames, r.peopleIds));
+        const after = rows.flatMap((r) =>
+          zip(r.peopleAfterNames, r.peopleAfterIds),
+        );
+        const relCount = rows.reduce(
+          (n, r) =>
+            n + (r.relationshipsCount || 0) + (r.relationshipsAfterCount || 0),
+          0,
+        );
+
+        // Ids in BOTH are an update — the row stays, its values revert.
+        const beforeIds = new Set(before.map((p) => String(p.id)));
+        const afterIds = new Set(after.map((p) => String(p.id)));
+        const removed = after.filter((p) => !beforeIds.has(String(p.id)));
+        const restored = before.filter((p) => !afterIds.has(String(p.id)));
+        const reverted = before.filter((p) => afterIds.has(String(p.id)));
 
         const names = (list) =>
           list.map((p) => p.firstName).filter(Boolean).join("، ");
 
-        if (removed.length) return { verb: t.willDelete, names: names(removed), relCount };
-        if (restored.length) return { verb: t.willRestore, names: names(restored), relCount };
-        if (reverted.length) return { verb: t.willRevert, names: names(reverted), relCount: 0 };
+        if (removed.length)
+          return { verb: t.willDelete, names: names(removed), relCount };
+        if (restored.length)
+          return { verb: t.willRestore, names: names(restored), relCount };
+        if (reverted.length)
+          return { verb: t.willRevert, names: names(reverted), relCount: 0 };
         return { verb: t.willRestore, names: "", relCount };
       };
 
