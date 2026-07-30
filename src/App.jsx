@@ -2935,6 +2935,8 @@ function App() {
   // vanishes on any movement — it was easy to miss entirely, which defeats the
   // point of a confirmation. Two lines at most: people by NAME, relationships as
   // a COUNT.
+  // min-w on the button: "تراجع" is shorter than its neighbours, so without a
+  // floor it sat noticeably narrower than الملف الشخصي and تسجيل الخروج.
   const renderUndoButton = () => (
     <div className="relative group">
       <Button
@@ -2942,6 +2944,7 @@ function App() {
         disabled={restoring || !restorableDeletion}
         variant="outline"
         size="sm"
+        className="min-w-[120px] justify-center"
         title={restorableDeletion ? undefined : t.nothingToUndo}
       >
         {restoring ? (
@@ -2952,10 +2955,10 @@ function App() {
         {t.undoDelete}
       </Button>
 
-      {/* `fixed`, not `absolute`: the tree view's outer container is
-          `overflow-hidden`, which silently CLIPPED an absolutely positioned
-          panel — it rendered and could not be seen, which is why widening the
-          condition below changed nothing.
+      {/* Anchored under the button. It was briefly `fixed` on a guess that
+          `overflow-hidden` was clipping it — the real reason it never appeared is
+          that the list endpoint returned counts, not names, so there was nothing
+          to render. `fixed` put it on the far side of the screen.
 
           Render when there is EITHER a name or a count. A relationship-only entry
           — "نسب: عمر — طفل عمر" — has no people in it, so keying the whole panel
@@ -2964,7 +2967,7 @@ function App() {
         restorableDeletion?.preview?.relCount > 0) && (
         <div
           dir="rtl"
-          className="fixed top-16 right-4 z-[60] hidden group-hover:block bg-white border rounded-lg shadow-lg px-3 py-2 whitespace-nowrap text-right"
+          className="absolute top-full mt-1 left-0 z-[60] hidden group-hover:block bg-white border rounded-lg shadow-lg px-3 py-2 whitespace-nowrap text-right"
         >
           {restorableDeletion.preview.names && (
             <div className="text-xs">
