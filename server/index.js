@@ -1422,16 +1422,26 @@ app.post("/api/auth/logout", authenticateUser, async (req, res) => {
   res.json({ success: true });
 });
 
-app.get("/api/auth/check", optionalAuth, (req, res) => {
+app.get("/api/auth/check", optionalAuth, async (req, res) => {
   if (req.userId) {
     // sessionType comes from the JWT, which records how this session was
     // created. The client cannot infer it: linking Google deliberately destroys
     // the Firebase session, so "is there a Firebase session" answers a different
     // question and gets it wrong for anyone who has linked.
+    const [existingAccount] = await db
+      .select({ id: users.id })
+      .from(users)
+      .where(eq(users.id, req.userId));
+
+    // hasAccount is what makes the sign-up gate survive a reload. pendingSignup
+    // is in-memory, so a refresh loses it and the restore effects create the
+    // account nobody agreed to. Asking the server "does this session's id have a
+    // users row" turns a remembered decision into a detected fact.
     res.json({
       authenticated: true,
       userId: req.userId,
       sessionType: req.userType || null,
+      hasAccount: !!existingAccount,
     });
   } else {
     res.json({ authenticated: false });
@@ -3012,9 +3022,16 @@ app.patch(
         { ...existingRel, status },
       );
 
+      // NULL is "married". Writing the literal 'married' created a THIRD state
+      // meaning the same thing — new rows get NULL, and only un-ticking divorce
+      // produced 'married'. Nothing broke, because every reader asks
+      // `<> 'divorced'`, but anyone writing `IS NULL` to mean married would
+      // silently miss every marriage that had once been divorced.
+      const normalizedStatus = status === "divorced" ? "divorced" : null;
+
       const [updated] = await db
         .update(relationships)
-        .set({ status })
+        .set({ status: normalizedStatus })
         .where(eq(relationships.id, relId))
         .returning();
 
