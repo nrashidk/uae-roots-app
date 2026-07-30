@@ -2906,38 +2906,49 @@ function App() {
   // nothing to undo — so the header never reflows. A button that appears and
   // disappears shifts the buttons next to it, which invites a misclick on
   // profile or logout.
+  // The preview lives in a panel below the button, not in a `title` tooltip. A
+  // native tooltip appears after a delay, renders newlines inconsistently, and
+  // vanishes on any movement — it was easy to miss entirely, which defeats the
+  // point of a confirmation. Two lines at most: people by NAME, relationships as
+  // a COUNT.
   const renderUndoButton = () => (
-    <Button
-      onClick={handleUndoDelete}
-      disabled={restoring || !restorableDeletion}
-      variant="outline"
-      size="sm"
-      title={
-        restorableDeletion
-          ? [
-              restorableDeletion.label || t.undoDelete,
-              restorableDeletion.preview?.names
-                ? `${restorableDeletion.preview.verb}: ${restorableDeletion.preview.names}`
-                : null,
-              restorableDeletion.preview?.relCount
-                ? t.andLinks.replace(
-                    "{n}",
-                    restorableDeletion.preview.relCount,
-                  )
-                : null,
-            ]
-              .filter(Boolean)
-              .join("\n")
-          : t.nothingToUndo
-      }
-    >
-      {restoring ? (
-        <Loader2 className="w-4 h-4 ml-2 animate-spin" />
-      ) : (
-        <RotateCcw className="w-4 h-4 ml-2" />
+    <div className="relative group">
+      <Button
+        onClick={handleUndoDelete}
+        disabled={restoring || !restorableDeletion}
+        variant="outline"
+        size="sm"
+        title={restorableDeletion ? undefined : t.nothingToUndo}
+      >
+        {restoring ? (
+          <Loader2 className="w-4 h-4 ml-2 animate-spin" />
+        ) : (
+          <RotateCcw className="w-4 h-4 ml-2" />
+        )}
+        {t.undoDelete}
+      </Button>
+
+      {restorableDeletion?.preview?.names && (
+        <div
+          dir="rtl"
+          className="absolute top-full mt-1 right-0 z-50 hidden group-hover:block bg-white border rounded-lg shadow-lg px-3 py-2 whitespace-nowrap text-right"
+        >
+          <div className="text-xs">
+            <span className="text-gray-500">
+              {restorableDeletion.preview.verb}:
+            </span>{" "}
+            <span className="text-[#16233D]">
+              {restorableDeletion.preview.names}
+            </span>
+          </div>
+          {restorableDeletion.preview.relCount > 0 && (
+            <div className="text-xs text-gray-500">
+              {t.andLinks.replace("{n}", restorableDeletion.preview.relCount)}
+            </div>
+          )}
+        </div>
       )}
-      {t.undoDelete}
-    </Button>
+    </div>
   );
 
   const deletePerson = async (personId) => {
