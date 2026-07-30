@@ -201,32 +201,6 @@ export const api = {
     get: (treeId) => fetchAPI(`/history/${treeId}`),
   },
 
-  export: {
-    tree: (treeId, format = "json") => {
-      const url = `${API_BASE_URL}/export/${treeId}?format=${format}`;
-
-      if (format === "json") {
-        return fetchAPI(`/export/${treeId}?format=${format}`);
-      }
-
-      return fetch(url, {
-        credentials: "include",
-      })
-        .then((res) => {
-          if (!res.ok) throw new Error("Export failed");
-          return res.blob();
-        })
-        .then((blob) => {
-          const extension = format === "gedcom" ? "ged" : format;
-          const link = document.createElement("a");
-          link.href = URL.createObjectURL(blob);
-          link.download = `family-tree.${extension}`;
-          link.click();
-          URL.revokeObjectURL(link.href);
-          return { success: true };
-        });
-    },
-  },
 };
 
 // Store only resolvedUserId in memory (JWT stays in httpOnly cookie for security)
