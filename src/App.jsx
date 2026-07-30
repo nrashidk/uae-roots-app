@@ -292,7 +292,10 @@ function App() {
     dashboard: "لوحة التحكم",
     myFamilyTrees: "أشجار عائلتي",
     familyMembers: "أفراد العائلة",
-    relationships: "العلاقات",
+    // "الأسر", not "العلاقات". Each card is one man with his wives and children
+    // — a household. عائلة is the wider unit: the whole tree is one عائلة
+    // containing many أسر, and the app is already شجرة عائلتي at that level.
+    relationships: "الأسر",
     startBuilding: "ابدأ ببناء شجرة عائلتك",
     addFirstMember: "أضف أول فرد من العائلة للبدء",
     addPerson: "إضافة شخص",
@@ -5258,66 +5261,10 @@ function App() {
       return a.id - b.id;
     });
 
+    // A household: wives and children. The sibling derivation that used to live
+    // here went with the counts it fed — sibling links are reciprocal, so each one
+    // appeared on two cards of the same page.
     const getRelationshipCounts = (person) => {
-      // Blood siblings are defined by shared parents (matches getSiblings, which the arrows use).
-      // Direct "sibling" rows are only a fallback used when no parents exist yet.
-      const myParentIds = treeRels
-        .filter((r) => r.type === "parent-child" && r.childId === person.id)
-        .map((r) => r.parentId);
-
-      let siblingIds;
-      if (myParentIds.length > 0) {
-        siblingIds = [
-          ...new Set(
-            treeRels
-              .filter(
-                (r) =>
-                  r.type === "parent-child" &&
-                  myParentIds.includes(r.parentId) &&
-                  r.childId !== person.id,
-              )
-              .map((r) => r.childId),
-          ),
-        ];
-      } else {
-        siblingIds = [
-          ...new Set(
-            treeRels
-              .filter(
-                (r) =>
-                  r.type === "sibling" &&
-                  !r.isBreastfeeding &&
-                  (r.person1Id === person.id || r.person2Id === person.id),
-              )
-              .map((r) =>
-                r.person1Id === person.id ? r.person2Id : r.person1Id,
-              ),
-          ),
-        ];
-      }
-      const siblingPeople = treePeople.filter((p) => siblingIds.includes(p.id));
-
-      const brothers = siblingPeople.filter((p) => p.gender === "male").length;
-      const sisters = siblingPeople.filter((p) => p.gender === "female").length;
-
-      // Breastfeeding (milk) siblings remain tracked via direct "sibling" rows flagged isBreastfeeding.
-      const breastfeedingSiblings = treeRels.filter(
-        (r) =>
-          r.type === "sibling" &&
-          r.isBreastfeeding &&
-          (r.person1Id === person.id || r.person2Id === person.id),
-      );
-      const breastfeedingBrothers = breastfeedingSiblings.filter((r) => {
-        const sibId = r.person1Id === person.id ? r.person2Id : r.person1Id;
-        const sib = treePeople.find((p) => p.id === sibId);
-        return sib?.gender === "male";
-      }).length;
-      const breastfeedingSisters = breastfeedingSiblings.filter((r) => {
-        const sibId = r.person1Id === person.id ? r.person2Id : r.person1Id;
-        const sib = treePeople.find((p) => p.id === sibId);
-        return sib?.gender === "female";
-      }).length;
-
       const spouseRels = treeRels.filter(
         (r) =>
           r.type === "partner" &&
@@ -5329,14 +5276,7 @@ function App() {
         (r) => r.type === "parent-child" && r.parentId === person.id,
       ).length;
 
-      return {
-        brothers,
-        sisters,
-        breastfeedingBrothers,
-        breastfeedingSisters,
-        wives,
-        children,
-      };
+      return { wives, children };
     };
 
     return (
@@ -5374,38 +5314,17 @@ function App() {
                     الاسم: {getGenealogicalName(person)}
                   </div>
                   <div className="space-y-1 text-sm">
-                    <div className="text-green-600">
-                      عدد الأخوة: {counts.brothers}
-                    </div>
-                    <div className="text-pink-600">
-                      عدد الأخوات: {counts.sisters}
-                    </div>
+                    {/* Siblings are gone, blood and milk alike. They are
+                        RECIPROCAL: my brother's card lists me and mine lists him,
+                        so the same fact appeared twice on one page. They also
+                        belong to a man's father's household, not his own. رضاعة
+                        stays visible in the tree and on the members cards. */}
                     <div className="text-[#A5813F]">
                       عدد الزوجات: {counts.wives}
                     </div>
                     <div className="text-blue-600">
                       عدد الأبناء: {counts.children}
                     </div>
-                    {/* رضاعة last, under a neutral rule, so every card reads the
-                        same shape whether or not milk relations exist. The rule
-                        sits on the GROUP, not on the brothers row — it used to be
-                        hardcoded there, so a person with only milk sisters got no
-                        separator at all. */}
-                    {(counts.breastfeedingBrothers > 0 ||
-                      counts.breastfeedingSisters > 0) && (
-                      <div className="border-t border-gray-300 pt-1 mt-1">
-                        {counts.breastfeedingBrothers > 0 && (
-                          <div className="text-green-400">
-                            أخوة من الرضاعة: {counts.breastfeedingBrothers}
-                          </div>
-                        )}
-                        {counts.breastfeedingSisters > 0 && (
-                          <div className="text-pink-400">
-                            أخوات من الرضاعة: {counts.breastfeedingSisters}
-                          </div>
-                        )}
-                      </div>
-                    )}
                   </div>
                 </div>
               );
@@ -5413,7 +5332,7 @@ function App() {
           </div>
           {maleParents.length === 0 && (
             <div className="text-center text-gray-500 py-8">
-              لا يوجد علاقات زوجية بعد
+              لا توجد أسر بعد
             </div>
           )}
         </div>
