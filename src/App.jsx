@@ -5182,7 +5182,7 @@ function App() {
     const treeRels = relationships.filter((r) => r.treeId === currentTree?.id);
 
     // Get married males (husbands who have wives, with or without children)
-    const maleParents = treePeople.filter((person) => {
+    const unsortedHeads = treePeople.filter((person) => {
       if (person.gender !== "male") return false;
 
       const hasSpouse = treeRels.some(
@@ -5192,6 +5192,70 @@ function App() {
       );
 
       return hasSpouse;
+    });
+
+    // ORDER: oldest generation first, and within a generation the ELDER LINE
+    // first, applied recursively.
+    //
+    // The tie-break question was "my brothers or my uncle's children?" and the
+    // answer is neither in the abstract — it depends which of the two fathers is
+    // the elder brother. Each person carries a path of birth positions from the
+    // founding ancestor down, so [1,1,1] sorts before [1,2,1]: your children come
+    // before your brother's children when your father is the elder.
+    //
+    // The alternative — closeness to whoever is viewing — was rejected because the
+    // page would reorder depending on whose card you opened, so two people looking
+    // at the same family would see different orders.
+    const birthPosition = (person) => {
+      // birthOrder stores younger children as MORE-NEGATIVE values, with null
+      // meaning the original eldest. So the comparable position is 0 for null
+      // and -birthOrder otherwise — NOT the birthOrder value itself.
+      if (person?.birthOrder == null) return 0;
+      return -person.birthOrder;
+    };
+
+    const peopleById = new Map(treePeople.map((p) => [p.id, p]));
+    const fatherOf = (id) => {
+      const parentIds = treeRels
+        .filter((r) => r.type === "parent-child" && r.childId === id)
+        .map((r) => r.parentId);
+      const father = parentIds
+        .map((pid) => peopleById.get(pid))
+        .find((p) => p?.gender === "male");
+      return father || null;
+    };
+
+    const lineagePathCache = new Map();
+    const lineagePath = (person, guard = 0) => {
+      if (!person) return [];
+      if (lineagePathCache.has(person.id)) return lineagePathCache.get(person.id);
+      // guard: a malformed cycle in parent-child would otherwise recurse forever.
+      if (guard > 60) return [];
+      const father = fatherOf(person.id);
+      const path = [...lineagePath(father, guard + 1), birthPosition(person)];
+      lineagePathCache.set(person.id, path);
+      return path;
+    };
+
+    const comparePaths = (a, b) => {
+      const len = Math.max(a.length, b.length);
+      for (let i = 0; i < len; i++) {
+        const av = a[i] ?? -1;
+        const bv = b[i] ?? -1;
+        if (av !== bv) return av - bv;
+      }
+      return 0;
+    };
+
+    const maleParents = [...unsortedHeads].sort((a, b) => {
+      const ga = generationDepths[a.id] ?? 0;
+      const gb = generationDepths[b.id] ?? 0;
+      if (ga !== gb) return ga - gb;
+      const byLine = comparePaths(lineagePath(a), lineagePath(b));
+      if (byLine !== 0) return byLine;
+      // Same generation, same line: fall back to id so the order is at least
+      // stable between renders.
+      return a.id - b.id;
     });
 
     const getRelationshipCounts = (person) => {
