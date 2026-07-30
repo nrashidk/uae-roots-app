@@ -352,8 +352,15 @@ function App() {
     willRestore: "سيُستعاد",
     willDelete: "سيُحذف",
     willRevert: "سيُعاد",
-    andLinks: "و {n} روابط",
-    andOthers: "و {n} آخرين",
+    // Arabic number agreement, not a single template. One takes the singular,
+    // two the dual, 3-10 the plural, and 11 upward the singular again.
+    linkOne: "ورابط واحد",
+    linkTwo: "ورابطان",
+    linkFew: "و {n} روابط",
+    linkMany: "و {n} رابط",
+    otherTwo: "وآخران",
+    otherFew: "و {n} آخرين",
+    otherMany: "و {n} آخر",
     signupTitle: "إنشاء حساب جديد",
     signupBody: "لا يوجد حساب مرتبط بـ",
     signupTerms: "بالمتابعة أنت توافق على سياسة الخصوصية",
@@ -2812,6 +2819,20 @@ function App() {
       // before/after arrays, so this is a read, not extra data: people by NAME
       // because that is what a person recognises, relationships as a COUNT
       // because nobody needs to read "نسب: عبير — بدر".
+      // Arabic counted nouns: 1 singular, 2 dual, 3-10 plural, 11+ singular.
+      // A single "{n} روابط" template is wrong for every case except 3-10.
+      const countedLinks = (n) => {
+        if (n === 1) return t.linkOne;
+        if (n === 2) return t.linkTwo;
+        if (n <= 10) return t.linkFew.replace("{n}", n);
+        return t.linkMany.replace("{n}", n);
+      };
+      const countedOthers = (n) => {
+        if (n === 2) return t.otherTwo;
+        if (n <= 10) return t.otherFew.replace("{n}", n);
+        return t.otherMany.replace("{n}", n);
+      };
+
       // Reads the fields /api/deletions/:treeId actually sends — names and ids
       // extracted server-side, not the full jsonb rows. Getting this wrong is
       // what made the preview silently empty: it read `r.people`, which the
@@ -2854,17 +2875,37 @@ function App() {
           return (
             all.slice(0, NAME_CAP).join("، ") +
             "، " +
-            t.andOthers.replace("{n}", all.length - NAME_CAP)
+            countedOthers(all.length - NAME_CAP)
           );
         };
 
+        // The counted-noun form belongs here, where the number is known — the
+        // render used a `t.andLinks` string that no longer exists, so that line
+        // produced undefined.
+        const linksText = relCount > 0 ? countedLinks(relCount) : "";
+
         if (removed.length)
-          return { verb: t.willDelete, names: names(removed), relCount };
+          return {
+            verb: t.willDelete,
+            names: names(removed),
+            relCount,
+            linksText,
+          };
         if (restored.length)
-          return { verb: t.willRestore, names: names(restored), relCount };
+          return {
+            verb: t.willRestore,
+            names: names(restored),
+            relCount,
+            linksText,
+          };
         if (reverted.length)
-          return { verb: t.willRevert, names: names(reverted), relCount: 0 };
-        return { verb: t.willRestore, names: "", relCount };
+          return {
+            verb: t.willRevert,
+            names: names(reverted),
+            relCount: 0,
+            linksText: "",
+          };
+        return { verb: t.willRestore, names: "", relCount, linksText };
       };
 
       if (newest?.groupId) {
@@ -2997,10 +3038,11 @@ function App() {
           {restorableDeletion.preview.relCount > 0 && (
             <div className="text-xs text-gray-500">
               {restorableDeletion.preview.names
-                ? t.andLinks.replace("{n}", restorableDeletion.preview.relCount)
-                : `${restorableDeletion.preview.verb}: ${t.andLinks
-                    .replace("{n}", restorableDeletion.preview.relCount)
-                    .replace("و ", "")}`}
+                ? restorableDeletion.preview.linksText
+                : `${restorableDeletion.preview.verb}: ${restorableDeletion.preview.linksText.replace(
+                    /^و\s?/,
+                    "",
+                  )}`}
             </div>
           )}
         </div>
