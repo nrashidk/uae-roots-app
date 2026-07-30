@@ -2928,22 +2928,32 @@ function App() {
         {t.undoDelete}
       </Button>
 
-      {restorableDeletion?.preview?.names && (
+      {/* Render when there is EITHER a name or a count. A relationship-only entry
+          — "نسب: عمر — طفل عمر" — has no people in it, so keying the whole panel
+          off `names` hid it exactly when the label was least informative. */}
+      {(restorableDeletion?.preview?.names ||
+        restorableDeletion?.preview?.relCount > 0) && (
         <div
           dir="rtl"
           className="absolute top-full mt-1 right-0 z-50 hidden group-hover:block bg-white border rounded-lg shadow-lg px-3 py-2 whitespace-nowrap text-right"
         >
-          <div className="text-xs">
-            <span className="text-gray-500">
-              {restorableDeletion.preview.verb}:
-            </span>{" "}
-            <span className="text-[#16233D]">
-              {restorableDeletion.preview.names}
-            </span>
-          </div>
+          {restorableDeletion.preview.names && (
+            <div className="text-xs">
+              <span className="text-gray-500">
+                {restorableDeletion.preview.verb}:
+              </span>{" "}
+              <span className="text-[#16233D]">
+                {restorableDeletion.preview.names}
+              </span>
+            </div>
+          )}
           {restorableDeletion.preview.relCount > 0 && (
             <div className="text-xs text-gray-500">
-              {t.andLinks.replace("{n}", restorableDeletion.preview.relCount)}
+              {restorableDeletion.preview.names
+                ? t.andLinks.replace("{n}", restorableDeletion.preview.relCount)
+                : `${restorableDeletion.preview.verb}: ${t.andLinks
+                    .replace("{n}", restorableDeletion.preview.relCount)
+                    .replace("و ", "")}`}
             </div>
           )}
         </div>
