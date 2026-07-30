@@ -2928,14 +2928,19 @@ function App() {
         {t.undoDelete}
       </Button>
 
-      {/* Render when there is EITHER a name or a count. A relationship-only entry
+      {/* `fixed`, not `absolute`: the tree view's outer container is
+          `overflow-hidden`, which silently CLIPPED an absolutely positioned
+          panel — it rendered and could not be seen, which is why widening the
+          condition below changed nothing.
+
+          Render when there is EITHER a name or a count. A relationship-only entry
           — "نسب: عمر — طفل عمر" — has no people in it, so keying the whole panel
           off `names` hid it exactly when the label was least informative. */}
       {(restorableDeletion?.preview?.names ||
         restorableDeletion?.preview?.relCount > 0) && (
         <div
           dir="rtl"
-          className="absolute top-full mt-1 right-0 z-50 hidden group-hover:block bg-white border rounded-lg shadow-lg px-3 py-2 whitespace-nowrap text-right"
+          className="fixed top-16 right-4 z-[60] hidden group-hover:block bg-white border rounded-lg shadow-lg px-3 py-2 whitespace-nowrap text-right"
         >
           {restorableDeletion.preview.names && (
             <div className="text-xs">
