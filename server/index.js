@@ -2207,14 +2207,38 @@ app.get("/api/deletions/:treeId", authenticateUser, async (req, res) => {
       return res.status(403).json({ error: ownership.error });
     }
 
+    // The client needs `kind` and `groupId` to collapse a group into one action,
+    // and NAMES to say what undoing would do. This used to return counts only —
+    // so the group collapse and the preview both read fields that were never
+    // sent, and silently produced nothing. Names only; the full rows stay on the
+    // server.
     const rows = await db
       .select({
         id: deletions.id,
         label: deletions.label,
+        kind: deletions.kind,
+        groupId: deletions.groupId,
         deletedAt: deletions.deletedAt,
         restoredAt: deletions.restoredAt,
         peopleCount: sql`jsonb_array_length(${deletions.people})`,
         relationshipsCount: sql`jsonb_array_length(${deletions.relationships})`,
+        peopleNames: sql`(
+          select coalesce(json_agg(x->>'firstName'), '[]'::json)
+          from jsonb_array_elements(${deletions.people}) x
+        )`,
+        peopleAfterNames: sql`(
+          select coalesce(json_agg(x->>'firstName'), '[]'::json)
+          from jsonb_array_elements(${deletions.peopleAfter}) x
+        )`,
+        peopleIds: sql`(
+          select coalesce(json_agg(x->>'id'), '[]'::json)
+          from jsonb_array_elements(${deletions.people}) x
+        )`,
+        peopleAfterIds: sql`(
+          select coalesce(json_agg(x->>'id'), '[]'::json)
+          from jsonb_array_elements(${deletions.peopleAfter}) x
+        )`,
+        relationshipsAfterCount: sql`jsonb_array_length(${deletions.relationshipsAfter})`,
       })
       .from(deletions)
       .where(eq(deletions.treeId, treeId))
