@@ -197,7 +197,7 @@ function App() {
   const [linkPhoneSent, setLinkPhoneSent] = useState(false);
   const [userProfile, setUserProfile] = useState(null);
   // The most recent deletion that has not been undone yet, if any. Drives the
-  // «تراجع عن الحذف» button in the header. Restores must run newest-first, so
+  // «تراجع» button in the header. Restores must run newest-first, so
   // there is only ever one candidate — which is exactly what one button offers.
   const [restorableDeletion, setRestorableDeletion] = useState(null);
   const [restoring, setRestoring] = useState(false);
@@ -392,8 +392,10 @@ function App() {
       "لا يمكن تغيير الجنس إلى أنثى: يوجد زواج مسجّل مع أنثى. احذف الزواج أولاً ثم غيّر الجنس.",
     signInTitle: "تسجيل الدخول",
     signUpTitle: "إنشاء حساب جديد",
-    undoDelete: "تراجع عن الحذف",
-    nothingToUndo: "لا يوجد عملية حذف للتراجع عنها",
+    // Just "undo". It said "undo the delete" when deletes were the only thing
+    // the stack held; it now reverses creates, edits and reorders too.
+    undoDelete: "تراجع",
+    nothingToUndo: "لا يوجد عملية للتراجع عنها",
     mahramLineal: "لا يجوز الزواج: قرابة مباشرة (أصل أو فرع).",
     mahramSibling: "لا يجوز الزواج: أخ أو أخت.",
     mahramMilkSibling: "لا يجوز الزواج: أخ أو أخت بالرضاعة.",
@@ -2905,11 +2907,15 @@ function App() {
       // Root the tree on someone who just came back, otherwise they can be
       // restored into a branch that isn't currently drawn and it looks like
       // nothing happened.
+      //
+      // ONLY when already in the tree. Undoing from the members dashboard used
+      // to throw the user into the tree view — they were reading a list, pressed
+      // undo, and the page changed under them. The list refreshes on its own from
+      // the setPeople above.
       const firstId = result?.restoredPeopleIds?.[0];
-      if (firstId != null) {
+      if (firstId != null && currentView === "tree-builder") {
         setSelectedPerson(firstId);
         setHighlightedPerson(firstId);
-        setCurrentView("tree-builder");
       }
       await loadRestorableDeletion();
     } catch (error) {
