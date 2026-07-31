@@ -102,10 +102,20 @@ async function fetchAPI(endpoint, options = {}) {
 
 export const api = {
   auth: {
-    getToken: (userId, provider, firebaseIdToken, email) =>
+    // intent: "login" when a person pressed sign-in, "restore" when the app is
+    // re-minting a token for a session that already existed. Only a login ends
+    // the account's other sessions. Defaults to "login" so an omitted argument
+    // is the old, stricter behaviour rather than the weaker one.
+    getToken: (userId, provider, firebaseIdToken, email, intent = "login") =>
       fetchAPI("/auth/token", {
         method: "POST",
-        body: JSON.stringify({ userId, provider, firebaseIdToken, email }),
+        body: JSON.stringify({
+          userId,
+          provider,
+          firebaseIdToken,
+          email,
+          intent,
+        }),
       }),
     sendSmsCode: (phoneNumber) =>
       fetchAPI("/sms/send-code", {
