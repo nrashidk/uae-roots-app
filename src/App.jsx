@@ -727,16 +727,11 @@ function App() {
               (user.phoneNumber ? "phone" : "email");
 
             try {
-              // A RESTORE, not a login. Nobody pressed anything — the cookie
-              // expired and Firebase still has a credential. Without this the
-              // server bumps token_version and signs out the person's other
-              // device for an action they never took.
               const tokenResponse = await api.auth.getToken(
                 fallbackUserId,
                 provider,
                 firebaseIdToken,
                 user.email,
-                "restore",
               );
 
               if (tokenResponse.userId) {
@@ -1619,13 +1614,11 @@ function App() {
         if (currentUser.getIdToken) {
           firebaseIdToken = await currentUser.getIdToken(true); // force refresh
         }
-        // A deliberate sign-in. This is the one that ends other sessions.
         const tokenResponse = await api.auth.getToken(
           userId,
           provider,
           firebaseIdToken,
           currentUser.email,
-          "login",
         );
         if (tokenResponse.userId) {
           resolvedUserId = tokenResponse.userId;
