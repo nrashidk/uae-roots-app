@@ -622,11 +622,25 @@ const bumpTokenVersion = async (userId, reason, req) => {
   }
 };
 
-// The version a new session should carry. With SINGLE_SESSION on, logging in
-// bumps first, so the token just issued is the ONLY valid one and every other
-// device is signed out — OWASP item 68 taken literally.
-const versionForNewSession = async (userId, existingVersion, req) => {
+// The version a new session should carry. With SINGLE_SESSION on, a deliberate
+// login bumps first, so the token just issued is the ONLY valid one and every
+// other device is signed out — OWASP item 68 taken literally.
+//
+// A RESTORE must not bump. /auth/token is called by two different things: a
+// person pressing sign-in, and the app silently re-minting a token when its
+// cookie has expired but the Firebase credential is still good. They were
+// indistinguishable, so an expired cookie on device A evicted device B with
+// nobody having logged in anywhere. Only the browser knows which it is, so it
+// says so; the server defaults to "login", which is the old behaviour, so a
+// stale cached bundle that sends no intent is unchanged.
+const versionForNewSession = async (
+  userId,
+  existingVersion,
+  req,
+  intent = "login",
+) => {
   if (!SINGLE_SESSION) return existingVersion ?? 0;
+  if (intent === "restore") return existingVersion ?? 0;
   await bumpTokenVersion(userId, "single_session_login", req);
   return (existingVersion ?? 0) + 1;
 };
@@ -1205,6 +1219,10 @@ app.post("/api/sms/verify-code", smsLimiter, async (req, res) => {
 app.post("/api/auth/token", loginLimiter, async (req, res) => {
   try {
     const { userId, provider, firebaseIdToken, email } = req.body;
+    // "login" = a person pressed sign-in. "restore" = the app re-minting a token
+    // for a session that already existed. Anything unrecognised is treated as a
+    // login, so this cannot accidentally weaken eviction.
+    const intent = req.body.intent === "restore" ? "restore" : "login";
 
     if (!userId) {
       return res.status(400).json({ error: "User ID is required" });
@@ -1276,6 +1294,7 @@ app.post("/api/auth/token", loginLimiter, async (req, res) => {
               resolvedUserId,
               existingAccount.tokenVersion,
               req,
+              intent,
             )
           : 0,
       },
@@ -1285,9 +1304,12 @@ app.post("/api/auth/token", loginLimiter, async (req, res) => {
 
     res.cookie("auth_token", token, COOKIE_OPTIONS);
 
+    // Recorded distinctly. Every silent restore used to appear as a `login`,
+    // which made the audit trail read as if someone had signed in when nobody
+    // had — and that trail is the only reliable evidence for session bugs.
     await logAudit(
       resolvedUserId,
-      "login",
+      intent === "restore" ? "session_restored" : "login",
       "auth",
       null,
       { provider, linkedAccount: !!existingUser },
