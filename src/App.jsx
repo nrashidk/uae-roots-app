@@ -1895,7 +1895,18 @@ function App() {
       setIdentities([]);
       setSessionType(null);
       setShowProfile(false);
-      restorationAttemptedRef.current = false;
+      // BLOCK restoration, do not re-arm it. This handler nulls currentTree,
+      // which is a dependency of the Firebase restore effect — so that effect
+      // re-runs immediately, while the Firebase credential is still live because
+      // logout() below has not resolved yet. Re-armed, it took the "backend
+      // cookie invalid, re-authenticate" branch and called /auth/token, the same
+      // endpoint a deliberate login calls, which bumps token_version again. The
+      // terminated browser signed itself back in and evicted the device that had
+      // just replaced it — sessions ping-ponging, neither one staying dead.
+      //
+      // Leaving it true is safe: handleAuthSuccess and handleLogout both reset it,
+      // so a deliberate sign-in still restores normally.
+      restorationAttemptedRef.current = true;
       // Drop the Firebase credential too, or it silently mints a new token and
       // signs the user straight back in — which is how the terminated session
       // went unnoticed before.
