@@ -1935,8 +1935,27 @@ function App() {
     setLinkBusy(true);
     setProfileMessageTone("error");
     setProfileMessage("");
+
+    // Is this the method the current session came in through? The server ends
+    // those sessions; the client has to follow, or the app stays on screen making
+    // requests that all fail.
+    const removed = identities.find((i) => i.id === id);
+    const removingOwnMethod =
+      removed &&
+      (removed.identityType === "phone") === (sessionType === "phone");
+
     try {
       await api.identities.unlink(id);
+
+      if (removingOwnMethod) {
+        // Firebase MUST be signed out too. Its credential lives in browser
+        // storage, so without this the app immediately mints a fresh token from
+        // it and the user is silently signed back in — the server correctly
+        // invalidated the session and nobody could tell.
+        await handleLogout();
+        return;
+      }
+
       await loadIdentities();
       setProfileMessageTone("success");
       setProfileMessage(t.unlinkedOk);
