@@ -47,6 +47,14 @@ export function useAuth() {
     return idToken;
   };
 
+  // Re-authentication, NOT linking. Returns a token whose auth_time is now, and
+  // deliberately does NOT sign out — the caller still needs the Firebase session
+  // to delete the Firebase user afterwards.
+  const reauthenticateGoogle = async () => {
+    const result = await signInWithPopup(auth, googleProvider);
+    return await result.user.getIdToken(true);
+  };
+
   const loginWithMicrosoft = async () => {
     try {
       setError(null);
@@ -119,6 +127,7 @@ export function useAuth() {
     error,
     loginWithGoogle,
     getGoogleIdTokenForLink,
+    reauthenticateGoogle,
     loginWithMicrosoft,
     loginWithEmail,
     signUpWithEmail,
