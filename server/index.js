@@ -1678,19 +1678,11 @@ app.delete("/api/users/:id", authenticateUser, async (req, res) => {
       .from(trees)
       .where(eq(trees.createdBy, userId));
 
-    for (const tree of userTrees) {
-      await db.delete(relationships).where(eq(relationships.treeId, tree.id));
-      await db.delete(people).where(eq(people.treeId, tree.id));
-      await db.delete(editHistory).where(eq(editHistory.treeId, tree.id));
-      // Deletion snapshots hold full person rows (names, dates, encrypted
-      // phone/email) for everyone the user ever deleted. They must go with the
-      // account, or "we delete all your data" is not true.
-      await db.delete(deletions).where(eq(deletions.treeId, tree.id));
-      await db.delete(trees).where(eq(trees.id, tree.id));
-    }
-
-    await db.delete(users).where(eq(users.id, userId));
-
+    // The audit entry goes FIRST, deliberately. logAudit writes through `db`, not
+    // through the transaction, so running it inside would be a second connection
+    // contending for locks the transaction already holds on auditLogs — a
+    // deadlock. Recording the intent up front also means a failed deletion leaves
+    // evidence it was attempted, which is the more useful failure.
     await logAudit(
       userId,
       "delete",
@@ -1700,12 +1692,29 @@ app.delete("/api/users/:id", authenticateUser, async (req, res) => {
       req,
     );
 
-    // Audit rows outlived the account: user id, IP address and user agent for
-    // every login and every edit, kept indefinitely. Nothing required that — it
-    // was simply never cleared — and it contradicted "we delete all your data".
-    // Removed AFTER the entry above, so the deletion record goes with the rest
-    // and no personal trace of the account survives.
-    await db.delete(auditLogs).where(eq(auditLogs.userId, userId));
+    // ALL of it, or none. Seven tables were deleted as a loose sequence: a failure
+    // partway left trees gone and the user row present, or people gone and their
+    // relationships orphaned. That is the shape of every stray record cleaned up
+    // by hand so far.
+    await db.transaction(async (tx) => {
+      for (const tree of userTrees) {
+        await tx.delete(relationships).where(eq(relationships.treeId, tree.id));
+        await tx.delete(people).where(eq(people.treeId, tree.id));
+        await tx.delete(editHistory).where(eq(editHistory.treeId, tree.id));
+        // Deletion snapshots hold full person rows (names, dates, encrypted
+        // phone/email) for everyone the user ever deleted. They must go with the
+        // account, or "we delete all your data" is not true.
+        await tx.delete(deletions).where(eq(deletions.treeId, tree.id));
+        await tx.delete(trees).where(eq(trees.id, tree.id));
+      }
+
+      await tx.delete(users).where(eq(users.id, userId));
+
+      // Audit rows outlived the account: user id, IP address and user agent for
+      // every login and every edit. Removed last, so the entry written above goes
+      // with the rest and no personal trace of the account survives.
+      await tx.delete(auditLogs).where(eq(auditLogs.userId, userId));
+    });
 
     res.clearCookie("auth_token", COOKIE_OPTIONS);
     res.json({ success: true, message: "Account deleted successfully" });
@@ -2379,52 +2388,60 @@ app.post("/api/deletions/:id/restore", authenticateUser, async (req, res) => {
       .map((r) => r.id)
       .filter((id) => id != null && !beforePeopleIds.has(id));
 
-    if (relIdsToRemove.length > 0) {
-      await db
-        .delete(relationships)
-        .where(inArray(relationships.id, relIdsToRemove));
-    }
-    if (peopleIdsToRemove.length > 0) {
-      await db.delete(people).where(inArray(people.id, peopleIdsToRemove));
-    }
-
-    // Upsert, not insert-or-skip: for an update the row still exists, and
-    // onConflictDoNothing would silently leave the new values in place. Done one
-    // row at a time so each row's own values are used in the DO UPDATE clause.
+    // The whole undo, or none of it. This removes rows, re-inserts rows, and marks
+    // the snapshot restored — three steps that must agree. A failure between the
+    // removes and the inserts loses a person permanently; a failure before the
+    // final update leaves the snapshot un-restored, so the same undo could run
+    // twice and re-insert rows that already exist.
     let peopleRestored = [];
-    for (const row of peopleRows) {
-      const { id, ...rest } = row;
-      const [out] = await db
-        .insert(people)
-        .values(row)
-        .onConflictDoUpdate({ target: people.id, set: rest })
-        .returning({ id: people.id });
-      if (out) peopleRestored.push(out);
-    }
-
     let relRestored = [];
-    for (const row of relRows) {
-      const { id, ...rest } = row;
-      const [out] = await db
-        .insert(relationships)
-        .values(row)
-        .onConflictDoUpdate({ target: relationships.id, set: rest })
-        .returning({ id: relationships.id });
-      if (out) relRestored.push(out);
-    }
 
-    // Keep the serial sequences ahead of any id we just re-inserted.
-    await db.execute(
-      sql`SELECT setval(pg_get_serial_sequence('people','id'), GREATEST(COALESCE((SELECT MAX(id) FROM people), 1), 1))`,
-    );
-    await db.execute(
-      sql`SELECT setval(pg_get_serial_sequence('relationships','id'), GREATEST(COALESCE((SELECT MAX(id) FROM relationships), 1), 1))`,
-    );
+    await db.transaction(async (tx) => {
+      if (relIdsToRemove.length > 0) {
+        await tx
+          .delete(relationships)
+          .where(inArray(relationships.id, relIdsToRemove));
+      }
+      if (peopleIdsToRemove.length > 0) {
+        await tx.delete(people).where(inArray(people.id, peopleIdsToRemove));
+      }
 
-    await db
-      .update(deletions)
-      .set({ restoredAt: new Date() })
-      .where(inArray(deletions.id, groupIds));
+      // Upsert, not insert-or-skip: for an update the row still exists, and
+      // onConflictDoNothing would silently leave the new values in place. Done one
+      // row at a time so each row's own values are used in the DO UPDATE clause.
+      for (const row of peopleRows) {
+        const { id, ...rest } = row;
+        const [out] = await tx
+          .insert(people)
+          .values(row)
+          .onConflictDoUpdate({ target: people.id, set: rest })
+          .returning({ id: people.id });
+        if (out) peopleRestored.push(out);
+      }
+
+      for (const row of relRows) {
+        const { id, ...rest } = row;
+        const [out] = await tx
+          .insert(relationships)
+          .values(row)
+          .onConflictDoUpdate({ target: relationships.id, set: rest })
+          .returning({ id: relationships.id });
+        if (out) relRestored.push(out);
+      }
+
+      // Keep the serial sequences ahead of any id we just re-inserted.
+      await tx.execute(
+        sql`SELECT setval(pg_get_serial_sequence('people','id'), GREATEST(COALESCE((SELECT MAX(id) FROM people), 1), 1))`,
+      );
+      await tx.execute(
+        sql`SELECT setval(pg_get_serial_sequence('relationships','id'), GREATEST(COALESCE((SELECT MAX(id) FROM relationships), 1), 1))`,
+      );
+
+      await tx
+        .update(deletions)
+        .set({ restoredAt: new Date() })
+        .where(inArray(deletions.id, groupIds));
+    });
 
     await logAudit(
       req.userId,
@@ -2504,39 +2521,45 @@ app.post("/api/people/batch-delete", authenticateUser, async (req, res) => {
       return res.status(404).json({ error: "No matching records found" });
     }
 
-    // Snapshot BEFORE deleting. If this insert fails the delete never runs.
-    const [snapshot] = await db
-      .insert(deletions)
-      .values({
-        treeId,
-        deletedBy: req.userId,
-        kind: "delete",
-        groupId: req.headers["x-action-group"] || null,
-        label: label || null,
-        people: peopleRows,
-        relationships: relRows,
-      })
-      .returning();
+    // Snapshot and deletion together, or neither. The snapshot is what undo reads
+    // from: a snapshot written without the delete leaves a phantom undo entry, and
+    // a delete without the snapshot is unrecoverable. Separately they could differ.
+    const snapshot = await db.transaction(async (tx) => {
+      const [snap] = await tx
+        .insert(deletions)
+        .values({
+          treeId,
+          deletedBy: req.userId,
+          kind: "delete",
+          groupId: req.headers["x-action-group"] || null,
+          label: label || null,
+          people: peopleRows,
+          relationships: relRows,
+        })
+        .returning();
 
-    // Named relationships first: a marriage removal deletes ONLY the partner
-    // row, and it must go whether or not anyone is deleted alongside it.
-    if (relIds.length) {
-      await db
-        .delete(relationships)
-        .where(
-          and(
-            eq(relationships.treeId, treeId),
-            inArray(relationships.id, relIds),
-          ),
-        );
-    }
+      // Named relationships first: a marriage removal deletes ONLY the partner
+      // row, and it must go whether or not anyone is deleted alongside it.
+      if (relIds.length) {
+        await tx
+          .delete(relationships)
+          .where(
+            and(
+              eq(relationships.treeId, treeId),
+              inArray(relationships.id, relIds),
+            ),
+          );
+      }
 
-    // Then the people. FK cascade removes the rest of their relationship rows.
-    if (foundIds.length) {
-      await db
-        .delete(people)
-        .where(and(eq(people.treeId, treeId), inArray(people.id, foundIds)));
-    }
+      // Then the people. FK cascade removes the rest of their relationship rows.
+      if (foundIds.length) {
+        await tx
+          .delete(people)
+          .where(and(eq(people.treeId, treeId), inArray(people.id, foundIds)));
+      }
+
+      return snap;
+    });
 
     await logAudit(
       req.userId,
