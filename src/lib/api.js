@@ -14,6 +14,32 @@ const DEBUG = false;
 // actions overlapping; beginAction/endAction are always paired in try/finally.
 let currentActionGroup = null;
 
+// One place the app learns its session has ended. api.js cannot navigate or
+// render, so it raises the fact and App.jsx decides what to do about it.
+let sessionEndedHandler = null;
+let sessionEndedNotified = false;
+
+export function onSessionEnded(handler) {
+  sessionEndedHandler = handler;
+}
+
+function notifySessionEnded(message) {
+  // Once per session. A single expiry can fail five in-flight requests at the
+  // same moment, and five alerts is worse than none.
+  if (sessionEndedNotified) return;
+  sessionEndedNotified = true;
+  try {
+    sessionEndedHandler?.(message);
+  } catch (error) {
+    console.error("Session-ended handler failed:", error);
+  }
+}
+
+// Called after a successful sign-in, so the next expiry is announced again.
+export function resetSessionEndedNotice() {
+  sessionEndedNotified = false;
+}
+
 export function beginAction() {
   currentActionGroup =
     globalThis.crypto?.randomUUID?.() ||
@@ -47,6 +73,16 @@ async function fetchAPI(endpoint, options = {}) {
         .json()
         .catch(() => ({ error: "An error occurred" }));
       console.error(`[API] ${endpoint} - Error:`, error);
+
+      // The session is gone — expired, terminated by a sign-in elsewhere, or
+      // never there. Tell the app ONCE, centrally, instead of leaving every
+      // caller to show its own error and carry on: without this the user stays on
+      // a screen that looks signed in while every request fails, which is what
+      // happened when a session ended mid-edit.
+      if (response.status === 401 && error?.sessionEnded) {
+        notifySessionEnded(error.error);
+      }
+
       throw new Error(error.error || `HTTP error! status: ${response.status}`);
     }
 
