@@ -4506,9 +4506,15 @@ function App() {
         {sessionEndedMessage && (
           <div
             dir="rtl"
-            className="fixed top-4 left-1/2 -translate-x-1/2 z-[70] bg-amber-50 border border-amber-200 text-amber-800 text-sm rounded-lg px-4 py-2 shadow"
+            role="alert"
+            className="fixed inset-x-0 top-0 z-[70] bg-amber-100 border-b-2 border-amber-400 text-amber-900 shadow-md"
           >
-            {sessionEndedMessage}
+            <div className="mx-auto flex max-w-3xl items-center justify-center gap-3 px-4 py-3 text-center text-base font-medium">
+              <span aria-hidden="true" className="text-lg leading-none">
+                &#9888;
+              </span>
+              <span>{sessionEndedMessage}</span>
+            </div>
           </div>
         )}
 
