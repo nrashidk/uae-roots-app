@@ -602,6 +602,35 @@ const recordUndo = async ({
   }
 };
 
+// Invalidate every existing session for a user. Any token signed before this
+// bump fails the version check on its next request.
+//
+// NOTE what this does and does not do. A phone session ends outright. A Google
+// session ends until the person actively signs in again — their Firebase
+// credential lives in browser storage, so a reload mints them a new app token.
+// That is correct for "sign out my other devices"; it is not a lockout, and
+// stopping a compromised Google ACCOUNT is Google's control, not ours.
+const bumpTokenVersion = async (userId, reason, req) => {
+  try {
+    await db
+      .update(users)
+      .set({ tokenVersion: sql`${users.tokenVersion} + 1` })
+      .where(eq(users.id, userId));
+    await logAudit(userId, "sessions_terminated", "auth", null, { reason }, req);
+  } catch (error) {
+    console.error("Token version bump failed:", error);
+  }
+};
+
+// The version a new session should carry. With SINGLE_SESSION on, logging in
+// bumps first, so the token just issued is the ONLY valid one and every other
+// device is signed out — OWASP item 68 taken literally.
+const versionForNewSession = async (userId, existingVersion, req) => {
+  if (!SINGLE_SESSION) return existingVersion ?? 0;
+  await bumpTokenVersion(userId, "single_session_login", req);
+  return (existingVersion ?? 0) + 1;
+};
+
 const logAudit = async (
   userId,
   action,
@@ -658,6 +687,15 @@ const recordEdit = async (
 // unattended laptop is not signed in all week. The bug being fixed was the
 // MISMATCH — cookie 7 days, token 24 hours — not the length, and the slide below
 // means an active user is never logged out mid-session regardless of the window.
+// OWASP item 68 asks that concurrent logins with the same user id be disallowed —
+// one session at a time, so signing in on a phone ends the laptop session. That is
+// a 2010 banking assumption and it is a real daily cost for a family tree.
+//
+// The mechanism is here either way. Set SINGLE_SESSION=true to enforce item 68
+// literally; left off, logging in elsewhere does not disturb existing sessions and
+// only an explicit "sign out everywhere" or an unlink terminates them.
+const SINGLE_SESSION = process.env.SINGLE_SESSION === "true";
+
 const SESSION_HOURS = 48;
 const SESSION_MS = SESSION_HOURS * 60 * 60 * 1000;
 const SESSION_EXPIRES_IN = `${SESSION_HOURS}h`;
@@ -673,14 +711,16 @@ const COOKIE_OPTIONS = {
 // Slide the session forward for anyone still using the app. Without this a
 // 7-day window is a hard cut-off: someone active on day 7 is logged out mid-task.
 // Re-issued only past the halfway mark, so most requests set no cookie.
-const slideSession = (req, res, decoded) => {
+const slideSession = (req, res, decoded, tokenVersion = 0) => {
   try {
     if (!decoded?.exp) return;
     const remainingMs = decoded.exp * 1000 - Date.now();
     if (remainingMs > SESSION_MS / 2) return;
 
+    // Carry the CURRENT version, not the one in the old token — otherwise a slide
+    // would quietly re-issue a token that a bump had just invalidated.
     const token = jwt.sign(
-      { userId: decoded.userId, type: decoded.type },
+      { userId: decoded.userId, type: decoded.type, tv: tokenVersion },
       JWT_SECRET,
       { expiresIn: SESSION_EXPIRES_IN },
     );
@@ -711,9 +751,29 @@ const authenticateUser = async (req, res, next) => {
 
   try {
     const decoded = jwt.verify(token, JWT_SECRET);
+
+    // Is this token still current for its user? A valid signature only proves the
+    // token was issued by us — not that it should still work. Bumping
+    // users.token_version invalidates every token signed before the bump, which
+    // is what makes "sign out everywhere" and unlink-terminates-sessions real.
+    //
+    // Tokens issued before this column existed carry no version. They are treated
+    // as 0, matching the default, so deploying this does not sign everyone out.
+    const [account] = await db
+      .select({ tokenVersion: users.tokenVersion })
+      .from(users)
+      .where(eq(users.id, decoded.userId));
+
+    if (account && (decoded.tv ?? 0) !== (account.tokenVersion ?? 0)) {
+      res.clearCookie("auth_token", COOKIE_OPTIONS);
+      return res
+        .status(401)
+        .json({ error: "انتهت صلاحية الجلسة. سجّل الدخول مرة أخرى" });
+    }
+
     req.userId = decoded.userId;
     req.userType = decoded.type;
-    slideSession(req, res, decoded);
+    slideSession(req, res, decoded, account?.tokenVersion ?? 0);
     debugLog(`[${rid}][Auth] Token valid - userId: ${req.userId}`);
     next();
   } catch (jwtError) {
@@ -736,12 +796,26 @@ const optionalAuth = async (req, res, next) => {
   if (token) {
     try {
       const decoded = jwt.verify(token, JWT_SECRET);
+
+      // The same version check as authenticateUser. Without it /api/auth/check
+      // would answer authenticated:true for a token that every other route
+      // rejects — the app would restore a session it cannot use.
+      const [account] = await db
+        .select({ tokenVersion: users.tokenVersion })
+        .from(users)
+        .where(eq(users.id, decoded.userId));
+
+      if (account && (decoded.tv ?? 0) !== (account.tokenVersion ?? 0)) {
+        res.clearCookie("auth_token", COOKIE_OPTIONS);
+        return next();
+      }
+
       req.userId = decoded.userId;
       req.userType = decoded.type;
       // /api/auth/check runs through here, and it is the FIRST request a
       // returning user makes — the natural place to renew a session that is
       // most of the way through its life.
-      slideSession(req, res, decoded);
+      slideSession(req, res, decoded, account?.tokenVersion ?? 0);
     } catch (error) {
       res.clearCookie("auth_token", COOKIE_OPTIONS);
     }
@@ -1070,16 +1144,28 @@ app.post("/api/sms/verify-code", smsLimiter, async (req, res) => {
 
     const userId = existingUser ? existingUser.id : formattedPhone;
 
-    // Same as the Firebase path: tell the client whether an account exists yet,
-    // so it can ask before creating one.
+    // One lookup, two answers: whether an account exists yet (so the client can
+    // ask before creating one) and its current token version.
     const [existingAccount] = await db
-      .select({ id: users.id })
+      .select({ id: users.id, tokenVersion: users.tokenVersion })
       .from(users)
       .where(eq(users.id, userId));
 
-    const token = jwt.sign({ userId: userId, type: "phone" }, JWT_SECRET, {
-      expiresIn: SESSION_EXPIRES_IN,
-    });
+    const token = jwt.sign(
+      {
+        userId: userId,
+        type: "phone",
+        tv: existingAccount
+          ? await versionForNewSession(
+              userId,
+              existingAccount.tokenVersion,
+              req,
+            )
+          : 0,
+      },
+      JWT_SECRET,
+      { expiresIn: SESSION_EXPIRES_IN },
+    );
 
     res.cookie("auth_token", token, COOKIE_OPTIONS);
 
@@ -1165,14 +1251,25 @@ app.post("/api/auth/token", loginLimiter, async (req, res) => {
 
     // Does this id already have an account? The client needs to know BEFORE it
     // creates one — pressing "login" with an unrecognised Google address used to
-    // make a new account silently, with no confirmation and no terms.
+    // make a new account silently, with no confirmation and no terms. The same
+    // lookup yields the token version the new session must carry.
     const [existingAccount] = await db
-      .select({ id: users.id })
+      .select({ id: users.id, tokenVersion: users.tokenVersion })
       .from(users)
       .where(eq(users.id, resolvedUserId));
 
     const token = jwt.sign(
-      { userId: resolvedUserId, type: provider || "firebase" },
+      {
+        userId: resolvedUserId,
+        type: provider || "firebase",
+        tv: existingAccount
+          ? await versionForNewSession(
+              resolvedUserId,
+              existingAccount.tokenVersion,
+              req,
+            )
+          : 0,
+      },
       JWT_SECRET,
       { expiresIn: SESSION_EXPIRES_IN },
     );
@@ -1352,6 +1449,11 @@ app.delete("/api/auth/identities/:id", authenticateUser, async (req, res) => {
       req,
     );
 
+    // Removing a login method must end the sessions it created — otherwise
+    // unlinking Google leaves anyone already signed in through it still working,
+    // which is the opposite of what the person just asked for.
+    await bumpTokenVersion(req.userId, "identity_unlinked", req);
+
     res.json({ success: true, removed: toRemove.length });
   } catch (error) {
     handleError(res, error, "Unlink identity", req);
@@ -1519,6 +1621,19 @@ app.post(
     }
   },
 );
+
+// Sign out everywhere. This is what item 98 asks for: a way to terminate
+// sessions when authorisation ceases. The session making the request ends too —
+// there is no reason to keep one device signed in while ejecting the rest.
+app.post("/api/auth/logout-all", authenticateUser, async (req, res) => {
+  try {
+    await bumpTokenVersion(req.userId, "user_requested", req);
+    res.clearCookie("auth_token", COOKIE_OPTIONS);
+    res.json({ success: true });
+  } catch (error) {
+    handleError(res, error, "Logout all", req);
+  }
+});
 
 app.post("/api/auth/logout", authenticateUser, async (req, res) => {
   await logAudit(req.userId, "logout", "auth", null, null, req);
