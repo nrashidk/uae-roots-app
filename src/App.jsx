@@ -4480,6 +4480,46 @@ function App() {
   if (!isAuthenticated && !userProfile) {
     return (
       <>
+          {/* Why the user is looking at this screen. Without it a session ended
+              by a sign-in elsewhere just returns them to login with no
+              explanation.
+
+              In normal flow, NOT fixed. .lp-nav is static, so a fixed bar sat on
+              top of it and half-covered the very تسجيل الدخول button this notice
+              is telling the user to press. As the first block in the document it
+              pushes the nav down instead, and needs no knowledge of nav height. */}
+          {sessionEndedMessage && (
+            <div
+              dir="rtl"
+              role="alert"
+              className="w-full bg-amber-100 border-b-2 border-amber-400 text-amber-900 shadow-sm"
+            >
+              <div className="mx-auto flex max-w-3xl items-center gap-3 px-4 py-3">
+                <span aria-hidden="true" className="text-lg leading-none">
+                  &#9888;
+                </span>
+                <span className="flex-1 text-center text-base font-medium">
+                  {sessionEndedMessage}
+                </span>
+                {/* Dismissable: the notice explains a state, it does not need an
+                    answer, and leaving it pinned until the next sign-in means it
+                    sits over the page while someone reads it or heads for the
+                    login button. Clearing the state is enough — nothing else
+                    reads sessionEndedMessage, and api.js keeps its own
+                    once-per-session guard, so dismissing cannot suppress a
+                    LATER termination. */}
+                <button
+                  type="button"
+                  onClick={() => setSessionEndedMessage(null)}
+                  aria-label="إغلاق"
+                  className="shrink-0 rounded px-2 text-xl leading-none text-amber-900/70 hover:text-amber-900 hover:bg-amber-200 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                >
+                  &times;
+                </button>
+              </div>
+            </div>
+          )}
+
           <LandingPage
             onSignIn={() => {
               setAuthMode("login");
@@ -4501,23 +4541,6 @@ function App() {
         {/* Sign in / register happens in a dialog over the landing page rather
             than on a separate screen: no page switch, and the two entry points
             differ only by which mode the form opens in. */}
-        {/* Why the user is looking at this screen. Without it a session ended by
-            a sign-in elsewhere just returns them to login with no explanation. */}
-        {sessionEndedMessage && (
-          <div
-            dir="rtl"
-            role="alert"
-            className="fixed inset-x-0 top-0 z-[70] bg-amber-100 border-b-2 border-amber-400 text-amber-900 shadow-md"
-          >
-            <div className="mx-auto flex max-w-3xl items-center justify-center gap-3 px-4 py-3 text-center text-base font-medium">
-              <span aria-hidden="true" className="text-lg leading-none">
-                &#9888;
-              </span>
-              <span>{sessionEndedMessage}</span>
-            </div>
-          </div>
-        )}
-
         <Dialog open={authDialogOpen} onOpenChange={setAuthDialogOpen}>
           <DialogContent className="auth-shell sm:max-w-md" dir="rtl" aria-describedby={undefined}>
             <DialogHeader>
