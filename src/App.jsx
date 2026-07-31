@@ -2034,7 +2034,11 @@ function App() {
     // user came in through Google; a cookie-only session means phone. Worth
     // showing, because otherwise it is possible to remove the very method you
     // are signed in with and only find out at the next login.
-    const activeMethod = sessionType === "phone" ? "phone" : "google";
+    // null until /api/auth/check answers. Falling through to "google" while
+    // unknown put the "current session" label on the Gmail row for a moment on
+    // every load, then moved it — showing a default as though it were an answer.
+    const activeMethod =
+      sessionType === null ? null : sessionType === "phone" ? "phone" : "google";
 
     return (
       <Dialog open={showProfile} onOpenChange={setShowProfile}>
