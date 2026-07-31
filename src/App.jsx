@@ -55,6 +55,8 @@ import {
   getAuthToken,
   beginAction,
   endAction,
+  onSessionEnded,
+  resetSessionEndedNotice,
 } from "./lib/api.js";
 
 // Verbose tracing. Several of these print whole person/user objects — names,
@@ -193,6 +195,9 @@ function App() {
   const [pendingSignup, setPendingSignup] = useState(null);
   // "phone" or a provider name, straight from the JWT — see /api/auth/check.
   const [sessionType, setSessionType] = useState(null);
+  // Set when the server says the session is gone, so the login screen can explain
+  // why rather than just appearing.
+  const [sessionEndedMessage, setSessionEndedMessage] = useState(null);
   // Linking a phone is two steps — send a code, then check it — so the profile
   // needs a small amount of its own state. Google needs none: the popup returns
   // a token in one go.
@@ -1576,6 +1581,8 @@ function App() {
 
   const handleAuthSuccess = async (phoneUser = null, authToken = null) => {
     try {
+      setSessionEndedMessage(null);
+      resetSessionEndedNotice();
       const currentUser = phoneUser || user;
       DEBUG && console.log("handleAuthSuccess called with user:", currentUser);
       if (!currentUser) {
@@ -1871,6 +1878,29 @@ function App() {
       setProfileSaving(false);
     }
   };
+
+  // The app learns its session ended from ONE place. Previously each caller
+  // handled its own 401: a write alerted, the profile emptied, the undo button
+  // greyed out — and the user stayed on a screen that looked signed in while
+  // nothing worked.
+  useEffect(() => {
+    onSessionEnded((message) => {
+      setSessionEndedMessage(message || null);
+      clearAuthToken();
+      setUserProfile(null);
+      setCurrentTree(null);
+      setPeople([]);
+      setRelationships([]);
+      setIdentities([]);
+      setSessionType(null);
+      setShowProfile(false);
+      restorationAttemptedRef.current = false;
+      // Drop the Firebase credential too, or it silently mints a new token and
+      // signs the user straight back in — which is how the terminated session
+      // went unnoticed before.
+      logout().catch(() => {});
+    });
+  }, [logout]);
 
   const loadIdentities = async () => {
     setIdentitiesLoading(true);
@@ -4451,6 +4481,17 @@ function App() {
         {/* Sign in / register happens in a dialog over the landing page rather
             than on a separate screen: no page switch, and the two entry points
             differ only by which mode the form opens in. */}
+        {/* Why the user is looking at this screen. Without it a session ended by
+            a sign-in elsewhere just returns them to login with no explanation. */}
+        {sessionEndedMessage && (
+          <div
+            dir="rtl"
+            className="fixed top-4 left-1/2 -translate-x-1/2 z-[70] bg-amber-50 border border-amber-200 text-amber-800 text-sm rounded-lg px-4 py-2 shadow"
+          >
+            {sessionEndedMessage}
+          </div>
+        )}
+
         <Dialog open={authDialogOpen} onOpenChange={setAuthDialogOpen}>
           <DialogContent className="auth-shell sm:max-w-md" dir="rtl" aria-describedby={undefined}>
             <DialogHeader>
