@@ -98,6 +98,7 @@ function App() {
     error: authError,
     loginWithGoogle,
     getGoogleIdTokenForLink,
+    reauthenticateGoogle,
     loginWithMicrosoft,
     loginWithEmail,
     signUpWithEmail,
@@ -172,6 +173,10 @@ function App() {
   const [profileSaving, setProfileSaving] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleteConfirmText, setDeleteConfirmText] = useState("");
+  // A phone account proves it is still present with an SMS code; a Google account
+  // with a fresh popup. Deleting is the one irreversible action in the app.
+  const [deleteCodeSent, setDeleteCodeSent] = useState(false);
+  const [deleteCode, setDeleteCode] = useState("");
   const [profileMessage, setProfileMessage] = useState("");
   // Tone is set explicitly rather than inferred from the text. It used to be
   // `message.includes("نجاح") ? green : red`, so anything that was neither a
@@ -340,6 +345,9 @@ function App() {
     deleteAccount: "حذف الحساب",
     deleteAccountWarning: "تحذير: سيتم حذف جميع بياناتك وأشجار العائلة نهائياً",
     deleteAccountConfirm: "اكتب 'حذف' لتأكيد حذف الحساب",
+    deleteSendCode: "إرسال رمز التحقق",
+    deleteEnterCode: "أدخل رمز التحقق المرسل إليك",
+    deleteReauthNote: "للتأكيد، سنتحقق من هويتك مرة أخرى قبل الحذف",
     confirmDelete: "تأكيد الحذف",
     saving: "جاري الحفظ...",
     saved: "تم الحفظ",
@@ -1794,12 +1802,43 @@ function App() {
     }
   };
 
+  // Send the code a phone account needs to confirm deletion.
+  const handleSendDeleteCode = async () => {
+    const phone = identities.find((i) => i.identityType === "phone");
+    if (!phone) return;
+    setProfileSaving(true);
+    try {
+      await api.auth.sendSmsCode(phone.identityValue);
+      setDeleteCodeSent(true);
+      setProfileMessageTone("info");
+      setProfileMessage(t.codeSent);
+    } catch (error) {
+      setProfileMessageTone("error");
+      setProfileMessage(error.message || "تعذّر إرسال الرمز");
+    } finally {
+      setProfileSaving(false);
+    }
+  };
+
   const handleDeleteAccount = async () => {
     const userId = userProfile?.id || user?.uid;
     if (!userId || deleteConfirmText !== "حذف") return;
     try {
       setProfileSaving(true);
-      await api.users.delete(userId);
+
+      // Prove presence before anything is destroyed. The proof matches how this
+      // session was created — a phone account sends the code it just received, a
+      // Google account re-runs the popup so auth_time is now rather than whenever
+      // the stored credential was first granted.
+      let proof = {};
+      if (sessionType === "phone") {
+        const phone = identities.find((i) => i.identityType === "phone");
+        proof = { phoneNumber: phone?.identityValue, code: deleteCode.trim() };
+      } else {
+        proof = { firebaseIdToken: await reauthenticateGoogle() };
+      }
+
+      await api.users.delete(userId, proof);
       try {
         await deleteAccount();
       } catch (authErr) {
@@ -2263,10 +2302,44 @@ function App() {
                       placeholder="حذف"
                       className="w-full px-3 py-2 border border-red-300 rounded-lg text-right"
                     />
+                    <p className="text-xs text-gray-600">
+                      {t.deleteReauthNote}
+                    </p>
+
+                    {/* A phone account confirms with an SMS code. A Google account
+                        needs no field here — pressing delete re-runs the popup. */}
+                    {sessionType === "phone" &&
+                      (deleteCodeSent ? (
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          value={deleteCode}
+                          onChange={(e) => setDeleteCode(e.target.value)}
+                          placeholder={t.deleteEnterCode}
+                          dir="ltr"
+                          className="w-full px-3 py-2 border border-red-300 rounded-lg text-right"
+                        />
+                      ) : (
+                        <Button
+                          onClick={handleSendDeleteCode}
+                          disabled={deleteConfirmText !== "حذف" || profileSaving}
+                          variant="outline"
+                          className="w-full"
+                          size="sm"
+                        >
+                          {t.deleteSendCode}
+                        </Button>
+                      ))}
+
                     <div className="flex gap-2">
                       <Button
                         onClick={handleDeleteAccount}
-                        disabled={deleteConfirmText !== "حذف" || profileSaving}
+                        disabled={
+                          deleteConfirmText !== "حذف" ||
+                          profileSaving ||
+                          (sessionType === "phone" &&
+                            (!deleteCodeSent || !deleteCode.trim()))
+                        }
                         variant="destructive"
                         className="flex-1"
                       >
@@ -2276,6 +2349,8 @@ function App() {
                         onClick={() => {
                           setShowDeleteConfirm(false);
                           setDeleteConfirmText("");
+                          setDeleteCodeSent(false);
+                          setDeleteCode("");
                         }}
                         variant="outline"
                         className="flex-1"
