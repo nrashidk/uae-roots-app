@@ -747,7 +747,9 @@ const authenticateUser = async (req, res, next) => {
 
   if (!token) {
     debugLog(`[${rid}][Auth] No token found - returning 401`);
-    return res.status(401).json({ error: "Authentication required" });
+    return res
+      .status(401)
+      .json({ error: "الجلسة غير موجودة", sessionEnded: true });
   }
 
   try {
@@ -766,10 +768,14 @@ const authenticateUser = async (req, res, next) => {
       .where(eq(users.id, decoded.userId));
 
     if (account && (decoded.tv ?? 0) !== (account.tokenVersion ?? 0)) {
+      // A version mismatch is not an expiry. The session was ENDED — by a sign-in
+      // elsewhere, or by unlinking the method it came in through. Saying "expired"
+      // sends the user looking for a timeout that never happened.
       res.clearCookie("auth_token", COOKIE_OPTIONS);
-      return res
-        .status(401)
-        .json({ error: "انتهت صلاحية الجلسة. سجّل الدخول مرة أخرى" });
+      return res.status(401).json({
+        error: "تم إنهاء هذه الجلسة لتسجيل الدخول من جهاز آخر",
+        sessionEnded: true,
+      });
     }
 
     req.userId = decoded.userId;
@@ -780,7 +786,9 @@ const authenticateUser = async (req, res, next) => {
   } catch (jwtError) {
     debugLog(`[${rid}][Auth] Token invalid or expired:`, jwtError.message);
     res.clearCookie("auth_token", COOKIE_OPTIONS);
-    return res.status(401).json({ error: "Invalid or expired token" });
+    return res
+      .status(401)
+      .json({ error: "انتهت صلاحية الجلسة", sessionEnded: true });
   }
 };
 
