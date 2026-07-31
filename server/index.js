@@ -687,14 +687,15 @@ const recordEdit = async (
 // unattended laptop is not signed in all week. The bug being fixed was the
 // MISMATCH — cookie 7 days, token 24 hours — not the length, and the slide below
 // means an active user is never logged out mid-session regardless of the window.
-// OWASP item 68 asks that concurrent logins with the same user id be disallowed —
-// one session at a time, so signing in on a phone ends the laptop session. That is
-// a 2010 banking assumption and it is a real daily cost for a family tree.
+// OWASP item 68: do not allow concurrent logins with the same user id. ON, so
+// signing in anywhere ends every other session for that account — sign in on your
+// phone and your laptop is signed out.
 //
-// The mechanism is here either way. Set SINGLE_SESSION=true to enforce item 68
-// literally; left off, logging in elsewhere does not disturb existing sessions and
-// only an explicit "sign out everywhere" or an unlink terminates them.
-const SINGLE_SESSION = process.env.SINGLE_SESSION === "true";
+// That is a real daily cost, and it is the literal reading of the item. Set
+// SINGLE_SESSION=false to turn it off if it proves more annoying than it is worth;
+// the rest of the revocation machinery — unlink ends the sessions it created —
+// works either way.
+const SINGLE_SESSION = process.env.SINGLE_SESSION !== "false";
 
 const SESSION_HOURS = 48;
 const SESSION_MS = SESSION_HOURS * 60 * 60 * 1000;
@@ -746,7 +747,9 @@ const authenticateUser = async (req, res, next) => {
 
   if (!token) {
     debugLog(`[${rid}][Auth] No token found - returning 401`);
-    return res.status(401).json({ error: "Authentication required" });
+    return res
+      .status(401)
+      .json({ error: "الجلسة غير موجودة", sessionEnded: true });
   }
 
   try {
@@ -765,10 +768,14 @@ const authenticateUser = async (req, res, next) => {
       .where(eq(users.id, decoded.userId));
 
     if (account && (decoded.tv ?? 0) !== (account.tokenVersion ?? 0)) {
+      // A version mismatch is not an expiry. The session was ENDED — by a sign-in
+      // elsewhere, or by unlinking the method it came in through. Saying "expired"
+      // sends the user looking for a timeout that never happened.
       res.clearCookie("auth_token", COOKIE_OPTIONS);
-      return res
-        .status(401)
-        .json({ error: "انتهت صلاحية الجلسة. سجّل الدخول مرة أخرى" });
+      return res.status(401).json({
+        error: "تم إنهاء هذه الجلسة لتسجيل الدخول من جهاز آخر",
+        sessionEnded: true,
+      });
     }
 
     req.userId = decoded.userId;
@@ -779,7 +786,9 @@ const authenticateUser = async (req, res, next) => {
   } catch (jwtError) {
     debugLog(`[${rid}][Auth] Token invalid or expired:`, jwtError.message);
     res.clearCookie("auth_token", COOKIE_OPTIONS);
-    return res.status(401).json({ error: "Invalid or expired token" });
+    return res
+      .status(401)
+      .json({ error: "انتهت صلاحية الجلسة", sessionEnded: true });
   }
 };
 
@@ -1630,19 +1639,6 @@ app.post(
   },
 );
 
-// Sign out everywhere. This is what item 98 asks for: a way to terminate
-// sessions when authorisation ceases. The session making the request ends too —
-// there is no reason to keep one device signed in while ejecting the rest.
-app.post("/api/auth/logout-all", authenticateUser, async (req, res) => {
-  try {
-    await bumpTokenVersion(req.userId, "user_requested", req);
-    res.clearCookie("auth_token", COOKIE_OPTIONS);
-    res.json({ success: true });
-  } catch (error) {
-    handleError(res, error, "Logout all", req);
-  }
-});
-
 app.post("/api/auth/logout", authenticateUser, async (req, res) => {
   await logAudit(req.userId, "logout", "auth", null, null, req);
   res.clearCookie("auth_token", COOKIE_OPTIONS);
@@ -1844,12 +1840,110 @@ app.put("/api/users/:id", authenticateUser, async (req, res) => {
   }
 });
 
+// Deleting an account requires proving you are still there — a fresh credential,
+// not merely a session that was created at some point in the past. Everything else
+// in this app is reversible; this is not, and it takes seven tables with it.
+//
+// The proof matches how the session was created: a Google session re-runs the
+// popup and sends the resulting token, a phone session receives an SMS code.
+const verifyReauth = async (req) => {
+  const isPhone = req.userType === "phone";
+
+  if (isPhone) {
+    const { phoneNumber, code } = req.body || {};
+    if (!phoneNumber || !code) return "رمز التحقق مطلوب لحذف الحساب";
+
+    const formatted = normalizePhone(phoneNumber);
+    // The number must be one of THIS account's, or a code sent to any phone at
+    // all would authorise deleting someone else's account.
+    const own = await db
+      .select()
+      .from(authIdentities)
+      .where(
+        and(
+          eq(authIdentities.userId, req.userId),
+          eq(authIdentities.identityType, "phone"),
+          eq(authIdentities.identityValue, formatted),
+        ),
+      );
+    if (own.length === 0) return "رقم الهاتف لا يخص هذا الحساب";
+
+    try {
+      const twilio = (await import("twilio")).default;
+      const { accountSid, authToken } = await getTwilioCredentials();
+      const client = twilio(accountSid, authToken);
+      const verifySid = process.env.TWILIO_VERIFY_SID;
+      if (!verifySid) return "خدمة التحقق غير مهيأة";
+      const check = await client.verify.v2
+        .services(verifySid)
+        .verificationChecks.create({ to: formatted, code });
+      if (check.status !== "approved") return "رمز التحقق غير صحيح";
+    } catch (error) {
+      console.error("Reauth: Twilio check failed:", error);
+      return "تعذّر التحقق من الرمز";
+    }
+    return null;
+  }
+
+  const { firebaseIdToken } = req.body || {};
+  if (!firebaseIdToken) return "إعادة تسجيل الدخول مطلوبة لحذف الحساب";
+  try {
+    const admin = (await import("firebase-admin")).default;
+    if (!admin.apps.length) {
+      admin.initializeApp({ projectId: process.env.VITE_FIREBASE_PROJECT_ID });
+    }
+    const decoded = await admin.auth().verifyIdToken(firebaseIdToken);
+    const email = decoded?.email ? normalizeEmail(decoded.email) : null;
+
+    // The token must belong to THIS account. Any valid Google token would
+    // otherwise authorise deleting any account.
+    const match = await db
+      .select()
+      .from(authIdentities)
+      .where(
+        and(
+          eq(authIdentities.userId, req.userId),
+          eq(authIdentities.identityType, "email"),
+          eq(authIdentities.identityValue, email || ""),
+        ),
+      );
+    if (match.length === 0 && decoded?.uid !== req.userId) {
+      return "الحساب المستخدم للتحقق لا يطابق هذا الحساب";
+    }
+
+    // auth_time is when the user last actually authenticated, not when the token
+    // was minted. A token refreshed from a stored credential carries an old
+    // auth_time, which is exactly the case this check exists to reject.
+    const authAgeSeconds = Date.now() / 1000 - (decoded?.auth_time ?? 0);
+    if (authAgeSeconds > 300) {
+      return "يرجى تسجيل الدخول مرة أخرى قبل حذف الحساب";
+    }
+  } catch (error) {
+    console.error("Reauth: Firebase verification failed:", error);
+    return "تعذّر التحقق من الحساب";
+  }
+  return null;
+};
+
 app.delete("/api/users/:id", authenticateUser, async (req, res) => {
   try {
     const userId = req.params.id;
 
     if (req.userId !== userId) {
       return res.status(403).json({ error: "غير مصرح بالوصول" });
+    }
+
+    const reauthError = await verifyReauth(req);
+    if (reauthError) {
+      await logAudit(
+        req.userId,
+        "delete_refused",
+        "user",
+        userId,
+        { reason: "reauth_failed" },
+        req,
+      );
+      return res.status(401).json({ error: reauthError });
     }
 
     const userTrees = await db

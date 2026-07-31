@@ -55,6 +55,9 @@ import {
   getAuthToken,
   beginAction,
   endAction,
+  onSessionEnded,
+  resetSessionEndedNotice,
+  isSessionEnded,
 } from "./lib/api.js";
 
 // Verbose tracing. Several of these print whole person/user objects — names,
@@ -98,6 +101,7 @@ function App() {
     error: authError,
     loginWithGoogle,
     getGoogleIdTokenForLink,
+    reauthenticateGoogle,
     loginWithMicrosoft,
     loginWithEmail,
     signUpWithEmail,
@@ -172,6 +176,10 @@ function App() {
   const [profileSaving, setProfileSaving] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleteConfirmText, setDeleteConfirmText] = useState("");
+  // A phone account proves it is still present with an SMS code; a Google account
+  // with a fresh popup. Deleting is the one irreversible action in the app.
+  const [deleteCodeSent, setDeleteCodeSent] = useState(false);
+  const [deleteCode, setDeleteCode] = useState("");
   const [profileMessage, setProfileMessage] = useState("");
   // Tone is set explicitly rather than inferred from the text. It used to be
   // `message.includes("نجاح") ? green : red`, so anything that was neither a
@@ -188,6 +196,9 @@ function App() {
   const [pendingSignup, setPendingSignup] = useState(null);
   // "phone" or a provider name, straight from the JWT — see /api/auth/check.
   const [sessionType, setSessionType] = useState(null);
+  // Set when the server says the session is gone, so the login screen can explain
+  // why rather than just appearing.
+  const [sessionEndedMessage, setSessionEndedMessage] = useState(null);
   // Linking a phone is two steps — send a code, then check it — so the profile
   // needs a small amount of its own state. Google needs none: the popup returns
   // a token in one go.
@@ -340,6 +351,9 @@ function App() {
     deleteAccount: "حذف الحساب",
     deleteAccountWarning: "تحذير: سيتم حذف جميع بياناتك وأشجار العائلة نهائياً",
     deleteAccountConfirm: "اكتب 'حذف' لتأكيد حذف الحساب",
+    deleteSendCode: "إرسال رمز التحقق",
+    deleteEnterCode: "أدخل رمز التحقق المرسل إليك",
+    deleteReauthNote: "للتأكيد، سنتحقق من هويتك مرة أخرى قبل الحذف",
     confirmDelete: "تأكيد الحذف",
     saving: "جاري الحفظ...",
     saved: "تم الحفظ",
@@ -1568,6 +1582,8 @@ function App() {
 
   const handleAuthSuccess = async (phoneUser = null, authToken = null) => {
     try {
+      setSessionEndedMessage(null);
+      resetSessionEndedNotice();
       const currentUser = phoneUser || user;
       DEBUG && console.log("handleAuthSuccess called with user:", currentUser);
       if (!currentUser) {
@@ -1794,12 +1810,43 @@ function App() {
     }
   };
 
+  // Send the code a phone account needs to confirm deletion.
+  const handleSendDeleteCode = async () => {
+    const phone = identities.find((i) => i.identityType === "phone");
+    if (!phone) return;
+    setProfileSaving(true);
+    try {
+      await api.auth.sendSmsCode(phone.identityValue);
+      setDeleteCodeSent(true);
+      setProfileMessageTone("info");
+      setProfileMessage(t.codeSent);
+    } catch (error) {
+      setProfileMessageTone("error");
+      setProfileMessage(error.message || "تعذّر إرسال الرمز");
+    } finally {
+      setProfileSaving(false);
+    }
+  };
+
   const handleDeleteAccount = async () => {
     const userId = userProfile?.id || user?.uid;
     if (!userId || deleteConfirmText !== "حذف") return;
     try {
       setProfileSaving(true);
-      await api.users.delete(userId);
+
+      // Prove presence before anything is destroyed. The proof matches how this
+      // session was created — a phone account sends the code it just received, a
+      // Google account re-runs the popup so auth_time is now rather than whenever
+      // the stored credential was first granted.
+      let proof = {};
+      if (sessionType === "phone") {
+        const phone = identities.find((i) => i.identityType === "phone");
+        proof = { phoneNumber: phone?.identityValue, code: deleteCode.trim() };
+      } else {
+        proof = { firebaseIdToken: await reauthenticateGoogle() };
+      }
+
+      await api.users.delete(userId, proof);
       try {
         await deleteAccount();
       } catch (authErr) {
@@ -1831,6 +1878,48 @@ function App() {
     } finally {
       setProfileSaving(false);
     }
+  };
+
+  // The app learns its session ended from ONE place. Previously each caller
+  // handled its own 401: a write alerted, the profile emptied, the undo button
+  // greyed out — and the user stayed on a screen that looked signed in while
+  // nothing worked.
+  useEffect(() => {
+    onSessionEnded((message) => {
+      setSessionEndedMessage(message || null);
+      clearAuthToken();
+      setUserProfile(null);
+      setCurrentTree(null);
+      setPeople([]);
+      setRelationships([]);
+      setIdentities([]);
+      setSessionType(null);
+      setShowProfile(false);
+      // BLOCK restoration, do not re-arm it. This handler nulls currentTree,
+      // which is a dependency of the Firebase restore effect — so that effect
+      // re-runs immediately, while the Firebase credential is still live because
+      // logout() below has not resolved yet. Re-armed, it took the "backend
+      // cookie invalid, re-authenticate" branch and called /auth/token, the same
+      // endpoint a deliberate login calls, which bumps token_version again. The
+      // terminated browser signed itself back in and evicted the device that had
+      // just replaced it — sessions ping-ponging, neither one staying dead.
+      //
+      // Leaving it true is safe: handleAuthSuccess and handleLogout both reset it,
+      // so a deliberate sign-in still restores normally.
+      restorationAttemptedRef.current = true;
+      // Drop the Firebase credential too, or it silently mints a new token and
+      // signs the user straight back in — which is how the terminated session
+      // went unnoticed before.
+      logout().catch(() => {});
+    });
+  }, [logout]);
+
+  // Report a failure UNLESS the session ended — in which case the user is already
+  // being returned to the login screen with a banner explaining why, and telling
+  // them the add failed as well is just noise on the way out.
+  const failAlert = (message) => {
+    if (isSessionEnded()) return;
+    window.alert(message);
   };
 
   const loadIdentities = async () => {
@@ -2263,10 +2352,44 @@ function App() {
                       placeholder="حذف"
                       className="w-full px-3 py-2 border border-red-300 rounded-lg text-right"
                     />
+                    <p className="text-xs text-gray-600">
+                      {t.deleteReauthNote}
+                    </p>
+
+                    {/* A phone account confirms with an SMS code. A Google account
+                        needs no field here — pressing delete re-runs the popup. */}
+                    {sessionType === "phone" &&
+                      (deleteCodeSent ? (
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          value={deleteCode}
+                          onChange={(e) => setDeleteCode(e.target.value)}
+                          placeholder={t.deleteEnterCode}
+                          dir="ltr"
+                          className="w-full px-3 py-2 border border-red-300 rounded-lg text-right"
+                        />
+                      ) : (
+                        <Button
+                          onClick={handleSendDeleteCode}
+                          disabled={deleteConfirmText !== "حذف" || profileSaving}
+                          variant="outline"
+                          className="w-full"
+                          size="sm"
+                        >
+                          {t.deleteSendCode}
+                        </Button>
+                      ))}
+
                     <div className="flex gap-2">
                       <Button
                         onClick={handleDeleteAccount}
-                        disabled={deleteConfirmText !== "حذف" || profileSaving}
+                        disabled={
+                          deleteConfirmText !== "حذف" ||
+                          profileSaving ||
+                          (sessionType === "phone" &&
+                            (!deleteCodeSent || !deleteCode.trim()))
+                        }
                         variant="destructive"
                         className="flex-1"
                       >
@@ -2276,6 +2399,8 @@ function App() {
                         onClick={() => {
                           setShowDeleteConfirm(false);
                           setDeleteConfirmText("");
+                          setDeleteCodeSent(false);
+                          setDeleteCode("");
                         }}
                         variant="outline"
                         className="flex-1"
@@ -2709,7 +2834,7 @@ function App() {
           console.error("Failed to remove orphan after refusal:", cleanupError);
         }
       }
-      alert("فشل في إضافة الشخص: " + error.message);
+      failAlert("فشل في إضافة الشخص: " + error.message);
     } finally {
       endAction();
     }
@@ -2829,7 +2954,7 @@ function App() {
       }
     } catch (error) {
       console.error("Failed to update person:", error);
-      alert("فشل في تحديث الشخص: " + error.message);
+      failAlert("فشل في تحديث الشخص: " + error.message);
     }
   };
 
@@ -3247,7 +3372,7 @@ function App() {
         loadRestorableDeletion();
       } catch (error) {
         console.error("Failed to delete person:", error);
-        alert("فشل في حذف الشخص: " + error.message);
+        failAlert("فشل في حذف الشخص: " + error.message);
       }
     }
   };
@@ -3365,7 +3490,7 @@ function App() {
       if (newRels.length) setRelationships((prev) => [...prev, ...newRels]);
     } catch (error) {
       console.error("Failed to create parents:", error);
-      alert("فشل في إضافة الوالدين: " + error.message);
+      failAlert("فشل في إضافة الوالدين: " + error.message);
     } finally {
       endAction();
       writeInFlight.current = false;
@@ -3766,7 +3891,7 @@ function App() {
       setLinkChildrenSelected(new Set());
     } catch (error) {
       console.error("Failed to link children:", error);
-      window.alert("فشل في ربط الأبناء: " + error.message);
+      failAlert("فشل في ربط الأبناء: " + error.message);
     } finally {
       endAction();
       writeInFlight.current = false;
@@ -3914,7 +4039,7 @@ function App() {
       loadRestorableDeletion();
     } catch (error) {
       console.error("Failed to remove marriage:", error);
-      alert("فشل في حذف الزواج: " + error.message);
+      failAlert("فشل في حذف الزواج: " + error.message);
     }
   };
 
@@ -3941,7 +4066,7 @@ function App() {
       setHighlightedPerson(personId);
     } catch (error) {
       console.error("Failed to link spouse:", error);
-      alert("فشل في إضافة الزواج: " + error.message);
+      failAlert("فشل في إضافة الزواج: " + error.message);
     } finally {
       endAction();
       writeInFlight.current = false;
@@ -4355,6 +4480,46 @@ function App() {
   if (!isAuthenticated && !userProfile) {
     return (
       <>
+          {/* Why the user is looking at this screen. Without it a session ended
+              by a sign-in elsewhere just returns them to login with no
+              explanation.
+
+              In normal flow, NOT fixed. .lp-nav is static, so a fixed bar sat on
+              top of it and half-covered the very تسجيل الدخول button this notice
+              is telling the user to press. As the first block in the document it
+              pushes the nav down instead, and needs no knowledge of nav height. */}
+          {sessionEndedMessage && (
+            <div
+              dir="rtl"
+              role="alert"
+              className="w-full bg-amber-100 border-b-2 border-amber-400 text-amber-900 shadow-sm"
+            >
+              <div className="mx-auto flex max-w-3xl items-center gap-3 px-4 py-3">
+                <span aria-hidden="true" className="text-lg leading-none">
+                  &#9888;
+                </span>
+                <span className="flex-1 text-center text-base font-medium">
+                  {sessionEndedMessage}
+                </span>
+                {/* Dismissable: the notice explains a state, it does not need an
+                    answer, and leaving it pinned until the next sign-in means it
+                    sits over the page while someone reads it or heads for the
+                    login button. Clearing the state is enough — nothing else
+                    reads sessionEndedMessage, and api.js keeps its own
+                    once-per-session guard, so dismissing cannot suppress a
+                    LATER termination. */}
+                <button
+                  type="button"
+                  onClick={() => setSessionEndedMessage(null)}
+                  aria-label="إغلاق"
+                  className="shrink-0 rounded px-2 text-xl leading-none text-amber-900/70 hover:text-amber-900 hover:bg-amber-200 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                >
+                  &times;
+                </button>
+              </div>
+            </div>
+          )}
+
           <LandingPage
             onSignIn={() => {
               setAuthMode("login");
