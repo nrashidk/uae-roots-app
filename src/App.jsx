@@ -2597,6 +2597,24 @@ function App() {
         window.alert(spouseLimitMessage(spouseLimit));
         return;
       }
+
+      // Same-gender pairing, refused here rather than by the server. Both genders
+      // are known in the browser, and this function writes the PERSON before it
+      // posts the relationship — so letting the server refuse meant creating a
+      // row, being refused, and deleting the row again: 326 ms, two audit entries
+      // and a create/delete pair in the undo stack for an action the user never
+      // completed. Same reason the maḥram rules block client-side.
+      //
+      // The server keeps its own copy of this rule (validatePartner). This is a
+      // convenience gate, not the enforcement point.
+      if (
+        selected?.gender &&
+        personData.gender &&
+        selected.gender === personData.gender
+      ) {
+        window.alert("لا يمكن تسجيل زواج بين شخصين من نفس الجنس");
+        return;
+      }
     }
 
     let createdPersonId = null;
