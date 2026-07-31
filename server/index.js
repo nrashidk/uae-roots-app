@@ -267,6 +267,62 @@ app.use((req, res, next) => {
 });
 
 
+// Audit every refusal, in ONE place.
+//
+// The trail recorded what happened, not what was ATTEMPTED. 73 refusal points
+// existed and 18 wrote an entry — so a 403 on someone else's tree, a rejected
+// maḥram marriage, an expired token and a validation failure were all invisible.
+// The log could not show somebody probing.
+//
+// Intercepting the response rather than editing 55 call sites: it cannot miss a
+// site, and it covers refusals added later. Fire-and-forget so a slow audit write
+// never delays the response the user is waiting for.
+const AUDIT_SKIP_PATHS = ["/health"];
+app.use((req, res, next) => {
+  const originalJson = res.json.bind(res);
+  res.json = (body) => {
+    const status = res.statusCode;
+    if (
+      status >= 400 &&
+      status < 500 &&
+      req.path.startsWith("/api") &&
+      !AUDIT_SKIP_PATHS.includes(req.path)
+    ) {
+      // The identity is whoever the request CLAIMED to be. On a 401 there is no
+      // verified user, so fall back to the cookie's own claim — which is exactly
+      // what you want to see when someone is probing with a stale token.
+      const who = req.userId || extractUserIdFromCookie(req) || "anonymous";
+      const action =
+        status === 401
+          ? "auth_refused"
+          : status === 403
+            ? "access_refused"
+            : status === 429
+              ? "rate_limited"
+              : "request_refused";
+
+      // The message, not the request body: bodies carry names, dates and phone
+      // numbers, and this table already holds an IP and a user agent.
+      logAudit(
+        who,
+        action,
+        "request",
+        null,
+        {
+          status,
+          method: req.method,
+          path: req.path,
+          reason:
+            typeof body?.error === "string" ? body.error.slice(0, 200) : null,
+        },
+        req,
+      ).catch(() => {});
+    }
+    return originalJson(body);
+  };
+  next();
+});
+
 // Helper to extract userId from JWT cookie for rate limiting (before auth middleware runs)
 const extractUserIdFromCookie = (req) => {
   try {
