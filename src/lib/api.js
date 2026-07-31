@@ -93,9 +93,12 @@ export const api = {
         method: "PUT",
         body: JSON.stringify(data),
       }),
-    delete: (id) =>
+    // proof is the re-authentication the server demands: { firebaseIdToken } for a
+    // Google session, { phoneNumber, code } for a phone one.
+    delete: (id, proof = {}) =>
       fetchAPI(`/users/${encodeURIComponent(id)}`, {
         method: "DELETE",
+        body: JSON.stringify(proof),
       }),
   },
 
