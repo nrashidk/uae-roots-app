@@ -1449,10 +1449,18 @@ app.delete("/api/auth/identities/:id", authenticateUser, async (req, res) => {
       req,
     );
 
-    // Removing a login method must end the sessions it created — otherwise
-    // unlinking Google leaves anyone already signed in through it still working,
-    // which is the opposite of what the person just asked for.
-    await bumpTokenVersion(req.userId, "identity_unlinked", req);
+    // End sessions ONLY if this session used the method being removed. Unlinking
+    // Google while signed in by phone must not sign you out — nothing about that
+    // session depended on Google.
+    //
+    // req.userType is the JWT's type claim: "phone", or a provider like
+    // "google.com". The identity being removed is a phone row or an email/provider
+    // row, so comparing the two answers "did I come in through this?".
+    const removedWasPhone = identity.identityType === "phone";
+    const sessionIsPhone = req.userType === "phone";
+    if (removedWasPhone === sessionIsPhone) {
+      await bumpTokenVersion(req.userId, "identity_unlinked", req);
+    }
 
     res.json({ success: true, removed: toRemove.length });
   } catch (error) {
