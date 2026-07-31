@@ -1935,8 +1935,27 @@ function App() {
     setLinkBusy(true);
     setProfileMessageTone("error");
     setProfileMessage("");
+
+    // Is this the method the current session came in through? The server ends
+    // those sessions; the client has to follow, or the app stays on screen making
+    // requests that all fail.
+    const removed = identities.find((i) => i.id === id);
+    const removingOwnMethod =
+      removed &&
+      (removed.identityType === "phone") === (sessionType === "phone");
+
     try {
       await api.identities.unlink(id);
+
+      if (removingOwnMethod) {
+        // Firebase MUST be signed out too. Its credential lives in browser
+        // storage, so without this the app immediately mints a fresh token from
+        // it and the user is silently signed back in — the server correctly
+        // invalidated the session and nobody could tell.
+        await handleLogout();
+        return;
+      }
+
       await loadIdentities();
       setProfileMessageTone("success");
       setProfileMessage(t.unlinkedOk);
@@ -2015,7 +2034,11 @@ function App() {
     // user came in through Google; a cookie-only session means phone. Worth
     // showing, because otherwise it is possible to remove the very method you
     // are signed in with and only find out at the next login.
-    const activeMethod = sessionType === "phone" ? "phone" : "google";
+    // null until /api/auth/check answers. Falling through to "google" while
+    // unknown put the "current session" label on the Gmail row for a moment on
+    // every load, then moved it — showing a default as though it were an answer.
+    const activeMethod =
+      sessionType === null ? null : sessionType === "phone" ? "phone" : "google";
 
     return (
       <Dialog open={showProfile} onOpenChange={setShowProfile}>

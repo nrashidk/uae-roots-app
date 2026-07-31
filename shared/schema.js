@@ -24,6 +24,12 @@ export const users = pgTable("users", {
   // created before the sign-up gate existed — they were never asked. Recorded
   // because a screen saying someone agreed is not evidence that they did.
   termsAcceptedAt: timestamp("terms_accepted_at"),
+  // Bumped to invalidate every existing session for this user. The JWT carries
+  // the version it was signed with; authenticateUser rejects any token whose
+  // version is behind. Without it a stolen token stayed valid for its full
+  // lifetime and nothing — not logging out elsewhere, not unlinking the method it
+  // was created through — could stop it.
+  tokenVersion: integer("token_version").notNull().default(0),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   lastLoginAt: timestamp("last_login_at").defaultNow().notNull(),
 });
