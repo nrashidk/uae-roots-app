@@ -40,6 +40,13 @@ export function resetSessionEndedNotice() {
   sessionEndedNotified = false;
 }
 
+// Has the session already ended? Callers use this to stay quiet about their own
+// failure — "فشل في إضافة الشخص" is noise when the reason is that you were signed
+// out, and the banner says so already.
+export function isSessionEnded() {
+  return sessionEndedNotified;
+}
+
 export function beginAction() {
   currentActionGroup =
     globalThis.crypto?.randomUUID?.() ||
