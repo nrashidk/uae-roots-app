@@ -57,6 +57,7 @@ import {
   endAction,
   onSessionEnded,
   resetSessionEndedNotice,
+  isSessionEnded,
 } from "./lib/api.js";
 
 // Verbose tracing. Several of these print whole person/user objects — names,
@@ -1902,6 +1903,14 @@ function App() {
     });
   }, [logout]);
 
+  // Report a failure UNLESS the session ended — in which case the user is already
+  // being returned to the login screen with a banner explaining why, and telling
+  // them the add failed as well is just noise on the way out.
+  const failAlert = (message) => {
+    if (isSessionEnded()) return;
+    window.alert(message);
+  };
+
   const loadIdentities = async () => {
     setIdentitiesLoading(true);
     try {
@@ -2814,7 +2823,7 @@ function App() {
           console.error("Failed to remove orphan after refusal:", cleanupError);
         }
       }
-      alert("فشل في إضافة الشخص: " + error.message);
+      failAlert("فشل في إضافة الشخص: " + error.message);
     } finally {
       endAction();
     }
@@ -2934,7 +2943,7 @@ function App() {
       }
     } catch (error) {
       console.error("Failed to update person:", error);
-      alert("فشل في تحديث الشخص: " + error.message);
+      failAlert("فشل في تحديث الشخص: " + error.message);
     }
   };
 
@@ -3352,7 +3361,7 @@ function App() {
         loadRestorableDeletion();
       } catch (error) {
         console.error("Failed to delete person:", error);
-        alert("فشل في حذف الشخص: " + error.message);
+        failAlert("فشل في حذف الشخص: " + error.message);
       }
     }
   };
@@ -3470,7 +3479,7 @@ function App() {
       if (newRels.length) setRelationships((prev) => [...prev, ...newRels]);
     } catch (error) {
       console.error("Failed to create parents:", error);
-      alert("فشل في إضافة الوالدين: " + error.message);
+      failAlert("فشل في إضافة الوالدين: " + error.message);
     } finally {
       endAction();
       writeInFlight.current = false;
@@ -3871,7 +3880,7 @@ function App() {
       setLinkChildrenSelected(new Set());
     } catch (error) {
       console.error("Failed to link children:", error);
-      window.alert("فشل في ربط الأبناء: " + error.message);
+      failAlert("فشل في ربط الأبناء: " + error.message);
     } finally {
       endAction();
       writeInFlight.current = false;
@@ -4019,7 +4028,7 @@ function App() {
       loadRestorableDeletion();
     } catch (error) {
       console.error("Failed to remove marriage:", error);
-      alert("فشل في حذف الزواج: " + error.message);
+      failAlert("فشل في حذف الزواج: " + error.message);
     }
   };
 
@@ -4046,7 +4055,7 @@ function App() {
       setHighlightedPerson(personId);
     } catch (error) {
       console.error("Failed to link spouse:", error);
-      alert("فشل في إضافة الزواج: " + error.message);
+      failAlert("فشل في إضافة الزواج: " + error.message);
     } finally {
       endAction();
       writeInFlight.current = false;
