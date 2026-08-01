@@ -2082,6 +2082,17 @@ app.delete("/api/users/:id", authenticateUser, async (req, res) => {
         await tx.delete(trees).where(eq(trees.id, tree.id));
       }
 
+      // Anything the loop above could not reach. edit_history carries BOTH a
+      // treeId and a userId, and only treeId was used — so a row whose tree had
+      // already gone (deleted by hand, or before the FK cascade existed) was
+      // never matched by the loop and outlived the account. Its previousData and
+      // newData are whole person rows: names, dates, encrypted phone and email.
+      // The privacy policy says nothing remains, so nothing may.
+      await tx.delete(editHistory).where(eq(editHistory.userId, userId));
+
+      // Same reasoning for deletion snapshots, keyed by the user who made them.
+      await tx.delete(deletions).where(eq(deletions.deletedBy, userId));
+
       await tx.delete(users).where(eq(users.id, userId));
 
       // Audit rows outlived the account: user id, IP address and user agent for
