@@ -697,6 +697,11 @@ const recordEdit = async (
 // works either way.
 const SINGLE_SESSION = process.env.SINGLE_SESSION !== "false";
 
+// The only endpoints a session with no `users` row may reach. Creating the row
+// is the whole point of the first; the second is how cancelling gets out again.
+// Everything else needs a real account. Paths are matched exactly.
+const SIGNUP_ONLY_PATHS = new Set(["/api/users", "/api/auth/logout"]);
+
 const SESSION_HOURS = 48;
 const SESSION_MS = SESSION_HOURS * 60 * 60 * 1000;
 const SESSION_EXPIRES_IN = `${SESSION_HOURS}h`;
@@ -721,7 +726,15 @@ const slideSession = (req, res, decoded, tokenVersion = 0) => {
     // Carry the CURRENT version, not the one in the old token — otherwise a slide
     // would quietly re-issue a token that a bump had just invalidated.
     const token = jwt.sign(
-      { userId: decoded.userId, type: decoded.type, tv: tokenVersion },
+      {
+        userId: decoded.userId,
+        type: decoded.type,
+        tv: tokenVersion,
+        // Carried forward unchanged. Dropping it would turn a sign-up session
+        // into one that looks like a DELETED account, and the next request
+        // would refuse it mid-signup.
+        ...(decoded.na ? { na: true } : {}),
+      },
       JWT_SECRET,
       { expiresIn: SESSION_EXPIRES_IN },
     );
@@ -767,7 +780,36 @@ const authenticateUser = async (req, res, next) => {
       .from(users)
       .where(eq(users.id, decoded.userId));
 
-    if (account && (decoded.tv ?? 0) !== (account.tokenVersion ?? 0)) {
+    // The account does not exist. Two very different situations look identical
+    // here — a valid token with no matching row — and only the token tells them
+    // apart:
+    //
+    //   `na` present -> issued BEFORE the row existed. That is the sign-up gate:
+    //                   the server hands out a session, the person confirms, and
+    //                   only then is the row written. Allowed, but ONLY on the
+    //                   endpoints that gate actually needs.
+    //   `na` absent  -> issued while the row DID exist, and it is gone now, so
+    //                   the account was deleted. This check used to read
+    //                   `if (account && ...)`, so a missing row skipped it
+    //                   entirely and the token kept working for up to 48h on
+    //                   every other device. Bumping token_version cannot fix
+    //                   that: the row it lives on has been deleted.
+    if (!account) {
+      if (!decoded.na || !SIGNUP_ONLY_PATHS.has(req.path)) {
+        res.clearCookie("auth_token", COOKIE_OPTIONS);
+        return res
+          .status(401)
+          .json({ error: "الجلسة غير صالحة", sessionEnded: true });
+      }
+      // Pre-account session on a sign-up path. No version check: there is no row
+      // to carry a version, and no slide either.
+      req.userId = decoded.userId;
+      req.userType = decoded.type;
+      debugLog(`[${rid}][Auth] Pre-account session on ${req.path}`);
+      return next();
+    }
+
+    if ((decoded.tv ?? 0) !== (account.tokenVersion ?? 0)) {
       // A version mismatch is not an expiry. The session was ENDED — by a sign-in
       // elsewhere, or by unlinking the method it came in through. Saying "expired"
       // sends the user looking for a timeout that never happened.
@@ -813,6 +855,15 @@ const optionalAuth = async (req, res, next) => {
         .select({ tokenVersion: users.tokenVersion })
         .from(users)
         .where(eq(users.id, decoded.userId));
+
+      // Deleted account: no row and no `na`. This middleware never refuses, it
+      // REPORTS — so the answer has to be "signed out", or /api/auth/check would
+      // claim a live session for an account that no longer exists. A pre-account
+      // (`na`) session is left alone: hasAccount:false is what reopens the gate.
+      if (!account && !decoded.na) {
+        res.clearCookie("auth_token", COOKIE_OPTIONS);
+        return next();
+      }
 
       if (account && (decoded.tv ?? 0) !== (account.tokenVersion ?? 0)) {
         res.clearCookie("auth_token", COOKIE_OPTIONS);
@@ -1171,6 +1222,9 @@ app.post("/api/sms/verify-code", smsLimiter, async (req, res) => {
               req,
             )
           : 0,
+        // No account row yet — the sign-up gate is about to ask. Recorded IN the
+        // token so a later request can tell "not created yet" from "deleted".
+        ...(existingAccount ? {} : { na: true }),
       },
       JWT_SECRET,
       { expiresIn: SESSION_EXPIRES_IN },
@@ -1278,6 +1332,8 @@ app.post("/api/auth/token", loginLimiter, async (req, res) => {
               req,
             )
           : 0,
+        // See the phone path: marks a session issued BEFORE any account existed.
+        ...(existingAccount ? {} : { na: true }),
       },
       JWT_SECRET,
       { expiresIn: SESSION_EXPIRES_IN },
