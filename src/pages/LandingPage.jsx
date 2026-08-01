@@ -56,13 +56,16 @@ const PRIVACY = [
     p: "لا تظهر في نتائج البحث، ولا يراها مستخدم آخر. لا ملفات عامة ولا فهرسة.",
   },
   {
-    // The carve-out is not a detail. Phone, email and ID number are encrypted for
-    // FAMILY MEMBERS, but the email or phone you sign in with is stored in the
-    // clear — login has to look you up by it. Claiming blanket encryption told the
-    // reader their own contact details were protected in a way they are not. The
-    // privacy policy has always stated this correctly; this card did not.
+    // Names the THREE fields that are actually encrypted (encryptPII is applied to
+    // phone, email and identificationNumber, and to nothing else). A broader claim
+    // — "your family's data is encrypted" — would not be true: names, dates, birth
+    // places, professions and every relationship are stored in the clear.
+    //
+    // The عائلتك / بريدك split matters. Without it the sentence appears to say that
+    // phone and email are encrypted except phone and email; the two halves are
+    // about different people — the relatives you enter, and you.
     h: "مشفّرة",
-    p: "أرقام الهواتف والبريد الإلكتروني وأرقام الهوية لأفراد العائلة مشفّرة داخل قاعدة البيانات. بريدك أو رقمك المستخدم لتسجيل الدخول يُحفظ دون تشفير لأنه يُستخدم للتعرّف على حسابك.",
+    p: "هاتف وبريد ورقم هوية أفراد عائلتك مشفّرة، ما عدا بريدك ورقمك لتسجيل الدخول.",
   },
   {
     h: "لك حق الحذف",
