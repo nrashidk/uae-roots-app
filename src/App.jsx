@@ -2665,8 +2665,6 @@ function App() {
           sibOrders.length > 0 ? Math.min(...sibOrders) - 1 : 1;
       }
 
-      // milkFatherName/milkMotherName are now real person columns — save them
-      // directly on the person (only meaningful for milk-siblings; empty otherwise).
       const newPerson = await api.people.create({
         ...personData,
         treeId: currentTree?.id,
@@ -2690,9 +2688,6 @@ function App() {
               isBreastfeeding: true,
             });
             setRelationships((prev) => [...prev, siblingRel]);
-            // Milk-parent names are stored as text on the milk-sibling record
-            // (milkFatherName/milkMotherName) — NOT as separate people or
-            // parent-child links, so they never render in the tree.
           } else {
             // Blood sibling: link to the same parents (parent-child relations)
             const parentRels = relationships.filter(
@@ -2941,8 +2936,6 @@ function App() {
           return;
         }
       }
-      // milkFatherName/milkMotherName are real person columns now — update them
-      // directly on the person. No parent people, no parent-child links.
       const updatedPerson = await api.people.update(editingId, personData);
 
       // Update local state
@@ -4839,23 +4832,11 @@ function App() {
     const treeRels = relationships.filter((r) => r.treeId === currentTree?.id);
 
     let nameParts = [person.firstName];
-    // LEGACY: older milk-siblings stored their father's name as text
-    // (milkFatherName) because they could not have real parents. Milk-siblings
-    // are now ordinary people with real parent-child links, so the text value is
-    // only a FALLBACK — used when the person has no real father in the tree.
-    const hasRealFather = treeRels.some(
-      (r) =>
-        r.type === "parent-child" &&
-        r.childId === person.id &&
-        treePeople.some((p) => p.id === r.parentId && p.gender === "male"),
-    );
-    if (
-      !hasRealFather &&
-      person.milkFatherName &&
-      person.milkFatherName.trim()
-    ) {
-      nameParts.push(person.milkFatherName.trim());
-    }
+    // The chain follows the BLOOD paternal line and nothing else. It used to fall
+    // back to milkFatherName — a text column from when a milk-sibling could not
+    // have real parents — which put a رضاعة name into a lineage. رضاعة is not
+    // lineage and must never appear here. Milk-siblings are ordinary people with
+    // real parent-child links now, so the fallback had no purpose either.
     let current = person;
     let oldestAncestorInChain = person;
 
@@ -5152,9 +5133,6 @@ function App() {
 
   const renderPersonForm = () => {
     const treePeople = people.filter((p) => p.treeId === currentTree?.id);
-    // Milk-parent names now live on the person record (milkFatherName /
-    // milkMotherName). The form reads them directly; the fields show whenever the
-    // person is a milk-sibling (isBreastfed), which is true on add and edit.
     // The picker uses this same panel position, and renders BEFORE this in the
     // markup — so without this guard the form sits invisibly on top of it and
     // swallows every click.
