@@ -319,26 +319,6 @@
   color: #b9b2a2;
   line-height: 1.8;
 }
-.lp-note {
-  /* No border-top. The rule was capped by this block's own max-width: 66ch, so
-     it ran under three of the four cards and stopped — reading as a clipped
-     line rather than a divider. margin-top already separates the note from the
-     grid. */
-  margin-top: 40px;
-  font-size: 15px;
-  color: #9a9484;
-  max-width: 66ch;
-}
-.lp-note button {
-  background: none;
-  border: none;
-  padding: 0;
-  cursor: pointer;
-  color: var(--brass-lift);
-  font-size: 15px;
-  text-decoration: underline;
-}
-
 .lp-close {
   padding: 84px 0;
   text-align: center;

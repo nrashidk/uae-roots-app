@@ -221,13 +221,6 @@ export default function LandingPage({ onSignIn, onSignUp, onPrivacy }) {
               </div>
             ))}
           </div>
-          <p className="lp-note">
-            عند بناء الشجرة ستُدخل بيانات أقارب لم يسجّلوا بأنفسهم. نطلب منك إدخال
-            ما تعرفه عائلياً فقط، ونتيح لأي فرد طلب تصحيح بياناته أو حذفها.{" "}
-            <button type="button" onClick={onPrivacy}>
-              اقرأ سياسة الخصوصية
-            </button>
-          </p>
         </div>
       </section>
 
