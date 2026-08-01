@@ -211,13 +211,30 @@ app.use(
       useDefaults: false,
       directives: {
         defaultSrc: ["'self'"],
+        // No 'unsafe-inline'. With it, an injected <script> executes and the
+        // policy stops being a defence against XSS at all — which matters here
+        // because the app renders names typed by one family member and read by
+        // another.
+        //
+        // Nothing in this app needs it: index.html carries exactly one script
+        // tag, external and type=module, and there is not a single inline
+        // handler anywhere in the source. It was almost certainly added for the
+        // Firebase auth popup rather than for our own markup.
+        //
+        // If a login path breaks, the fix is a per-response nonce — generate one
+        // per request, put it in the CSP header and on the tag that needs it.
+        // Restoring the wildcard would undo the whole point.
         scriptSrc: [
           "'self'",
-          "'unsafe-inline'",
           "https://www.gstatic.com",
           "https://apis.google.com",
           "https://*.firebaseapp.com",
         ],
+        // styleSrc KEEPS 'unsafe-inline'. React writes inline style attributes
+        // and Tailwind emits them too; removing it here would need a nonce on
+        // every style the framework generates, which is a different and much
+        // larger problem than the script case. Inline STYLE is also a far weaker
+        // vector than inline SCRIPT — it cannot execute.
         styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
         fontSrc: ["'self'", "https://fonts.gstatic.com", "data:"],
         imgSrc: ["'self'", "data:", "https:", "blob:"],
