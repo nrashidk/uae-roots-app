@@ -12,28 +12,42 @@ import {
 import { Button } from '@/components/ui/button';
 
 export function PrivacyPolicy() {
+  // Dark, to match the landing page's privacy section: ink #16233d ground,
+  // #ddd6c6 body, #c29e58 headings and icons. Those live as CSS variables on .lp,
+  // and although this page renders INSIDE .lp (via PublicLayout) the variables
+  // are not in scope for Tailwind utilities, so the values are written literally.
+  //
+  // Headings match their icons — same hex, so each row reads as one unit rather
+  // than two unrelated halves.
+  //
+  // The shade is #e0c07e, not the landing page's brass #c29e58. Measured against
+  // this card (#1d2b47): brass gives 5.6:1, the body copy gives 9.7:1. Both pass
+  // AA, but a heading at little more than half the contrast of the paragraph
+  // beneath it reads as WEAKER than its own body text, which is backwards.
+  // #e0c07e measures 8.1:1 and sits with the body. Icons and the support email
+  // were lifted with it so the match holds.
   return (
-    <div dir="rtl">
+    <div dir="rtl" className="lp-dark min-h-screen bg-[#16233D]">
       <div className="max-w-4xl mx-auto px-4 py-8">
 
-        <div className="bg-white rounded-[3px] border border-[#16233D]/12 p-8 space-y-8">
-          <div className="text-center border-b pb-6">
-            <div className="inline-flex items-center justify-center h-16 w-16 bg-[#A5813F]/15 rounded-full mb-4">
-              <Shield className="h-8 w-8 text-[#A5813F]" />
+        <div className="bg-[#1D2B47] rounded-[3px] border border-[#F4EFE3]/12 p-8 space-y-8">
+          <div className="text-center border-b border-[#F4EFE3]/12 pb-6">
+            <div className="inline-flex items-center justify-center h-16 w-16 bg-[#E0C07E]/15 rounded-full mb-4">
+              <Shield className="h-8 w-8 text-[#E0C07E]" />
             </div>
-            <h1 className="text-3xl font-medium text-[#16233D]">سياسة الخصوصية</h1>
-            <p className="text-gray-500 mt-2">آخر تحديث: يوليو ٢٠٢٦</p>
+            <h1 className="text-3xl font-medium text-[#E0C07E]">سياسة الخصوصية</h1>
+            <p className="text-[#9A9484] mt-2">آخر تحديث: يوليو ٢٠٢٦</p>
           </div>
 
           <section className="space-y-4">
             <div className="flex items-center gap-3">
-              <Database className="h-6 w-6 text-[#A5813F]" />
-              <h2 className="text-xl font-medium text-[#16233D]">البيانات التي نجمعها</h2>
+              <Database className="h-6 w-6 text-[#E0C07E]" />
+              <h2 className="text-xl font-medium text-[#E0C07E]">البيانات التي نجمعها</h2>
             </div>
-            <p className="text-gray-700 leading-relaxed">
+            <p className="text-[#DDD6C6] leading-relaxed">
               نجمع المعلومات التي تقدمها لنا مباشرة عند استخدام خدمتنا، بما في ذلك:
             </p>
-            <ul className="list-disc list-inside space-y-2 text-gray-700 mr-4">
+            <ul className="list-disc list-inside space-y-2 text-[#DDD6C6] mr-4">
               <li>معلومات الحساب (البريد الإلكتروني، رقم الهاتف، اسم المستخدم)</li>
               <li>بيانات شجرة العائلة (الأسماء، تواريخ الميلاد والوفاة، العلاقات الأسرية)</li>
               <li>سجلات الاستخدام والنشاط</li>
@@ -42,13 +56,13 @@ export function PrivacyPolicy() {
 
           <section className="space-y-4">
             <div className="flex items-center gap-3">
-              <Lock className="h-6 w-6 text-[#A5813F]" />
-              <h2 className="text-xl font-medium text-[#16233D]">كيف نحمي بياناتك</h2>
+              <Lock className="h-6 w-6 text-[#E0C07E]" />
+              <h2 className="text-xl font-medium text-[#E0C07E]">كيف نحمي بياناتك</h2>
             </div>
-            <p className="text-gray-700 leading-relaxed">
+            <p className="text-[#DDD6C6] leading-relaxed">
               نستخدم إجراءات أمنية متقدمة لحماية معلوماتك الشخصية:
             </p>
-            <ul className="list-disc list-inside space-y-2 text-gray-700 mr-4">
+            <ul className="list-disc list-inside space-y-2 text-[#DDD6C6] mr-4">
               <li>تشفير البيانات أثناء النقل</li>
               <li>
                 تشفير بيانات أفراد العائلة الحساسة (أرقام الهواتف، البريد
@@ -66,13 +80,13 @@ export function PrivacyPolicy() {
 
           <section className="space-y-4">
             <div className="flex items-center gap-3">
-              <Eye className="h-6 w-6 text-[#A5813F]" />
-              <h2 className="text-xl font-medium text-[#16233D]">كيف نستخدم بياناتك</h2>
+              <Eye className="h-6 w-6 text-[#E0C07E]" />
+              <h2 className="text-xl font-medium text-[#E0C07E]">كيف نستخدم بياناتك</h2>
             </div>
-            <p className="text-gray-700 leading-relaxed">
+            <p className="text-[#DDD6C6] leading-relaxed">
               نستخدم المعلومات التي نجمعها للأغراض التالية:
             </p>
-            <ul className="list-disc list-inside space-y-2 text-gray-700 mr-4">
+            <ul className="list-disc list-inside space-y-2 text-[#DDD6C6] mr-4">
               <li>توفير وعرض شجرة العائلة وتشغيلها</li>
               <li>التحقق من هويتك وتأمين حسابك</li>
               <li>تحسين تجربة المستخدم</li>
@@ -82,13 +96,13 @@ export function PrivacyPolicy() {
 
           <section className="space-y-4">
             <div className="flex items-center gap-3">
-              <UserCheck className="h-6 w-6 text-[#A5813F]" />
-              <h2 className="text-xl font-medium text-[#16233D]">حقوقك</h2>
+              <UserCheck className="h-6 w-6 text-[#E0C07E]" />
+              <h2 className="text-xl font-medium text-[#E0C07E]">حقوقك</h2>
             </div>
-            <p className="text-gray-700 leading-relaxed">
+            <p className="text-[#DDD6C6] leading-relaxed">
               لديك الحقوق التالية فيما يتعلق ببياناتك الشخصية:
             </p>
-            <ul className="list-disc list-inside space-y-2 text-gray-700 mr-4">
+            <ul className="list-disc list-inside space-y-2 text-[#DDD6C6] mr-4">
               <li><strong>التصحيح:</strong> يمكنك تعديل بياناتك من خلال الموقع</li>
               <li><strong>الحذف:</strong> يمكنك حذف حسابك وجميع بياناتك</li>
             </ul>
@@ -96,15 +110,15 @@ export function PrivacyPolicy() {
 
           <section className="space-y-4">
             <div className="flex items-center gap-3">
-              <Share2 className="h-6 w-6 text-[#A5813F]" />
-              <h2 className="text-xl font-medium text-[#16233D]">
+              <Share2 className="h-6 w-6 text-[#E0C07E]" />
+              <h2 className="text-xl font-medium text-[#E0C07E]">
                 مشاركة البيانات مع أطراف ثالثة
               </h2>
             </div>
-            <p className="text-gray-700 leading-relaxed">
+            <p className="text-[#DDD6C6] leading-relaxed">
               لا نبيع أو نؤجر بياناتك الشخصية لأي طرف ثالث. قد نشارك بياناتك فقط في الحالات التالية:
             </p>
-            <ul className="list-disc list-inside space-y-2 text-gray-700 mr-4">
+            <ul className="list-disc list-inside space-y-2 text-[#DDD6C6] mr-4">
               <li>
                 مع موفري الخدمات الذين يساعدوننا في تشغيل الموقع (رقم الهاتف أو
                 البريد الإلكتروني للدخول للموقع)
@@ -115,12 +129,12 @@ export function PrivacyPolicy() {
 
           <section className="space-y-4">
             <div className="flex items-center gap-3">
-              <Cookie className="h-6 w-6 text-[#A5813F]" />
-              <h2 className="text-xl font-medium text-[#16233D]">
+              <Cookie className="h-6 w-6 text-[#E0C07E]" />
+              <h2 className="text-xl font-medium text-[#E0C07E]">
                 ملفات تعريف الارتباط
               </h2>
             </div>
-            <p className="text-gray-700 leading-relaxed">
+            <p className="text-[#DDD6C6] leading-relaxed">
               نستخدم ملفات تعريف الارتباط الضرورية لتشغيل الموقع وتأمين جلسة المستخدم. 
               هذه الملفات ضرورية لعمل الموقع بشكل صحيح ولا يمكن تعطيلها.
             </p>
@@ -128,34 +142,34 @@ export function PrivacyPolicy() {
 
           <section className="space-y-4">
             <div className="flex items-center gap-3">
-              <Clock className="h-6 w-6 text-[#A5813F]" />
-              <h2 className="text-xl font-medium text-[#16233D]">
+              <Clock className="h-6 w-6 text-[#E0C07E]" />
+              <h2 className="text-xl font-medium text-[#E0C07E]">
                 الاحتفاظ بالبيانات
               </h2>
             </div>
-            <p className="text-gray-700 leading-relaxed">
+            <p className="text-[#DDD6C6] leading-relaxed">
               نحتفظ ببياناتك طالما أن حسابك نشط. عند حذف حسابك، تُحذف جميع
               بياناتك الشخصية وبيانات شجرة العائلة وسجلات النشاط فوراً ولا يبقى
               منها شيء.
             </p>
           </section>
 
-          <section className="space-y-4 bg-[#EDE6D6] rounded-[3px] p-6">
+          <section className="space-y-4 bg-[#16233D] border border-[#F4EFE3]/10 rounded-[3px] p-6">
             <div className="flex items-center gap-3">
-              <Mail className="h-6 w-6 text-[#A5813F]" />
-              <h2 className="text-xl font-medium text-[#16233D]">تواصل معنا</h2>
+              <Mail className="h-6 w-6 text-[#E0C07E]" />
+              <h2 className="text-xl font-medium text-[#E0C07E]">تواصل معنا</h2>
             </div>
-            <p className="text-gray-700 leading-relaxed">
+            <p className="text-[#DDD6C6] leading-relaxed">
               إذا كانت لديك أي أسئلة حول سياسة الخصوصية هذه أو ممارسات البيانات لدينا، 
               يرجى التواصل معنا عبر:
             </p>
-            <p className="text-[#A5813F] font-medium">
+            <p className="text-[#E0C07E] font-medium">
               support@uaeroots.com
             </p>
           </section>
 
-          <div className="text-center pt-6 border-t">
-            <p className="text-sm text-gray-500">
+          <div className="text-center pt-6 border-t border-[#F4EFE3]/12">
+            <p className="text-sm text-[#9A9484]">
               جذور الإمارات - جميع الحقوق محفوظة © {new Date().getFullYear()}
             </p>
           </div>
