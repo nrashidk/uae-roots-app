@@ -1580,7 +1580,14 @@ function App() {
     restorationAttemptedRef.current = false;
   };
 
-  const handleAuthSuccess = async (phoneUser = null, authToken = null) => {
+  // `hasSession` replaces what used to be an `authToken` argument. The phone path
+  // already holds a session by the time it calls this — SMS verification set the
+  // cookie — so it must NOT go on to call /auth/token, which is the FIREBASE
+  // exchange and refuses a phone user for having no Firebase token. That routing
+  // decision was made by whether a token STRING had been passed in, which is the
+  // only reason the JSON body still returned the JWT. A boolean carries the same
+  // signal without handing the token to anything that can read the page.
+  const handleAuthSuccess = async (phoneUser = null, hasSession = false) => {
     try {
       setSessionEndedMessage(null);
       resetSessionEndedNotice();
@@ -1591,8 +1598,8 @@ function App() {
         return;
       }
 
-      // Set by whichever path issued the session. The phone path passes it in
-      // through authToken's caller; the Firebase path reads it off the token
+      // Set by whichever path issued the session. The phone path attaches it to
+      // the user object it builds; the Firebase path reads it off the token
       // response below.
       let isNewUser = !!currentUser.__isNewUser;
 
@@ -1605,9 +1612,9 @@ function App() {
 
       let resolvedUserId = userId;
 
-      if (authToken) {
-        // Phone login already has token - store with userId
-        setAuthToken(authToken, userId);
+      if (hasSession) {
+        // Phone login: the cookie is already set, so just record the id.
+        setAuthToken(null, userId);
       } else {
         // Firebase login - get fresh token with force refresh
         let firebaseIdToken = null;
@@ -1625,8 +1632,9 @@ function App() {
           DEBUG && console.log("Resolved to linked account:", resolvedUserId);
         }
         isNewUser = !!tokenResponse.isNewUser;
-        // Store token with resolved userId
-        setAuthToken(tokenResponse.token, resolvedUserId);
+        // Only the id is kept. The JWT lives in an httpOnly cookie the browser
+        // attaches by itself — nothing in JS should ever hold it.
+        setAuthToken(null, resolvedUserId);
       }
 
       // No account for this identity yet — ask before making one. Pressing
@@ -2517,7 +2525,7 @@ function App() {
         setSmsStep("phone");
         setPhoneInput("");
         setSmsCode("");
-        await handleAuthSuccess(phoneUser, data.token);
+        await handleAuthSuccess(phoneUser, true);
       }
     } catch (err) {
       setSmsError(err.message);
