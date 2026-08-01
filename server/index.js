@@ -1688,18 +1688,23 @@ app.use("/api/history", readLimiter);
 
 app.post("/api/users", authenticateUser, async (req, res) => {
   const rid = req.requestId || "";
-  console.log(`[${rid}][Users] POST - incoming body:`, JSON.stringify(req.body));
-  console.log(`[${rid}][Users] POST - req.userId from JWT: "${req.userId}"`);
-  
+  // The body carries email, displayName and phoneNumber. It was logged in full,
+  // unconditionally, so every sign-up wrote a person's contact details into the
+  // hosting provider's log — which is not access-controlled the way the database
+  // is, and is not covered by account deletion. debugLog exists for exactly this
+  // and was bypassed here.
+  debugLog(`[${rid}][Users] POST - incoming body:`, JSON.stringify(req.body));
+  debugLog(`[${rid}][Users] POST - req.userId from JWT: "${req.userId}"`);
+
   try {
     const validatedData = userCreateSchema.parse(req.body);
 
-    console.log(
+    debugLog(
       `[${rid}][Users] POST - req.userId: "${req.userId}", validatedData.id: "${validatedData.id}"`,
     );
 
     if (req.userId !== validatedData.id) {
-      console.log(`[Users] Mismatch! req.userId !== validatedData.id`);
+      debugLog(`[${rid}][Users] Mismatch! req.userId !== validatedData.id`);
       return res
         .status(403)
         .json({ error: "غير مصرح: لا يمكن إنشاء أو تعديل مستخدمين آخرين" });
@@ -2000,7 +2005,7 @@ app.get("/api/trees", authenticateUser, async (req, res) => {
   try {
     const { userId } = req.query;
 
-    console.log(
+    debugLog(
       `[Trees] GET - req.userId: "${req.userId}", query.userId: "${userId}"`,
     );
 
@@ -2009,7 +2014,7 @@ app.get("/api/trees", authenticateUser, async (req, res) => {
     }
 
     if (req.userId !== userId) {
-      console.log(`[Trees] Mismatch! req.userId !== query.userId`);
+      debugLog(`[Trees] Mismatch! req.userId !== query.userId`);
       return res.status(403).json({ error: "غير مصرح بالوصول" });
     }
 
@@ -2210,9 +2215,13 @@ app.get("/api/people/search", authenticateUser, async (req, res) => {
 
 app.post("/api/people", authenticateUser, async (req, res) => {
   try {
-    console.log("POST /api/people received data:", req.body);
+    // A person row is name, birth date, birth place, profession, phone, email and
+    // ID number. phone/email/identificationNumber are encrypted at rest and were
+    // being printed in PLAINTEXT here on the way in, so the log undid the
+    // encryption for every person ever added.
+    debugLog("POST /api/people received data:", req.body);
     const validatedData = personSchema.parse(req.body);
-    console.log("After validation:", validatedData);
+    debugLog("After validation:", validatedData);
 
     const ownership = await verifyTreeOwnership(
       validatedData.treeId,
@@ -2247,7 +2256,7 @@ app.post("/api/people", authenticateUser, async (req, res) => {
       birthOrder: sanitizedData.birthOrder ?? null,
       photoUrl: sanitizedData.photoUrl || null,
     };
-    console.log("Saving to DB:", personData);
+    debugLog("Saving to DB:", personData);
     const [person] = await db.insert(people).values(personData).returning();
 
     await recordUndo({
@@ -2297,14 +2306,14 @@ app.post("/api/people", authenticateUser, async (req, res) => {
 
 app.put("/api/people/:id", authenticateUser, async (req, res) => {
   try {
-    console.log("PUT /api/people/:id received data:", req.body);
+    debugLog("PUT /api/people/:id received data:", req.body);
     const personId = validateId(req.params.id);
     if (!personId) {
       return res.status(400).json({ error: "Invalid person ID" });
     }
 
     const validatedData = personUpdateSchema.parse(req.body);
-    console.log("After validation:", validatedData);
+    debugLog("After validation:", validatedData);
 
     // Note the create path escaped four fields and this one escaped six, so the
     // same field was stored escaped or not depending on which endpoint wrote it.
@@ -2362,7 +2371,7 @@ app.put("/api/people/:id", authenticateUser, async (req, res) => {
     if (sanitizedData.photoUrl !== undefined)
       personData.photoUrl = sanitizedData.photoUrl;
 
-    console.log("Updating in DB with:", personData);
+    debugLog("Updating in DB with:", personData);
     const [person] = await db
       .update(people)
       .set(personData)
