@@ -44,6 +44,15 @@
 .lp .lp-dark h2,
 .lp .lp-dark h3 {
   color: inherit;
+  /* `.lp` sets -webkit-font-smoothing: antialiased, which thins glyph strokes.
+     On the parchment ground that reads as crisp; on this dark ground it made
+     brass headings look washed out beside brass ICONS of the identical hex,
+     because an icon's strokes are solid and unaffected. Restoring the default
+     smoothing and adding weight puts the two back in step — without changing
+     the colour, which is the thing that is supposed to match. */
+  -webkit-font-smoothing: auto;
+  -moz-osx-font-smoothing: auto;
+  font-weight: 600;
 }
 .lp-wrap {
   max-width: 1180px;
