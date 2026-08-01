@@ -1265,7 +1265,6 @@ app.post("/api/sms/verify-code", smsLimiter, async (req, res) => {
       userId: userId,
       isLinkedAccount: !!existingUser,
       isNewUser: !existingAccount,
-      token,
     });
   } catch (error) {
     console.error("SMS verify error:", error);
@@ -1367,8 +1366,11 @@ app.post("/api/auth/token", loginLimiter, async (req, res) => {
       req,
     );
 
+    // Cookie only. Returning the JWT in the body as well made it readable by any
+    // script on the page, which is precisely what httpOnly prevents. The client
+    // never used the value — setAuthToken ignores its first argument — it was
+    // only ever a flag for the phone path, now replaced by a boolean.
     res.json({
-      token,
       userId: resolvedUserId,
       isLinkedAccount: !!existingUser,
       isNewUser: !existingAccount,
