@@ -32,6 +32,19 @@
   margin: 0;
   color: var(--ink);
 }
+
+/* A dark subtree inside .lp — the privacy page renders through PublicLayout, so
+   it inherits these rules. `.lp h2` is (0,1,1) and a Tailwind utility class is
+   (0,1,0), so `text-[#F4EFE3]` on a heading LOSES and the text came out ink on
+   ink. Yielding the colour back here is preferable to marking every heading
+   important: the utility then applies normally, and anything else that wants a
+   dark panel inside .lp gets the same escape hatch. Body copy needed no rule —
+   it inherits, and inheritance loses to a utility. */
+.lp .lp-dark h1,
+.lp .lp-dark h2,
+.lp .lp-dark h3 {
+  color: inherit;
+}
 .lp-wrap {
   max-width: 1180px;
   margin: 0 auto;

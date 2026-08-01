@@ -17,7 +17,7 @@ export function PrivacyPolicy() {
   // on .lp, and this page renders outside it, so the values are written literally
   // rather than referenced.
   return (
-    <div dir="rtl" className="min-h-screen bg-[#16233D]">
+    <div dir="rtl" className="lp-dark min-h-screen bg-[#16233D]">
       <div className="max-w-4xl mx-auto px-4 py-8">
 
         <div className="bg-[#1D2B47] rounded-[3px] border border-[#F4EFE3]/12 p-8 space-y-8">
