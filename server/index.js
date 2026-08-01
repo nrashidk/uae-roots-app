@@ -805,6 +805,9 @@ const authenticateUser = async (req, res, next) => {
       // to carry a version, and no slide either.
       req.userId = decoded.userId;
       req.userType = decoded.type;
+      // POST /api/users needs to know this session was pre-account, so it can
+      // replace it with a real one the moment the row is written.
+      req.tokenClaims = decoded;
       debugLog(`[${rid}][Auth] Pre-account session on ${req.path}`);
       return next();
     }
@@ -822,6 +825,7 @@ const authenticateUser = async (req, res, next) => {
 
     req.userId = decoded.userId;
     req.userType = decoded.type;
+    req.tokenClaims = decoded;
     slideSession(req, res, decoded, account?.tokenVersion ?? 0);
     debugLog(`[${rid}][Auth] Token valid - userId: ${req.userId}`);
     next();
@@ -1824,6 +1828,46 @@ app.post("/api/users", authenticateUser, async (req, res) => {
         validatedData.email || validatedData.id,
         validatedData.id,
         true,
+      );
+    }
+
+    // A NEW session, now that the account exists.
+    //
+    // The session that reached this endpoint was issued before any `users` row
+    // existed and carries `na: true` — the marker that lets a pre-account session
+    // through. It is only supposed to live for the seconds between the token
+    // exchange and this confirmation, but nothing re-issued it, so it kept `na`
+    // for its full 48 hours. Deleting the account within that window left a token
+    // that still passed the pre-account guard: the app reopened the sign-up gate
+    // for a deleted account instead of refusing the session.
+    //
+    // OWASP items 66 and 67: a session established before login is replaced once
+    // the identity is established, and re-authentication issues a new identifier.
+    // Reissuing here also fixes a second thing — the old token's `tv` was frozen
+    // at 0 from before the row existed, so it did not track the account it now
+    // belongs to.
+    //
+    // Only for a session that actually carries `na`. An ordinary sign-in reaching
+    // this endpoint (the update branch above returns earlier, so this is the
+    // create path only) is left alone.
+    if (req.tokenClaims?.na) {
+      const freshToken = jwt.sign(
+        {
+          userId: user.id,
+          type: req.userType || validatedData.provider || "firebase",
+          tv: user.tokenVersion ?? 0,
+        },
+        JWT_SECRET,
+        { expiresIn: SESSION_EXPIRES_IN },
+      );
+      res.cookie("auth_token", freshToken, COOKIE_OPTIONS);
+      await logAudit(
+        user.id,
+        "session_upgraded",
+        "auth",
+        null,
+        { reason: "account_created" },
+        req,
       );
     }
 
