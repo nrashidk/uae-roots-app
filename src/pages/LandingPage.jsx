@@ -56,8 +56,13 @@ const PRIVACY = [
     p: "لا تظهر في نتائج البحث، ولا يراها مستخدم آخر. لا ملفات عامة ولا فهرسة.",
   },
   {
+    // The carve-out is not a detail. Phone, email and ID number are encrypted for
+    // FAMILY MEMBERS, but the email or phone you sign in with is stored in the
+    // clear — login has to look you up by it. Claiming blanket encryption told the
+    // reader their own contact details were protected in a way they are not. The
+    // privacy policy has always stated this correctly; this card did not.
     h: "مشفّرة",
-    p: "أرقام الهواتف والبريد الإلكتروني وأرقام الهوية مشفّرة داخل قاعدة البيانات.",
+    p: "أرقام الهواتف والبريد الإلكتروني وأرقام الهوية لأفراد العائلة مشفّرة داخل قاعدة البيانات. بريدك أو رقمك المستخدم لتسجيل الدخول يُحفظ دون تشفير لأنه يُستخدم للتعرّف على حسابك.",
   },
   {
     h: "لك حق الحذف",
