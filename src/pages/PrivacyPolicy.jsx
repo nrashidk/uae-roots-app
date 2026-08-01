@@ -17,26 +17,32 @@ export function PrivacyPolicy() {
   // and although this page renders INSIDE .lp (via PublicLayout) the variables
   // are not in scope for Tailwind utilities, so the values are written literally.
   //
-  // Headings are brass rather than parchment so they read as headings — each one
-  // sits beside a brass icon, and parchment made the two halves of the same row
-  // look unrelated. The h1 is brass for the same reason.
+  // Headings match their icons — same hex, so each row reads as one unit rather
+  // than two unrelated halves.
+  //
+  // The shade is #e0c07e, not the landing page's brass #c29e58. Measured against
+  // this card (#1d2b47): brass gives 5.6:1, the body copy gives 9.7:1. Both pass
+  // AA, but a heading at little more than half the contrast of the paragraph
+  // beneath it reads as WEAKER than its own body text, which is backwards.
+  // #e0c07e measures 8.1:1 and sits with the body. Icons and the support email
+  // were lifted with it so the match holds.
   return (
     <div dir="rtl" className="lp-dark min-h-screen bg-[#16233D]">
       <div className="max-w-4xl mx-auto px-4 py-8">
 
         <div className="bg-[#1D2B47] rounded-[3px] border border-[#F4EFE3]/12 p-8 space-y-8">
           <div className="text-center border-b border-[#F4EFE3]/12 pb-6">
-            <div className="inline-flex items-center justify-center h-16 w-16 bg-[#C29E58]/15 rounded-full mb-4">
-              <Shield className="h-8 w-8 text-[#C29E58]" />
+            <div className="inline-flex items-center justify-center h-16 w-16 bg-[#E0C07E]/15 rounded-full mb-4">
+              <Shield className="h-8 w-8 text-[#E0C07E]" />
             </div>
-            <h1 className="text-3xl font-medium text-[#C29E58]">سياسة الخصوصية</h1>
+            <h1 className="text-3xl font-medium text-[#E0C07E]">سياسة الخصوصية</h1>
             <p className="text-[#9A9484] mt-2">آخر تحديث: يوليو ٢٠٢٦</p>
           </div>
 
           <section className="space-y-4">
             <div className="flex items-center gap-3">
-              <Database className="h-6 w-6 text-[#C29E58]" />
-              <h2 className="text-xl font-medium text-[#C29E58]">البيانات التي نجمعها</h2>
+              <Database className="h-6 w-6 text-[#E0C07E]" />
+              <h2 className="text-xl font-medium text-[#E0C07E]">البيانات التي نجمعها</h2>
             </div>
             <p className="text-[#DDD6C6] leading-relaxed">
               نجمع المعلومات التي تقدمها لنا مباشرة عند استخدام خدمتنا، بما في ذلك:
@@ -50,8 +56,8 @@ export function PrivacyPolicy() {
 
           <section className="space-y-4">
             <div className="flex items-center gap-3">
-              <Lock className="h-6 w-6 text-[#C29E58]" />
-              <h2 className="text-xl font-medium text-[#C29E58]">كيف نحمي بياناتك</h2>
+              <Lock className="h-6 w-6 text-[#E0C07E]" />
+              <h2 className="text-xl font-medium text-[#E0C07E]">كيف نحمي بياناتك</h2>
             </div>
             <p className="text-[#DDD6C6] leading-relaxed">
               نستخدم إجراءات أمنية متقدمة لحماية معلوماتك الشخصية:
@@ -74,8 +80,8 @@ export function PrivacyPolicy() {
 
           <section className="space-y-4">
             <div className="flex items-center gap-3">
-              <Eye className="h-6 w-6 text-[#C29E58]" />
-              <h2 className="text-xl font-medium text-[#C29E58]">كيف نستخدم بياناتك</h2>
+              <Eye className="h-6 w-6 text-[#E0C07E]" />
+              <h2 className="text-xl font-medium text-[#E0C07E]">كيف نستخدم بياناتك</h2>
             </div>
             <p className="text-[#DDD6C6] leading-relaxed">
               نستخدم المعلومات التي نجمعها للأغراض التالية:
@@ -90,8 +96,8 @@ export function PrivacyPolicy() {
 
           <section className="space-y-4">
             <div className="flex items-center gap-3">
-              <UserCheck className="h-6 w-6 text-[#C29E58]" />
-              <h2 className="text-xl font-medium text-[#C29E58]">حقوقك</h2>
+              <UserCheck className="h-6 w-6 text-[#E0C07E]" />
+              <h2 className="text-xl font-medium text-[#E0C07E]">حقوقك</h2>
             </div>
             <p className="text-[#DDD6C6] leading-relaxed">
               لديك الحقوق التالية فيما يتعلق ببياناتك الشخصية:
@@ -104,8 +110,8 @@ export function PrivacyPolicy() {
 
           <section className="space-y-4">
             <div className="flex items-center gap-3">
-              <Share2 className="h-6 w-6 text-[#C29E58]" />
-              <h2 className="text-xl font-medium text-[#C29E58]">
+              <Share2 className="h-6 w-6 text-[#E0C07E]" />
+              <h2 className="text-xl font-medium text-[#E0C07E]">
                 مشاركة البيانات مع أطراف ثالثة
               </h2>
             </div>
@@ -123,8 +129,8 @@ export function PrivacyPolicy() {
 
           <section className="space-y-4">
             <div className="flex items-center gap-3">
-              <Cookie className="h-6 w-6 text-[#C29E58]" />
-              <h2 className="text-xl font-medium text-[#C29E58]">
+              <Cookie className="h-6 w-6 text-[#E0C07E]" />
+              <h2 className="text-xl font-medium text-[#E0C07E]">
                 ملفات تعريف الارتباط
               </h2>
             </div>
@@ -136,8 +142,8 @@ export function PrivacyPolicy() {
 
           <section className="space-y-4">
             <div className="flex items-center gap-3">
-              <Clock className="h-6 w-6 text-[#C29E58]" />
-              <h2 className="text-xl font-medium text-[#C29E58]">
+              <Clock className="h-6 w-6 text-[#E0C07E]" />
+              <h2 className="text-xl font-medium text-[#E0C07E]">
                 الاحتفاظ بالبيانات
               </h2>
             </div>
@@ -150,14 +156,14 @@ export function PrivacyPolicy() {
 
           <section className="space-y-4 bg-[#16233D] border border-[#F4EFE3]/10 rounded-[3px] p-6">
             <div className="flex items-center gap-3">
-              <Mail className="h-6 w-6 text-[#C29E58]" />
-              <h2 className="text-xl font-medium text-[#C29E58]">تواصل معنا</h2>
+              <Mail className="h-6 w-6 text-[#E0C07E]" />
+              <h2 className="text-xl font-medium text-[#E0C07E]">تواصل معنا</h2>
             </div>
             <p className="text-[#DDD6C6] leading-relaxed">
               إذا كانت لديك أي أسئلة حول سياسة الخصوصية هذه أو ممارسات البيانات لدينا، 
               يرجى التواصل معنا عبر:
             </p>
-            <p className="text-[#C29E58] font-medium">
+            <p className="text-[#E0C07E] font-medium">
               support@uaeroots.com
             </p>
           </section>
