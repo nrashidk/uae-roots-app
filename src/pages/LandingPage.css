@@ -319,24 +319,6 @@
   color: #b9b2a2;
   line-height: 1.8;
 }
-.lp-note {
-  margin-top: 40px;
-  padding-top: 24px;
-  border-top: 1px solid rgba(244, 239, 227, 0.14);
-  font-size: 15px;
-  color: #9a9484;
-  max-width: 66ch;
-}
-.lp-note button {
-  background: none;
-  border: none;
-  padding: 0;
-  cursor: pointer;
-  color: var(--brass-lift);
-  font-size: 15px;
-  text-decoration: underline;
-}
-
 .lp-close {
   padding: 84px 0;
   text-align: center;
