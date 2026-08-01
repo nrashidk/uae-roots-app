@@ -409,8 +409,6 @@ const personSchema = z.object({
   deathDate: z.string().max(20).optional().nullable(),
   isLiving: z.boolean().optional().default(true),
   isBreastfed: z.boolean().optional().default(false),
-  milkFatherName: z.string().max(100).optional().nullable().or(z.literal("")),
-  milkMotherName: z.string().max(100).optional().nullable().or(z.literal("")),
   phone: z.string().max(20).optional().nullable(),
   email: z
     .string()
@@ -494,8 +492,6 @@ const personUpdateSchema = z.object({
   deathDate: z.string().max(20).optional().nullable(),
   isLiving: z.boolean().optional(),
   isBreastfed: z.boolean().optional(),
-  milkFatherName: z.string().max(100).optional().nullable().or(z.literal("")),
-  milkMotherName: z.string().max(100).optional().nullable().or(z.literal("")),
   phone: z.string().max(20).optional().nullable(),
   profession: z.string().max(100).optional().nullable(),
   email: z
@@ -2347,8 +2343,6 @@ app.post("/api/people", authenticateUser, async (req, res) => {
         sanitizedData.isBreastfed !== undefined
           ? sanitizedData.isBreastfed
           : false,
-      milkFatherName: sanitizedData.milkFatherName || null,
-      milkMotherName: sanitizedData.milkMotherName || null,
       phone: encryptPII(sanitizedData.phone),
       email: encryptPII(sanitizedData.email),
       identificationNumber: encryptPII(sanitizedData.identificationNumber),
@@ -2452,10 +2446,6 @@ app.put("/api/people/:id", authenticateUser, async (req, res) => {
       personData.isLiving = sanitizedData.isLiving;
     if (sanitizedData.isBreastfed !== undefined)
       personData.isBreastfed = sanitizedData.isBreastfed;
-    if (sanitizedData.milkFatherName !== undefined)
-      personData.milkFatherName = sanitizedData.milkFatherName || null;
-    if (sanitizedData.milkMotherName !== undefined)
-      personData.milkMotherName = sanitizedData.milkMotherName || null;
     if (sanitizedData.phone !== undefined)
       personData.phone = encryptPII(sanitizedData.phone);
     if (sanitizedData.email !== undefined)
