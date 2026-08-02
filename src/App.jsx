@@ -5639,7 +5639,25 @@ function App() {
           >
             <h3 className="text-xl font-bold mb-4">{t.relationships}</h3>
             <div className="text-3xl font-bold text-green-600">
-              {relationships.filter((r) => r.treeId === currentTree?.id).length}
+              {/* The number the card leads to: married men, one card each. It
+                  used to count RELATIONSHIP ROWS — every partner, parent-child
+                  and sibling edge — which read 204 on a tree whose العائلات page
+                  lists 24. That was correct for the old العلاقات page; the label
+                  was renamed and the number underneath was not. Same filter the
+                  detail view uses, so the two can no longer disagree. */}
+              {
+                people.filter(
+                  (p) =>
+                    p.treeId === currentTree?.id &&
+                    p.gender === "male" &&
+                    relationships.some(
+                      (r) =>
+                        r.treeId === currentTree?.id &&
+                        r.type === "partner" &&
+                        (r.person1Id === p.id || r.person2Id === p.id),
+                    ),
+                ).length
+              }
             </div>
           </div>
         </div>
