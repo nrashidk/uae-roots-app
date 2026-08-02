@@ -5403,11 +5403,23 @@ function App() {
     // The alternative — closeness to whoever is viewing — was rejected because the
     // page would reorder depending on whose card you opened, so two people looking
     // at the same family would see different orders.
+    // ELDEST is the smallest number here, so a path sorts ascending.
+    //
+    // null means the ORIGINAL ELDEST — older than every numbered sibling,
+    // including positive ones. This used to map null to 0 and everything else to
+    // -birthOrder, which placed null BETWEEN a positive order and a negative one:
+    // a child carrying birthOrder 1 outranked a null sibling who is genuinely
+    // older. Because lineagePath is recursive, one wrong position near the top
+    // reordered every family beneath it. Positive values are not rare — addPerson
+    // assigns 1 to the first child added to a parent whose children all have null.
+    //
+    // ELDEST now puts null ahead of every number, matching what the tree engine
+    // (comparePeople), the reorder arrows and the members list already produce:
+    //   null, 1, -1, -2   (oldest -> youngest)
+    // Comparison-only; never stored, never displayed.
+    const ELDEST = Number.NEGATIVE_INFINITY;
     const birthPosition = (person) => {
-      // birthOrder stores younger children as MORE-NEGATIVE values, with null
-      // meaning the original eldest. So the comparable position is 0 for null
-      // and -birthOrder otherwise — NOT the birthOrder value itself.
-      if (person?.birthOrder == null) return 0;
+      if (person?.birthOrder == null) return ELDEST;
       return -person.birthOrder;
     };
 
@@ -5437,9 +5449,16 @@ function App() {
     const comparePaths = (a, b) => {
       const len = Math.max(a.length, b.length);
       for (let i = 0; i < len; i++) {
-        const av = a[i] ?? -1;
-        const bv = b[i] ?? -1;
-        if (av !== bv) return av - bv;
+        // A missing segment means no ancestor is recorded at that depth — which
+        // carries no younger-sibling offset, exactly like a null birthOrder. It
+        // has to be ELDEST and not a literal -1: -1 is a real position (the value
+        // birthPosition returns for birthOrder 1), so the two would be compared
+        // as if they meant the same thing.
+        const av = a[i] ?? ELDEST;
+        const bv = b[i] ?? ELDEST;
+        // Subtraction is unusable once ELDEST is -Infinity: -Inf - -Inf is NaN,
+        // and a NaN comparator silently scrambles the sort.
+        if (av !== bv) return av < bv ? -1 : 1;
       }
       return 0;
     };
