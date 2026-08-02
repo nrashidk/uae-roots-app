@@ -4198,40 +4198,78 @@ function App() {
     const siblings = getSiblings(personId);
     if (siblings.length === 0) return;
 
-    // Create array with current person and siblings, sorted by birthOrder (oldest first)
+    // OLDEST FIRST, the same order sortByBirth and the tree produce: null is the
+    // original eldest, then descending, ties broken by id so the sequence is
+    // deterministic. The previous version sorted `?? 9999` ASCENDING — youngest
+    // first — while its comment claimed oldest first, and the direction logic was
+    // inverted to compensate.
     const allSiblings = [person, ...siblings].sort((a, b) => {
-      const orderA = a.birthOrder ?? 9999;
-      const orderB = b.birthOrder ?? 9999;
-      return orderA - orderB;
+      const an = a.birthOrder == null;
+      const bn = b.birthOrder == null;
+      if (an !== bn) return an ? -1 : 1;
+      if (!an && a.birthOrder !== b.birthOrder) return b.birthOrder - a.birthOrder;
+      return a.id - b.id;
     });
 
     const currentIndex = allSiblings.findIndex((s) => s.id === personId);
     if (currentIndex === -1) return;
 
-    // Determine swap target index
-    // 'older' means move to earlier position in sorted list (lower birthOrder)
-    // 'younger' means move to later position in sorted list (higher birthOrder)
-    let targetIndex;
-    if (direction === "older") {
-      targetIndex = currentIndex + 1; // Swap with next (younger) sibling
-    } else {
-      targetIndex = currentIndex - 1; // Swap with previous (older) sibling
-    }
+    // A swap trades two birthOrder VALUES, which only moves anybody when the two
+    // values differ and every position is distinct. Neither is guaranteed:
+    //
+    //   DUPLICATES — two siblings can hold the same number (جمال and حميد both
+    //   sit at -4 in the live tree). Swapping -4 for -4 writes two rows, adds an
+    //   undo entry and moves nothing. The arrow looks broken.
+    //
+    //   NULLS — null has no position to trade, so the old code invented one from
+    //   the array index. In an all-null group that gave real numbers to exactly
+    //   the two people involved while their siblings stayed null; null is the
+    //   ELDEST, so both jumped from mid-group to the youngest end.
+    //
+    // Normalising first assigns dense, unique values in the order above, so the
+    // swap afterwards is a plain exchange of two different numbers. It happens
+    // once per group — the next press finds it clean and writes only two rows.
+    const needsNormalise =
+      allSiblings.some((s) => s.birthOrder == null) ||
+      new Set(allSiblings.map((s) => s.birthOrder)).size < allSiblings.length;
 
-    // Check bounds
-    if (targetIndex < 0 || targetIndex >= allSiblings.length) return;
+    // LARGER means older, so the eldest takes the highest value.
+    const working = needsNormalise
+      ? allSiblings.map((s, i) => ({
+          ...s,
+          birthOrder: allSiblings.length - 1 - i,
+        }))
+      : allSiblings;
 
-    const targetPerson = allSiblings[targetIndex];
-    const currentOrder = person.birthOrder ?? currentIndex + 1;
-    const targetOrder = targetPerson.birthOrder ?? targetIndex + 1;
+    // The array is oldest first, so "older" steps toward index 0.
+    const targetIndex =
+      direction === "older" ? currentIndex - 1 : currentIndex + 1;
+    if (targetIndex < 0 || targetIndex >= working.length) return;
+
+    const targetPerson = working[targetIndex];
+    // Read positions from `working`. After normalising, the stored birthOrder is
+    // stale, and `?? index` is the invention that caused the displacement above.
+    const currentOrder = working[currentIndex].birthOrder;
+    const targetOrder = targetPerson.birthOrder;
+
+    // Every row this press writes: the normalised values where the group needed
+    // them, with the two swap partners exchanged.
+    const finalOrders = new Map(
+      needsNormalise ? working.map((s) => [s.id, s.birthOrder]) : [],
+    );
+    finalOrders.set(personId, targetOrder);
+    finalOrders.set(targetPerson.id, currentOrder);
+
+    // Rollback needs the values as they stood before any of this.
+    const previousOrders = new Map(
+      allSiblings.map((s) => [s.id, s.birthOrder ?? null]),
+    );
 
     // Optimistically update UI
     setPeople((prev) =>
-      prev.map((p) => {
-        if (p.id === personId) return { ...p, birthOrder: targetOrder };
-        if (p.id === targetPerson.id) return { ...p, birthOrder: currentOrder };
-        return p;
-      }),
+      prev.map((p) =>
+        finalOrders.has(p.id) ? { ...p, birthOrder: finalOrders.get(p.id) } : p,
+      ),
     );
 
     // Persist to database via API. One swap writes TWO rows — both siblings
@@ -4239,10 +4277,11 @@ function App() {
     // single press rather than leaving it half-applied after one.
     beginAction();
     try {
-      await Promise.all([
-        api.people.updateBirthOrder(personId, targetOrder),
-        api.people.updateBirthOrder(targetPerson.id, currentOrder),
-      ]);
+      await Promise.all(
+        [...finalOrders].map(([id, order]) =>
+          api.people.updateBirthOrder(id, order),
+        ),
+      );
       // Refresh the undo pointer HERE, not just from the effect on `people`.
       // This handler updates the UI optimistically BEFORE calling the API, so
       // the effect fires while the stack rows do not exist yet — the pointer
@@ -4251,14 +4290,14 @@ function App() {
       await loadRestorableDeletion();
     } catch (error) {
       console.error("Failed to persist birthOrder swap:", error);
-      // Rollback on error
+      // Rollback on error — every row this touched, not just the two partners,
+      // since a normalising press writes the whole group.
       setPeople((prev) =>
-        prev.map((p) => {
-          if (p.id === personId) return { ...p, birthOrder: currentOrder };
-          if (p.id === targetPerson.id)
-            return { ...p, birthOrder: targetOrder };
-          return p;
-        }),
+        prev.map((p) =>
+          previousOrders.has(p.id)
+            ? { ...p, birthOrder: previousOrders.get(p.id) }
+            : p,
+        ),
       );
     } finally {
       endAction();
@@ -5752,20 +5791,26 @@ function App() {
                   const currentPerson = treePeople.find(
                     (p) => p.id === selectedPerson,
                   );
+                  // Must match handleReorderSibling exactly, or a button greys
+                  // out at the wrong end of the row. OLDEST FIRST: null is the
+                  // original eldest, then descending, ties by id.
                   const allSiblings = [currentPerson, ...siblings].sort(
                     (a, b) => {
-                      const orderA = a.birthOrder ?? 9999;
-                      const orderB = b.birthOrder ?? 9999;
-                      return orderA - orderB;
+                      const an = a.birthOrder == null;
+                      const bn = b.birthOrder == null;
+                      if (an !== bn) return an ? -1 : 1;
+                      if (!an && a.birthOrder !== b.birthOrder)
+                        return b.birthOrder - a.birthOrder;
+                      return a.id - b.id;
                     },
                   );
                   const currentIndex = allSiblings.findIndex(
                     (s) => s.id === selectedPerson,
                   );
-                  // "older" moves right/down in tree (swap with younger sibling at higher index)
-                  canMoveOlder = currentIndex < allSiblings.length - 1;
-                  // "younger" moves left/up in tree (swap with older sibling at lower index)
-                  canMoveYounger = currentIndex > 0;
+                  // Oldest sits at index 0, so the eldest cannot move older and
+                  // the youngest cannot move younger.
+                  canMoveOlder = currentIndex > 0;
+                  canMoveYounger = currentIndex < allSiblings.length - 1;
                 }
 
                 return (
