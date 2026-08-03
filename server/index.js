@@ -338,7 +338,9 @@ app.use((req, res, next) => {
 // Intercepting the response rather than editing 55 call sites: it cannot miss a
 // site, and it covers refusals added later. Fire-and-forget so a slow audit write
 // never delays the response the user is waiting for.
-const AUDIT_SKIP_PATHS = ["/health"];
+// Both health paths: a monitor hitting one of these every minute would
+// otherwise bury every real event in the audit log.
+const AUDIT_SKIP_PATHS = ["/health", "/health/ready"];
 app.use((req, res, next) => {
   const originalJson = res.json.bind(res);
   res.json = (body) => {
@@ -3733,12 +3735,57 @@ cleanupAuditLogs();
 setInterval(cleanupAuditLogs, 24 * 60 * 60 * 1000);
 
 // Health check endpoint for monitoring and load balancers
+// Liveness. Says only that the process is running and answering.
+//
+// Point RENDER's own health check here and nowhere else. If Render's check ever
+// depends on the database, a few seconds of Neon being unreachable becomes Render
+// killing the service or failing a deploy — an outage manufactured out of a blip.
 app.get("/health", (req, res) => {
   res.status(200).json({
     status: "healthy",
     timestamp: new Date().toISOString(),
     uptime: process.uptime(),
   });
+});
+
+// Readiness. Says the app can actually serve a request.
+//
+// Point the EXTERNAL uptime monitor here. /health alone would not have caught the
+// outage this app has already had: `users.token_version` was missing from the
+// production database for days, so every read of `users` asked for a column that
+// was not there and returned 500. Login was dead. The process was fine, Neon was
+// fine, and a liveness check would have reported healthy the whole time.
+//
+// `select()` with no argument asks for EVERY column in shared/schema.js, which is
+// exactly how Drizzle builds the query that failed. So this does not merely prove
+// the database is reachable — it proves the schema still matches the code. That
+// entire class of failure surfaces here now, automatically, instead of when
+// somebody happens to try signing in.
+//
+// Cached, because this is public and unauthenticated: without it, anyone could
+// turn a monitoring endpoint into one database query per request.
+let readinessCache = { at: 0, ok: false, detail: null };
+const READINESS_TTL_MS = 30_000;
+
+app.get("/health/ready", async (req, res) => {
+  const now = Date.now();
+  if (now - readinessCache.at < READINESS_TTL_MS) {
+    return res
+      .status(readinessCache.ok ? 200 : 503)
+      .json({ status: readinessCache.ok ? "ready" : "degraded", cached: true });
+  }
+
+  try {
+    await db.select().from(users).limit(1);
+    readinessCache = { at: now, ok: true, detail: null };
+    res.status(200).json({ status: "ready", cached: false });
+  } catch (error) {
+    // The reason goes to the log, never to the response: the useful failures name
+    // a missing column, which tells an anonymous caller about the schema.
+    console.error("[Readiness] Database check failed:", error.message);
+    readinessCache = { at: now, ok: false, detail: error.message };
+    res.status(503).json({ status: "degraded", cached: false });
+  }
 });
 
 if (isProduction) {
