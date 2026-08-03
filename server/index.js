@@ -94,6 +94,32 @@ const deriveEncryptionKey = (keyString) => {
 
 const DERIVED_KEY = deriveEncryptionKey(ENCRYPTION_KEY);
 
+// Set ONLY while rotating ENCRYPTION_KEY, then removed.
+//
+// Rotation is otherwise impossible: every phone, email and ID number in `people`
+// is sealed under the current key, and changing it without a fallback makes all
+// of them permanently unreadable. There is no way back, because the plaintext
+// exists nowhere else.
+//
+// With this set, reads accept EITHER key while writes always use the new one, so
+// rows re-encrypt themselves as they are edited and nothing breaks in between.
+// Anything not edited still needs a deliberate re-encryption pass before the old
+// key is dropped — see the rotation runbook.
+//
+// Leave it unset in normal operation. Unset, the behaviour below is identical to
+// having no fallback at all.
+const PREVIOUS_ENCRYPTION_KEY = process.env.ENCRYPTION_KEY_PREVIOUS;
+const PREVIOUS_DERIVED_KEY = PREVIOUS_ENCRYPTION_KEY
+  ? deriveEncryptionKey(PREVIOUS_ENCRYPTION_KEY)
+  : null;
+
+if (PREVIOUS_DERIVED_KEY && PREVIOUS_ENCRYPTION_KEY === ENCRYPTION_KEY) {
+  console.error(
+    "ENCRYPTION_KEY_PREVIOUS is identical to ENCRYPTION_KEY - rotation has not happened",
+  );
+  process.exit(1);
+}
+
 // New AES-256-GCM encryption (more secure with IV and auth tag)
 const encryptPII = (text) => {
   if (!text) return null;
@@ -120,15 +146,33 @@ const decryptPII = (encrypted) => {
       return null;
     }
     const [, ivHex, tagHex, data] = parts;
-    const decipher = crypto.createDecipheriv(
-      "aes-256-gcm",
-      DERIVED_KEY,
-      Buffer.from(ivHex, "hex"),
-      { authTagLength: 16 },
-    );
-    decipher.setAuthTag(Buffer.from(tagHex, "hex"));
-    let decrypted = decipher.update(data, "hex", "utf8");
-    return decrypted + decipher.final("utf8");
+
+    // GCM authenticates, so the wrong key throws rather than returning rubbish.
+    // That makes "try the current key, fall back to the previous one" safe: a
+    // successful decrypt is proof the key was right, never a coincidence.
+    const attempt = (key) => {
+      const decipher = crypto.createDecipheriv(
+        "aes-256-gcm",
+        key,
+        Buffer.from(ivHex, "hex"),
+        { authTagLength: 16 },
+      );
+      decipher.setAuthTag(Buffer.from(tagHex, "hex"));
+      const out = decipher.update(data, "hex", "utf8");
+      return out + decipher.final("utf8");
+    };
+
+    try {
+      return attempt(DERIVED_KEY);
+    } catch (currentKeyError) {
+      if (!PREVIOUS_DERIVED_KEY) throw currentKeyError;
+      // Written under the old key and not yet re-encrypted. Logged without the
+      // value or the row, so a rotation can be watched to completion: when this
+      // stops appearing, every row that gets read has been migrated.
+      const value = attempt(PREVIOUS_DERIVED_KEY);
+      debugLog("Decrypted with PREVIOUS encryption key - re-encryption pending");
+      return value;
+    }
   } catch (error) {
     console.error("Decryption failed:", error.message);
     return null;
