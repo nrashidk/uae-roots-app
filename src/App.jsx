@@ -6489,11 +6489,11 @@ function PersonForm({
       return;
     }
     // Phone, when given, must be a 10-digit UAE number starting with 0
-    // (e.g. 0503000223). Validated on save, the same way the browser validates
+    // (e.g. 05XXXXXXXX). Validated on save, the same way the browser validates
     // the email field, so a malformed number can't be stored silently.
     const phoneValue = (formData.phone || "").trim();
     if (phoneValue && !/^0\d{9}$/.test(phoneValue)) {
-      alert("يجب أن يكون رقم الهاتف 10 أرقام ويبدأ بصفر (مثال: 0503000223)");
+      alert("يجب أن يكون رقم الهاتف 10 أرقام ويبدأ بصفر (مثال: 05XXXXXXXX)");
       return;
     }
     DEBUG && console.log("Form data being submitted:", formData);
@@ -6663,7 +6663,6 @@ function PersonForm({
             inputMode="numeric"
             value={formData.phone}
             maxLength={10}
-            placeholder="0503000223"
             onChange={(e) =>
               // Digits only, hard-capped at 10 — a UAE number is 10 digits
               // starting with 0. maxLength alone doesn't stop a paste, so the
