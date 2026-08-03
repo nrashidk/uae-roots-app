@@ -2213,43 +2213,22 @@ app.post("/api/trees", authenticateUser, async (req, res) => {
   }
 });
 
-app.delete("/api/trees/:id", authenticateUser, async (req, res) => {
-  try {
-    const treeId = validateId(req.params.id);
-    if (!treeId) {
-      return res.status(400).json({ error: "Invalid tree ID" });
-    }
-
-    const [tree] = await db.select().from(trees).where(eq(trees.id, treeId));
-    if (!tree) {
-      return res.status(404).json({ error: "Tree not found" });
-    }
-
-    if (req.userId !== tree.createdBy) {
-      return res.status(403).json({ error: "غير مصرح بالوصول" });
-    }
-
-    await db.delete(relationships).where(eq(relationships.treeId, treeId));
-    await db.delete(people).where(eq(people.treeId, treeId));
-    await db.delete(editHistory).where(eq(editHistory.treeId, treeId));
-    // Snapshots belong to the tree — remove them with it.
-    await db.delete(deletions).where(eq(deletions.treeId, treeId));
-    await db.delete(trees).where(eq(trees.id, treeId));
-
-    await logAudit(
-      req.userId,
-      "delete",
-      "tree",
-      treeId,
-      { name: tree.name },
-      req,
-    );
-
-    res.json({ success: true });
-  } catch (error) {
-    handleError(res, error, "Tree delete");
-  }
-});
+// DELETE /api/trees/:id was REMOVED.
+//
+// The app is one tree per user by design — milk-siblings, divorce, every
+// relationship type lives inside a single tree, and nothing is ever split across
+// several. App.jsx takes userTrees[0] and creates one if none exists; there is no
+// picker and no way to make a second. The endpoint was left over from an earlier
+// multi-tree design, alongside the export endpoint and the migration scripts.
+//
+// Nothing called it. It was authenticated but destructive with no confirmation
+// and no undo — and unlike batch-delete it wrote no snapshot to `deletions`, it
+// deleted them, so a session-holder could permanently erase an entire tree by id
+// with no way back. Deleting a tree now happens only through account deletion,
+// which is transactional and re-authenticated.
+//
+// If multi-tree is ever built it will want soft-delete and a confirmation flow,
+// not this. Git has the original.
 
 app.get("/api/people", authenticateUser, async (req, res) => {
   const rid = req.requestId || "";
