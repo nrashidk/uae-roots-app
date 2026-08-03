@@ -481,7 +481,6 @@ const personSchema = z.object({
     .nullable()
     .or(z.literal(""))
     .or(z.null()),
-  identificationNumber: z.string().max(50).optional().nullable(),
   profession: z.string().max(100).optional().nullable(),
   birthOrder: z.number().int().optional().nullable(),
   photoUrl: z.string().max(500).optional().nullable(),
@@ -565,7 +564,6 @@ const personUpdateSchema = z.object({
     .nullable()
     .or(z.literal(""))
     .or(z.null()),
-  identificationNumber: z.string().max(50).optional().nullable(),
   birthOrder: z.number().int().optional().nullable(),
   photoUrl: z.string().max(500).optional().nullable(),
 });
@@ -600,7 +598,6 @@ const personUndoSchema = z
     isBreastfed: z.boolean().optional(),
     phone: z.string().optional().nullable(), // Allow encrypted strings (any length)
     email: z.string().optional().nullable(), // Allow encrypted strings (any length)
-    identificationNumber: z.string().optional().nullable(), // Allow encrypted strings
     birthOrder: z.number().int().optional().nullable(),
     birthPlace: z.string().max(200).optional().nullable(),
     profession: z.string().max(200).optional().nullable(),
@@ -2311,7 +2308,6 @@ app.get("/api/people", authenticateUser, async (req, res) => {
           ...person,
           phone: decryptPII(person.phone),
           email: decryptPII(person.email),
-          identificationNumber: decryptPII(person.identificationNumber),
           photoUrl: normalizePhotoUrl(person.photoUrl),
         };
       } catch (decryptError) {
@@ -2320,7 +2316,6 @@ app.get("/api/people", authenticateUser, async (req, res) => {
           ...person,
           phone: null,
           email: null,
-          identificationNumber: null,
           photoUrl: normalizePhotoUrl(person.photoUrl),
         };
       }
@@ -2370,7 +2365,6 @@ app.get("/api/people/search", authenticateUser, async (req, res) => {
       ...person,
       phone: decryptPII(person.phone),
       email: decryptPII(person.email),
-      identificationNumber: decryptPII(person.identificationNumber),
       photoUrl: normalizePhotoUrl(person.photoUrl),
     }));
 
@@ -2382,10 +2376,9 @@ app.get("/api/people/search", authenticateUser, async (req, res) => {
 
 app.post("/api/people", authenticateUser, async (req, res) => {
   try {
-    // A person row is name, birth date, birth place, profession, phone, email and
-    // ID number. phone/email/identificationNumber are encrypted at rest and were
-    // being printed in PLAINTEXT here on the way in, so the log undid the
-    // encryption for every person ever added.
+    // A person row is name, birth date, birth place, profession, phone and email.
+    // phone/email are encrypted at rest and were being printed in PLAINTEXT here
+    // on the way in, so the log undid the encryption for every person ever added.
     debugLog("POST /api/people received data:", req.body);
     const validatedData = personSchema.parse(req.body);
     debugLog("After validation:", validatedData);
@@ -2416,7 +2409,6 @@ app.post("/api/people", authenticateUser, async (req, res) => {
           : false,
       phone: encryptPII(sanitizedData.phone),
       email: encryptPII(sanitizedData.email),
-      identificationNumber: encryptPII(sanitizedData.identificationNumber),
       profession: sanitizedData.profession || null,
       birthOrder: sanitizedData.birthOrder ?? null,
       photoUrl: sanitizedData.photoUrl || null,
@@ -2455,7 +2447,6 @@ app.post("/api/people", authenticateUser, async (req, res) => {
       ...person,
       phone: decryptPII(person.phone),
       email: decryptPII(person.email),
-      identificationNumber: decryptPII(person.identificationNumber),
     };
 
     res.json(decryptedPerson);
@@ -2521,10 +2512,6 @@ app.put("/api/people/:id", authenticateUser, async (req, res) => {
       personData.phone = encryptPII(sanitizedData.phone);
     if (sanitizedData.email !== undefined)
       personData.email = encryptPII(sanitizedData.email);
-    if (sanitizedData.identificationNumber !== undefined)
-      personData.identificationNumber = encryptPII(
-        sanitizedData.identificationNumber,
-      );
     if (sanitizedData.profession !== undefined)
       personData.profession = sanitizedData.profession || null;
     if (sanitizedData.birthOrder !== undefined)
@@ -2564,7 +2551,6 @@ app.put("/api/people/:id", authenticateUser, async (req, res) => {
       ...person,
       phone: decryptPII(person.phone),
       email: decryptPII(person.email),
-      identificationNumber: decryptPII(person.identificationNumber),
     };
 
     res.json(decryptedPerson);
