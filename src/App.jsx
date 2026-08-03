@@ -5400,11 +5400,6 @@ function App() {
                           )}
                         </div>
                         <div className="text-lg">{getGenealogicalName(person)}</div>
-                        {person.identificationNumber && (
-                          <div className="text-sm text-gray-500">
-                            رقم الهوية: {person.identificationNumber}
-                          </div>
-                        )}
                         <div className="text-sm text-gray-500">
                           {person.gender === "male" ? "ذكر" : "أنثى"}
                         </div>
