@@ -110,6 +110,57 @@ function App() {
   } = useAuth();
   // Public screen shown to signed-out visitors: the landing page first, the
   // login form only once they ask for it. Becomes a route when routing lands.
+  // The tree does not work on a phone. Tested on iOS 3 Aug: the zoom BUTTONS
+  // work and nothing else does — you cannot pan to reach the rest of the tree,
+  // tapping a person never opens the action menu, and the header buttons run off
+  // the edge.
+  //
+  // Note the trap: TreeCanvas defines handleTouchStart/Move/End and sets
+  // `touchAction: "none"`, so reading the source suggests touch is supported. It
+  // is not, on a real device. This notice exists because the live test said so
+  // and the code said otherwise.
+  //
+  // 768px matches the landing page's own breakpoint in LandingPage.css.
+  const [isNarrow, setIsNarrow] = useState(
+    () => typeof window !== "undefined" && window.innerWidth < 768,
+  );
+  const [narrowNoticeDismissed, setNarrowNoticeDismissed] = useState(false);
+
+  // The canvas below used `calc(100vh - 64px)`, a hardcoded guess at the header
+  // height. Anything else stacked above it — the narrow-screen notice — pushed
+  // the canvas off the bottom by exactly its own height. Measuring the chrome
+  // instead means the canvas fits whatever is above it, and a second banner
+  // later needs no arithmetic.
+  const shellChromeRef = useRef(null);
+  const [chromeHeight, setChromeHeight] = useState(64);
+
+  useEffect(() => {
+    const el = shellChromeRef.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(() => setChromeHeight(el.offsetHeight));
+    ro.observe(el);
+    setChromeHeight(el.offsetHeight);
+    return () => ro.disconnect();
+    // Mount only. The observed wrapper is always rendered — the notice appears
+    // and disappears INSIDE it — so the element never changes and re-subscribing
+    // on every render would only churn observers.
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const mq = window.matchMedia("(max-width: 767px)");
+    const onChange = (e) => setIsNarrow(e.matches);
+    setIsNarrow(mq.matches);
+    // addEventListener on MediaQueryList is not in older Safari, which still
+    // ships addListener. Both are cheap to attach.
+    if (mq.addEventListener) mq.addEventListener("change", onChange);
+    else mq.addListener(onChange);
+    return () => {
+      if (mq.removeEventListener) mq.removeEventListener("change", onChange);
+      else mq.removeListener(onChange);
+    };
+  }, []);
+
   const [publicScreen, setPublicScreen] = useState("landing");
   const [authDialogOpen, setAuthDialogOpen] = useState(false);
   const [authMode, setAuthMode] = useState("login");
@@ -335,6 +386,8 @@ function App() {
     addChild: "إضافة طفل",
     addSibling: "إضافة شقيق",
     backToDashboard: "العودة إلى لوحة التحكم",
+    narrowScreen:
+      "لا يمكن تصفح الشجرة من خلال الهاتف، يرجى استخدام جهاز الكمبيوتر.",
     familyTreeName: "شجرة عائلتي",
     deleteConfirm: "هل أنت متأكد من حذف هذا الشخص؟",
     logout: "تسجيل الخروج",
@@ -5679,6 +5732,37 @@ function App() {
 
   return (
     <div className="h-screen bg-gray-100 overflow-hidden">
+      {/* In normal flow, not fixed: it pushes the header down instead of covering
+          the controls it is talking about. Dismissible, because someone who knows
+          and is browsing anyway should not be nagged on every screen. Dismissal
+          lives in component state — it returns on a reload, which is the right
+          side to err on for a notice nobody is forced to read.
+          Hidden while the sign-up gate is open: that gate is a modal over this
+          shell, so the bar showed BEHIND it, advising someone to use a computer
+          to build a tree they have not agreed to create yet. */}
+      <div ref={shellChromeRef}>
+      {isNarrow && !narrowNoticeDismissed && !pendingSignup && (
+        <div
+          dir="rtl"
+          role="status"
+          className="w-full bg-amber-100 border-b-2 border-amber-400 text-amber-900"
+        >
+          <div className="flex items-start gap-2 px-4 py-2">
+            <span aria-hidden="true" className="text-base leading-none pt-0.5">
+              &#9888;
+            </span>
+            <span className="flex-1 text-sm leading-snug">{t.narrowScreen}</span>
+            <button
+              type="button"
+              onClick={() => setNarrowNoticeDismissed(true)}
+              aria-label="إغلاق"
+              className="shrink-0 rounded px-2 text-lg leading-none text-amber-900/70 hover:text-amber-900 hover:bg-amber-200 focus:outline-none focus:ring-2 focus:ring-amber-500"
+            >
+              &times;
+            </button>
+          </div>
+        </div>
+      )}
       <div className="bg-white shadow-sm border-b px-4 py-3 flex items-center justify-between">
         <div className="flex items-center gap-4">
           <Button
@@ -5704,7 +5788,11 @@ function App() {
         </div>
       </div>
 
-      <div className="relative" style={{ height: "calc(100vh - 64px)" }}>
+      </div>
+      <div
+        className="relative"
+        style={{ height: `calc(100vh - ${chromeHeight}px)` }}
+      >
         <div
           ref={canvasRef}
           className="w-full h-full cursor-grab active:cursor-grabbing"
