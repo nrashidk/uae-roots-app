@@ -623,25 +623,37 @@ const recordUndo = async ({
 // credential lives in browser storage, so a reload mints them a new app token.
 // That is correct for "sign out my other devices"; it is not a lockout, and
 // stopping a compromised Google ACCOUNT is Google's control, not ours.
+// Returns the version actually stored, so a caller can mint a token that matches
+// the database rather than one it assumes matches. The failure used to be
+// swallowed here while versionForNewSession returned `existing + 1` regardless,
+// so a failed UPDATE produced a token one ahead of the row — refused on the very
+// next request, with nothing in the response to explain why.
 const bumpTokenVersion = async (userId, reason, req) => {
   try {
-    await db
+    const [row] = await db
       .update(users)
       .set({ tokenVersion: sql`${users.tokenVersion} + 1` })
-      .where(eq(users.id, userId));
+      .where(eq(users.id, userId))
+      .returning({ tokenVersion: users.tokenVersion });
     await logAudit(userId, "sessions_terminated", "auth", null, { reason }, req);
+    return row?.tokenVersion ?? null;
   } catch (error) {
     console.error("Token version bump failed:", error);
+    return null;
   }
 };
 
 // The version a new session should carry. With SINGLE_SESSION on, logging in
 // bumps first, so the token just issued is the ONLY valid one and every other
 // device is signed out — OWASP item 68 taken literally.
+//
+// If the bump fails, the honest answer is the version still on the row: the other
+// devices were NOT signed out, and minting `existing + 1` would only add a second
+// broken session to the first problem.
 const versionForNewSession = async (userId, existingVersion, req) => {
   if (!SINGLE_SESSION) return existingVersion ?? 0;
-  await bumpTokenVersion(userId, "single_session_login", req);
-  return (existingVersion ?? 0) + 1;
+  const stored = await bumpTokenVersion(userId, "single_session_login", req);
+  return stored ?? existingVersion ?? 0;
 };
 
 const logAudit = async (
@@ -772,10 +784,14 @@ const authenticateUser = async (req, res, next) => {
   }
 
   if (!token) {
+    // NO sessionEnded flag. Nothing was terminated — there was never a cookie on
+    // this request. That flag drives a HARD logout on the client: Firebase
+    // sign-out, session restore blocked, amber eviction banner. Raising it here
+    // told someone whose request merely arrived without a cookie that another
+    // device had signed them out. Version mismatch and expiry are real endings;
+    // this is not one.
     debugLog(`[${rid}][Auth] No token found - returning 401`);
-    return res
-      .status(401)
-      .json({ error: "الجلسة غير موجودة", sessionEnded: true });
+    return res.status(401).json({ error: "الجلسة غير موجودة" });
   }
 
   try {
