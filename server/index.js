@@ -624,10 +624,10 @@ const recordUndo = async ({
 // That is correct for "sign out my other devices"; it is not a lockout, and
 // stopping a compromised Google ACCOUNT is Google's control, not ours.
 // Returns the version actually stored, so a caller can mint a token that matches
-// the database instead of one it merely hopes matches. The failure used to be
-// swallowed here while versionForNewSession returned `existing + 1` regardless —
-// so a failed UPDATE produced a token whose tv was one ahead of the row, and the
-// user was refused on their very next request with no way to tell why.
+// the database rather than one it assumes matches. The failure used to be
+// swallowed here while versionForNewSession returned `existing + 1` regardless,
+// so a failed UPDATE produced a token one ahead of the row — refused on the very
+// next request, with nothing in the response to explain why.
 const bumpTokenVersion = async (userId, reason, req) => {
   try {
     const [row] = await db
@@ -647,9 +647,9 @@ const bumpTokenVersion = async (userId, reason, req) => {
 // bumps first, so the token just issued is the ONLY valid one and every other
 // device is signed out — OWASP item 68 taken literally.
 //
-// If the bump fails, the honest answer is the version still on the row: the
-// other devices were NOT signed out, and minting `existing + 1` would only add a
-// second broken session to the first problem.
+// If the bump fails, the honest answer is the version still on the row: the other
+// devices were NOT signed out, and minting `existing + 1` would only add a second
+// broken session to the first problem.
 const versionForNewSession = async (userId, existingVersion, req) => {
   if (!SINGLE_SESSION) return existingVersion ?? 0;
   const stored = await bumpTokenVersion(userId, "single_session_login", req);
@@ -785,11 +785,11 @@ const authenticateUser = async (req, res, next) => {
 
   if (!token) {
     // NO sessionEnded flag. Nothing was terminated — there was never a cookie on
-    // this request. The flag drives a hard logout on the client (Firebase
-    // sign-out, restore blocked, amber eviction banner), so raising it here told
-    // someone whose request simply arrived without a cookie that another device
-    // had signed them out. Version mismatch and expiry are real endings; this is
-    // not one.
+    // this request. That flag drives a HARD logout on the client: Firebase
+    // sign-out, session restore blocked, amber eviction banner. Raising it here
+    // told someone whose request merely arrived without a cookie that another
+    // device had signed them out. Version mismatch and expiry are real endings;
+    // this is not one.
     debugLog(`[${rid}][Auth] No token found - returning 401`);
     return res.status(401).json({ error: "الجلسة غير موجودة" });
   }
@@ -898,21 +898,8 @@ const optionalAuth = async (req, res, next) => {
         return next();
       }
 
-      // The cookie is deliberately LEFT IN PLACE on a version mismatch.
-      //
-      // /api/auth/check is the first request a returning browser makes, and it
-      // runs through here. Clearing the cookie destroyed the only evidence of
-      // which session this browser used to hold — so when the app then called
-      // /auth/token, that endpoint could not tell a silent restore by the
-      // rightful holder from a fresh login by a browser that had already been
-      // replaced, and bumped the version either way. An expired cookie on device
-      // A therefore evicted device B with nobody having logged in anywhere.
-      //
-      // The request is still unauthenticated: req.userId is not set, so
-      // /api/auth/check answers authenticated:false exactly as before. The stale
-      // cookie is inert everywhere else — authenticateUser refuses it — and its
-      // only remaining use is as proof of prior holdership at /auth/token.
       if (account && (decoded.tv ?? 0) !== (account.tokenVersion ?? 0)) {
+        res.clearCookie("auth_token", COOKIE_OPTIONS);
         return next();
       }
 
@@ -1366,52 +1353,16 @@ app.post("/api/auth/token", loginLimiter, async (req, res) => {
       .from(users)
       .where(eq(users.id, resolvedUserId));
 
-    // Is this a RESTORE by the browser that already held the session, or a fresh
-    // LOGIN? This endpoint is called by both — a person pressing sign-in, and the
-    // app silently re-minting when its cookie expired but the Firebase credential
-    // is still good. They were indistinguishable, so every call bumped, and an
-    // expired cookie on device A evicted device B with nobody having logged in.
-    //
-    // The old cookie answers it. optionalAuth no longer clears it on a version
-    // mismatch, so the browser still presents whatever it last held. Decoded with
-    // ignoreExpiration (it is expected to be expired — that is why we are here):
-    //
-    //   tv matches the row -> this browser IS the current holder. Its cookie ran
-    //                         out, nothing else happened. Re-issue at the SAME
-    //                         version; evict nobody.
-    //   tv differs         -> this browser was already replaced by a later login.
-    //                         Treat as a fresh login: bump, and it takes over.
-    //   no cookie          -> nothing to prove holdership with. Fresh login.
-    //
-    // The signature is still verified, so a forged or tampered cookie fails and
-    // falls through to the login path. Worst case is a bump that was not needed,
-    // which is the behaviour before this change.
-    let isRestore = false;
-    if (existingAccount && req.cookies?.auth_token) {
-      try {
-        const prior = jwt.verify(req.cookies.auth_token, JWT_SECRET, {
-          ignoreExpiration: true,
-        });
-        isRestore =
-          prior.userId === resolvedUserId &&
-          (prior.tv ?? 0) === (existingAccount.tokenVersion ?? 0);
-      } catch {
-        isRestore = false;
-      }
-    }
-
     const token = jwt.sign(
       {
         userId: resolvedUserId,
         type: provider || "firebase",
         tv: existingAccount
-          ? isRestore
-            ? existingAccount.tokenVersion ?? 0
-            : await versionForNewSession(
-                resolvedUserId,
-                existingAccount.tokenVersion,
-                req,
-              )
+          ? await versionForNewSession(
+              resolvedUserId,
+              existingAccount.tokenVersion,
+              req,
+            )
           : 0,
         // See the phone path: marks a session issued BEFORE any account existed.
         ...(existingAccount ? {} : { na: true }),
@@ -1422,12 +1373,9 @@ app.post("/api/auth/token", loginLimiter, async (req, res) => {
 
     res.cookie("auth_token", token, COOKIE_OPTIONS);
 
-    // Recorded distinctly. A silent restore used to appear in the trail as a
-    // `login`, so the audit log showed sign-ins that nobody performed — and that
-    // log is the only reliable evidence when a session bug is being diagnosed.
     await logAudit(
       resolvedUserId,
-      isRestore ? "session_restored" : "login",
+      "login",
       "auth",
       null,
       { provider, linkedAccount: !!existingUser },
