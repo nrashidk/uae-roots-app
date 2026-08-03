@@ -2862,6 +2862,12 @@ function App() {
   };
 
   const updatePerson = async (personData) => {
+    // ONE undo entry for one save. This function can write twice — the divorce
+    // tick sets a relationship status, then the person's own fields are updated —
+    // and without a group the two land as separate entries, so undoing a single
+    // edit takes two presses and the first press leaves the record half-reverted.
+    // Every other mutating handler already brackets its writes this way.
+    beginAction();
     try {
       const editingId = editingPerson;
 
@@ -2974,6 +2980,12 @@ function App() {
     } catch (error) {
       console.error("Failed to update person:", error);
       failAlert("فشل في تحديث الشخص: " + error.message);
+    } finally {
+      // In `finally`, not at the end of `try`: the revive-limit and gender-clash
+      // checks return EARLY, and the divorce status may already have been written
+      // by then. Closing the group only on the happy path would leave it open and
+      // silently swallow the next unrelated action into this one.
+      endAction();
     }
   };
 
@@ -3148,7 +3160,10 @@ function App() {
       await loadRestorableDeletion();
     } catch (error) {
       console.error("Restore failed:", error);
-      alert(error.message);
+      // failAlert, not alert: it returns early when the session has ended, so a
+      // failed undo during an eviction shows the amber banner alone instead of a
+      // native dialog on top of it saying the same thing twice.
+      failAlert(error.message);
     } finally {
       setRestoring(false);
     }
