@@ -57,7 +57,7 @@ const PRIVACY = [
   },
   {
     // Names the THREE fields that are actually encrypted (encryptPII is applied to
-    // phone, email and identificationNumber, and to nothing else). A broader claim
+    // phone and email, and to nothing else). A broader claim
     // — "your family's data is encrypted" — would not be true: names, dates, birth
     // places, professions and every relationship are stored in the clear.
     //
