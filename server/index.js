@@ -2229,13 +2229,11 @@ app.delete("/api/trees/:id", authenticateUser, async (req, res) => {
       return res.status(403).json({ error: "غير مصرح بالوصول" });
     }
 
-    await db.delete(relationships).where(eq(relationships.treeId, treeId));
-    await db.delete(people).where(eq(people.treeId, treeId));
-    await db.delete(editHistory).where(eq(editHistory.treeId, treeId));
-    // Snapshots belong to the tree — remove them with it.
-    await db.delete(deletions).where(eq(deletions.treeId, treeId));
-    await db.delete(trees).where(eq(trees.id, treeId));
-
+    // The audit entry goes FIRST, for the same two reasons as account deletion:
+    // logAudit writes through `db` rather than the transaction, so running it
+    // inside would be a second connection contending for locks the transaction
+    // already holds on auditLogs; and recording the intent up front means a
+    // failed deletion still leaves evidence it was attempted.
     await logAudit(
       req.userId,
       "delete",
@@ -2244,6 +2242,24 @@ app.delete("/api/trees/:id", authenticateUser, async (req, res) => {
       { name: tree.name },
       req,
     );
+
+    // One transaction, as account deletion and batch-delete already are. These
+    // five statements were a loose sequence, so a failure partway through left
+    // the tree row present with its people and relationships already gone — a
+    // tree that loads empty and cannot be repaired from the UI. Rolling back
+    // returns it intact instead.
+    //
+    // Children before parents throughout: relationships and people reference
+    // treeId, and `trees` is removed last.
+    await db.transaction(async (tx) => {
+      await tx.delete(relationships).where(eq(relationships.treeId, treeId));
+      await tx.delete(people).where(eq(people.treeId, treeId));
+      await tx.delete(editHistory).where(eq(editHistory.treeId, treeId));
+      // Snapshots hold full person rows — names, dates, encrypted phone and
+      // email — for everyone ever deleted from this tree. They go with it.
+      await tx.delete(deletions).where(eq(deletions.treeId, treeId));
+      await tx.delete(trees).where(eq(trees.id, treeId));
+    });
 
     res.json({ success: true });
   } catch (error) {
