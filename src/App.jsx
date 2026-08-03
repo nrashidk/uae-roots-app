@@ -110,11 +110,15 @@ function App() {
   } = useAuth();
   // Public screen shown to signed-out visitors: the landing page first, the
   // login form only once they ask for it. Becomes a route when routing lands.
-  // The tree is a desktop tool: a 380px fixed side panel, an action bar
-  // positioned in absolute pixels, and native confirm dialogs. The CANVAS itself
-  // handles touch — pan, pinch-zoom — so a phone is usable for LOOKING; it is the
-  // editing surface around it that does not fit. Rather than pretend otherwise or
-  // block the visitor, say so once and let them decide.
+  // The tree does not work on a phone. Tested on iOS 3 Aug: the zoom BUTTONS
+  // work and nothing else does — you cannot pan to reach the rest of the tree,
+  // tapping a person never opens the action menu, and the header buttons run off
+  // the edge.
+  //
+  // Note the trap: TreeCanvas defines handleTouchStart/Move/End and sets
+  // `touchAction: "none"`, so reading the source suggests touch is supported. It
+  // is not, on a real device. This notice exists because the live test said so
+  // and the code said otherwise.
   //
   // 768px matches the landing page's own breakpoint in LandingPage.css.
   const [isNarrow, setIsNarrow] = useState(
@@ -382,7 +386,8 @@ function App() {
     addChild: "إضافة طفل",
     addSibling: "إضافة شقيق",
     backToDashboard: "العودة إلى لوحة التحكم",
-    narrowScreen: "لتجربة أفضل، استخدم جهاز كمبيوتر.",
+    narrowScreen:
+      "لا يمكن تصفح الشجرة من خلال الهاتف، يرجى استخدام جهاز الكمبيوتر.",
     familyTreeName: "شجرة عائلتي",
     deleteConfirm: "هل أنت متأكد من حذف هذا الشخص؟",
     logout: "تسجيل الخروج",
@@ -5731,9 +5736,12 @@ function App() {
           the controls it is talking about. Dismissible, because someone who knows
           and is browsing anyway should not be nagged on every screen. Dismissal
           lives in component state — it returns on a reload, which is the right
-          side to err on for a notice nobody is forced to read. */}
+          side to err on for a notice nobody is forced to read.
+          Hidden while the sign-up gate is open: that gate is a modal over this
+          shell, so the bar showed BEHIND it, advising someone to use a computer
+          to build a tree they have not agreed to create yet. */}
       <div ref={shellChromeRef}>
-      {isNarrow && !narrowNoticeDismissed && (
+      {isNarrow && !narrowNoticeDismissed && !pendingSignup && (
         <div
           dir="rtl"
           role="status"
