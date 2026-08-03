@@ -155,10 +155,6 @@ export const api = {
         method: "POST",
         body: JSON.stringify(data),
       }),
-    delete: (id) =>
-      fetchAPI(`/trees/${id}`, {
-        method: "DELETE",
-      }),
   },
 
   people: {
