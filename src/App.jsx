@@ -4870,8 +4870,19 @@ function App() {
                     maxLength={6}
                     dir="ltr"
                   />
+                  {/* The number needs its OWN direction. In this RTL paragraph
+                      the leading "+" is a neutral character, so the bidi
+                      algorithm pushes it to the right of the digits and the
+                      number reads 971503000223+. An inline-block with dir="ltr"
+                      isolates it: the sign stays on the left where it belongs,
+                      and the surrounding Arabic is unaffected. Every other place
+                      a phone or email is shown already does this — only this
+                      line was missed. */}
                   <p className="text-xs text-gray-500 mt-1 text-right">
-                    تم إرسال رمز التحقق إلى +971{phoneInput}
+                    تم إرسال رمز التحقق إلى{" "}
+                    <span dir="ltr" className="inline-block">
+                      +971{phoneInput}
+                    </span>
                   </p>
                 </div>
                 <div className="flex gap-2">
@@ -4897,6 +4908,18 @@ function App() {
                     تحقق
                   </Button>
                 </div>
+                {/* Delivery is not reliable, and the user should know that
+                    before they conclude the app is broken. Measured from the
+                    Twilio Verify logs on 4 Aug: several verifications needed two
+                    or three sends before one arrived, and two expired without
+                    ever being delivered — while others succeeded first time.
+                    Twilio accepted every send; the carrier dropped some.
+                    Re-sending is the correct remedy, not a workaround, so the
+                    button is presented as the expected next step rather than a
+                    last resort. */}
+                <p className="text-xs text-gray-500 text-center">
+                  لم يصلك الرمز؟
+                </p>
                 <button
                   onClick={handleSendSmsCode}
                   disabled={authProcessing}
