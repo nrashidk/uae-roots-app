@@ -5579,13 +5579,26 @@ function App() {
           r.type === "partner" &&
           (r.person1Id === person.id || r.person2Id === person.id),
       );
-      const wives = spouseRels.length;
+      // CURRENT wives, not every partner row ever written. Counting all of them
+      // showed a man with one wife, one divorce and one deceased wife as having
+      // three — while every RULE in the app (spouse limit, maḥram, revive check)
+      // treats him as having one. The rules were right and only this display
+      // disagreed, which is the worst way round: the number a person reads was
+      // the one that was wrong.
+      //
+      // Divorces are still reported, separately, because hiding them would be a
+      // different lie — a family with a divorce in it is not a family without
+      // one. Deceased wives are NOT deducted here: she was his wife, the
+      // marriage did not end in divorce, and the card describes the household
+      // rather than who is alive today.
+      const divorced = spouseRels.filter((r) => r.status === "divorced").length;
+      const wives = spouseRels.length - divorced;
 
       const children = treeRels.filter(
         (r) => r.type === "parent-child" && r.parentId === person.id,
       ).length;
 
-      return { wives, children };
+      return { wives, divorced, children };
     };
 
     return (
@@ -5630,6 +5643,12 @@ function App() {
                         stays visible in the tree and on the members cards. */}
                     <div className="text-[#A5813F]">
                       عدد الزوجات: {counts.wives}
+                      {counts.divorced > 0 && (
+                        <span className="text-gray-500">
+                          {" "}
+                          (ومطلقات: {counts.divorced})
+                        </span>
+                      )}
                     </div>
                     <div className="text-blue-600">
                       عدد الأبناء: {counts.children}
