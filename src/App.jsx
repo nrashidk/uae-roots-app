@@ -4870,8 +4870,19 @@ function App() {
                     maxLength={6}
                     dir="ltr"
                   />
+                  {/* The number needs its OWN direction. In this RTL paragraph
+                      the leading "+" is a neutral character, so the bidi
+                      algorithm pushes it to the right of the digits and the
+                      number reads 971503000223+. An inline-block with dir="ltr"
+                      isolates it: the sign stays on the left where it belongs,
+                      and the surrounding Arabic is unaffected. Every other place
+                      a phone or email is shown already does this — only this
+                      line was missed. */}
                   <p className="text-xs text-gray-500 mt-1 text-right">
-                    تم إرسال رمز التحقق إلى +971{phoneInput}
+                    تم إرسال رمز التحقق إلى{" "}
+                    <span dir="ltr" className="inline-block">
+                      +971{phoneInput}
+                    </span>
                   </p>
                 </div>
                 <div className="flex gap-2">
