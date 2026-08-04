@@ -179,17 +179,6 @@ const decryptPII = (encrypted) => {
   }
 };
 
-// Escape special characters for SQL LIKE/ILIKE patterns
-const escapeLikePattern = (str) => {
-  if (!str) return str;
-  // Escape all special LIKE characters: %, _, and backslash
-  // Order matters: escape backslashes first to avoid double-escaping
-  return str
-    .replace(/\\/g, "\\\\")
-    .replace(/%/g, "\\%")
-    .replace(/_/g, "\\_");
-};
-
 // Normalize photo URL (photo upload removed, pass through as-is or null)
 const normalizePhotoUrl = (url) => {
   if (!url) return null;
@@ -505,19 +494,6 @@ const relationshipSchema = z.object({
 
 const relationshipStatusSchema = z.object({
   status: z.enum(["married", "divorced"]),
-});
-
-const userUpdateSchema = z.object({
-  email: z
-    .string()
-    .email()
-    .max(100)
-    .optional()
-    .nullable()
-    .or(z.literal(""))
-    .or(z.null()),
-  phoneNumber: z.string().max(20).optional().nullable(),
-  displayName: z.string().max(200).trim().optional().nullable(),
 });
 
 const userCreateSchema = z.object({
@@ -2090,41 +2066,24 @@ app.get("/api/users/:id", authenticateUser, async (req, res) => {
   }
 });
 
-app.put("/api/users/:id", authenticateUser, async (req, res) => {
-  try {
-    const userId = req.params.id;
-
-    if (req.userId !== userId) {
-      return res.status(403).json({ error: "غير مصرح بالوصول" });
-    }
-
-    const validatedData = userUpdateSchema.parse(req.body);
-    const [updatedUser] = await db
-      .update(users)
-      .set({
-        email: validatedData.email || null,
-        phoneNumber: validatedData.phoneNumber || null,
-        displayName: validatedData.displayName || null,
-      })
-      .where(eq(users.id, userId))
-      .returning();
-
-    if (!updatedUser) {
-      return res.status(404).json({ error: "User not found" });
-    }
-
-    await logAudit(userId, "update", "user", userId, null, req);
-
-    res.json(updatedUser);
-  } catch (error) {
-    if (error instanceof z.ZodError) {
-      return res
-        .status(400)
-        .json({ error: "Invalid input", details: error.errors });
-    }
-    handleError(res, error, "User update");
-  }
-});
+// REMOVED: PUT /api/users/:id
+//
+// Unreachable AND redundant. Its only caller was api.users.update, called only by
+// handleSaveProfile — which is defined once in App.jsx and never invoked; there
+// is no email/phone edit UI. `setProfileEmail` and `setProfilePhone` are never
+// called either, so the state it read was permanently empty.
+//
+// Had it run, it would have DESTROYED data: userUpdateSchema makes all three
+// fields optional while the handler set each to `|| null`, so a partial update
+// nulled whatever it omitted — and with empty state, all three.
+//
+// The legitimate update path already exists: POST /api/users updates
+// lastLoginAt, displayName and email when the row is already there.
+//
+// Note what it could never have done anyway: editing users.email does not change
+// how anyone signs in. Login resolves through auth_identities, which this never
+// touched. A profile editor that appears to change your login address without
+// doing so is worse than none.
 
 // Deleting an account requires proving you are still there — a fresh credential,
 // not merely a session that was created at some point in the past. Everything else
@@ -2436,50 +2395,15 @@ app.get("/api/people", authenticateUser, async (req, res) => {
   }
 });
 
-app.get("/api/people/search", authenticateUser, async (req, res) => {
-  try {
-    const { query, treeId } = req.query;
-
-    if (!query || !treeId) {
-      return res.status(400).json({ error: "Query and tree ID are required" });
-    }
-
-    const parsedTreeId = validateId(treeId);
-    if (!parsedTreeId) {
-      return res.status(400).json({ error: "Invalid tree ID" });
-    }
-
-    const ownership = await verifyTreeOwnership(parsedTreeId, req.userId);
-    if (!ownership.valid) {
-      return res.status(403).json({ error: ownership.error });
-    }
-
-    const escapedQuery = escapeLikePattern(query);
-    const searchResults = await db
-      .select()
-      .from(people)
-      .where(
-        and(
-          eq(people.treeId, parsedTreeId),
-          or(
-            ilike(people.firstName, `%${escapedQuery}%`),
-            ilike(people.lastName, `%${escapedQuery}%`),
-          ),
-        ),
-      );
-
-    const decryptedResults = searchResults.map((person) => ({
-      ...person,
-      phone: decryptPII(person.phone),
-      email: decryptPII(person.email),
-      photoUrl: normalizePhotoUrl(person.photoUrl),
-    }));
-
-    res.json(decryptedResults);
-  } catch (error) {
-    handleError(res, error, "People search");
-  }
-});
+// REMOVED: GET /api/people/search
+//
+// No search UI exists. api.people.search was defined in api.js and called from
+// nowhere, so this endpoint has never been reachable. Removed with it rather
+// than left as a maintained path nobody can invoke — and with it the only
+// consumer of escapeLikePattern.
+//
+// If search returns it will need the ILIKE escaping back: `%` and `_` in a
+// user's query are wildcards, so an unescaped search for "_" matches everyone.
 
 app.post("/api/people", authenticateUser, async (req, res) => {
   try {
