@@ -43,7 +43,6 @@ import FamilyTreeLayout from "./lib/family-tree-layout.js";
 import {
   convertToAlgorithmFormat,
   findRootPerson,
-  addPersonWithRelationship,
 } from "./lib/dataTransform.js";
 import TreeCanvas from "./components/FamilyTree/TreeCanvas.jsx";
 import { useNavigate, useLocation } from "react-router-dom";
