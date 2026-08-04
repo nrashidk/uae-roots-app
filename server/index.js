@@ -782,6 +782,54 @@ const COOKIE_OPTIONS = {
   path: "/",
 };
 
+// The session-id cookie. Deliberately OUTLIVES the JWT — that is the whole point.
+// `auth_token` dies with the token it carries, so by the time a browser comes
+// back to re-mint there is nothing left to prove it was ever here. This survives,
+// and answers one question at /auth/token: was this browser the last to log in?
+//
+// It is NOT a credential. Presenting it alone authenticates nothing; Firebase or
+// the SMS code is still required. The worst a stolen one does is let its holder
+// re-mint without evicting the real holder — and re-minting already needs the
+// real Firebase credential.
+const SID_COOKIE_NAME = "session_id";
+const SID_MAX_AGE_MS = 90 * 24 * 60 * 60 * 1000;
+const SID_COOKIE_OPTIONS = {
+  httpOnly: true,
+  secure: true,
+  sameSite: isProduction ? "strict" : "lax",
+  maxAge: SID_MAX_AGE_MS,
+  path: "/",
+};
+
+const newSessionId = () => crypto.randomBytes(32).toString("hex");
+
+// Record a NEW holder: fresh id, stored on the row, handed to this browser.
+// Rotated on every deliberate login — OWASP item 67, a new session identifier on
+// re-authentication.
+const startSession = async (res, userId) => {
+  const sid = newSessionId();
+  try {
+    await db
+      .update(users)
+      .set({ currentSessionId: sid })
+      .where(eq(users.id, userId));
+    res.cookie(SID_COOKIE_NAME, sid, SID_COOKIE_OPTIONS);
+  } catch (error) {
+    // Not fatal. Without a stored sid the next return simply reads as a fresh
+    // login and bumps — the behaviour that existed before this column.
+    console.error("Failed to store session id:", error.message);
+  }
+};
+
+// Does this browser hold the CURRENT session? Both sides must be present: a null
+// column must never match a missing cookie and silently count as a restore.
+const isCurrentHolder = (req, account) =>
+  Boolean(
+    account?.currentSessionId &&
+      req.cookies?.[SID_COOKIE_NAME] &&
+      req.cookies[SID_COOKIE_NAME] === account.currentSessionId,
+  );
+
 // Slide the session forward for anyone still using the app. Without this a
 // 7-day window is a hard cut-off: someone active on day 7 is logged out mid-task.
 // Re-issued only past the halfway mark, so most requests set no cookie.
@@ -1308,6 +1356,12 @@ app.post("/api/sms/verify-code", smsLimiter, async (req, res) => {
 
     res.cookie("auth_token", token, COOKIE_OPTIONS);
 
+    // Always a new session id: entering an SMS code is never a silent restore.
+    // There is no equivalent of the Firebase path's automatic re-mint here.
+    if (existingAccount) {
+      await startSession(res, userId);
+    }
+
     await logAudit(
       userId,
       "login",
@@ -1416,14 +1470,24 @@ app.post("/api/auth/token", loginLimiter, async (req, res) => {
 
     res.cookie("auth_token", token, COOKIE_OPTIONS);
 
+    // Recorded distinctly. A silent restore used to appear in the trail as a
+    // `login`, so the log showed sign-ins nobody performed — and that log is the
+    // only reliable evidence when a session bug is being diagnosed.
     await logAudit(
       resolvedUserId,
-      "login",
+      restoring ? "session_restored" : "login",
       "auth",
       null,
       { provider, linkedAccount: !!existingUser },
       req,
     );
+
+    // A real login takes over: new session id, stored and handed to this browser.
+    // A restore keeps the one it already holds — rotating it there would treat a
+    // cookie expiring as if it were a sign-in.
+    if (existingAccount && !restoring) {
+      await startSession(res, resolvedUserId);
+    }
 
     // Cookie only. Returning the JWT in the body as well made it readable by any
     // script on the page, which is precisely what httpOnly prevents. The client
@@ -1776,6 +1840,28 @@ app.post(
 app.post("/api/auth/logout", authenticateUser, async (req, res) => {
   await logAudit(req.userId, "logout", "auth", null, null, req);
   res.clearCookie("auth_token", COOKIE_OPTIONS);
+
+  // The session id goes too, on BOTH sides. Leaving the row set would let this
+  // browser come back and be read as the current holder — restoring a session it
+  // deliberately ended, without the bump a fresh login owes the other devices.
+  // Cleared only if this browser is the holder: a stale device logging out must
+  // not wipe the id belonging to whoever replaced it.
+  try {
+    const [account] = await db
+      .select({ currentSessionId: users.currentSessionId })
+      .from(users)
+      .where(eq(users.id, req.userId));
+    if (isCurrentHolder(req, account)) {
+      await db
+        .update(users)
+        .set({ currentSessionId: null })
+        .where(eq(users.id, req.userId));
+    }
+  } catch (error) {
+    console.error("Failed to clear session id on logout:", error.message);
+  }
+  res.clearCookie(SID_COOKIE_NAME, SID_COOKIE_OPTIONS);
+
   res.json({ success: true });
 });
 
