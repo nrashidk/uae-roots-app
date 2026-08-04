@@ -3,7 +3,6 @@ import {
   getAuth,
   GoogleAuthProvider,
   OAuthProvider,
-  EmailAuthProvider,
 } from "firebase/auth";
 
 const firebaseConfig = {

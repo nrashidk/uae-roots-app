@@ -22,7 +22,6 @@ import {
 } from "../shared/schema.js";
 import { eq, and, or, ilike, desc, lt, inArray, sql } from "drizzle-orm";
 import { z } from "zod";
-import fs from "fs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -177,17 +176,6 @@ const decryptPII = (encrypted) => {
     console.error("Decryption failed:", error.message);
     return null;
   }
-};
-
-// Escape special characters for SQL LIKE/ILIKE patterns
-const escapeLikePattern = (str) => {
-  if (!str) return str;
-  // Escape all special LIKE characters: %, _, and backslash
-  // Order matters: escape backslashes first to avoid double-escaping
-  return str
-    .replace(/\\/g, "\\\\")
-    .replace(/%/g, "\\%")
-    .replace(/_/g, "\\_");
 };
 
 // Normalize photo URL (photo upload removed, pass through as-is or null)
@@ -507,19 +495,6 @@ const relationshipStatusSchema = z.object({
   status: z.enum(["married", "divorced"]),
 });
 
-const userUpdateSchema = z.object({
-  email: z
-    .string()
-    .email()
-    .max(100)
-    .optional()
-    .nullable()
-    .or(z.literal(""))
-    .or(z.null()),
-  phoneNumber: z.string().max(20).optional().nullable(),
-  displayName: z.string().max(200).trim().optional().nullable(),
-});
-
 const userCreateSchema = z.object({
   id: z.string().min(1).max(200),
   email: z
@@ -586,33 +561,10 @@ const batchDeleteSchema = z
     message: "Nothing to delete: provide ids or relationshipIds",
   });
 
-const personUndoSchema = z
-  .object({
-    treeId: z.number().int().positive().optional(),
-    firstName: z.string().max(100).optional(),
-    lastName: z.string().max(100).optional().nullable(),
-    gender: z.enum(["male", "female"]).optional(),
-    birthDate: z.string().max(20).optional().nullable(),
-    deathDate: z.string().max(20).optional().nullable(),
-    isLiving: z.boolean().optional(),
-    isBreastfed: z.boolean().optional(),
-    phone: z.string().optional().nullable(), // Allow encrypted strings (any length)
-    email: z.string().optional().nullable(), // Allow encrypted strings (any length)
-    birthOrder: z.number().int().optional().nullable(),
-    birthPlace: z.string().max(200).optional().nullable(),
-    profession: z.string().max(200).optional().nullable(),
-    company: z.string().max(200).optional().nullable(),
-    address: z.string().max(500).optional().nullable(),
-    photoUrl: z.string().max(500).optional().nullable(),
-  })
-  .passthrough(); // Allow additional unknown fields
-
-const relationshipUndoSchema = relationshipSchema.partial().passthrough();
-
-const searchSchema = z.object({
-  query: z.string().min(1).max(100).trim(),
-  treeId: z.number().int().positive(),
-});
+// personUndoSchema, relationshipUndoSchema and searchSchema REMOVED — declared
+// and never referenced. The undo path validates nothing on the way back in: it
+// replays rows this server itself wrote to `deletions`, so there is no untrusted
+// input to check. searchSchema belonged to the search endpoint, now gone.
 
 // One undo stack. Every mutation writes here, not just deletes.
 //
@@ -723,29 +675,22 @@ const logAudit = async (
   }
 };
 
-const recordEdit = async (
-  userId,
-  treeId,
-  action,
-  resourceType,
-  resourceId,
-  previousData,
-  newData,
-) => {
-  try {
-    await db.insert(editHistory).values({
-      userId,
-      treeId,
-      action,
-      resourceType,
-      resourceId,
-      previousData: previousData || null,
-      newData: newData || null,
-    });
-  } catch (error) {
-    console.error("Edit history error:", error);
-  }
-};
+// recordEdit REMOVED, and with it every write to edit_history.
+//
+// It duplicated what `deletions` already stores — full before/after person rows,
+// names, dates, birth places, professions and encrypted phone/email — for every
+// create, update and delete. The difference is that `deletions` is READ: it is
+// the undo stack, it marks rows restored, and the list endpoint caps at 50.
+// edit_history was read by exactly one endpoint, GET /api/history/:treeId, which
+// no client code has ever called.
+//
+// So it was a growing store of family PII with no reader and no retention.
+// audit_logs prunes at 90 days; this kept everything since January 2026 — 1,034
+// rows on production, 1,781 on staging. Account deletion removed it, but nothing
+// else ever did.
+//
+// The table itself stays in shared/schema.js and in both databases. Nothing
+// writes or reads it now.
 
 // ONE window for both the cookie and the JWT. They disagreed — cookie 7 days,
 // token 24 hours — so after a day the browser held a cookie the server would not
@@ -1097,20 +1042,6 @@ const findUserByIdentity = async (identityType, identityValue) => {
   return null;
 };
 
-const findUserByEmailOrPhone = async (email, phone) => {
-  if (email) {
-    const user = await findUserByIdentity("email", email);
-    if (user) return user;
-  }
-
-  if (phone) {
-    const user = await findUserByIdentity("phone", phone);
-    if (user) return user;
-  }
-
-  return null;
-};
-
 const linkIdentityToUser = async (
   userId,
   identityType,
@@ -1158,38 +1089,9 @@ const linkIdentityToUser = async (
   return newIdentity;
 };
 
-const createUserWithIdentities = async (
-  userId,
-  email,
-  phone,
-  displayName,
-  provider,
-) => {
-  const [user] = await db
-    .insert(users)
-    .values({
-      id: userId,
-      email: email || null,
-      displayName: displayName || null,
-      phoneNumber: phone || null,
-      provider: provider || "unknown",
-    })
-    .returning();
-
-  if (email) {
-    await linkIdentityToUser(userId, "email", email, null, true);
-  }
-
-  if (phone) {
-    await linkIdentityToUser(userId, "phone", phone, null, true);
-  }
-
-  if (provider && provider !== "phone") {
-    await linkIdentityToUser(userId, provider, email || userId, userId, true);
-  }
-
-  return user;
-};
+// createUserWithIdentities and findUserByEmailOrPhone REMOVED — both declared
+// and never called. Account creation happens in POST /api/users, which does the
+// same work inline; identity lookup goes through findUserByIdentity directly.
 
 async function getTwilioCredentials() {
   const accountSid = process.env.TWILIO_ACCOUNT_SID;
@@ -1932,7 +1834,6 @@ app.use("/api/relationships", apiLimiter);
 // three polls. Putting all of that on one budget would rate-limit ordinary
 // editing.
 app.use("/api/deletions", readLimiter);
-app.use("/api/history", readLimiter);
 
 
 app.post("/api/users", authenticateUser, async (req, res) => {
@@ -2098,41 +1999,24 @@ app.get("/api/users/:id", authenticateUser, async (req, res) => {
   }
 });
 
-app.put("/api/users/:id", authenticateUser, async (req, res) => {
-  try {
-    const userId = req.params.id;
-
-    if (req.userId !== userId) {
-      return res.status(403).json({ error: "غير مصرح بالوصول" });
-    }
-
-    const validatedData = userUpdateSchema.parse(req.body);
-    const [updatedUser] = await db
-      .update(users)
-      .set({
-        email: validatedData.email || null,
-        phoneNumber: validatedData.phoneNumber || null,
-        displayName: validatedData.displayName || null,
-      })
-      .where(eq(users.id, userId))
-      .returning();
-
-    if (!updatedUser) {
-      return res.status(404).json({ error: "User not found" });
-    }
-
-    await logAudit(userId, "update", "user", userId, null, req);
-
-    res.json(updatedUser);
-  } catch (error) {
-    if (error instanceof z.ZodError) {
-      return res
-        .status(400)
-        .json({ error: "Invalid input", details: error.errors });
-    }
-    handleError(res, error, "User update");
-  }
-});
+// REMOVED: PUT /api/users/:id
+//
+// Unreachable AND redundant. Its only caller was api.users.update, called only by
+// handleSaveProfile — which is defined once in App.jsx and never invoked; there
+// is no email/phone edit UI. `setProfileEmail` and `setProfilePhone` are never
+// called either, so the state it read was permanently empty.
+//
+// Had it run, it would have DESTROYED data: userUpdateSchema makes all three
+// fields optional while the handler set each to `|| null`, so a partial update
+// nulled whatever it omitted — and with empty state, all three.
+//
+// The legitimate update path already exists: POST /api/users updates
+// lastLoginAt, displayName and email when the row is already there.
+//
+// Note what it could never have done anyway: editing users.email does not change
+// how anyone signs in. Login resolves through auth_identities, which this never
+// touched. A profile editor that appears to change your login address without
+// doing so is worse than none.
 
 // Deleting an account requires proving you are still there — a fresh credential,
 // not merely a session that was created at some point in the past. Everything else
@@ -2444,50 +2328,15 @@ app.get("/api/people", authenticateUser, async (req, res) => {
   }
 });
 
-app.get("/api/people/search", authenticateUser, async (req, res) => {
-  try {
-    const { query, treeId } = req.query;
-
-    if (!query || !treeId) {
-      return res.status(400).json({ error: "Query and tree ID are required" });
-    }
-
-    const parsedTreeId = validateId(treeId);
-    if (!parsedTreeId) {
-      return res.status(400).json({ error: "Invalid tree ID" });
-    }
-
-    const ownership = await verifyTreeOwnership(parsedTreeId, req.userId);
-    if (!ownership.valid) {
-      return res.status(403).json({ error: ownership.error });
-    }
-
-    const escapedQuery = escapeLikePattern(query);
-    const searchResults = await db
-      .select()
-      .from(people)
-      .where(
-        and(
-          eq(people.treeId, parsedTreeId),
-          or(
-            ilike(people.firstName, `%${escapedQuery}%`),
-            ilike(people.lastName, `%${escapedQuery}%`),
-          ),
-        ),
-      );
-
-    const decryptedResults = searchResults.map((person) => ({
-      ...person,
-      phone: decryptPII(person.phone),
-      email: decryptPII(person.email),
-      photoUrl: normalizePhotoUrl(person.photoUrl),
-    }));
-
-    res.json(decryptedResults);
-  } catch (error) {
-    handleError(res, error, "People search");
-  }
-});
+// REMOVED: GET /api/people/search
+//
+// No search UI exists. api.people.search was defined in api.js and called from
+// nowhere, so this endpoint has never been reachable. Removed with it rather
+// than left as a maintained path nobody can invoke — and with it the only
+// consumer of escapeLikePattern.
+//
+// If search returns it will need the ILIKE escaping back: `%` and `_` in a
+// user's query are wildcards, so an unescaped search for "_" matches everyone.
 
 app.post("/api/people", authenticateUser, async (req, res) => {
   try {
@@ -2540,15 +2389,6 @@ app.post("/api/people", authenticateUser, async (req, res) => {
       peopleAfter: [person],
     });
 
-    await recordEdit(
-      req.userId,
-      validatedData.treeId,
-      "create",
-      "person",
-      person.id,
-      null,
-      person,
-    );
     await logAudit(
       req.userId,
       "create",
@@ -2651,15 +2491,6 @@ app.put("/api/people/:id", authenticateUser, async (req, res) => {
       peopleAfter: [person],
     });
 
-    await recordEdit(
-      req.userId,
-      existingPerson.treeId,
-      "update",
-      "person",
-      personId,
-      existingPerson,
-      person,
-    );
     await logAudit(req.userId, "update", "person", personId, null, req);
 
     const decryptedPerson = {
@@ -2727,15 +2558,6 @@ app.delete("/api/people/:id", authenticateUser, async (req, res) => {
       relationshipsBefore: personRelRows,
     });
 
-    await recordEdit(
-      req.userId,
-      existingPerson.treeId,
-      "delete",
-      "person",
-      personId,
-      existingPerson,
-      null,
-    );
 
     await db.delete(people).where(eq(people.id, personId));
 
@@ -3579,15 +3401,6 @@ app.post("/api/relationships", authenticateUser, async (req, res) => {
       relationshipsAfter: [relationship],
     });
 
-    await recordEdit(
-      req.userId,
-      validatedData.treeId,
-      "create",
-      "relationship",
-      relationship.id,
-      null,
-      relationship,
-    );
     await logAudit(
       req.userId,
       "create",
@@ -3649,15 +3462,6 @@ app.patch(
         return res.status(403).json({ error: ownership.error });
       }
 
-      await recordEdit(
-        req.userId,
-        existingRel.treeId,
-        "update",
-        "relationship",
-        relId,
-        existingRel,
-        { ...existingRel, status },
-      );
 
       // NULL is "married". Writing the literal 'married' created a THIRD state
       // meaning the same thing — new rows get NULL, and only un-ticking divorce
@@ -3727,15 +3531,6 @@ app.delete("/api/relationships/:id", authenticateUser, async (req, res) => {
       relationshipsBefore: [existingRel],
     });
 
-    await recordEdit(
-      req.userId,
-      existingRel.treeId,
-      "delete",
-      "relationship",
-      relId,
-      existingRel,
-      null,
-    );
 
     await db.delete(relationships).where(eq(relationships.id, relId));
 
@@ -3754,30 +3549,12 @@ app.delete("/api/relationships/:id", authenticateUser, async (req, res) => {
   }
 });
 
-app.get("/api/history/:treeId", authenticateUser, async (req, res) => {
-  try {
-    const treeId = validateId(req.params.treeId);
-    if (!treeId) {
-      return res.status(400).json({ error: "Invalid tree ID" });
-    }
-
-    const ownership = await verifyTreeOwnership(treeId, req.userId);
-    if (!ownership.valid) {
-      return res.status(403).json({ error: ownership.error });
-    }
-
-    const history = await db
-      .select()
-      .from(editHistory)
-      .where(eq(editHistory.treeId, treeId))
-      .orderBy(desc(editHistory.createdAt))
-      .limit(100);
-
-    res.json(history);
-  } catch (error) {
-    handleError(res, error, "History fetch");
-  }
-});
+// REMOVED: GET /api/history/:treeId
+//
+// The only reader edit_history ever had, and no client code called it —
+// api.history.get was defined in api.js and never invoked. Removed together with
+// the writes: an endpoint returning 100 rows of full person snapshots, reachable
+// by anyone with a session and a tree id, earned nothing.
 
 // Phase 2: Undo handler with Zod validation for previousData
 // REMOVED: POST /api/history/undo/:id
@@ -3793,8 +3570,8 @@ app.get("/api/history/:treeId", authenticateUser, async (req, res) => {
 //     existing marriage same-sex, or push someone past their spouse limit
 //
 // `deletions` replaces it: ids preserved, cascade captured, restored_at tracked,
-// strict newest-first, grouped by user action. GET /api/history/:treeId is left
-// in place — reading the edit log is harmless and it is still written.
+// strict newest-first, grouped by user action. GET /api/history/:treeId has since
+// been removed too, along with every write to edit_history — see recordEdit.
 
 
 // REMOVED: GET /api/export/:treeId

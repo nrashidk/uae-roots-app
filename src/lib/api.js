@@ -131,11 +131,6 @@ export const api = {
         body: JSON.stringify(data),
       }),
     get: (id) => fetchAPI(`/users/${encodeURIComponent(id)}`),
-    update: (id, data) =>
-      fetchAPI(`/users/${encodeURIComponent(id)}`, {
-        method: "PUT",
-        body: JSON.stringify(data),
-      }),
     // proof is the re-authentication the server demands: { firebaseIdToken } for a
     // Google session, { phoneNumber, code } for a phone one.
     delete: (id, proof = {}) =>
@@ -159,10 +154,6 @@ export const api = {
 
   people: {
     getAll: (treeId) => fetchAPI(`/people?treeId=${treeId}`),
-    search: (treeId, query) =>
-      fetchAPI(
-        `/people/search?treeId=${treeId}&query=${encodeURIComponent(query)}`,
-      ),
     create: (data) =>
       fetchAPI("/people", {
         method: "POST",
@@ -236,11 +227,6 @@ export const api = {
       }),
     unlink: (id) =>
       fetchAPI(`/auth/identities/${id}`, { method: "DELETE" }),
-  },
-
-  history: {
-    // Read-only. The undo path was removed — see the note in server/index.js.
-    get: (treeId) => fetchAPI(`/history/${treeId}`),
   },
 
 };
