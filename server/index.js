@@ -1446,20 +1446,35 @@ app.post("/api/auth/token", loginLimiter, async (req, res) => {
     // make a new account silently, with no confirmation and no terms. The same
     // lookup yields the token version the new session must carry.
     const [existingAccount] = await db
-      .select({ id: users.id, tokenVersion: users.tokenVersion })
+      .select({
+        id: users.id,
+        tokenVersion: users.tokenVersion,
+        currentSessionId: users.currentSessionId,
+      })
       .from(users)
       .where(eq(users.id, resolvedUserId));
+
+    // This endpoint is called by two different things and could not tell them
+    // apart: a person pressing sign-in, and the app silently re-minting because
+    // its cookie expired while the Firebase credential is still good. Both bumped
+    // token_version, so an expired cookie on device A evicted device B with
+    // nobody having logged in anywhere.
+    const restoring = isCurrentHolder(req, existingAccount);
 
     const token = jwt.sign(
       {
         userId: resolvedUserId,
         type: provider || "firebase",
         tv: existingAccount
-          ? await versionForNewSession(
-              resolvedUserId,
-              existingAccount.tokenVersion,
-              req,
-            )
+          ? restoring
+            ? // The rightful holder returning. Re-issue at the SAME version and
+              // evict nobody — nothing about who holds the account has changed.
+              existingAccount.tokenVersion ?? 0
+            : await versionForNewSession(
+                resolvedUserId,
+                existingAccount.tokenVersion,
+                req,
+              )
           : 0,
         // See the phone path: marks a session issued BEFORE any account existed.
         ...(existingAccount ? {} : { na: true }),
