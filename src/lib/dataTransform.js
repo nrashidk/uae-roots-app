@@ -387,9 +387,8 @@ export function applyLayoutToPeople(people, layout) {
  * Generate a unique ID for new people
  * @returns {number} - Unique ID
  */
-export function generatePersonId() {
-    return Date.now() + Math.floor(Math.random() * 1000);
-}
+
+// generatePersonId REMOVED with addPersonWithRelationship, its only caller.
 
 /**
  * Add a person to the data structure with proper relationships
@@ -401,108 +400,8 @@ export function generatePersonId() {
  * @param {number} treeId - Current tree ID
  * @returns {Object} - {updatedPeople, updatedRelationships, newPersonId}
  */
-export function addPersonWithRelationship(
-    people,
-    relationships,
-    personData,
-    relationshipType,
-    relatedPersonId,
-    treeId,
-) {
-    const newPersonId = generatePersonId();
-    const newPerson = {
-        id: newPersonId,
-        ...personData,
-        treeId,
-        x: 0, // Will be set by layout algorithm
-        y: 0,
-        isLiving: personData.isLiving !== false,
-    };
+// addPersonWithRelationship REMOVED — 105 lines, exported and never called.
+// It duplicated the add-person flow with CLIENT-GENERATED ids, which the server
+// does not accept: ids come from the database sequence. Anything wired to it
+// would have written rows the server then rejected or renumbered.
 
-    const updatedPeople = [...people, newPerson];
-    let updatedRelationships = [...relationships];
-
-    if (relatedPersonId && relationshipType) {
-        const relatedPerson = people.find((p) => p.id === relatedPersonId);
-
-        switch (relationshipType) {
-            case "spouse": {
-                // Add partner relationship
-                updatedRelationships.push({
-                    id: Date.now() + 1,
-                    type: "partner",
-                    person1Id: relatedPersonId,
-                    person2Id: newPersonId,
-                    treeId,
-                });
-                break;
-            }
-
-            case "child": {
-                // Add parent-child relationship
-                updatedRelationships.push({
-                    id: Date.now() + 1,
-                    type: "parent-child",
-                    parentId: relatedPersonId,
-                    childId: newPersonId,
-                    treeId,
-                });
-
-                // If related person has a spouse, also add them as parent
-                const spouseRel = relationships.find(
-                    (r) =>
-                        r.type === "partner" &&
-                        (r.person1Id === relatedPersonId ||
-                            r.person2Id === relatedPersonId) &&
-                        r.treeId === treeId,
-                );
-
-                if (spouseRel) {
-                    const spouseId =
-                        spouseRel.person1Id === relatedPersonId
-                            ? spouseRel.person2Id
-                            : spouseRel.person1Id;
-
-                    updatedRelationships.push({
-                        id: Date.now() + 2,
-                        type: "parent-child",
-                        parentId: spouseId,
-                        childId: newPersonId,
-                        treeId,
-                    });
-                }
-                break;
-            }
-
-            case "parent": {
-                // Add parent-child relationship (reversed)
-                updatedRelationships.push({
-                    id: Date.now() + 1,
-                    type: "parent-child",
-                    parentId: newPersonId,
-                    childId: relatedPersonId,
-                    treeId,
-                });
-                break;
-            }
-
-            case "sibling": {
-                // Add sibling relationship
-                updatedRelationships.push({
-                    id: Date.now() + 1,
-                    type: "sibling",
-                    person1Id: relatedPersonId,
-                    person2Id: newPersonId,
-                    treeId,
-                });
-                break;
-            }
-        }
-    }
-
-    return {
-        updatedPeople,
-        updatedRelationships,
-        newPersonId,
-    };
-}
