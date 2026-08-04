@@ -238,11 +238,6 @@ export const api = {
       fetchAPI(`/auth/identities/${id}`, { method: "DELETE" }),
   },
 
-  history: {
-    // Read-only. The undo path was removed — see the note in server/index.js.
-    get: (treeId) => fetchAPI(`/history/${treeId}`),
-  },
-
 };
 
 // Store only resolvedUserId in memory (JWT stays in httpOnly cookie for security)
