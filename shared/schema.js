@@ -30,6 +30,22 @@ export const users = pgTable("users", {
   // lifetime and nothing — not logging out elsewhere, not unlinking the method it
   // was created through — could stop it.
   tokenVersion: integer("token_version").notNull().default(0),
+  // The session id of the browser that currently holds this account, paired with
+  // a `session_id` cookie that OUTLIVES the JWT.
+  //
+  // tokenVersion alone cannot tell a silent restore from a fresh login, because
+  // both arrive at /auth/token looking identical. The obvious fix — read the old
+  // auth_token cookie — is impossible: COOKIE_OPTIONS.maxAge equals the JWT's
+  // expiresIn, so the browser deletes that cookie at the exact moment the token
+  // expires. There is nothing left to inspect.
+  //
+  // A separate long-lived cookie survives that. Matching it against this column
+  // answers the one question that matters: was this browser the last to log in?
+  // If so its cookie merely expired, and re-issuing must NOT evict anybody.
+  //
+  // It carries no authority. Firebase or the SMS code remains the only way in;
+  // this is evidence of prior holdership, not a credential.
+  currentSessionId: text("current_session_id"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   lastLoginAt: timestamp("last_login_at").defaultNow().notNull(),
 });

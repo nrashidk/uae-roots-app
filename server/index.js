@@ -782,6 +782,54 @@ const COOKIE_OPTIONS = {
   path: "/",
 };
 
+// The session-id cookie. Deliberately OUTLIVES the JWT — that is the whole point.
+// `auth_token` dies with the token it carries, so by the time a browser comes
+// back to re-mint there is nothing left to prove it was ever here. This survives,
+// and answers one question at /auth/token: was this browser the last to log in?
+//
+// It is NOT a credential. Presenting it alone authenticates nothing; Firebase or
+// the SMS code is still required. The worst a stolen one does is let its holder
+// re-mint without evicting the real holder — and re-minting already needs the
+// real Firebase credential.
+const SID_COOKIE_NAME = "session_id";
+const SID_MAX_AGE_MS = 90 * 24 * 60 * 60 * 1000;
+const SID_COOKIE_OPTIONS = {
+  httpOnly: true,
+  secure: true,
+  sameSite: isProduction ? "strict" : "lax",
+  maxAge: SID_MAX_AGE_MS,
+  path: "/",
+};
+
+const newSessionId = () => crypto.randomBytes(32).toString("hex");
+
+// Record a NEW holder: fresh id, stored on the row, handed to this browser.
+// Rotated on every deliberate login — OWASP item 67, a new session identifier on
+// re-authentication.
+const startSession = async (res, userId) => {
+  const sid = newSessionId();
+  try {
+    await db
+      .update(users)
+      .set({ currentSessionId: sid })
+      .where(eq(users.id, userId));
+    res.cookie(SID_COOKIE_NAME, sid, SID_COOKIE_OPTIONS);
+  } catch (error) {
+    // Not fatal. Without a stored sid the next return simply reads as a fresh
+    // login and bumps — the behaviour that existed before this column.
+    console.error("Failed to store session id:", error.message);
+  }
+};
+
+// Does this browser hold the CURRENT session? Both sides must be present: a null
+// column must never match a missing cookie and silently count as a restore.
+const isCurrentHolder = (req, account) =>
+  Boolean(
+    account?.currentSessionId &&
+      req.cookies?.[SID_COOKIE_NAME] &&
+      req.cookies[SID_COOKIE_NAME] === account.currentSessionId,
+  );
+
 // Slide the session forward for anyone still using the app. Without this a
 // 7-day window is a hard cut-off: someone active on day 7 is logged out mid-task.
 // Re-issued only past the halfway mark, so most requests set no cookie.
@@ -888,7 +936,21 @@ const authenticateUser = async (req, res, next) => {
       // A version mismatch is not an expiry. The session was ENDED — by a sign-in
       // elsewhere, or by unlinking the method it came in through. Saying "expired"
       // sends the user looking for a timeout that never happened.
-      res.clearCookie("auth_token", COOKIE_OPTIONS);
+      //
+      // The cookie is deliberately LEFT IN PLACE. Clearing it here made this
+      // message fire exactly ONCE: the next request then carried no cookie at all
+      // and took the branch above, which correctly does NOT claim a session
+      // ended. If that single evicted request was one the user never saw, the
+      // signal was gone for good — the app went on looking signed in, navigation
+      // kept working because it is client-side, and every write failed with
+      // "الجلسة غير موجودة" and no explanation.
+      //
+      // Keeping it costs nothing. The token is refused on every request that
+      // presents it, so it grants no access; it only ensures this branch keeps
+      // being reached, so the banner appears the moment the user does anything.
+      // It is also safe in a way it was not before `session_id` existed: whether
+      // a returning browser is the current holder is now decided by the sid,
+      // never by the presence of a stale auth_token.
       return res.status(401).json({
         error: "تم إنهاء هذه الجلسة لتسجيل الدخول من جهاز آخر",
         sessionEnded: true,
@@ -1308,6 +1370,12 @@ app.post("/api/sms/verify-code", smsLimiter, async (req, res) => {
 
     res.cookie("auth_token", token, COOKIE_OPTIONS);
 
+    // Always a new session id: entering an SMS code is never a silent restore.
+    // There is no equivalent of the Firebase path's automatic re-mint here.
+    if (existingAccount) {
+      await startSession(res, userId);
+    }
+
     await logAudit(
       userId,
       "login",
@@ -1392,20 +1460,35 @@ app.post("/api/auth/token", loginLimiter, async (req, res) => {
     // make a new account silently, with no confirmation and no terms. The same
     // lookup yields the token version the new session must carry.
     const [existingAccount] = await db
-      .select({ id: users.id, tokenVersion: users.tokenVersion })
+      .select({
+        id: users.id,
+        tokenVersion: users.tokenVersion,
+        currentSessionId: users.currentSessionId,
+      })
       .from(users)
       .where(eq(users.id, resolvedUserId));
+
+    // This endpoint is called by two different things and could not tell them
+    // apart: a person pressing sign-in, and the app silently re-minting because
+    // its cookie expired while the Firebase credential is still good. Both bumped
+    // token_version, so an expired cookie on device A evicted device B with
+    // nobody having logged in anywhere.
+    const restoring = isCurrentHolder(req, existingAccount);
 
     const token = jwt.sign(
       {
         userId: resolvedUserId,
         type: provider || "firebase",
         tv: existingAccount
-          ? await versionForNewSession(
-              resolvedUserId,
-              existingAccount.tokenVersion,
-              req,
-            )
+          ? restoring
+            ? // The rightful holder returning. Re-issue at the SAME version and
+              // evict nobody — nothing about who holds the account has changed.
+              existingAccount.tokenVersion ?? 0
+            : await versionForNewSession(
+                resolvedUserId,
+                existingAccount.tokenVersion,
+                req,
+              )
           : 0,
         // See the phone path: marks a session issued BEFORE any account existed.
         ...(existingAccount ? {} : { na: true }),
@@ -1416,14 +1499,24 @@ app.post("/api/auth/token", loginLimiter, async (req, res) => {
 
     res.cookie("auth_token", token, COOKIE_OPTIONS);
 
+    // Recorded distinctly. A silent restore used to appear in the trail as a
+    // `login`, so the log showed sign-ins nobody performed — and that log is the
+    // only reliable evidence when a session bug is being diagnosed.
     await logAudit(
       resolvedUserId,
-      "login",
+      restoring ? "session_restored" : "login",
       "auth",
       null,
       { provider, linkedAccount: !!existingUser },
       req,
     );
+
+    // A real login takes over: new session id, stored and handed to this browser.
+    // A restore keeps the one it already holds — rotating it there would treat a
+    // cookie expiring as if it were a sign-in.
+    if (existingAccount && !restoring) {
+      await startSession(res, resolvedUserId);
+    }
 
     // Cookie only. Returning the JWT in the body as well made it readable by any
     // script on the page, which is precisely what httpOnly prevents. The client
@@ -1776,6 +1869,28 @@ app.post(
 app.post("/api/auth/logout", authenticateUser, async (req, res) => {
   await logAudit(req.userId, "logout", "auth", null, null, req);
   res.clearCookie("auth_token", COOKIE_OPTIONS);
+
+  // The session id goes too, on BOTH sides. Leaving the row set would let this
+  // browser come back and be read as the current holder — restoring a session it
+  // deliberately ended, without the bump a fresh login owes the other devices.
+  // Cleared only if this browser is the holder: a stale device logging out must
+  // not wipe the id belonging to whoever replaced it.
+  try {
+    const [account] = await db
+      .select({ currentSessionId: users.currentSessionId })
+      .from(users)
+      .where(eq(users.id, req.userId));
+    if (isCurrentHolder(req, account)) {
+      await db
+        .update(users)
+        .set({ currentSessionId: null })
+        .where(eq(users.id, req.userId));
+    }
+  } catch (error) {
+    console.error("Failed to clear session id on logout:", error.message);
+  }
+  res.clearCookie(SID_COOKIE_NAME, SID_COOKIE_OPTIONS);
+
   res.json({ success: true });
 });
 
