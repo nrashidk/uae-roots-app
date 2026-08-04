@@ -22,7 +22,6 @@ import {
 } from "../shared/schema.js";
 import { eq, and, or, ilike, desc, lt, inArray, sql } from "drizzle-orm";
 import { z } from "zod";
-import fs from "fs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -562,33 +561,10 @@ const batchDeleteSchema = z
     message: "Nothing to delete: provide ids or relationshipIds",
   });
 
-const personUndoSchema = z
-  .object({
-    treeId: z.number().int().positive().optional(),
-    firstName: z.string().max(100).optional(),
-    lastName: z.string().max(100).optional().nullable(),
-    gender: z.enum(["male", "female"]).optional(),
-    birthDate: z.string().max(20).optional().nullable(),
-    deathDate: z.string().max(20).optional().nullable(),
-    isLiving: z.boolean().optional(),
-    isBreastfed: z.boolean().optional(),
-    phone: z.string().optional().nullable(), // Allow encrypted strings (any length)
-    email: z.string().optional().nullable(), // Allow encrypted strings (any length)
-    birthOrder: z.number().int().optional().nullable(),
-    birthPlace: z.string().max(200).optional().nullable(),
-    profession: z.string().max(200).optional().nullable(),
-    company: z.string().max(200).optional().nullable(),
-    address: z.string().max(500).optional().nullable(),
-    photoUrl: z.string().max(500).optional().nullable(),
-  })
-  .passthrough(); // Allow additional unknown fields
-
-const relationshipUndoSchema = relationshipSchema.partial().passthrough();
-
-const searchSchema = z.object({
-  query: z.string().min(1).max(100).trim(),
-  treeId: z.number().int().positive(),
-});
+// personUndoSchema, relationshipUndoSchema and searchSchema REMOVED — declared
+// and never referenced. The undo path validates nothing on the way back in: it
+// replays rows this server itself wrote to `deletions`, so there is no untrusted
+// input to check. searchSchema belonged to the search endpoint, now gone.
 
 // One undo stack. Every mutation writes here, not just deletes.
 //
@@ -1066,20 +1042,6 @@ const findUserByIdentity = async (identityType, identityValue) => {
   return null;
 };
 
-const findUserByEmailOrPhone = async (email, phone) => {
-  if (email) {
-    const user = await findUserByIdentity("email", email);
-    if (user) return user;
-  }
-
-  if (phone) {
-    const user = await findUserByIdentity("phone", phone);
-    if (user) return user;
-  }
-
-  return null;
-};
-
 const linkIdentityToUser = async (
   userId,
   identityType,
@@ -1127,38 +1089,9 @@ const linkIdentityToUser = async (
   return newIdentity;
 };
 
-const createUserWithIdentities = async (
-  userId,
-  email,
-  phone,
-  displayName,
-  provider,
-) => {
-  const [user] = await db
-    .insert(users)
-    .values({
-      id: userId,
-      email: email || null,
-      displayName: displayName || null,
-      phoneNumber: phone || null,
-      provider: provider || "unknown",
-    })
-    .returning();
-
-  if (email) {
-    await linkIdentityToUser(userId, "email", email, null, true);
-  }
-
-  if (phone) {
-    await linkIdentityToUser(userId, "phone", phone, null, true);
-  }
-
-  if (provider && provider !== "phone") {
-    await linkIdentityToUser(userId, provider, email || userId, userId, true);
-  }
-
-  return user;
-};
+// createUserWithIdentities and findUserByEmailOrPhone REMOVED — both declared
+// and never called. Account creation happens in POST /api/users, which does the
+// same work inline; identity lookup goes through findUserByIdentity directly.
 
 async function getTwilioCredentials() {
   const accountSid = process.env.TWILIO_ACCOUNT_SID;
