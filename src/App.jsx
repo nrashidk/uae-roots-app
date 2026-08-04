@@ -4908,6 +4908,18 @@ function App() {
                     تحقق
                   </Button>
                 </div>
+                {/* Delivery is not reliable, and the user should know that
+                    before they conclude the app is broken. Measured from the
+                    Twilio Verify logs on 4 Aug: several verifications needed two
+                    or three sends before one arrived, and two expired without
+                    ever being delivered — while others succeeded first time.
+                    Twilio accepted every send; the carrier dropped some.
+                    Re-sending is the correct remedy, not a workaround, so the
+                    button is presented as the expected next step rather than a
+                    last resort. */}
+                <p className="text-xs text-gray-500 text-center">
+                  لم يصلك الرمز؟
+                </p>
                 <button
                   onClick={handleSendSmsCode}
                   disabled={authProcessing}
