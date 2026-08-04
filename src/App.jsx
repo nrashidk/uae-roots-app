@@ -222,8 +222,6 @@ function App() {
   const [showOptions, setShowOptions] = useState(false);
   const [showActionMenu, setShowActionMenu] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
-  const [profileEmail, setProfileEmail] = useState("");
-  const [profilePhone, setProfilePhone] = useState("");
   const [profileSaving, setProfileSaving] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleteConfirmText, setDeleteConfirmText] = useState("");
@@ -1833,8 +1831,6 @@ function App() {
   };
 
   const handleOpenProfile = () => {
-    setProfileEmail(userProfile?.email || user?.email || "");
-    setProfilePhone(userProfile?.phoneNumber || "");
     setShowProfile(true);
     setShowDeleteConfirm(false);
     setDeleteConfirmText("");
@@ -1842,36 +1838,12 @@ function App() {
     setProfileMessage("");
   };
 
-  const handleSaveProfile = async () => {
-    const userId = userProfile?.id || user?.uid;
-    if (!userId) return;
-    try {
-      setProfileSaving(true);
-      setProfileMessageTone("error");
-    setProfileMessage("");
-      const updatedUser = await api.users.update(userId, {
-        email: profileEmail || null,
-        phoneNumber: profilePhone || null,
-        displayName: userProfile?.displayName || user?.displayName || null,
-      });
-      setUserProfile(updatedUser);
-      setProfileMessageTone("success");
-      setProfileMessage("تم حفظ التغييرات بنجاح");
-      setTimeout(() => {
-        setShowProfile(false);
-        setProfileMessageTone("error");
-    setProfileMessage("");
-      }, 1500);
-    } catch (err) {
-      console.error("Profile save error:", err);
-      setProfileMessageTone("error");
-      setProfileMessage("فشل في حفظ التغييرات");
-    } finally {
-      setProfileSaving(false);
-    }
-  };
+  // handleSaveProfile REMOVED. It was defined here and never called — no
+  // email/phone edit UI exists — and setProfileEmail/setProfilePhone were never
+  // called either, so the state it read was permanently empty. Running it would
+  // have nulled the user's email, phone and display name. PUT /api/users/:id went
+  // with it; POST /api/users already handles the update case.
 
-  // Send the code a phone account needs to confirm deletion.
   const handleSendDeleteCode = async () => {
     const phone = identities.find((i) => i.identityType === "phone");
     if (!phone) return;
