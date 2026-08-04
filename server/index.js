@@ -936,7 +936,21 @@ const authenticateUser = async (req, res, next) => {
       // A version mismatch is not an expiry. The session was ENDED — by a sign-in
       // elsewhere, or by unlinking the method it came in through. Saying "expired"
       // sends the user looking for a timeout that never happened.
-      res.clearCookie("auth_token", COOKIE_OPTIONS);
+      //
+      // The cookie is deliberately LEFT IN PLACE. Clearing it here made this
+      // message fire exactly ONCE: the next request then carried no cookie at all
+      // and took the branch above, which correctly does NOT claim a session
+      // ended. If that single evicted request was one the user never saw, the
+      // signal was gone for good — the app went on looking signed in, navigation
+      // kept working because it is client-side, and every write failed with
+      // "الجلسة غير موجودة" and no explanation.
+      //
+      // Keeping it costs nothing. The token is refused on every request that
+      // presents it, so it grants no access; it only ensures this branch keeps
+      // being reached, so the banner appears the moment the user does anything.
+      // It is also safe in a way it was not before `session_id` existed: whether
+      // a returning browser is the current holder is now decided by the sid,
+      // never by the presence of a stale auth_token.
       return res.status(401).json({
         error: "تم إنهاء هذه الجلسة لتسجيل الدخول من جهاز آخر",
         sessionEnded: true,
