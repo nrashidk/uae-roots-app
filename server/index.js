@@ -723,29 +723,22 @@ const logAudit = async (
   }
 };
 
-const recordEdit = async (
-  userId,
-  treeId,
-  action,
-  resourceType,
-  resourceId,
-  previousData,
-  newData,
-) => {
-  try {
-    await db.insert(editHistory).values({
-      userId,
-      treeId,
-      action,
-      resourceType,
-      resourceId,
-      previousData: previousData || null,
-      newData: newData || null,
-    });
-  } catch (error) {
-    console.error("Edit history error:", error);
-  }
-};
+// recordEdit REMOVED, and with it every write to edit_history.
+//
+// It duplicated what `deletions` already stores — full before/after person rows,
+// names, dates, birth places, professions and encrypted phone/email — for every
+// create, update and delete. The difference is that `deletions` is READ: it is
+// the undo stack, it marks rows restored, and the list endpoint caps at 50.
+// edit_history was read by exactly one endpoint, GET /api/history/:treeId, which
+// no client code has ever called.
+//
+// So it was a growing store of family PII with no reader and no retention.
+// audit_logs prunes at 90 days; this kept everything since January 2026 — 1,034
+// rows on production, 1,781 on staging. Account deletion removed it, but nothing
+// else ever did.
+//
+// The table itself stays in shared/schema.js and in both databases. Nothing
+// writes or reads it now.
 
 // ONE window for both the cookie and the JWT. They disagreed — cookie 7 days,
 // token 24 hours — so after a day the browser held a cookie the server would not
@@ -1932,7 +1925,6 @@ app.use("/api/relationships", apiLimiter);
 // three polls. Putting all of that on one budget would rate-limit ordinary
 // editing.
 app.use("/api/deletions", readLimiter);
-app.use("/api/history", readLimiter);
 
 
 app.post("/api/users", authenticateUser, async (req, res) => {
@@ -2540,15 +2532,6 @@ app.post("/api/people", authenticateUser, async (req, res) => {
       peopleAfter: [person],
     });
 
-    await recordEdit(
-      req.userId,
-      validatedData.treeId,
-      "create",
-      "person",
-      person.id,
-      null,
-      person,
-    );
     await logAudit(
       req.userId,
       "create",
@@ -2651,15 +2634,6 @@ app.put("/api/people/:id", authenticateUser, async (req, res) => {
       peopleAfter: [person],
     });
 
-    await recordEdit(
-      req.userId,
-      existingPerson.treeId,
-      "update",
-      "person",
-      personId,
-      existingPerson,
-      person,
-    );
     await logAudit(req.userId, "update", "person", personId, null, req);
 
     const decryptedPerson = {
@@ -2727,15 +2701,6 @@ app.delete("/api/people/:id", authenticateUser, async (req, res) => {
       relationshipsBefore: personRelRows,
     });
 
-    await recordEdit(
-      req.userId,
-      existingPerson.treeId,
-      "delete",
-      "person",
-      personId,
-      existingPerson,
-      null,
-    );
 
     await db.delete(people).where(eq(people.id, personId));
 
@@ -3579,15 +3544,6 @@ app.post("/api/relationships", authenticateUser, async (req, res) => {
       relationshipsAfter: [relationship],
     });
 
-    await recordEdit(
-      req.userId,
-      validatedData.treeId,
-      "create",
-      "relationship",
-      relationship.id,
-      null,
-      relationship,
-    );
     await logAudit(
       req.userId,
       "create",
@@ -3649,15 +3605,6 @@ app.patch(
         return res.status(403).json({ error: ownership.error });
       }
 
-      await recordEdit(
-        req.userId,
-        existingRel.treeId,
-        "update",
-        "relationship",
-        relId,
-        existingRel,
-        { ...existingRel, status },
-      );
 
       // NULL is "married". Writing the literal 'married' created a THIRD state
       // meaning the same thing — new rows get NULL, and only un-ticking divorce
@@ -3727,15 +3674,6 @@ app.delete("/api/relationships/:id", authenticateUser, async (req, res) => {
       relationshipsBefore: [existingRel],
     });
 
-    await recordEdit(
-      req.userId,
-      existingRel.treeId,
-      "delete",
-      "relationship",
-      relId,
-      existingRel,
-      null,
-    );
 
     await db.delete(relationships).where(eq(relationships.id, relId));
 
@@ -3754,30 +3692,12 @@ app.delete("/api/relationships/:id", authenticateUser, async (req, res) => {
   }
 });
 
-app.get("/api/history/:treeId", authenticateUser, async (req, res) => {
-  try {
-    const treeId = validateId(req.params.treeId);
-    if (!treeId) {
-      return res.status(400).json({ error: "Invalid tree ID" });
-    }
-
-    const ownership = await verifyTreeOwnership(treeId, req.userId);
-    if (!ownership.valid) {
-      return res.status(403).json({ error: ownership.error });
-    }
-
-    const history = await db
-      .select()
-      .from(editHistory)
-      .where(eq(editHistory.treeId, treeId))
-      .orderBy(desc(editHistory.createdAt))
-      .limit(100);
-
-    res.json(history);
-  } catch (error) {
-    handleError(res, error, "History fetch");
-  }
-});
+// REMOVED: GET /api/history/:treeId
+//
+// The only reader edit_history ever had, and no client code called it —
+// api.history.get was defined in api.js and never invoked. Removed together with
+// the writes: an endpoint returning 100 rows of full person snapshots, reachable
+// by anyone with a session and a tree id, earned nothing.
 
 // Phase 2: Undo handler with Zod validation for previousData
 // REMOVED: POST /api/history/undo/:id
@@ -3793,8 +3713,8 @@ app.get("/api/history/:treeId", authenticateUser, async (req, res) => {
 //     existing marriage same-sex, or push someone past their spouse limit
 //
 // `deletions` replaces it: ids preserved, cascade captured, restored_at tracked,
-// strict newest-first, grouped by user action. GET /api/history/:treeId is left
-// in place — reading the edit log is harmless and it is still written.
+// strict newest-first, grouped by user action. GET /api/history/:treeId has since
+// been removed too, along with every write to edit_history — see recordEdit.
 
 
 // REMOVED: GET /api/export/:treeId
