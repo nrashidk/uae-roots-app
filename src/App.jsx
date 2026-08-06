@@ -5671,6 +5671,12 @@ function App() {
           key: `w${wifeId}`,
           name: getGenealogicalName(wife),
           divorced: isDivorced,
+          // She stays in the list whether or not she is alive — she may have
+          // children by him, and dropping her would separate them from their
+          // mother. Marked, though, because عدد الزوجات counts her while the
+          // four-wife limit does not: without this the card shows six wives
+          // against a limit of four and looks like a rule was broken.
+          deceased: wife.isLiving === false,
           ...split(kids),
         });
       }
@@ -5789,12 +5795,25 @@ function App() {
                              the unrecorded group — present, but not the same
                              thing. */
                           className={`border-r-2 pr-3 ${
-                            g.divorced || g.unknownMother
+                            g.divorced || g.deceased || g.unknownMother
                               ? "border-gray-300"
                               : "border-[#A5813F]"
                           }`}
                         >
                           <div className="font-medium mb-2 flex items-center gap-2 flex-wrap">
+                            {/* Marks the row as a WIFE rather than a heading.
+                                Omitted for غير محدد — that group is the absence
+                                of a mother, not a person, and giving it the same
+                                mark would claim someone is there. */}
+                            {!g.unknownMother && (
+                              <Heart
+                                className={`w-4 h-4 shrink-0 ${
+                                  g.divorced || g.deceased
+                                    ? "text-gray-400"
+                                    : "text-[#A5813F]"
+                                }`}
+                              />
+                            )}
                             <span
                               className={
                                 g.unknownMother ? "text-gray-500" : ""
@@ -5805,6 +5824,11 @@ function App() {
                             {g.divorced && (
                               <span className="text-xs font-normal text-[#99694b] bg-[#f5e3d8] px-2 py-0.5 rounded">
                                 مطلقة
+                              </span>
+                            )}
+                            {g.deceased && (
+                              <span className="text-xs font-normal text-gray-600 bg-gray-100 px-2 py-0.5 rounded">
+                                متوفاة
                               </span>
                             )}
                           </div>
