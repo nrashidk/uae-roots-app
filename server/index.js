@@ -1893,32 +1893,71 @@ app.post("/api/users", authenticateUser, async (req, res) => {
       })
       .returning();
 
-    if (validatedData.email) {
-      await linkIdentityToUser(
-        validatedData.id,
-        "email",
-        validatedData.email,
-        null,
-        true,
-      );
-    }
-    if (validatedData.phoneNumber) {
-      await linkIdentityToUser(
-        validatedData.id,
-        "phone",
-        validatedData.phoneNumber,
-        null,
-        true,
-      );
-    }
-    if (validatedData.provider && validatedData.provider !== "phone") {
-      await linkIdentityToUser(
-        validatedData.id,
-        validatedData.provider,
-        validatedData.email || validatedData.id,
-        validatedData.id,
-        true,
-      );
+    // Identities come from the SESSION, never from the request body.
+    //
+    // These writes used to take `email` and `phoneNumber` straight out of the
+    // body and record them with isVerified: true, with nothing checking either
+    // against the credential this session was created with. findUserByIdentity
+    // is what /auth/token and /sms/verify-code use to decide WHOSE account a
+    // login belongs to — so a signup could claim an address or a number it did
+    // not own, and the real owner's next login would be handed a session for the
+    // claimer's account, with their tree then built inside it.
+    //
+    // What the session actually proves:
+    //   phone    -> req.userId IS the number Twilio approved at /sms/verify-code
+    //   firebase -> req.userId IS the uid verifyIdToken returned at /auth/token
+    //
+    // Neither proves an email address, so it is taken from a freshly verified
+    // Firebase ID token — the same proof /api/auth/link/google already demands.
+    // If that token is absent or does not verify, NO email identity is written.
+    // An account with one fewer way in can be fixed by linking; an identity
+    // attributed to the wrong person cannot.
+    if (req.userType === "phone") {
+      await linkIdentityToUser(validatedData.id, "phone", req.userId, null, true);
+    } else {
+      let verifiedEmail = null;
+      const { firebaseIdToken } = req.body || {};
+      if (firebaseIdToken) {
+        try {
+          const admin = (await import("firebase-admin")).default;
+          if (!admin.apps.length) {
+            admin.initializeApp({
+              projectId: process.env.VITE_FIREBASE_PROJECT_ID,
+            });
+          }
+          const decoded = await admin.auth().verifyIdToken(firebaseIdToken);
+          // The token must belong to THIS session. Without this check a signup
+          // could present someone else's perfectly valid token and inherit the
+          // address on it.
+          if (decoded?.uid === req.userId && decoded?.email) {
+            verifiedEmail = decoded.email;
+          }
+        } catch (error) {
+          console.error(
+            `[${rid}][Users] Signup email proof rejected:`,
+            error.message,
+          );
+        }
+      }
+
+      if (verifiedEmail) {
+        await linkIdentityToUser(
+          validatedData.id,
+          "email",
+          verifiedEmail,
+          req.userId,
+          true,
+        );
+      }
+      if (validatedData.provider && validatedData.provider !== "phone") {
+        await linkIdentityToUser(
+          validatedData.id,
+          validatedData.provider,
+          verifiedEmail || validatedData.id,
+          validatedData.id,
+          true,
+        );
+      }
     }
 
     // A NEW session, now that the account exists.
