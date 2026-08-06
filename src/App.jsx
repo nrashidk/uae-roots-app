@@ -5613,6 +5613,17 @@ function App() {
       return { wives, children };
     };
 
+    // Arabic counts a noun differently at 1, at 2, at 3–10 and again from 11 up.
+    // A single `n === 1 ? "ابن" : "أبناء"` gets three of those four wrong: it
+    // produced "و2 أبناء" where the dual form ابنان is required, and "و14 أبناء"
+    // where 11 and above take the singular تمييز — ابن.
+    const marriedChildrenLabel = (n) => {
+      if (n === 1) return "وابن واحد له عائلته";
+      if (n === 2) return "وابنان اثنان لهم عائلاتهم";
+      if (n <= 10) return `و${n} أبناء لهم عائلاتهم`;
+      return `و${n} ابن لهم عائلاتهم`;
+    };
+
     // Who belongs to whom. The counts above say HOW MANY; this says WHICH — and
     // in a polygamous tree that is the question the page exists to answer.
     //
@@ -5850,9 +5861,7 @@ function App() {
                               this the card looks like it is hiding children. */}
                           {g.marriedCount > 0 && (
                             <p className="text-xs text-gray-500 mt-2">
-                              و{g.marriedCount}{" "}
-                              {g.marriedCount === 1 ? "ابن له" : "أبناء لهم"}{" "}
-                              عائلاتهم
+                              {marriedChildrenLabel(g.marriedCount)}
                             </p>
                           )}
 
