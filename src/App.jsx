@@ -5665,6 +5665,9 @@ function App() {
       });
 
       const groups = [];
+      // Every child must land in exactly one group. Tracking it here rather than
+      // deducing it afterwards keeps the two loops honest with each other.
+      const placed = new Set();
       const spouseRels = treeRels.filter(
         (r) =>
           r.type === "partner" &&
@@ -5684,6 +5687,7 @@ function App() {
         // family and appears by name alone.
         if (isDivorced && kids.length === 0) continue;
 
+        for (const c of kids) placed.add(c.id);
         groups.push({
           key: `w${wifeId}`,
           name: getGenealogicalName(wife),
@@ -5698,18 +5702,40 @@ function App() {
         });
       }
 
-      // Children whose mother was never recorded. They cannot sit under any wife,
-      // and dropping them would make the groups stop adding up to the total on
-      // the collapsed card — a page that contradicts itself is worse than one
-      // with an awkward heading.
-      const motherless = childrenOfHead.filter((c) => motherIdOf(c.id) === null);
-      if (motherless.length > 0) {
+      // Everyone the loop above did not place. Two cases reach here:
+      //
+      //   no mother recorded at all  -> غير محدد
+      //   a mother who is NOT a wife -> her own group, by name
+      //
+      // The second is not hypothetical. Production tree 62 has مريم, آيه and يسر
+      // recorded with father 503 and mother حنان, while حنان is married to 682 —
+      // the duplicate record of the same man. Placing children only under WIVES
+      // dropped all three from the card while عدد الأبناء still counted them, so
+      // the groups did not add up to the total printed directly above. That is
+      // the exact contradiction غير محدد was added to avoid.
+      //
+      // Naming her is also the more honest answer: the parent-child link IS
+      // recorded, it is the marriage that is missing, and hiding her would hide
+      // the evidence of that.
+      const byMother = new Map();
+      for (const c of childrenOfHead) {
+        if (placed.has(c.id)) continue;
+        const mid = motherIdOf(c.id);
+        if (!byMother.has(mid)) byMother.set(mid, []);
+        byMother.get(mid).push(c);
+      }
+
+      for (const [mid, kids] of byMother) {
+        const mother = mid ? treePeople.find((p) => p.id === mid) : null;
         groups.push({
-          key: "unknown",
-          name: "غير محدد",
-          unknownMother: true,
+          key: mother ? `m${mid}` : "unknown",
+          name: mother ? getGenealogicalName(mother) : "غير محدد",
+          // Not a wife: no heart, muted rule. She is the mother of his children
+          // with no recorded marriage, and the card must not imply one.
+          unknownMother: !mother,
+          notAWife: Boolean(mother),
           divorced: false,
-          ...split(motherless),
+          ...split(kids),
         });
       }
 
@@ -5806,7 +5832,8 @@ function App() {
                              the unrecorded group — present, but not the same
                              thing. */
                           className={`border-r-2 pr-3 ${
-                            g.divorced || g.deceased || g.unknownMother
+                            g.divorced || g.deceased || g.unknownMother ||
+                            g.notAWife
                               ? "border-gray-300"
                               : "border-[#A5813F]"
                           }`}
@@ -5816,7 +5843,7 @@ function App() {
                                 Omitted for غير محدد — that group is the absence
                                 of a mother, not a person, and giving it the same
                                 mark would claim someone is there. */}
-                            {!g.unknownMother && (
+                            {!g.unknownMother && !g.notAWife && (
                               <Heart
                                 className={`w-4 h-4 shrink-0 ${
                                   g.divorced || g.deceased
