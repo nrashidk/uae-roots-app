@@ -23,6 +23,7 @@ import {
   X,
   Settings,
   Home,
+  ChevronDown,
   ZoomIn,
   ZoomOut,
   RotateCcw,
@@ -159,6 +160,11 @@ function App() {
       else mq.removeListener(onChange);
     };
   }, []);
+
+  // Which family card is open on العائلات. ONE at a time: an expanded card takes
+  // the full width of the grid, and several open at once would push the rest of
+  // the page far enough down that the list stops being a list.
+  const [expandedFamilyId, setExpandedFamilyId] = useState(null);
 
   const [publicScreen, setPublicScreen] = useState("landing");
   const [authDialogOpen, setAuthDialogOpen] = useState(false);
@@ -5579,26 +5585,135 @@ function App() {
           r.type === "partner" &&
           (r.person1Id === person.id || r.person2Id === person.id),
       );
-      // CURRENT wives, not every partner row ever written. Counting all of them
-      // showed a man with one wife, one divorce and one deceased wife as having
-      // three — while every RULE in the app (spouse limit, maḥram, revive check)
-      // treats him as having one. The rules were right and only this display
-      // disagreed, which is the worst way round: the number a person reads was
-      // the one that was wrong.
+      // Wives the man has RIGHT NOW: not divorced, and living. Deliberately the
+      // same test the spouse limit uses, so the collapsed card can never show a
+      // number that appears to break the four-wife rule.
       //
-      // Divorces are still reported, separately, because hiding them would be a
-      // different lie — a family with a divorce in it is not a family without
-      // one. Deceased wives are NOT deducted here: she was his wife, the
-      // marriage did not end in divorce, and the card describes the household
-      // rather than who is alive today.
-      const divorced = spouseRels.filter((r) => r.status === "divorced").length;
-      const wives = spouseRels.length - divorced;
+      // Counting every partner row ever written showed a man with one wife, one
+      // divorce and one deceased wife as having three, while every RULE in the
+      // app treated him as having one. Counting divorces separately fixed half of
+      // it and left the other half: خالد showed SIX against a limit of four,
+      // because two of his wives had died.
+      //
+      // Nothing is hidden — divorced and deceased wives both appear in the
+      // expanded card, badged, with their children under them. The collapsed
+      // card answers "how many wives does he have"; the expanded one answers
+      // "who are they".
+      const wives = spouseRels.filter((r) => {
+        if (r.status === "divorced") return false;
+        const wifeId = r.person1Id === person.id ? r.person2Id : r.person1Id;
+        const wife = treePeople.find((p) => p.id === wifeId);
+        return wife ? wife.isLiving !== false : false;
+      }).length;
 
       const children = treeRels.filter(
         (r) => r.type === "parent-child" && r.parentId === person.id,
       ).length;
 
-      return { wives, divorced, children };
+      return { wives, children };
+    };
+
+    // Arabic counts a noun differently at 1, at 2, at 3–10 and again from 11 up.
+    // A single `n === 1 ? "ابن" : "أبناء"` gets three of those four wrong: it
+    // produced "و2 أبناء" where the dual form ابنان is required, and "و14 أبناء"
+    // where 11 and above take the singular تمييز — ابن.
+    const marriedChildrenLabel = (n) => {
+      if (n === 1) return "وابن واحد له عائلته";
+      if (n === 2) return "وابنان اثنان لهم عائلاتهم";
+      if (n <= 10) return `و${n} أبناء لهم عائلاتهم`;
+      return `و${n} ابن لهم عائلاتهم`;
+    };
+
+    // Who belongs to whom. The counts above say HOW MANY; this says WHICH — and
+    // in a polygamous tree that is the question the page exists to answer.
+    //
+    // Children are grouped by their MOTHER, not listed flat, because "these are
+    // راشد's children" is not useful when he has two wives and twenty-eight
+    // children. A flat list makes the reader guess.
+    const familyDetail = (person) => {
+      const isMarried = (id) =>
+        treeRels.some(
+          (r) =>
+            r.type === "partner" && (r.person1Id === id || r.person2Id === id),
+        );
+
+      const childrenOfHead = treeRels
+        .filter((r) => r.type === "parent-child" && r.parentId === person.id)
+        .map((r) => treePeople.find((p) => p.id === r.childId))
+        .filter(Boolean);
+
+      // A child's mother is their female parent. Absent for anyone entered
+      // through a path that only ever recorded a father.
+      const motherIdOf = (childId) => {
+        const rel = treeRels.find(
+          (r) =>
+            r.type === "parent-child" &&
+            r.childId === childId &&
+            treePeople.some(
+              (p) => p.id === r.parentId && p.gender === "female",
+            ),
+        );
+        return rel ? rel.parentId : null;
+      };
+
+      const split = (kids) => ({
+        // Married children are COUNTED, not listed: a married son has his own
+        // card on this page and a married daughter appears under her husband's.
+        // Listing them here would show the same person in two places.
+        unmarried: kids.filter((k) => !isMarried(k.id)),
+        marriedCount: kids.filter((k) => isMarried(k.id)).length,
+      });
+
+      const groups = [];
+      const spouseRels = treeRels.filter(
+        (r) =>
+          r.type === "partner" &&
+          (r.person1Id === person.id || r.person2Id === person.id),
+      );
+
+      for (const rel of spouseRels) {
+        const wifeId =
+          rel.person1Id === person.id ? rel.person2Id : rel.person1Id;
+        const wife = treePeople.find((p) => p.id === wifeId);
+        if (!wife) continue;
+        const kids = childrenOfHead.filter((c) => motherIdOf(c.id) === wifeId);
+        const isDivorced = rel.status === "divorced";
+
+        // A divorce with no children leaves nothing to attribute, so the row
+        // would be noise. A CURRENT wife with no children is still part of the
+        // family and appears by name alone.
+        if (isDivorced && kids.length === 0) continue;
+
+        groups.push({
+          key: `w${wifeId}`,
+          name: getGenealogicalName(wife),
+          divorced: isDivorced,
+          // She stays in the list whether or not she is alive — she may have
+          // children by him, and dropping her would separate them from their
+          // mother. Marked, though, because عدد الزوجات counts her while the
+          // four-wife limit does not: without this the card shows six wives
+          // against a limit of four and looks like a rule was broken.
+          deceased: wife.isLiving === false,
+          ...split(kids),
+        });
+      }
+
+      // Children whose mother was never recorded. They cannot sit under any wife,
+      // and dropping them would make the groups stop adding up to the total on
+      // the collapsed card — a page that contradicts itself is worse than one
+      // with an awkward heading.
+      const motherless = childrenOfHead.filter((c) => motherIdOf(c.id) === null);
+      if (motherless.length > 0) {
+        groups.push({
+          key: "unknown",
+          name: "غير محدد",
+          unknownMother: true,
+          divorced: false,
+          ...split(motherless),
+        });
+      }
+
+      return groups;
     };
 
     return (
@@ -5630,30 +5745,133 @@ function App() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {maleParents.map((person) => {
               const counts = getRelationshipCounts(person);
+              const isOpen = expandedFamilyId === person.id;
+              const groups = isOpen ? familyDetail(person) : null;
               return (
-                <div key={person.id} className="bg-white rounded-lg shadow p-4">
-                  <div className="text-lg font-bold mb-2">
-                    الاسم: {getGenealogicalName(person)}
-                  </div>
-                  <div className="space-y-1 text-sm">
-                    {/* Siblings are gone, blood and milk alike. They are
-                        RECIPROCAL: my brother's card lists me and mine lists him,
-                        so the same fact appeared twice on one page. They also
-                        belong to a man's father's household, not his own. رضاعة
-                        stays visible in the tree and on the members cards. */}
-                    <div className="text-[#A5813F]">
-                      عدد الزوجات: {counts.wives}
-                      {counts.divorced > 0 && (
-                        <span className="text-gray-500">
-                          {" "}
-                          (ومطلقات: {counts.divorced})
-                        </span>
+                <div
+                  key={person.id}
+                  /* An open card spans BOTH columns. The mother groups need the
+                     width, and letting one cell in a two-column grid grow taller
+                     shoves its neighbour around for no reason. */
+                  className={`bg-white rounded-lg shadow ${
+                    isOpen ? "md:col-span-2 ring-1 ring-[#A5813F]" : ""
+                  }`}
+                >
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setExpandedFamilyId(isOpen ? null : person.id)
+                    }
+                    aria-expanded={isOpen}
+                    className="w-full text-right p-4 flex items-start justify-between gap-3"
+                  >
+                    <div>
+                      <div className="text-lg font-bold mb-2">
+                        عائلة {getGenealogicalName(person)}
+                      </div>
+                      <div className="space-y-1 text-sm">
+                        {/* Siblings are gone, blood and milk alike. They are
+                            RECIPROCAL: my brother's card lists me and mine lists
+                            him, so the same fact appeared twice on one page. They
+                            also belong to a man's father's household, not his own.
+                            رضاعة stays visible in the tree and on the members
+                            cards. */}
+                        <div className="text-[#A5813F]">
+                          عدد الزوجات: {counts.wives}
+                        </div>
+                        <div className="text-blue-600">
+                          عدد الأبناء: {counts.children}
+                        </div>
+                      </div>
+                    </div>
+                    <ChevronDown
+                      className={`w-5 h-5 shrink-0 mt-1 text-gray-400 transition-transform ${
+                        isOpen ? "rotate-180 text-[#A5813F]" : ""
+                      }`}
+                    />
+                  </button>
+
+                  {isOpen && (
+                    <div className="border-t px-4 py-4 space-y-4">
+                      {groups.length === 0 && (
+                        <p className="text-sm text-gray-500">
+                          لا توجد تفاصيل لعرضها.
+                        </p>
                       )}
+                      {groups.map((g) => (
+                        <div
+                          key={g.key}
+                          /* The rule ties a mother to her children. Solid brass
+                             for a current wife, muted for a divorced one or for
+                             the unrecorded group — present, but not the same
+                             thing. */
+                          className={`border-r-2 pr-3 ${
+                            g.divorced || g.deceased || g.unknownMother
+                              ? "border-gray-300"
+                              : "border-[#A5813F]"
+                          }`}
+                        >
+                          <div className="font-medium mb-2 flex items-center gap-2 flex-wrap">
+                            {/* Marks the row as a WIFE rather than a heading.
+                                Omitted for غير محدد — that group is the absence
+                                of a mother, not a person, and giving it the same
+                                mark would claim someone is there. */}
+                            {!g.unknownMother && (
+                              <Heart
+                                className={`w-4 h-4 shrink-0 ${
+                                  g.divorced || g.deceased
+                                    ? "text-gray-400"
+                                    : "text-[#A5813F]"
+                                }`}
+                              />
+                            )}
+                            <span
+                              className={
+                                g.unknownMother ? "text-gray-500" : ""
+                              }
+                            >
+                              {g.name}
+                            </span>
+                            {g.divorced && (
+                              <span className="text-xs font-normal text-[#99694b] bg-[#f5e3d8] px-2 py-0.5 rounded">
+                                مطلقة
+                              </span>
+                            )}
+                            {g.deceased && (
+                              <span className="text-xs font-normal text-gray-600 bg-gray-100 px-2 py-0.5 rounded">
+                                متوفاة
+                              </span>
+                            )}
+                          </div>
+
+                          {g.unmarried.length > 0 && (
+                            <div className="flex flex-wrap gap-2">
+                              {g.unmarried.map((c) => (
+                                <span
+                                  key={c.id}
+                                  className="text-sm border rounded px-2.5 py-1"
+                                >
+                                  {c.firstName}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+
+                          {/* Why the list is shorter than the count above. Without
+                              this the card looks like it is hiding children. */}
+                          {g.marriedCount > 0 && (
+                            <p className="text-xs text-gray-500 mt-2">
+                              {marriedChildrenLabel(g.marriedCount)}
+                            </p>
+                          )}
+
+                          {g.unmarried.length === 0 && g.marriedCount === 0 && (
+                            <p className="text-xs text-gray-500">لا أبناء</p>
+                          )}
+                        </div>
+                      ))}
                     </div>
-                    <div className="text-blue-600">
-                      عدد الأبناء: {counts.children}
-                    </div>
-                  </div>
+                  )}
                 </div>
               );
             })}
