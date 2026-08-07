@@ -1594,12 +1594,26 @@ function App() {
     if (!pendingSignup || linkBusy) return;
     setLinkBusy(true);
     try {
+      // The server no longer trusts `email` from this body — it writes an email
+      // identity only against a Firebase token it verifies itself. A phone
+      // signup needs nothing here: the server already knows the number, because
+      // Twilio approved it and it IS this session's user id.
+      let firebaseIdToken = null;
+      if (pendingSignup.provider !== "phone" && user?.getIdToken) {
+        try {
+          firebaseIdToken = await user.getIdToken(true);
+        } catch (tokenError) {
+          console.error("Signup: could not get Firebase token:", tokenError);
+        }
+      }
+
       const saved = await api.users.createOrUpdate({
         id: pendingSignup.resolvedUserId,
         email: pendingSignup.email,
         displayName: pendingSignup.displayName,
         phoneNumber: pendingSignup.phoneNumber,
         provider: pendingSignup.provider,
+        firebaseIdToken,
       });
       setUserProfile(saved);
       setAuthDialogOpen(false);
