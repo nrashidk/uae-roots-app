@@ -6255,10 +6255,11 @@ function App() {
                           handleAddBothParents(selectedPerson);
                           setShowActionMenu(false);
                         }}
-                        disabled={!canAddParents}
                         size="sm"
                         variant="ghost"
-                        className="w-8 h-8 p-0"
+                        className={`w-8 h-8 p-0${
+                          !canAddParents ? " opacity-40" : ""
+                        }`}
                         title={addParentTooltip}
                       >
                         <Users className="w-4 h-4" />
@@ -6273,10 +6274,11 @@ function App() {
                           handleQuickCreateSibling(selectedPerson);
                           setShowActionMenu(false);
                         }}
-                        disabled={!canAddSibling}
                         size="sm"
                         variant="ghost"
-                        className="w-8 h-8 p-0"
+                        className={`w-8 h-8 p-0${
+                          !canAddSibling ? " opacity-40" : ""
+                        }`}
                         title={addSiblingTooltip}
                       >
                         <UserPlus className="w-4 h-4" />
