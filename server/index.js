@@ -623,14 +623,24 @@ const recordUndo = async ({
 // swallowed here while versionForNewSession returned `existing + 1` regardless,
 // so a failed UPDATE produced a token one ahead of the row — refused on the very
 // next request, with nothing in the response to explain why.
-const bumpTokenVersion = async (userId, reason, req) => {
+// sessionWasLive: was there actually a session to terminate? The version bump
+// happens either way — the token just issued must be the only valid one — but
+// "sessions_terminated" is a claim about the audit trail, and it is FALSE when
+// nobody was signed in. A login with no prior holder (currentSessionId null)
+// bumped the counter and logged a termination that displaced nothing; during a
+// real incident that noise mimics or hides the signal the log exists to carry.
+// Defaults true so the unlink caller (which genuinely ends a session) is
+// unchanged; the two login callers pass whether a session was actually held.
+const bumpTokenVersion = async (userId, reason, req, sessionWasLive = true) => {
   try {
     const [row] = await db
       .update(users)
       .set({ tokenVersion: sql`${users.tokenVersion} + 1` })
       .where(eq(users.id, userId))
       .returning({ tokenVersion: users.tokenVersion });
-    await logAudit(userId, "sessions_terminated", "auth", null, { reason }, req);
+    if (sessionWasLive) {
+      await logAudit(userId, "sessions_terminated", "auth", null, { reason }, req);
+    }
     return row?.tokenVersion ?? null;
   } catch (error) {
     console.error("Token version bump failed:", error);
@@ -645,9 +655,19 @@ const bumpTokenVersion = async (userId, reason, req) => {
 // If the bump fails, the honest answer is the version still on the row: the other
 // devices were NOT signed out, and minting `existing + 1` would only add a second
 // broken session to the first problem.
-const versionForNewSession = async (userId, existingVersion, req) => {
+const versionForNewSession = async (
+  userId,
+  existingVersion,
+  req,
+  sessionWasLive = false,
+) => {
   if (!SINGLE_SESSION) return existingVersion ?? 0;
-  const stored = await bumpTokenVersion(userId, "single_session_login", req);
+  const stored = await bumpTokenVersion(
+    userId,
+    "single_session_login",
+    req,
+    sessionWasLive,
+  );
   return stored ?? existingVersion ?? 0;
 };
 
@@ -1247,7 +1267,13 @@ app.post("/api/sms/verify-code", smsLimiter, async (req, res) => {
     // One lookup, two answers: whether an account exists yet (so the client can
     // ask before creating one) and its current token version.
     const [existingAccount] = await db
-      .select({ id: users.id, tokenVersion: users.tokenVersion })
+      .select({
+        id: users.id,
+        tokenVersion: users.tokenVersion,
+        // Needed to tell a login that displaced a live session from one that
+        // displaced nothing, so the audit trail only records real terminations.
+        currentSessionId: users.currentSessionId,
+      })
       .from(users)
       .where(eq(users.id, userId));
 
@@ -1256,10 +1282,14 @@ app.post("/api/sms/verify-code", smsLimiter, async (req, res) => {
         userId: userId,
         type: "phone",
         tv: existingAccount
-          ? await versionForNewSession(
+          ? // Entering an SMS code is never a silent restore (see below), so any
+            // prior session belonged to another device. currentSessionId set =>
+            // a real termination; null => nobody was signed in, log none.
+            await versionForNewSession(
               userId,
               existingAccount.tokenVersion,
               req,
+              Boolean(existingAccount.currentSessionId),
             )
           : 0,
         // No account row yet — the sign-up gate is about to ask. Recorded IN the
@@ -1415,10 +1445,16 @@ app.post("/api/auth/token", loginLimiter, async (req, res) => {
             ? // The rightful holder returning. Re-issue at the SAME version and
               // evict nobody — nothing about who holds the account has changed.
               existingAccount.tokenVersion ?? 0
-            : await versionForNewSession(
+            : // Not restoring, so this IS a new session. A termination only
+              // happened if a DIFFERENT holder was signed in — i.e.
+              // currentSessionId is set (isCurrentHolder already ruled out THIS
+              // browser, so a set value means another device). Null means nobody
+              // was signed in, so log no termination.
+              await versionForNewSession(
                 resolvedUserId,
                 existingAccount.tokenVersion,
                 req,
+                Boolean(existingAccount.currentSessionId),
               )
           : 0,
         // See the phone path: marks a session issued BEFORE any account existed.
