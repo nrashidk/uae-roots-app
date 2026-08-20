@@ -102,10 +102,14 @@ async function fetchAPI(endpoint, options = {}) {
 
 export const api = {
   auth: {
-    getToken: (userId, provider, firebaseIdToken, email) =>
+    // `email` is intentionally NOT sent. The server resolves the account from
+    // the verified Firebase token only; it ignores any email in this body. Sending
+    // one was the client half of the account-takeover fixed 20 Aug — an attacker
+    // put a victim's address here and was handed the victim's session.
+    getToken: (userId, provider, firebaseIdToken) =>
       fetchAPI("/auth/token", {
         method: "POST",
-        body: JSON.stringify({ userId, provider, firebaseIdToken, email }),
+        body: JSON.stringify({ userId, provider, firebaseIdToken }),
       }),
     sendSmsCode: (phoneNumber) =>
       fetchAPI("/sms/send-code", {
