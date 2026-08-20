@@ -1851,7 +1851,7 @@ function App() {
     if (!phone) return;
     setProfileSaving(true);
     try {
-      await api.auth.sendSmsCode(phone.identityValue);
+      await api.auth.sendReauthCode(phone.identityValue);
       setDeleteCodeSent(true);
       setProfileMessageTone("info");
       setProfileMessage(t.codeSent);

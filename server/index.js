@@ -1867,6 +1867,76 @@ app.post("/api/auth/logout", authenticateUser, async (req, res) => {
   res.json({ success: true });
 });
 
+// Send a verification code to the caller's OWN phone, for re-auth before a
+// destructive action (currently account deletion).
+//
+// Why this exists rather than reusing /sms/send-code: that endpoint is the LOGIN
+// path — unauthenticated, and it writes the phone number into audit_logs in
+// plaintext (as user_id, since no account is known yet). A signed-in user asking
+// for a delete code should not route through the anonymous door: the server
+// already knows who they are. This runs behind authenticateUser, confirms the
+// number is one of THIS account's identities (the same check verifyReauth makes
+// before accepting the code), and logs no phone — the caller is req.userId.
+//
+// /auth/link/phone/send cannot be reused: it REFUSES a number already on your
+// account, which is the exact number a delete re-auth needs.
+app.post(
+  "/api/auth/reauth/phone/send",
+  smsLimiter,
+  authenticateUser,
+  async (req, res) => {
+  try {
+    const { phoneNumber } = req.body || {};
+    if (!phoneNumber) {
+      return res.status(400).json({ error: "رقم الهاتف مطلوب" });
+    }
+    const formatted = normalizePhone(phoneNumber);
+    if (!formatted) {
+      return res.status(400).json({ error: "رقم هاتف غير صالح" });
+    }
+
+    // The number must belong to THIS account, or a signed-in user could have a
+    // code sent to any phone. Mirrors verifyReauth's ownership check.
+    const own = await db
+      .select()
+      .from(authIdentities)
+      .where(
+        and(
+          eq(authIdentities.userId, req.userId),
+          eq(authIdentities.identityType, "phone"),
+          eq(authIdentities.identityValue, formatted),
+        ),
+      );
+    if (own.length === 0) {
+      return res.status(403).json({ error: "رقم الهاتف لا يخص هذا الحساب" });
+    }
+
+    const { accountSid, authToken } = await getTwilioCredentials();
+    const client = twilio(accountSid, authToken);
+    const verifySid = process.env.TWILIO_VERIFY_SID;
+    if (!verifySid) {
+      throw new Error("Twilio Verify Service not configured");
+    }
+    await client.verify.v2
+      .services(verifySid)
+      .verifications.create({ to: formatted, channel: "sms" });
+
+    // No phone in the log: the caller is req.userId and owns this number.
+    await logAudit(req.userId, "reauth_code_sent", "auth", null, {}, req);
+
+    res.json({ success: true, message: "Verification code sent" });
+  } catch (error) {
+    console.error("Reauth SMS send error:", error);
+    let userMessage = "فشل إرسال رمز التحقق";
+    if (error.code === 60203) {
+      userMessage = "تم تجاوز الحد الأقصى للمحاولات. حاول مرة أخرى لاحقاً";
+    } else if (error.code === 60200) {
+      userMessage = "رقم الهاتف غير صالح. تأكد من إدخال رقم صحيح";
+    }
+    res.status(500).json({ error: userMessage });
+  }
+});
+
 app.get("/api/auth/check", optionalAuth, async (req, res) => {
   if (req.userId) {
     // sessionType comes from the JWT, which records how this session was
