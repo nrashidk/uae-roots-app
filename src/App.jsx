@@ -787,7 +787,6 @@ function App() {
                 fallbackUserId,
                 provider,
                 firebaseIdToken,
-                user.email,
               );
 
               if (tokenResponse.userId) {
@@ -1695,7 +1694,6 @@ function App() {
           userId,
           provider,
           firebaseIdToken,
-          currentUser.email,
         );
         if (tokenResponse.userId) {
           resolvedUserId = tokenResponse.userId;
