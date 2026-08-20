@@ -146,13 +146,6 @@ function App() {
     // on every render would only churn observers.
   }, []);
 
-  // Tick the resend cooldown down to zero, one second at a time.
-  useEffect(() => {
-    if (resendCooldown <= 0) return;
-    const id = setTimeout(() => setResendCooldown((s) => s - 1), 1000);
-    return () => clearTimeout(id);
-  }, [resendCooldown]);
-
   useEffect(() => {
     if (typeof window === "undefined") return;
     const mq = window.matchMedia("(max-width: 767px)");
@@ -197,6 +190,15 @@ function App() {
   // pile more sends onto a number Twilio Verify rate-limits, which is how a
   // "nothing arrived" state gets worse the more you press.
   const [resendCooldown, setResendCooldown] = useState(0);
+
+  // Tick the resend cooldown down to zero, one second at a time. Must live AFTER
+  // the state it reads — a hook placed above the useState hits the temporal dead
+  // zone and throws at render.
+  useEffect(() => {
+    if (resendCooldown <= 0) return;
+    const id = setTimeout(() => setResendCooldown((s) => s - 1), 1000);
+    return () => clearTimeout(id);
+  }, [resendCooldown]);
   const [currentView, setCurrentView] = useState("auth");
   const [currentTree, setCurrentTree] = useState(null);
   const [people, setPeople] = useState([]);
