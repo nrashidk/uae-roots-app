@@ -1698,12 +1698,14 @@ app.post(
           ),
         );
       if (claimed && claimed.userId !== req.userId) {
+        // See the mirror of this block: the refused number is a third party's
+        // and is not otherwise on this row, so it is not written to the log.
         await logAudit(
           req.userId,
           "link_failed",
           "auth",
           null,
-          { reason: "identity_belongs_to_another_user", phone: formattedPhone },
+          { reason: "identity_belongs_to_another_user" },
           req,
         );
         return res.status(409).json({
@@ -1777,12 +1779,16 @@ app.post(
           ),
         );
       if (claimed && claimed.userId !== req.userId) {
+        // The refused number belongs to ANOTHER user and is not otherwise on
+        // this row (user_id is the caller), so logging it would put a third
+        // party's phone in the audit trail in plaintext. The reason records the
+        // event; requestId ties it to the request if it ever needs tracing.
         await logAudit(
           req.userId,
           "link_failed",
           "auth",
           null,
-          { reason: "identity_belongs_to_another_user", phone: formattedPhone },
+          { reason: "identity_belongs_to_another_user" },
           req,
         );
         return res.status(409).json({
