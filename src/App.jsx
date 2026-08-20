@@ -6978,7 +6978,12 @@ function PersonForm({
           </button>
         )}
 
-        {!person && (
+        {/* Milk-sibling (رضاعة) only. addPerson acts on isBreastfed ONLY under
+            relationshipType === "sibling"; shown on any other add flow (spouse,
+            child) it was a live control the save path ignored — a tick that
+            could paint a green milk box on a pair with no milk bond. Gated to
+            match where it is actually read. */}
+        {!person && relationshipType === "sibling" && (
           <div className="flex items-center gap-2">
             <input
               type="checkbox"
