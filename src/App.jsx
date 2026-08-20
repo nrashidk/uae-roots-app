@@ -3466,7 +3466,7 @@ function App() {
     const hasFather = parentPeople.some((p) => p?.gender === "male");
     const hasMother = parentPeople.some((p) => p?.gender === "female");
     if (hasFather && hasMother) {
-      window.alert("Both parents already exist for this person");
+      window.alert("الوالدان مسجلان بالفعل لهذا الشخص");
       return;
     }
 
@@ -4163,7 +4163,7 @@ function App() {
       const isMale = selected.gender === "male";
       const candidates = spouseIds.map((sid) => {
         const sp = people.find((p) => p.id === sid);
-        return { id: sid, name: sp?.firstName || `Person ${sid}` };
+        return { id: sid, name: sp?.firstName || `فرد ${sid}` };
       });
       setMotherPickerFor({
         parentId: personId,
@@ -5310,7 +5310,7 @@ function App() {
                         return (
                           selected?.firstName ||
                           selected?.lastName ||
-                          `Person ${selectedPerson}`
+                          `فرد ${selectedPerson}`
                         );
                       })()
                     : ""
@@ -6142,7 +6142,7 @@ function App() {
                 const canAddParents = !(hasFather && hasMother);
                 const addParentTooltip = canAddParents
                   ? t.addParent
-                  : "Both parents already exist";
+                  : "الوالدان مسجلان بالفعل";
 
                 // Check if person has parents - required for adding siblings
                 const hasParents = hasFather || hasMother;
@@ -6248,17 +6248,18 @@ function App() {
                         onClick={(e) => {
                           e.stopPropagation();
                           if (!canAddParents) {
-                            window.alert("Both parents already exist");
+                            window.alert("الوالدان مسجلان بالفعل");
                             return;
                           }
                           // Add both parents at once and open father's form
                           handleAddBothParents(selectedPerson);
                           setShowActionMenu(false);
                         }}
-                        disabled={!canAddParents}
                         size="sm"
                         variant="ghost"
-                        className="w-8 h-8 p-0"
+                        className={`w-8 h-8 p-0${
+                          !canAddParents ? " opacity-40" : ""
+                        }`}
                         title={addParentTooltip}
                       >
                         <Users className="w-4 h-4" />
@@ -6273,10 +6274,11 @@ function App() {
                           handleQuickCreateSibling(selectedPerson);
                           setShowActionMenu(false);
                         }}
-                        disabled={!canAddSibling}
                         size="sm"
                         variant="ghost"
-                        className="w-8 h-8 p-0"
+                        className={`w-8 h-8 p-0${
+                          !canAddSibling ? " opacity-40" : ""
+                        }`}
                         title={addSiblingTooltip}
                       >
                         <UserPlus className="w-4 h-4" />
