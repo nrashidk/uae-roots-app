@@ -1303,7 +1303,10 @@ app.post("/api/sms/verify-code", smsLimiter, async (req, res) => {
 
 app.post("/api/auth/token", loginLimiter, async (req, res) => {
   try {
-    const { userId, provider, firebaseIdToken, email } = req.body;
+    // `email` is deliberately NOT destructured from the body. It used to be, and
+    // it decided whose account a login belonged to — see the resolution below.
+    // The client no longer sends it; if an old bundle still does, it is ignored.
+    const { userId, provider, firebaseIdToken } = req.body;
 
     if (!userId) {
       return res.status(400).json({ error: "User ID is required" });
@@ -1351,7 +1354,33 @@ app.post("/api/auth/token", loginLimiter, async (req, res) => {
       return res.status(401).json({ error: "Invalid Firebase token" });
     }
 
-    const userEmail = email || decodedToken?.email;
+    // WHOSE ACCOUNT IS THIS LOGIN FOR? Answered from the verified token, and
+    // from nothing else.
+    //
+    // This line read `email || decodedToken?.email`, taking the address out of
+    // the request body in preference to the one Firebase signed. The uid check
+    // above did not catch it: an attacker presents their OWN valid token and
+    // their OWN uid, both of which verify, alongside a victim's address in the
+    // `email` field. findUserByIdentity then resolved to the victim's account
+    // and this endpoint issued a session cookie for it — and, with
+    // SINGLE_SESSION on, evicted the victim in the process. Preconditions were
+    // an account of one's own and knowledge of an email address.
+    //
+    // The 7 August fix hardened the identity WRITE at POST /api/users. This is
+    // the matching READ, which was left trusting the same untrusted field.
+    //
+    // email_verified is required even though Google is currently the only
+    // enabled provider in the Firebase console (confirmed 20 August). It is the
+    // property that makes the address a proof rather than a claim, and the
+    // provider list can be changed in a console by someone who never reads this
+    // file. Google always sets it true, so no working login is affected.
+    //
+    // Absent or unverified -> no lookup -> resolvedUserId falls back to the uid,
+    // which creates or uses that uid's own account. Fails CLOSED: the worst case
+    // is a duplicate account that linking can merge, never a session handed to
+    // the wrong person.
+    const userEmail =
+      decodedToken?.email_verified === true ? decodedToken.email : null;
     const existingUser = userEmail
       ? await findUserByIdentity("email", userEmail)
       : null;
