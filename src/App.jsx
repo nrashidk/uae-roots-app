@@ -3060,9 +3060,20 @@ function App() {
         const after = rows.flatMap((r) =>
           zip(r.peopleAfterNames, r.peopleAfterIds),
         );
+        // An UPDATE (e.g. a divorce tick) writes the SAME relationship row into
+        // both the before and after snapshot — reverting values, not adding a
+        // second row — so summing the two counts reports one link as two
+        // ("رابطان" for a single divorce undo). Delete puts rows in before only,
+        // restore in after only, update in both-but-identical; max is correct for
+        // all three where sum double-counts the update. Mirrors the people logic
+        // above, which already dedupes ids across the two snapshots.
         const relCount = rows.reduce(
           (n, r) =>
-            n + (r.relationshipsCount || 0) + (r.relationshipsAfterCount || 0),
+            n +
+            Math.max(
+              r.relationshipsCount || 0,
+              r.relationshipsAfterCount || 0,
+            ),
           0,
         );
 
