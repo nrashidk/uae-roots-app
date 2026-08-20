@@ -116,6 +116,14 @@ export const api = {
         method: "POST",
         body: JSON.stringify({ phoneNumber }),
       }),
+    // Authenticated send for re-auth before a destructive action (account
+    // deletion). Unlike sendSmsCode (the anonymous login path), this runs behind
+    // the session, confirms the number is the caller's own, and logs no phone.
+    sendReauthCode: (phoneNumber) =>
+      fetchAPI("/auth/reauth/phone/send", {
+        method: "POST",
+        body: JSON.stringify({ phoneNumber }),
+      }),
     verifySmsCode: (phoneNumber, code) =>
       fetchAPI("/sms/verify-code", {
         method: "POST",
