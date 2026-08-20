@@ -183,6 +183,22 @@ function App() {
   const [smsCode, setSmsCode] = useState("");
   const [smsStep, setSmsStep] = useState("phone");
   const [smsError, setSmsError] = useState("");
+  // Confirmation shown after a successful (re)send — the resend button used to
+  // fire with no visible change, so a user could not tell the click registered.
+  const [smsInfo, setSmsInfo] = useState("");
+  // Seconds until resend is allowed again. Without a cooldown, repeated clicks
+  // pile more sends onto a number Twilio Verify rate-limits, which is how a
+  // "nothing arrived" state gets worse the more you press.
+  const [resendCooldown, setResendCooldown] = useState(0);
+
+  // Tick the login resend cooldown down to zero, one second at a time. Must live AFTER
+  // the state it reads — a hook placed above the useState hits the temporal dead
+  // zone and throws at render.
+  useEffect(() => {
+    if (resendCooldown <= 0) return;
+    const id = setTimeout(() => setResendCooldown((s) => s - 1), 1000);
+    return () => clearTimeout(id);
+  }, [resendCooldown]);
   const [currentView, setCurrentView] = useState("auth");
   const [currentTree, setCurrentTree] = useState(null);
   const [people, setPeople] = useState([]);
@@ -234,6 +250,17 @@ function App() {
   // with a fresh popup. Deleting is the one irreversible action in the app.
   const [deleteCodeSent, setDeleteCodeSent] = useState(false);
   const [deleteCode, setDeleteCode] = useState("");
+  // Seconds until the delete-code resend is allowed again. Its own counter,
+  // separate from the login resend, so the two flows never interfere.
+  const [deleteResendCooldown, setDeleteResendCooldown] = useState(0);
+
+  // Tick the delete-code resend cooldown down. Placed directly after its state so
+  // it never reads the variable before initialization (the temporal dead zone).
+  useEffect(() => {
+    if (deleteResendCooldown <= 0) return;
+    const id = setTimeout(() => setDeleteResendCooldown((s) => s - 1), 1000);
+    return () => clearTimeout(id);
+  }, [deleteResendCooldown]);
   const [profileMessage, setProfileMessage] = useState("");
   // Tone is set explicitly rather than inferred from the text. It used to be
   // `message.includes("نجاح") ? green : red`, so anything that was neither a
@@ -1853,6 +1880,7 @@ function App() {
     try {
       await api.auth.sendReauthCode(phone.identityValue);
       setDeleteCodeSent(true);
+      setDeleteResendCooldown(30);
       setProfileMessageTone("info");
       setProfileMessage(t.codeSent);
     } catch (error) {
@@ -2395,15 +2423,29 @@ function App() {
                         needs no field here — pressing delete re-runs the popup. */}
                     {sessionType === "phone" &&
                       (deleteCodeSent ? (
-                        <input
-                          type="text"
-                          inputMode="numeric"
-                          value={deleteCode}
-                          onChange={(e) => setDeleteCode(e.target.value)}
-                          placeholder={t.deleteEnterCode}
-                          dir="ltr"
-                          className="w-full px-3 py-2 border border-red-300 rounded-lg text-right"
-                        />
+                        <div className="space-y-2">
+                          <input
+                            type="text"
+                            inputMode="numeric"
+                            value={deleteCode}
+                            onChange={(e) => setDeleteCode(e.target.value)}
+                            placeholder={t.deleteEnterCode}
+                            dir="ltr"
+                            className="w-full px-3 py-2 border border-red-300 rounded-lg text-right"
+                          />
+                          <button
+                            type="button"
+                            onClick={handleSendDeleteCode}
+                            disabled={
+                              profileSaving || deleteResendCooldown > 0
+                            }
+                            className="w-full text-sm text-[#A5813F] hover:text-[#8A6A2F] underline disabled:opacity-50 disabled:no-underline"
+                          >
+                            {deleteResendCooldown > 0
+                              ? `إعادة الإرسال خلال ${deleteResendCooldown} ثانية`
+                              : "إعادة إرسال الرمز"}
+                          </button>
+                        </div>
                       ) : (
                         <Button
                           onClick={handleSendDeleteCode}
@@ -2436,6 +2478,7 @@ function App() {
                           setDeleteConfirmText("");
                           setDeleteCodeSent(false);
                           setDeleteCode("");
+                          setDeleteResendCooldown(0);
                         }}
                         variant="outline"
                         className="flex-1"
@@ -2483,7 +2526,13 @@ function App() {
       }
 
       setSmsStep("code");
+      // Visible confirmation — pressing resend on the code step used to change
+      // nothing on screen. Also start a cooldown so repeated presses do not pile
+      // sends onto a rate-limited number.
+      setSmsInfo("تم إرسال الرمز");
+      setResendCooldown(30);
     } catch (err) {
+      setSmsInfo("");
       setSmsError(err.message);
     } finally {
       setAuthProcessing(false);
@@ -4813,6 +4862,12 @@ function App() {
               </div>
             )}
 
+            {smsInfo && !smsError && (
+              <div className="bg-green-50 text-green-700 p-3 rounded-lg text-sm text-right">
+                {smsInfo}
+              </div>
+            )}
+
             {smsStep === "phone" ? (
               <div className="space-y-4">
                 <div>
@@ -4905,6 +4960,8 @@ function App() {
                       setSmsStep("phone");
                       setSmsCode("");
                       setSmsError("");
+                      setSmsInfo("");
+                      setResendCooldown(0);
                     }}
                     variant="outline"
                     className="flex-1"
@@ -4936,10 +4993,12 @@ function App() {
                 </p>
                 <button
                   onClick={handleSendSmsCode}
-                  disabled={authProcessing}
-                  className="w-full text-sm text-[#A5813F] hover:text-[#8A6A2F] underline"
+                  disabled={authProcessing || resendCooldown > 0}
+                  className="w-full text-sm text-[#A5813F] hover:text-[#8A6A2F] underline disabled:opacity-50 disabled:no-underline"
                 >
-                  إعادة إرسال الرمز
+                  {resendCooldown > 0
+                    ? `إعادة الإرسال خلال ${resendCooldown} ثانية`
+                    : "إعادة إرسال الرمز"}
                 </button>
               </div>
             )}
