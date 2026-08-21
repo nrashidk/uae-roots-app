@@ -11,8 +11,9 @@ import "./LandingPage.css";
 // or family name here would attach an invented lineage to actual people, and
 // any Arabic family name plausibly belongs to someone.
 const CHAIN = [
-  { rel: "", name: "شيخة" },
-  { rel: "بنت", name: "راشد" },
+  { rel: "", name: "حصه" },
+  { rel: "بنت", name: "ناصر" },
+  { rel: "بن", name: "راشد" },
   { rel: "بن", name: "عبيد" },
   { rel: "بن", name: "عيسى" },
   { rel: "", name: "آل فلان" },
@@ -23,37 +24,16 @@ const CLAIMS = [
     num: "٠١",
     title: "تعدد الزوجات",
     body: "أبناء كل زوجة في مجموعتهم.",
-    right: (
-      <>
-        شيخة ← ٧ أبناء
-        <br />
-        علياء ← ٣ أبناء
-      </>
-    ),
   },
   {
     num: "٠٢",
     title: "روابط الرضاعة",
     body: "الأخ من الرضاعة محرم لا قريب بالدم، برابط أخضر لا يدخل في النسب.",
-    right: (
-      <>
-        راشد<span className="lp-dash" aria-hidden="true"></span>شيخة
-        <br />
-        سالم<span className="lp-dash" aria-hidden="true"></span>لطيفة
-      </>
-    ),
   },
   {
     num: "٠٣",
     title: "سلسلة النسب",
     body: "الاسم الكامل عبر الأب والجد حتى أقدم جدٍّ مسجَّل.",
-    right: (
-      <>
-        شيخة بنت عبيد بن أحمد
-        <br />
-        سعيد بن علي بن عبيد
-      </>
-    ),
   },
 ];
 
@@ -199,11 +179,6 @@ export default function LandingPage({ onSignIn, onSignUp, onPrivacy }) {
               <div>
                 <h3>{c.title}</h3>
                 <p>{c.body}</p>
-              </div>
-              <div className="lp-compare">
-                <div className="lp-row">
-                  <span className="lp-mini">{c.right}</span>
-                </div>
               </div>
             </div>
           ))}

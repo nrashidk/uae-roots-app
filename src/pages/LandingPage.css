@@ -254,7 +254,7 @@
 }
 .lp-claim {
   display: grid;
-  grid-template-columns: auto 1.6fr 1fr;
+  grid-template-columns: auto 1fr;
   gap: 32px;
   padding: 34px 0;
   border-top: 1px solid rgba(22, 35, 61, 0.12);
