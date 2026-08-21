@@ -160,8 +160,7 @@ export default function LandingPage({ onSignIn, onSignUp, onPrivacy }) {
           <p className="lp-eyebrow">لعائلاتنا</p>
           <h1>شجرة عائلتك، كما هي فعلاً</h1>
           <p className="lp-lede">
-            مبنية على سلسلة النسب، وتعدد الزوجات، وروابط الرضاعة — كل تفصيل يجعل
-            عائلتك كما هي.
+            مبنية على سلسلة النسب، وتعدد الزوجات، وروابط الرضاعة
           </p>
           <div className="lp-cta">
             <button
@@ -188,8 +187,8 @@ export default function LandingPage({ onSignIn, onSignUp, onPrivacy }) {
           <div className="lp-sec-head">
             <h2>مصمّمة لعائلاتنا، بكل تفاصيلها</h2>
             <p>
-              ليست ميزات إضافية. هي الطريقة التي تُقاس بها العائلة عندنا، وبدونها
-              تكون الشجرة غير مكتملة.
+              هي الطريقة التي تُقاس بها العائلة عندنا، وبدونها تكون الشجرة غير
+              مكتملة.
             </p>
           </div>
           {CLAIMS.map((c) => (
