@@ -5441,7 +5441,7 @@ function App() {
           }
         }}
       >
-        <div className="bg-white shadow-sm border-b px-4 py-3 flex justify-between items-center">
+        <div className="sticky top-0 z-20 bg-white shadow-sm border-b px-4 py-3 flex justify-between items-center">
           <div className="flex items-center gap-4">
             <Button
               onClick={() => setCurrentView("dashboard")}
@@ -5821,7 +5821,7 @@ function App() {
 
     return (
       <div className="min-h-screen bg-gray-50">
-        <div className="bg-white shadow-sm border-b px-4 py-3 flex justify-between items-center">
+        <div className="sticky top-0 z-20 bg-white shadow-sm border-b px-4 py-3 flex justify-between items-center">
           <div className="flex items-center gap-4">
             <Button
               onClick={() => setCurrentView("dashboard")}
@@ -5995,7 +5995,7 @@ function App() {
   if (currentView === "dashboard") {
     return (
       <div className="min-h-screen bg-gray-50">
-        <div className="bg-white shadow-sm border-b px-4 py-3 flex justify-between items-center">
+        <div className="sticky top-0 z-20 bg-white shadow-sm border-b px-4 py-3 flex justify-between items-center">
           <h1 className="text-xl font-bold">{t.dashboard}</h1>
           <div className="flex items-center gap-4">
             <div className="flex items-center gap-2">
