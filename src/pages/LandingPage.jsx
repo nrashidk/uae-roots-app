@@ -52,7 +52,7 @@ const PRIVACY = [
     // phone and email are encrypted except phone and email; the two halves are
     // about different people — the relatives you enter, and you.
     h: "مشفّرة",
-    p: "هاتف وبريد ورقم هوية أفراد عائلتك مشفّرة، ما عدا بريدك ورقمك لتسجيل الدخول.",
+    p: "هاتف وبريد أفراد عائلتك مشفّران، ما عدا بريدك ورقمك لتسجيل الدخول.",
   },
   {
     h: "لك حق الحذف",
