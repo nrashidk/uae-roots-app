@@ -266,9 +266,20 @@
   color: rgba(22, 35, 61, 0.2);
   line-height: 1;
 }
+.lp-claim-line {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  flex-wrap: wrap;
+}
 .lp-claim h3 {
   font-size: 20px;
-  margin-bottom: 8px;
+  margin: 0;
+  flex: none;
+}
+.lp-claim-sep {
+  color: rgba(22, 35, 61, 0.3);
+  flex: none;
 }
 .lp-claim p {
   margin: 0;

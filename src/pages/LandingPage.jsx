@@ -176,8 +176,9 @@ export default function LandingPage({ onSignIn, onSignUp, onPrivacy }) {
               <div className="lp-num" aria-hidden="true">
                 {c.num}
               </div>
-              <div>
+              <div className="lp-claim-line">
                 <h3>{c.title}</h3>
+                <span className="lp-claim-sep" aria-hidden="true">—</span>
                 <p>{c.body}</p>
               </div>
             </div>
