@@ -152,7 +152,7 @@
 .lp-hero h1 {
   font-size: clamp(32px, 5vw, 56px);
   font-weight: 600;
-  max-width: 16ch;
+  max-width: 24ch;
 }
 .lp-lede {
   font-size: 19px;
@@ -254,7 +254,7 @@
 }
 .lp-claim {
   display: grid;
-  grid-template-columns: auto 1fr 1fr;
+  grid-template-columns: auto 1.6fr 1fr;
   gap: 32px;
   padding: 34px 0;
   border-top: 1px solid rgba(22, 35, 61, 0.12);

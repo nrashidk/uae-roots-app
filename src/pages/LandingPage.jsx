@@ -23,18 +23,12 @@ const CLAIMS = [
     num: "٠١",
     title: "تعدد الزوجات",
     body: "أبناء كل زوجة يظهرون في مجموعتهم، مع ترتيب الزواج محفوظاً. لا خلط ولا أم واحدة مفترضة.",
-    wrong: (
-      <>
-        راشد <s>+ زوجة واحدة</s>
-      </>
-    ),
     right: <>شيخة ← ٤ أبناء · سمر ← ٢ أبناء</>,
   },
   {
     num: "٠٢",
     title: "روابط الرضاعة",
     body: "الأخ من الرضاعة محرم، وليس قريباً بالدم. يظهر برابط أخضر متقطع لا يُقرأ أبداً كزواج، ولا يدخل في سلسلة النسب.",
-    wrong: <s>لا يوجد</s>,
     right: (
       <>
         لطيفة<span className="lp-dash" aria-hidden="true"></span>شيخة
@@ -45,7 +39,6 @@ const CLAIMS = [
     num: "٠٣",
     title: "سلسلة النسب",
     body: "الاسم الكامل يُبنى عبر الأب والجد حتى أقدم جدٍّ مسجَّل، لا حقل «اسم أول» و«اسم عائلة».",
-    wrong: <s>شيخة فلان</s>,
     right: <>شيخة بنت راشد بن عبيد</>,
   },
 ];
@@ -150,12 +143,11 @@ export default function LandingPage({ onSignIn, onSignUp, onPrivacy }) {
 
       <header className="lp-hero">
         <div className="lp-wrap">
-          <p className="lp-eyebrow">للعائلة الخليجية</p>
+          <p className="lp-eyebrow">لعائلاتنا</p>
           <h1>شجرة عائلتك، كما هي فعلاً</h1>
           <p className="lp-lede">
-            البرامج العالمية تفترض عائلة من زوج وزوجة وأبناء. عائلتنا ليست كذلك.
-            هنا تُبنى الشجرة على سلسلة النسب، وتعدد الزوجات، وروابط الرضاعة — كما
-            هي.
+            مبنية على سلسلة النسب، وتعدد الزوجات، وروابط الرضاعة — كل تفصيل يجعل
+            عائلتك كما هي.
           </p>
           <div className="lp-cta">
             <button
@@ -180,10 +172,10 @@ export default function LandingPage({ onSignIn, onSignUp, onPrivacy }) {
       <section className="lp-claims" id="lp-claims">
         <div className="lp-wrap">
           <div className="lp-sec-head">
-            <h2>ثلاثة أشياء تخطئ فيها البرامج الأخرى</h2>
+            <h2>مصمّمة لعائلاتنا، بكل تفاصيلها</h2>
             <p>
               ليست ميزات إضافية. هي الطريقة التي تُقاس بها العائلة عندنا، وبدونها
-              تكون الشجرة غير صحيحة.
+              تكون الشجرة غير مكتملة.
             </p>
           </div>
           {CLAIMS.map((c) => (
@@ -197,10 +189,6 @@ export default function LandingPage({ onSignIn, onSignUp, onPrivacy }) {
               </div>
               <div className="lp-compare">
                 <div className="lp-row">
-                  <span className="lp-tag lp-tag-no">غيرنا</span>
-                  <span className="lp-mini">{c.wrong}</span>
-                </div>
-                <div className="lp-row">
                   <span className="lp-tag lp-tag-yes">عندنا</span>
                   <span className="lp-mini">{c.right}</span>
                 </div>
@@ -212,7 +200,7 @@ export default function LandingPage({ onSignIn, onSignUp, onPrivacy }) {
 
       <section className="lp-privacy" id="lp-privacy">
         <div className="lp-wrap">
-          <h2>بيانات عائلتك ليست منتجاً</h2>
+          <h2>بيانات عائلتك محفوظة</h2>
           <div className="lp-privacy-grid">
             {PRIVACY.map((x) => (
               <div key={x.h}>
