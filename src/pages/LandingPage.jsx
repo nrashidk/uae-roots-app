@@ -22,24 +22,38 @@ const CLAIMS = [
   {
     num: "٠١",
     title: "تعدد الزوجات",
-    body: "أبناء كل زوجة يظهرون في مجموعتهم، مع ترتيب الزواج محفوظاً. لا خلط ولا أم واحدة مفترضة.",
-    right: <>شيخة ← ٤ أبناء · سمر ← ٢ أبناء</>,
+    body: "أبناء كل زوجة في مجموعتهم.",
+    right: (
+      <>
+        شيخة ← ٧ أبناء
+        <br />
+        علياء ← ٣ أبناء
+      </>
+    ),
   },
   {
     num: "٠٢",
     title: "روابط الرضاعة",
-    body: "الأخ من الرضاعة محرم، وليس قريباً بالدم. يظهر برابط أخضر متقطع لا يُقرأ أبداً كزواج، ولا يدخل في سلسلة النسب.",
+    body: "الأخ من الرضاعة محرم لا قريب بالدم، برابط أخضر لا يدخل في النسب.",
     right: (
       <>
-        لطيفة<span className="lp-dash" aria-hidden="true"></span>شيخة
+        راشد<span className="lp-dash" aria-hidden="true"></span>شيخة
+        <br />
+        سالم<span className="lp-dash" aria-hidden="true"></span>لطيفة
       </>
     ),
   },
   {
     num: "٠٣",
     title: "سلسلة النسب",
-    body: "الاسم الكامل يُبنى عبر الأب والجد حتى أقدم جدٍّ مسجَّل، لا حقل «اسم أول» و«اسم عائلة».",
-    right: <>شيخة بنت راشد بن عبيد</>,
+    body: "الاسم الكامل عبر الأب والجد حتى أقدم جدٍّ مسجَّل.",
+    right: (
+      <>
+        شيخة بنت عبيد بن أحمد
+        <br />
+        سعيد بن علي بن عبيد
+      </>
+    ),
   },
 ];
 
@@ -189,7 +203,6 @@ export default function LandingPage({ onSignIn, onSignUp, onPrivacy }) {
               </div>
               <div className="lp-compare">
                 <div className="lp-row">
-                  <span className="lp-tag lp-tag-yes">عندنا</span>
                   <span className="lp-mini">{c.right}</span>
                 </div>
               </div>
