@@ -4367,6 +4367,15 @@ function App() {
       allSiblings.map((s) => [s.id, s.birthOrder ?? null]),
     );
 
+    // Guard against overlapping presses. The other write handlers use this same
+    // ref; the reorder arrow lacked it, so a fast double-press (or a press while
+    // the Promise.all below was still landing) started a second normalise+swap
+    // over the same group, racing writes against each other. Set AFTER the
+    // validation returns above (those bail without touching anything) and BEFORE
+    // the optimistic update, so a blocked second press changes no state at all.
+    if (writeInFlight.current) return;
+    writeInFlight.current = true;
+
     // Optimistically update UI
     setPeople((prev) =>
       prev.map((p) =>
@@ -4402,6 +4411,7 @@ function App() {
         ),
       );
     } finally {
+      writeInFlight.current = false;
       endAction();
     }
   };
