@@ -1331,6 +1331,13 @@ app.post("/api/sms/verify-code", smsLimiter, async (req, res) => {
   }
 });
 
+// Rate-limit the whole /api/auth prefix. MUST be mounted BEFORE the auth routes
+// below — Express app.use only applies to routes defined after it. Covers
+// /auth/check, /auth/identities[/:id], /auth/link/google and /auth/logout, which
+// had no limiter; /auth/token and the /sms routes keep their stricter inline
+// limiter, which still applies on top of this one.
+app.use("/api/auth", apiLimiter);
+
 app.post("/api/auth/token", loginLimiter, async (req, res) => {
   try {
     // `email` is deliberately NOT destructured from the body. It used to be, and
