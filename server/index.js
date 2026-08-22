@@ -2413,6 +2413,29 @@ app.post("/api/trees", authenticateUser, async (req, res) => {
     // load-bearing for the HTML export, which is gone.
     const sanitizedData = validatedData;
 
+    // ONE TREE PER ACCOUNT. This was a design intent recorded only in the
+    // comment on the removed DELETE route — nothing enforced it. The client
+    // calls create ONLY when getAll returns zero, so this never fires in normal
+    // use; it exists for the two cases the client cannot cover:
+    //   • two tabs signing in at once, both seeing zero trees, both creating
+    //   • a direct API call asking for a second tree
+    // Returns the EXISTING tree rather than an error. A 400 here would break a
+    // legitimate concurrent login, since the client's create path has no
+    // failure branch — it assigns the response straight to currentTree. Handing
+    // back the tree the caller already owns is correct for the race and gives a
+    // deliberate second-tree attempt nothing new.
+    // Staging carries nine trees under the placeholder id "google-user" from
+    // Oct 2025, before auth resolved properly — evidence of exactly this gap.
+    const [existingTree] = await db
+      .select()
+      .from(trees)
+      .where(eq(trees.createdBy, req.userId))
+      .orderBy(trees.id)
+      .limit(1);
+    if (existingTree) {
+      return res.json(existingTree);
+    }
+
     const [tree] = await db
       .insert(trees)
       .values({
