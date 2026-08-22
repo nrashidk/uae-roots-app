@@ -326,13 +326,93 @@ Answer these in writing before notifying anyone:
 
 ### Notification
 
-Once the lawyer has confirmed the timeline, write it here. Include:
+Once the lawyer has confirmed the timeline, write it here.
 
-- **UAE Data Office** — nature of the breach, categories and approximate number
-  of people affected, likely consequences, measures taken.
-- **Affected people** — plain language, what happened, what they should do.
-  There are seven users; the family members in their trees have no contact
-  details recorded and can only be reached through the account holder.
+**UAE Data Office** — nature of the breach, categories and approximate number of
+people affected, likely consequences, measures taken.
+
+#### Two populations, and only one of them is reachable
+
+The people whose data is held fall into two groups, and the difference decides
+the entire procedure:
+
+- **Account holders.** Every one is reachable. Verified 22 August 2026 on
+  production: 8 accounts, of which 3 have a phone as their `users.id` and no
+  email address.
+- **Family members in the trees.** Names, birth dates, birth places,
+  professions — and **no contact details of any kind**. There is no email, no
+  phone, no address for them anywhere in the database. This is not a gap in the
+  procedure; it is a fact about the data. They cannot be contacted directly, and
+  no tooling will change that.
+
+#### Channel 1 — account holders, direct
+
+Reach every account holder. Two mechanisms, because one does not cover everyone:
+
+```sql
+SELECT id, provider, email
+FROM users
+ORDER BY created_at;
+```
+
+- **Email**, where `email` is present — from the support address.
+- **SMS via Twilio**, for accounts where `email IS NULL`. Their `users.id` IS the
+  phone number, so no lookup is needed. Keep it to one line pointing at the
+  public notice: Arabic SMS segments at 70 characters and a disclosure written as
+  a text message fragments into something nobody reads.
+
+#### Channel 2 — family members, through the account holder
+
+This is the only route that exists to them, so the account-holder message must
+carry it. **A notice that only says "your data was affected" will not work** —
+the account holder will not think to tell anyone else, and the people actually
+in the tree will never learn of it.
+
+The message must state, explicitly:
+
+- what was held about the people they added — names, birth dates, birth places,
+  professions, relationships;
+- that those people were affected too;
+- that uaeroots holds no contact details for them and cannot reach them;
+- that the account holder is the only one who can pass it on.
+
+Write that paragraph into the template BEFORE it is needed. Under time pressure
+it is the part that gets dropped.
+
+#### Channel 3 — public notice
+
+A page on uaeroots.com stating what happened, what data was involved, and how to
+request removal. This is how someone who hears about it secondhand — a family
+member who was never a user — can find out what was held about them and act on
+it. Costs nothing to write at the time and is the only channel that reaches
+someone who is not in contact with the account holder.
+
+#### Removal requests from people who were never users
+
+Someone who never signed up may ask to be taken off a tree. Today that arrives
+as an email to support and is handled manually, by one person, with no record
+kept. That is workable at 8 accounts and will not be at 800.
+
+At minimum, log each request: who asked, which tree and person id, what was
+done, when. Note that the requester cannot be authenticated — they have no
+account — so identity has to be established some other way, and the account
+holder has a competing interest in the same row.
+
+**Open, and a question for the lawyer, not a technical one.** The working
+position is that the account holder decided to enter that data and carries
+responsibility for having done so. That position is NOT confirmed: uaeroots
+defines the fields, holds the data, and is the only party that can physically
+delete or correct it, which is the pattern a regulator generally reads as
+controller rather than processor. Ask specifically:
+
+> Where a user enters personal data about third parties who never registered, is
+> the platform operator a controller or a processor for that data, and does
+> notifying the account holder discharge any breach-notification duty toward
+> those third parties?
+
+Recorded as a working position pending that answer — deliberately not written
+down as settled, because a documented decision not to notify reads far worse
+after an incident than an open question does.
 
 ### After
 
