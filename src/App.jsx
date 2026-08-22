@@ -6285,10 +6285,11 @@ function App() {
                           handleQuickCreateSpouse(selectedPerson);
                           setShowActionMenu(false);
                         }}
-                        disabled={!canAddSpouse}
                         size="sm"
                         variant="ghost"
-                        className="w-8 h-8 p-0"
+                        className={`w-8 h-8 p-0${
+                          !canAddSpouse ? " opacity-40" : ""
+                        }`}
                         title={addSpouseTooltip}
                       >
                         <Heart className="w-4 h-4" />
