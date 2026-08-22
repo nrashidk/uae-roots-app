@@ -111,6 +111,13 @@ export const api = {
         method: "POST",
         body: JSON.stringify({ userId, provider, firebaseIdToken }),
       }),
+    // Records terms acceptance for an account that predates the sign-up gate.
+    // The server writes only when the column is NULL, so calling this twice
+    // returns the FIRST timestamp — it cannot rewrite a real earlier one.
+    recordConsent: () =>
+      fetchAPI("/auth/consent", {
+        method: "POST",
+      }),
     sendSmsCode: (phoneNumber) =>
       fetchAPI("/sms/send-code", {
         method: "POST",

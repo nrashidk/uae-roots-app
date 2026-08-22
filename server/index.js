@@ -20,7 +20,7 @@ import {
   deletions,
   authIdentities,
 } from "../shared/schema.js";
-import { eq, and, or, ilike, desc, lt, inArray, sql } from "drizzle-orm";
+import { eq, and, or, ilike, desc, lt, inArray, isNull, sql } from "drizzle-orm";
 import { z } from "zod";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -1967,6 +1967,47 @@ app.get("/api/auth/check", optionalAuth, async (req, res) => {
     });
   } else {
     res.json({ authenticated: false });
+  }
+});
+
+// Consent for accounts that predate the sign-up gate.
+//
+// termsAcceptedAt is written ONLY on INSERT in POST /api/users. Six production
+// accounts created before the gate existed therefore hold NULL, and the update
+// branch of that route never touches the column — so no amount of signing in
+// would ever record their agreement.
+//
+// Deliberately NOT fixed by backfilling the column in SQL. A timestamp written
+// on their behalf would be a record of consent nobody gave, which is worse than
+// NULL: NULL is honest about not knowing. This endpoint exists so the value can
+// only ever be written by the account holder pressing a button.
+//
+// Writes only when the column IS NULL. An account that already agreed keeps its
+// original timestamp, so a replayed call cannot move the date forward or
+// manufacture a fresher record than the one that actually happened. That makes
+// it idempotent and safe to call on every load.
+app.post("/api/auth/consent", authenticateUser, async (req, res) => {
+  try {
+    const [updated] = await db
+      .update(users)
+      .set({ termsAcceptedAt: new Date() })
+      .where(and(eq(users.id, req.userId), isNull(users.termsAcceptedAt)))
+      .returning();
+
+    // No row updated means consent was already recorded — not an error. Return
+    // the existing value so the client can stop asking either way.
+    if (!updated) {
+      const [existing] = await db
+        .select({ termsAcceptedAt: users.termsAcceptedAt })
+        .from(users)
+        .where(eq(users.id, req.userId));
+      return res.json({ termsAcceptedAt: existing?.termsAcceptedAt || null });
+    }
+
+    await logAudit(req.userId, "consent", "user", req.userId, null, req);
+    res.json({ termsAcceptedAt: updated.termsAcceptedAt });
+  } catch (error) {
+    handleError(res, error, "Consent record");
   }
 });
 

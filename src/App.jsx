@@ -300,6 +300,13 @@ function App() {
   // issued a session cookie by then, but no `users` row exists — so cancelling
   // leaves nothing behind.
   const [pendingSignup, setPendingSignup] = useState(null);
+
+  // Set when a signed-in account has no recorded consent. Distinct from
+  // pendingSignup: that one means "no account exists yet", this one means "the
+  // account exists and predates the sign-up gate". They need different copy and
+  // different actions — confirmSignup CREATES a row, which is wrong here.
+  const [needsConsent, setNeedsConsent] = useState(false);
+  const [consentBusy, setConsentBusy] = useState(false);
   // "phone" or a provider name, straight from the JWT — see /api/auth/check.
   const [sessionType, setSessionType] = useState(null);
   // Set when the server says the session is gone, so the login screen can explain
@@ -2181,6 +2188,113 @@ function App() {
     } finally {
       setLinkBusy(false);
     }
+  };
+
+  // Consent for an account that already exists.
+  //
+  // termsAcceptedAt is written only when a users row is INSERTED, so six
+  // production accounts created before the sign-up gate hold NULL and no amount
+  // of signing in would ever record their agreement. This asks them once.
+  //
+  // BLOCKING on purpose. A dismissible notice leaves the account exactly where
+  // it started — no consent recorded — with a dialog added. There is no ×, and
+  // clicking outside does nothing: agree, or sign out.
+  //
+  // Watched on userProfile rather than fired once at login, so it also catches a
+  // reload. The server call is idempotent and never overwrites, so a spurious
+  // extra call costs nothing.
+  useEffect(() => {
+    if (!userProfile) {
+      setNeedsConsent(false);
+      return;
+    }
+    setNeedsConsent(!userProfile.termsAcceptedAt);
+  }, [userProfile]);
+
+  const acceptConsent = async () => {
+    if (consentBusy) return;
+    setConsentBusy(true);
+    try {
+      const result = await api.auth.recordConsent();
+      // Update the profile from the SERVER's timestamp, not a locally invented
+      // one — the value shown must be the value stored.
+      setUserProfile((prev) =>
+        prev ? { ...prev, termsAcceptedAt: result.termsAcceptedAt } : prev,
+      );
+      setNeedsConsent(false);
+    } catch (error) {
+      console.error("Failed to record consent:", error);
+      window.alert("تعذّر حفظ الموافقة: " + error.message);
+    } finally {
+      setConsentBusy(false);
+    }
+  };
+
+  const renderConsentGate = () => {
+    if (!needsConsent) return null;
+    const identity =
+      userProfile?.email || userProfile?.phoneNumber || userProfile?.id;
+    return (
+      // No onOpenChange handler: the dialog cannot be closed by the overlay or
+      // Escape. The only two ways out are the two buttons below.
+      <Dialog open={true}>
+        <DialogContent
+          className="sm:max-w-sm"
+          dir="rtl"
+          aria-describedby={undefined}
+          onEscapeKeyDown={(e) => e.preventDefault()}
+          onPointerDownOutside={(e) => e.preventDefault()}
+          onInteractOutside={(e) => e.preventDefault()}
+          showClose={false}
+        >
+          <DialogHeader>
+            <DialogTitle className="text-right text-xl">
+              الموافقة على الشروط
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <p className="text-sm text-right">
+              حسابك أُنشئ قبل إضافة شاشة الموافقة، ولم تُسجَّل موافقتك بعد. يرجى
+              الاطلاع والموافقة للمتابعة.
+            </p>
+            <p className="text-sm text-right">
+              الحساب:{" "}
+              <span className="font-medium" dir="ltr">
+                {identity}
+              </span>
+            </p>
+            {/* The link IS the phrase. The signup gate's shape —
+                «بالمتابعة أنت توافق على سياسة الخصوصية — سياسة الخصوصية» —
+                prints the same words twice, once as text and once as the link.
+                Inline Arabic rather than new t. keys, matching the neighbouring
+                convention in this dialog. */}
+            <p className="text-xs text-gray-500 text-right">
+              بالضغط على موافق، أنت توافق على{" "}
+              <a
+                href="/privacy"
+                target="_blank"
+                rel="noreferrer"
+                className="text-[#A5813F] underline"
+              >
+                سياسة الخصوصية
+              </a>
+            </p>
+            <div className="flex gap-2 justify-end pt-2" dir="ltr">
+              <Button onClick={handleLogout} variant="outline" size="sm">
+                {t.logout}
+              </Button>
+              <Button onClick={acceptConsent} disabled={consentBusy} size="sm">
+                {consentBusy ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  "موافق"
+                )}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+    );
   };
 
   // Shown INSTEAD of creating an account. Minimum content: what will be created,
@@ -4770,6 +4884,7 @@ function App() {
             Firebase session and fall through to the shell, where the gate is
             already rendered alongside the profile dialog. */}
         {renderSignupGate()}
+        {renderConsentGate()}
 
         {/* Sign in / register happens in a dialog over the landing page rather
             than on a separate screen: no page switch, and the two entry points
@@ -5612,6 +5727,7 @@ function App() {
         {renderPersonForm()}
         {renderProfileDialog()}
         {renderSignupGate()}
+        {renderConsentGate()}
       </div>
     );
   }
@@ -6051,6 +6167,7 @@ function App() {
         </div>
         {renderProfileDialog()}
         {renderSignupGate()}
+        {renderConsentGate()}
       </div>
     );
   }
@@ -6124,6 +6241,7 @@ function App() {
         </div>
         {renderProfileDialog()}
         {renderSignupGate()}
+        {renderConsentGate()}
       </div>
     );
   }
@@ -6867,6 +6985,7 @@ function App() {
         )}
         {renderProfileDialog()}
         {renderSignupGate()}
+        {renderConsentGate()}
       </div>
     </div>
   );
