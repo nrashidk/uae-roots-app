@@ -6785,6 +6785,20 @@ function App() {
                       />
                     </div>
                     <div className="flex items-center gap-2">
+                      <label className="text-sm w-32">لون النص للأحياء</label>
+                      <input
+                        type="color"
+                        value={stylingOptions.livingTextColor}
+                        onChange={(e) =>
+                          setStylingOptions((prev) => ({
+                            ...prev,
+                            livingTextColor: e.target.value,
+                          }))
+                        }
+                        className="w-12 h-8 rounded cursor-pointer"
+                      />
+                    </div>
+                    <div className="flex items-center gap-2">
                       <label className="text-sm w-32">لون النص للمتوفين</label>
                       <input
                         type="color"
