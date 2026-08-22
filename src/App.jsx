@@ -84,6 +84,31 @@ const PATH_BY_VIEW = {
 };
 const PUBLIC_PATHS = ["/", "/privacy"];
 
+// Tree display preferences survive a reload. They lived only in component state,
+// so «حفظ» closed the panel and nothing else — colours, box width and text size
+// were back to default on the next visit, while the button claimed otherwise.
+//
+// localStorage, not the server: these are colours, sizes and booleans. No PII,
+// nothing another device needs, and no migration. Per-browser is the right
+// scope for a display preference.
+//
+// Module scope on purpose. A helper declared inside the component and called
+// from a useState initialiser above its own declaration throws at render (const
+// temporal dead zone) — the exact fault that crashed #6. Up here it cannot.
+const OPTIONS_STORAGE_KEY = "uaeroots:treeOptions";
+
+// Storage can throw, not just return null: Safari private mode and disabled
+// site data both raise on access. A display preference must never take the app
+// down, so every path returns/continues rather than propagating.
+const readStoredOptions = () => {
+  try {
+    const raw = window.localStorage.getItem(OPTIONS_STORAGE_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch (error) {
+    return null;
+  }
+};
+
 function App() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -319,13 +344,51 @@ function App() {
     lineColor: "#8b8b8b",
   };
 
-  const [displayOptions, setDisplayOptions] = useState(DEFAULT_DISPLAY_OPTIONS);
-  const [stylingOptions, setStylingOptions] = useState(DEFAULT_STYLING_OPTIONS);
+  // Stored values are spread OVER the defaults, never used in place of them.
+  // A preferences object written by an older build is missing any option added
+  // since; replacing wholesale would leave those keys undefined and render
+  // colours as `undefined`. Merging means a new option simply takes its default.
+  // Lazy initialisers, so storage is read once on mount rather than every render.
+  const [displayOptions, setDisplayOptions] = useState(() => ({
+    ...DEFAULT_DISPLAY_OPTIONS,
+    ...(readStoredOptions()?.display || {}),
+  }));
+  const [stylingOptions, setStylingOptions] = useState(() => ({
+    ...DEFAULT_STYLING_OPTIONS,
+    ...(readStoredOptions()?.styling || {}),
+  }));
 
   // Reset options to default
+  // Reset CLEARS THE STORE as well as the state. Setting state alone would look
+  // right until the next reload, when the old saved values came back and the
+  // reset appeared to have been ignored. Clearing here means reset holds even if
+  // the user closes the panel without pressing حفظ.
   const handleResetOptions = () => {
     setDisplayOptions(DEFAULT_DISPLAY_OPTIONS);
     setStylingOptions(DEFAULT_STYLING_OPTIONS);
+    try {
+      window.localStorage.removeItem(OPTIONS_STORAGE_KEY);
+    } catch (error) {
+      console.error("Failed to clear stored display options:", error);
+    }
+  };
+
+  // What «حفظ» now does. Both option groups go in one key: they are saved and
+  // cleared together, so splitting them only creates the possibility of half a
+  // preference surviving.
+  const handleSaveOptions = () => {
+    try {
+      window.localStorage.setItem(
+        OPTIONS_STORAGE_KEY,
+        JSON.stringify({ display: displayOptions, styling: stylingOptions }),
+      );
+    } catch (error) {
+      // Storage full or blocked. The panel still closes and the choices still
+      // apply for this visit — failing to persist is not a reason to trap the
+      // user in a dialog.
+      console.error("Failed to save display options:", error);
+    }
+    setShowOptions(false);
   };
 
   useEffect(() => {
@@ -6783,7 +6846,7 @@ function App() {
                 <Button onClick={handleResetOptions} variant="outline">
                   إعادة تعيين
                 </Button>
-                <Button onClick={() => setShowOptions(false)}>{t.save}</Button>
+                <Button onClick={handleSaveOptions}>{t.save}</Button>
               </div>
             </div>
           </div>
