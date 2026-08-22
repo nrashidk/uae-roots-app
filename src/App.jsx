@@ -2263,15 +2263,20 @@ function App() {
                 {identity}
               </span>
             </p>
+            {/* The link IS the phrase. The signup gate's shape —
+                «بالمتابعة أنت توافق على سياسة الخصوصية — سياسة الخصوصية» —
+                prints the same words twice, once as text and once as the link.
+                Inline Arabic rather than new t. keys, matching the neighbouring
+                convention in this dialog. */}
             <p className="text-xs text-gray-500 text-right">
-              {t.signupTerms} —{" "}
+              بالضغط على موافق، أنت توافق على{" "}
               <a
                 href="/privacy"
                 target="_blank"
                 rel="noreferrer"
                 className="text-[#A5813F] underline"
               >
-                {t.signupPrivacy}
+                سياسة الخصوصية
               </a>
             </p>
             <div className="flex gap-2 justify-end pt-2" dir="ltr">
