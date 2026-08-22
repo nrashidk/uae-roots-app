@@ -890,6 +890,8 @@ const authenticateUser = async (req, res, next) => {
       // to carry a version, and no slide either.
       req.userId = decoded.userId;
       req.userType = decoded.type;
+      // Present only on phone tokens; null everywhere else.
+      req.userPhone = decoded.phone || null;
       // POST /api/users needs to know this session was pre-account, so it can
       // replace it with a real one the moment the row is written.
       req.tokenClaims = decoded;
@@ -924,6 +926,8 @@ const authenticateUser = async (req, res, next) => {
 
     req.userId = decoded.userId;
     req.userType = decoded.type;
+    // Present only on phone tokens; null everywhere else.
+    req.userPhone = decoded.phone || null;
     req.tokenClaims = decoded;
     slideSession(req, res, decoded, account?.tokenVersion ?? 0);
     debugLog(`[${rid}][Auth] Token valid - userId: ${req.userId}`);
@@ -975,6 +979,8 @@ const optionalAuth = async (req, res, next) => {
 
       req.userId = decoded.userId;
       req.userType = decoded.type;
+      // Present only on phone tokens; null everywhere else.
+      req.userPhone = decoded.phone || null;
       // /api/auth/check runs through here, and it is the FIRST request a
       // returning user makes — the natural place to renew a session that is
       // most of the way through its life.
@@ -1262,7 +1268,23 @@ app.post("/api/sms/verify-code", smsLimiter, async (req, res) => {
       }
     }
 
-    const userId = existingUser ? existingUser.id : formattedPhone;
+    // A NEW phone account gets an opaque id, not its own phone number.
+    //
+    // users.id used to BE the number for this path, which put a phone in every
+    // column that references a user — trees.created_by, audit_logs.user_id,
+    // deletions.deleted_by — none of which has a foreign key, so nothing in the
+    // schema marks them as personal data. It also made the id a live credential:
+    // unlink the phone and the account is keyed by something the holder no
+    // longer has.
+    //
+    // Firebase-backed logins (google.com, microsoft.com, password) already use
+    // an opaque Firebase uid. This makes the phone path match, so users.id is
+    // ALWAYS opaque and the phone lives only in auth_identities, where it is a
+    // credential rather than a key.
+    //
+    // EXISTING accounts keep whatever id they have — existingUser.id is returned
+    // untouched. Migrating those is a separate, deliberate data change.
+    const userId = existingUser ? existingUser.id : uuidv4();
 
     // One lookup, two answers: whether an account exists yet (so the client can
     // ask before creating one) and its current token version.
@@ -1281,6 +1303,15 @@ app.post("/api/sms/verify-code", smsLimiter, async (req, res) => {
       {
         userId: userId,
         type: "phone",
+        // The number Twilio just approved, carried as its own claim.
+        //
+        // POST /api/users writes the phone identity from what the SESSION
+        // proves, never from the request body — otherwise a signup could claim
+        // a number it does not own. That proof used to be req.userId, because
+        // the id WAS the number. Now that the id is an opaque uuid, the proof
+        // has to travel separately or it is lost, and a new account would be
+        // created with no phone identity and no way to sign in again.
+        phone: formattedPhone,
         tv: existingAccount
           ? // Entering an SMS code is never a silent restore (see below), so any
             // prior session belonged to another device. currentSessionId set =>
@@ -2102,7 +2133,30 @@ app.post("/api/users", authenticateUser, async (req, res) => {
     // An account with one fewer way in can be fixed by linking; an identity
     // attributed to the wrong person cannot.
     if (req.userType === "phone") {
-      await linkIdentityToUser(validatedData.id, "phone", req.userId, null, true);
+      // The number comes from the token's `phone` claim — what Twilio approved
+      // for THIS session — not from req.userId. Those were the same value while
+      // the id was the number; they are not any more.
+      //
+      // The fallback covers a session issued by the OLD build, whose token has
+      // no phone claim but whose userId is the number. Once no such token can
+      // still be alive it is dead code, harmless either way.
+      const verifiedPhone =
+        req.userPhone ||
+        (typeof req.userId === "string" && req.userId.startsWith("+")
+          ? req.userId
+          : null);
+
+      // Fails CLOSED. Writing an identity from an unproven value is how an
+      // account gets attributed to someone else's number; better to create an
+      // account that needs a link than one that claims a number it never owned.
+      // Loud, because an account with no phone identity cannot sign in again.
+      if (verifiedPhone) {
+        await linkIdentityToUser(validatedData.id, "phone", verifiedPhone, null, true);
+      } else {
+        console.error(
+          `[${rid}][Users] phone session with no verifiable number — no phone identity written for ${validatedData.id}`,
+        );
+      }
     } else {
       let verifiedEmail = null;
       const { firebaseIdToken } = req.body || {};
