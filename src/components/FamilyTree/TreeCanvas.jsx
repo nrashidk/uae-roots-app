@@ -1,5 +1,22 @@
 import { useRef, useEffect, useCallback } from "react";
 
+// Arabic number agreement. `${age} سنة` is only correct for 11 and above —
+// it read "1 سنة" and "2 سنة", both wrong.
+//
+//   1        → سنة واحدة   (mufrad)
+//   2        → سنتان       (muthanna, its own dual form)
+//   3–10     → N سنوات     (jamʿ qilla — plural noun)
+//   11+      → N سنة       (tamyīz — singular again)
+//
+// Module scope: no component state involved, and it must exist before the
+// draw callbacks that use it.
+const formatAge = (age) => {
+  if (age === 1) return "سنة واحدة";
+  if (age === 2) return "سنتان";
+  if (age >= 3 && age <= 10) return `${age} سنوات`;
+  return `${age} سنة`;
+};
+
 const TreeCanvas = ({
   layout,
   familyData,
@@ -278,7 +295,7 @@ const TreeCanvas = ({
             const currentYear = new Date().getFullYear();
             const age = currentYear - birthYear;
             if (age > 0) {
-              ctx.fillText(`${age} سنة`, x, yOffset);
+              ctx.fillText(formatAge(age), x, yOffset);
               yOffset += lineHeight;
             }
           }
