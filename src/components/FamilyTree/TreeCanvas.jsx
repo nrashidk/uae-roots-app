@@ -1,15 +1,7 @@
 import { useRef, useEffect, useCallback } from "react";
 
-// Arabic number agreement. `${age} سنة` is only correct for 11 and above —
-// it read "1 سنة" and "2 سنة", both wrong.
-//
-//   1        → سنة واحدة   (mufrad)
-//   2        → سنتان       (muthanna, its own dual form)
-//   3–10     → N سنوات     (jamʿ qilla — plural noun)
-//   11+      → N سنة       (tamyīz — singular again)
-//
-// Module scope: no component state involved, and it must exist before the
-// draw callbacks that use it.
+// Arabic number agreement. `${age} سنة` is only correct for 11 and above.
+//   1 → سنة واحدة   2 → سنتان   3–10 → N سنوات   11+ → N سنة
 const formatAge = (age) => {
   if (age === 1) return "سنة واحدة";
   if (age === 2) return "سنتان";
@@ -147,58 +139,32 @@ const TreeCanvas = ({
         const personId = parseInt(baseEntityId.replace("P", ""));
         const person = people.find((p) => p.id === personId);
 
-        // Box height comes from the ENABLED OPTIONS, not from what this person
-        // happens to have filled in.
-        //
-        // It used to count only the fields this person actually had, so a man
-        // with no profession got a shorter box than his brother who had one —
-        // and because the text is top-anchored inside the box, their NAMES sat
-        // at different heights in the same row. Ticking one option moved some
-        // boxes and not others.
-        //
-        // Sizing from the option set makes every box in the tree identical, so
-        // names line up and a person missing a field simply leaves the space
-        // blank instead of shrinking the box. The DRAWING below stays per
-        // person — absent fields are still skipped.
-        //
-        // This MIRRORS the CARD memo in App.jsx, which sets the row pitch. The
-        // two must agree or boxes overlap.
-        const opt = (k) => (displayOptions?.[k] ? 1 : 0);
-        const lineCount =
-          1 + // name
-          opt("showBirthDate") +
-          opt("showBirthPlace") +
-          opt("showProfession") +
-          opt("showTelephone") +
-          opt("showEmail") +
-          // A person is living or deceased, never both, so these two can never
-          // occupy a line at the same time.
-          Math.max(opt("showDeathDate"), opt("showAge"));
-
+        // Calculate how many lines of text will be shown
+        let lineCount = 1; // Name line
         const isLiving = person?.isLiving !== false;
         const isBreastfed = person?.isBreastfed === true;
+        const lineHeight = 12; // Line height for text rendering
 
-        // Line heights DERIVED from the fonts actually drawn, not a fixed 12.
-        //
-        // The name is drawn bold at `textSize` (14 by default) and the detail
-        // lines at `textSize - 2`. Advancing every line by a flat 12px meant a
-        // 14px glyph got 12px of room, so the line beneath landed inside it —
-        // the name visibly touched the birth date — and 12px text on a 12px
-        // advance has no leading at all, which is why the block looked crammed.
-        const textSize = stylingOptions?.textSize || 14;
-        const detailSize = textSize - 2;
-        const nameLineHeight = Math.round(textSize * 1.45);
-        const detailLineHeight = Math.round(detailSize * 1.35);
-        const boxPadding = 10; // equal above the name and below the last line
+        if (person) {
+          if (displayOptions?.showBirthDate && person.birthDate) lineCount++;
+          // `&& !isLiving` mirrors the draw below. A row can hold a deathDate
+          // while isLiving is true — the form hides the field rather than
+          // clearing it — and the tree drew a death date for someone alive.
+          if (displayOptions?.showDeathDate && person.deathDate && !isLiving)
+            lineCount++;
+          if (displayOptions?.showBirthPlace && person.birthPlace) lineCount++;
+          if (displayOptions?.showAge && person.birthDate && isLiving)
+            lineCount++;
+          if (displayOptions?.showProfession && person.profession) lineCount++;
+          if (displayOptions?.showTelephone && person.phone) lineCount++;
+          if (displayOptions?.showEmail && person.email) lineCount++;
+        }
 
-        // Calculate dynamic height based on content.
-        // Symmetric by construction: boxPadding above the name and the same
-        // below the last line. The old formula mixed a 30px "base" with a 10px
-        // padding applied once, which left the gap under the name and the gap
-        // under the final line visibly unequal.
-        const contentHeight =
-          nameLineHeight + (lineCount - 1) * detailLineHeight;
-        const calculatedHeight = contentHeight + boxPadding * 2;
+        // Calculate dynamic height based on content
+        const baseHeight = 30; // Minimum height for name
+        const contentHeight = (lineCount - 1) * lineHeight; // Additional lines
+        const padding = 10;
+        const calculatedHeight = baseHeight + contentHeight + padding;
 
         // Convert grid units to pixels
         const x = entity.x * BOX_WIDTH;
@@ -253,20 +219,12 @@ const TreeCanvas = ({
         ctx.textAlign = "center";
         ctx.textBaseline = "middle";
 
-        // Split the box's spare height EVENLY above and below the text block.
-        //
-        // `h` is not always the content height: line 197 clamps it to a
-        // minimum, so with only one or two options ticked the box is padded out
-        // and there is leftover room. Anchoring the text at a fixed offset from
-        // the top dumped ALL of that leftover underneath, which sat the name
-        // high in a sparse box and low in a full one — the name moved every time
-        // an option was toggled.
-        //
-        // Measuring against the actual `h` keeps the name in the same place
-        // whatever is enabled, and still leaves the gap above the name equal to
-        // the gap below the last line, since contentHeight is now correct.
-        const verticalPad = Math.max(boxPadding, (h - contentHeight) / 2);
-        let yOffset = boxY + verticalPad + nameLineHeight / 2;
+        // Calculate starting position - center vertically based on total content
+        let yOffset;
+        const totalContentHeight = lineCount * lineHeight;
+
+        // Always center the text block vertically
+        yOffset = boxY + (h - totalContentHeight) / 2 + lineHeight / 2;
         ctx.textBaseline = "middle";
 
         // Build name text based on display options
@@ -302,9 +260,7 @@ const TreeCanvas = ({
           }
 
           ctx.fillText(displayText, x, yOffset);
-          // Half of each line's height: from the name's centre down to the
-          // first detail line's centre.
-          yOffset += nameLineHeight / 2 + detailLineHeight / 2;
+          yOffset += lineHeight;
         }
 
         // Draw additional info (birth date, etc.) - only if person data is available
@@ -313,12 +269,12 @@ const TreeCanvas = ({
 
           if (displayOptions?.showBirthDate && person.birthDate) {
             ctx.fillText(person.birthDate, x, yOffset);
-            yOffset += detailLineHeight;
+            yOffset += lineHeight;
           }
 
           if (displayOptions?.showDeathDate && person.deathDate && !isLiving) {
             ctx.fillText(` ${person.deathDate}`, x, yOffset);
-            yOffset += detailLineHeight;
+            yOffset += lineHeight;
           }
 
           if (displayOptions?.showBirthPlace && person.birthPlace) {
@@ -327,7 +283,7 @@ const TreeCanvas = ({
                 ? person.birthPlace.substring(0, 12) + "..."
                 : person.birthPlace;
             ctx.fillText(placeText, x, yOffset);
-            yOffset += detailLineHeight;
+            yOffset += lineHeight;
           }
 
           if (displayOptions?.showAge && person.birthDate && isLiving) {
@@ -336,7 +292,7 @@ const TreeCanvas = ({
             const age = currentYear - birthYear;
             if (age > 0) {
               ctx.fillText(formatAge(age), x, yOffset);
-              yOffset += detailLineHeight;
+              yOffset += lineHeight;
             }
           }
 
@@ -346,7 +302,7 @@ const TreeCanvas = ({
                 ? person.profession.substring(0, 12) + "..."
                 : person.profession;
             ctx.fillText(profText, x, yOffset);
-            yOffset += detailLineHeight;
+            yOffset += lineHeight;
           }
 
           if (displayOptions?.showTelephone && person.phone) {
@@ -355,7 +311,7 @@ const TreeCanvas = ({
                 ? person.phone.substring(0, 12) + "..."
                 : person.phone;
             ctx.fillText(phoneText, x, yOffset);
-            yOffset += detailLineHeight;
+            yOffset += lineHeight;
           }
 
           if (displayOptions?.showEmail && person.email) {
@@ -364,7 +320,7 @@ const TreeCanvas = ({
                 ? person.email.substring(0, 17) + "..."
                 : person.email;
             ctx.fillText(emailText, x, yOffset);
-            yOffset += detailLineHeight;
+            yOffset += lineHeight;
           }
         }
       });
