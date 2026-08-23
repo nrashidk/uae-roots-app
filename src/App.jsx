@@ -112,6 +112,7 @@ const readStoredOptions = () => {
 function App() {
   const navigate = useNavigate();
   const location = useLocation();
+  const CARD = { w: 140, h: 90 };
   const REL = {
     PARTNER: "partner",
     PARENT_CHILD: "parent-child",
@@ -364,52 +365,6 @@ function App() {
     ...(readStoredOptions()?.styling || {}),
   }));
 
-  // Grid cell size. WIDTH is fixed; HEIGHT has to grow with the number of
-  // display fields switched on, or tall boxes overlap the rows above and below.
-  //
-  // Boxes are centred on their grid point (boxY = y - h/2) and rows sit
-  // CARD.h apart, so the row pitch is the entire budget for a box plus the gap
-  // between rows. With every field enabled a box needs ~136px; at the old fixed
-  // h of 90 it overflowed its cell by more than 40px and drew straight through
-  // its neighbours.
-  //
-  // The arithmetic below MIRRORS drawPersonBoxes in TreeCanvas. If the line
-  // heights change there, change them here too — this is the one number that
-  // decides whether the drawn box fits the space the layout gave it.
-  const CARD = useMemo(() => {
-    const textSize = stylingOptions?.textSize || 14;
-    const nameLineHeight = Math.round(textSize * 1.45);
-    const detailLineHeight = Math.round((textSize - 2) * 1.35);
-    const boxPadding = 10;
-
-    // Worst case for THIS tree: every enabled option that some person can fill.
-    // showAge and showDeathDate are mutually exclusive on one person — living
-    // or not — so counting both would pad every row for a line that can never
-    // co-occur.
-    const opt = (k) => (displayOptions?.[k] ? 1 : 0);
-    const detailLines =
-      opt("showBirthDate") +
-      opt("showBirthPlace") +
-      opt("showProfession") +
-      opt("showTelephone") +
-      opt("showEmail") +
-      Math.max(opt("showDeathDate"), opt("showAge"));
-
-    const boxHeight =
-      boxPadding * 2 + nameLineHeight + detailLines * detailLineHeight;
-
-    const ROW_GAP = 26; // breathing room between one row's box and the next
-    return { w: 140, h: Math.max(90, boxHeight + ROW_GAP) };
-  }, [
-    stylingOptions?.textSize,
-    displayOptions?.showBirthDate,
-    displayOptions?.showBirthPlace,
-    displayOptions?.showProfession,
-    displayOptions?.showTelephone,
-    displayOptions?.showEmail,
-    displayOptions?.showDeathDate,
-    displayOptions?.showAge,
-  ]);
 
   // Reset options to default.
   // Reset CLEARS THE STORE as well as the state. Setting state alone would look
@@ -1383,17 +1338,6 @@ function App() {
     };
   }, [treePeople]);
 
-  // Shown under a greyed toggle so it explains itself rather than sitting inert.
-  const displayOptionEmptyReason = {
-    showSurname: "لا يوجد فرد باسم عائلة",
-    showBirthDate: "لا يوجد فرد بتاريخ ميلاد",
-    showBirthPlace: "لا يوجد فرد بمكان ميلاد",
-    showAge: "لا يوجد فرد حيّ بتاريخ ميلاد",
-    showDeathDate: "لا يوجد فرد بتاريخ وفاة",
-    showProfession: "لا يوجد فرد بمهنة",
-    showEmail: "لا يوجد فرد ببريد إلكتروني",
-    showTelephone: "لا يوجد فرد برقم هاتف",
-  };
 
   // The people actually shown as Family Members cards — tree people minus
   // legacy names-only milk-parent records (real people rows created before the
@@ -6904,14 +6848,13 @@ function App() {
                   <div className="space-y-2">
                     {Object.keys(displayOptions).map((key) => {
                       // Greyed, NOT hidden. A list that changes length as data
-                      // changes loses the user's place — and a toggle that
-                      // vanishes takes its setting with it. Inert but present,
-                      // with the reason underneath.
+                      // changes loses the user's place, and a toggle that
+                      // vanishes takes its setting with it.
                       const hasData = displayOptionHasData[key] !== false;
                       return (
                       <label
                         key={key}
-                        className={`flex items-start gap-2 ${
+                        className={`flex items-center gap-2 ${
                           hasData ? "cursor-pointer" : "cursor-default"
                         }`}
                       >
@@ -6925,18 +6868,12 @@ function App() {
                               [key]: e.target.checked,
                             }))
                           }
-                          className="rounded mt-0.5"
+                          className="rounded"
                         />
-                        <span className="text-sm">
-                          <span className={hasData ? "" : "text-gray-400"}>
-                            إظهار {displayOptionLabels[key] || key}
-                          </span>
-                          {!hasData && (
-                            <span className="block text-xs text-gray-400">
-                              {displayOptionEmptyReason[key] ||
-                                "لا يوجد فرد بهذه البيانات"}
-                            </span>
-                          )}
+                        <span
+                          className={`text-sm ${hasData ? "" : "text-gray-400"}`}
+                        >
+                          إظهار {displayOptionLabels[key] || key}
                         </span>
                       </label>
                       );
