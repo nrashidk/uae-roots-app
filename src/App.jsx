@@ -112,7 +112,6 @@ const readStoredOptions = () => {
 function App() {
   const navigate = useNavigate();
   const location = useLocation();
-  const CARD = { w: 140, h: 90 };
   const REL = {
     PARTNER: "partner",
     PARENT_CHILD: "parent-child",
@@ -365,7 +364,54 @@ function App() {
     ...(readStoredOptions()?.styling || {}),
   }));
 
-  // Reset options to default
+  // Grid cell size. WIDTH is fixed; HEIGHT has to grow with the number of
+  // display fields switched on, or tall boxes overlap the rows above and below.
+  //
+  // Boxes are centred on their grid point (boxY = y - h/2) and rows sit
+  // CARD.h apart, so the row pitch is the entire budget for a box plus the gap
+  // between rows. With every field enabled a box needs ~136px; at the old fixed
+  // h of 90 it overflowed its cell by more than 40px and drew straight through
+  // its neighbours.
+  //
+  // The arithmetic below MIRRORS drawPersonBoxes in TreeCanvas. If the line
+  // heights change there, change them here too — this is the one number that
+  // decides whether the drawn box fits the space the layout gave it.
+  const CARD = useMemo(() => {
+    const textSize = stylingOptions?.textSize || 14;
+    const nameLineHeight = Math.round(textSize * 1.45);
+    const detailLineHeight = Math.round((textSize - 2) * 1.35);
+    const boxPadding = 10;
+
+    // Worst case for THIS tree: every enabled option that some person can fill.
+    // showAge and showDeathDate are mutually exclusive on one person — living
+    // or not — so counting both would pad every row for a line that can never
+    // co-occur.
+    const opt = (k) => (displayOptions?.[k] ? 1 : 0);
+    const detailLines =
+      opt("showBirthDate") +
+      opt("showBirthPlace") +
+      opt("showProfession") +
+      opt("showTelephone") +
+      opt("showEmail") +
+      Math.max(opt("showDeathDate"), opt("showAge"));
+
+    const boxHeight =
+      boxPadding * 2 + nameLineHeight + detailLines * detailLineHeight;
+
+    const ROW_GAP = 26; // breathing room between one row's box and the next
+    return { w: 140, h: Math.max(90, boxHeight + ROW_GAP) };
+  }, [
+    stylingOptions?.textSize,
+    displayOptions?.showBirthDate,
+    displayOptions?.showBirthPlace,
+    displayOptions?.showProfession,
+    displayOptions?.showTelephone,
+    displayOptions?.showEmail,
+    displayOptions?.showDeathDate,
+    displayOptions?.showAge,
+  ]);
+
+  // Reset options to default.
   // Reset CLEARS THE STORE as well as the state. Setting state alone would look
   // right until the next reload, when the old saved values came back and the
   // reset appeared to have been ignored. Clearing here means reset holds even if
@@ -1312,6 +1358,42 @@ function App() {
   const treePeople = useMemo(() => {
     return people.filter((p) => p.treeId === currentTree?.id);
   }, [people, currentTree?.id]);
+
+  // Which display toggles can actually change anything on THIS tree.
+  //
+  // Every line in TreeCanvas is already guarded per person — showDeathDate only
+  // draws when person.deathDate exists, showAge only when there is a birthDate
+  // AND the person is living. So on a tree where nobody has died, تاريخ الوفاة
+  // is a switch that does nothing when flipped, with no explanation.
+  //
+  // The conditions below MIRROR the ones in TreeCanvas. If a draw condition
+  // changes there, change it here too, or the panel will promise a line that
+  // never appears.
+  const displayOptionHasData = useMemo(() => {
+    const any = (fn) => treePeople.some(fn);
+    return {
+      showSurname: any((p) => p.lastName),
+      showBirthDate: any((p) => p.birthDate),
+      showBirthPlace: any((p) => p.birthPlace),
+      showAge: any((p) => p.birthDate && p.isLiving !== false),
+      showDeathDate: any((p) => p.deathDate && p.isLiving === false),
+      showProfession: any((p) => p.profession),
+      showEmail: any((p) => p.email),
+      showTelephone: any((p) => p.phone),
+    };
+  }, [treePeople]);
+
+  // Shown under a greyed toggle so it explains itself rather than sitting inert.
+  const displayOptionEmptyReason = {
+    showSurname: "لا يوجد فرد باسم عائلة",
+    showBirthDate: "لا يوجد فرد بتاريخ ميلاد",
+    showBirthPlace: "لا يوجد فرد بمكان ميلاد",
+    showAge: "لا يوجد فرد حيّ بتاريخ ميلاد",
+    showDeathDate: "لا يوجد فرد بتاريخ وفاة",
+    showProfession: "لا يوجد فرد بمهنة",
+    showEmail: "لا يوجد فرد ببريد إلكتروني",
+    showTelephone: "لا يوجد فرد برقم هاتف",
+  };
 
   // The people actually shown as Family Members cards — tree people minus
   // legacy names-only milk-parent records (real people rows created before the
@@ -6820,27 +6902,45 @@ function App() {
                 <div>
                   <h3 className="font-medium mb-3">عرض المعلومات</h3>
                   <div className="space-y-2">
-                    {Object.keys(displayOptions).map((key) => (
+                    {Object.keys(displayOptions).map((key) => {
+                      // Greyed, NOT hidden. A list that changes length as data
+                      // changes loses the user's place — and a toggle that
+                      // vanishes takes its setting with it. Inert but present,
+                      // with the reason underneath.
+                      const hasData = displayOptionHasData[key] !== false;
+                      return (
                       <label
                         key={key}
-                        className="flex items-center gap-2 cursor-pointer"
+                        className={`flex items-start gap-2 ${
+                          hasData ? "cursor-pointer" : "cursor-default"
+                        }`}
                       >
                         <input
                           type="checkbox"
                           checked={displayOptions[key]}
+                          disabled={!hasData}
                           onChange={(e) =>
                             setDisplayOptions((prev) => ({
                               ...prev,
                               [key]: e.target.checked,
                             }))
                           }
-                          className="rounded"
+                          className="rounded mt-0.5"
                         />
                         <span className="text-sm">
-                          إظهار {displayOptionLabels[key] || key}
+                          <span className={hasData ? "" : "text-gray-400"}>
+                            إظهار {displayOptionLabels[key] || key}
+                          </span>
+                          {!hasData && (
+                            <span className="block text-xs text-gray-400">
+                              {displayOptionEmptyReason[key] ||
+                                "لا يوجد فرد بهذه البيانات"}
+                            </span>
+                          )}
                         </span>
                       </label>
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
                 <div>
@@ -7208,7 +7308,16 @@ function PersonForm({
             id="isLiving"
             checked={formData.isLiving}
             onChange={(e) =>
-              setFormData((prev) => ({ ...prev, isLiving: e.target.checked }))
+              setFormData((prev) => ({
+                ...prev,
+                isLiving: e.target.checked,
+                // Marking someone living again CLEARS the death date. The field
+                // below is merely hidden when isLiving is true (`!formData.isLiving &&`),
+                // so without this the old value stayed in formData, was saved,
+                // and kept drawing on the tree for a person marked alive — with
+                // no visible field to remove it from.
+                deathDate: e.target.checked ? "" : prev.deathDate,
+              }))
             }
             className="rounded"
           />
