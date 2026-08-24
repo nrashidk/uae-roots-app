@@ -315,6 +315,7 @@ function App() {
   });
   const [editingFamilyName, setEditingFamilyName] = useState(false);
   const [settingsBusy, setSettingsBusy] = useState(false);
+  const [settingsSaved, setSettingsSaved] = useState(false);
 
   const [expandedMemberId, setExpandedMemberId] = useState(null);
   const [editingMemberId, setEditingMemberId] = useState(null);
@@ -1488,6 +1489,10 @@ function App() {
         femaleDisplay: updated.femaleDisplay || "hidden",
       });
       setEditingFamilyName(false);
+      // Brief confirmation. The dropdown and the toggle save on change with no
+      // button to press, so without this a change gives no sign it landed.
+      setSettingsSaved(true);
+      setTimeout(() => setSettingsSaved(false), 2000);
     } catch (error) {
       console.error("Failed to save tree settings:", error);
       window.alert("تعذّر حفظ الإعدادات: " + error.message);
@@ -5873,7 +5878,14 @@ function App() {
         </div>
 
         <div className="max-w-xl mx-auto px-6 py-8">
-          <div className="bg-white rounded-lg shadow p-6 space-y-7">
+          <div className="bg-white rounded-lg shadow p-6 space-y-7 relative">
+            <span
+              className={`absolute top-4 left-6 text-[11px] text-green-700 transition-opacity ${
+                settingsSaved ? "opacity-100" : "opacity-0"
+              }`}
+            >
+              ✓ تم الحفظ
+            </span>
 
             {/* اسم العائلة — derived unless overridden */}
             <div>
@@ -6020,16 +6032,16 @@ function App() {
                   <span className="block text-[11px] text-gray-400 mt-0.5">
                     {treeSettings.isPublished
                       ? "منشورة — يمكن لأي زائر عرضها"
-                      : "مغلق — الشجرة خاصة بك وحدك"}
+                      : "غير منشورة — الشجرة خاصة بك وحدك"}
                   </span>
                 </span>
               </label>
             </div>
 
-            {/* Only once النشر is on. There is no reason to ask someone how
-                visitors should see their tree while nobody can. */}
-            {treeSettings.isPublished && (
-              <div>
+            {/* Greyed, not hidden, while النشر is off — a control that
+                disappears takes its setting with it and leaves the user
+                wondering where it went. */}
+            <div className={treeSettings.isPublished ? "" : "opacity-40"}>
                 <label className="block text-sm font-bold mb-1">
                   ظهور النساء في العرض العام
                 </label>
@@ -6039,11 +6051,11 @@ function App() {
                 </div>
                 <select
                   value={treeSettings.femaleDisplay}
-                  disabled={settingsBusy}
+                  disabled={settingsBusy || !treeSettings.isPublished}
                   onChange={(e) =>
                     saveTreeSettings({ femaleDisplay: e.target.value })
                   }
-                  className="w-full px-3 py-2 border rounded-md"
+                  className="w-full px-3 py-2 border rounded-md disabled:bg-gray-50"
                 >
                   <option value="hidden">بدون النساء</option>
                   <option value="anonymous">النساء بدون أسماء</option>
@@ -6057,8 +6069,7 @@ function App() {
                   {treeSettings.femaleDisplay === "full" &&
                     "يرى الزائر الشجرة كما تراها أنت، بأسماء النساء كاملة."}
                 </div>
-              </div>
-            )}
+            </div>
 
           </div>
         </div>
@@ -6932,17 +6943,16 @@ function App() {
                   : "text-gray-500 border-gray-200 bg-gray-50"
               }`}
             >
-              {treeSettings.isPublished ? "منشورة" : "خاصة"}
+              {treeSettings.isPublished ? "منشورة" : "غير منشورة"}
             </span>
             <h3 className="text-xl font-bold mb-4">الإعدادات</h3>
             <div
               className={`text-2xl font-bold ${
-                treeSettings.emirate ? "text-[#16233D]" : "text-gray-300"
+                treeSettings.emirate ? "text-[#A5813F]" : "text-gray-300"
               }`}
             >
               {emirateLabel(treeSettings.emirate) || "غير محدّدة"}
             </div>
-            <div className="text-[11px] text-gray-400 mt-1">الإمارة</div>
           </div>
 
         </div>
