@@ -7238,7 +7238,7 @@ function App() {
                   <h3 className="font-medium mb-3">الألوان</h3>
                   <div className="space-y-3">
                     <div className="flex items-center gap-2">
-                      <label className="text-sm w-32">لون الذكور</label>
+                      <label className="text-sm w-36">لون الذكور</label>
                       <input
                         type="color"
                         value={stylingOptions.maleBoxColor}
@@ -7252,7 +7252,7 @@ function App() {
                       />
                     </div>
                     <div className="flex items-center gap-2">
-                      <label className="text-sm w-32">لون الإناث</label>
+                      <label className="text-sm w-36">لون الإناث</label>
                       <input
                         type="color"
                         value={stylingOptions.femaleBoxColor}
@@ -7266,7 +7266,7 @@ function App() {
                       />
                     </div>
                     <div className="flex items-center gap-2">
-                      <label className="text-sm w-32">أخت بالرضاعة/أخ</label>
+                      <label className="text-sm w-36">أخ أو أخت بالرضاعة</label>
                       <input
                         type="color"
                         value={stylingOptions.breastfedBoxColor}
@@ -7280,7 +7280,7 @@ function App() {
                       />
                     </div>
                     <div className="flex items-center gap-2">
-                      <label className="text-sm w-32">لون الخلفية</label>
+                      <label className="text-sm w-36">لون الخلفية</label>
                       <input
                         type="color"
                         value={stylingOptions.backgroundColor}
@@ -7294,7 +7294,7 @@ function App() {
                       />
                     </div>
                     <div className="flex items-center gap-2">
-                      <label className="text-sm w-32">لون النص للأحياء</label>
+                      <label className="text-sm w-36">لون النص للأحياء</label>
                       <input
                         type="color"
                         value={stylingOptions.livingTextColor}
@@ -7308,7 +7308,7 @@ function App() {
                       />
                     </div>
                     <div className="flex items-center gap-2">
-                      <label className="text-sm w-32">لون النص للمتوفين</label>
+                      <label className="text-sm w-36">لون النص للمتوفين</label>
                       <input
                         type="color"
                         value={stylingOptions.deceasedTextColor}
