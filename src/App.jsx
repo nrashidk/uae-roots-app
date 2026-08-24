@@ -343,9 +343,6 @@ function App() {
     showBirthPlace: false,
     showAge: false,
     showDeathDate: false,
-    showProfession: false,
-    showEmail: false,
-    showTelephone: false,
   };
 
   const DEFAULT_STYLING_OPTIONS = {
@@ -398,12 +395,16 @@ function App() {
     // for a line that can never appear.
     const opt = (k) => (displayOptions?.[k] ? 1 : 0);
     const detailLines =
-      opt("showBirthDate") +
       opt("showBirthPlace") +
-      opt("showProfession") +
-      opt("showTelephone") +
-      opt("showEmail") +
-      Math.max(opt("showDeathDate"), opt("showAge"));
+      // Birth year, death year and age share ONE line: both years render as
+      // "١٩٦٥ – ٢٠٠٠" together, and age only ever shows for a living person,
+      // who by definition has no death year. Counting them separately reserved
+      // rows that can never all appear.
+      Math.max(
+        opt("showBirthDate"),
+        opt("showDeathDate"),
+        opt("showAge"),
+      );
 
     const tallestBox = padding * 2 + nameLineHeight + detailLines * lineHeight;
     const ROW_GAP = 24;
@@ -412,9 +413,6 @@ function App() {
     stylingOptions?.textSize,
     displayOptions?.showBirthDate,
     displayOptions?.showBirthPlace,
-    displayOptions?.showProfession,
-    displayOptions?.showTelephone,
-    displayOptions?.showEmail,
     displayOptions?.showDeathDate,
     displayOptions?.showAge,
   ]);
@@ -491,13 +489,12 @@ function App() {
   const displayOptionLabels = {
     showName: "الاسم",
     showSurname: "اسم العائلة",
-    showBirthDate: "تاريخ الميلاد",
+    // YEAR, not date. The tree prints ١٩٦٥ not 1965-10-10 — a full ISO date is
+    // record detail, and the record lives on الأفراد now.
+    showBirthDate: "سنة الميلاد",
     showBirthPlace: "مكان الميلاد",
     showAge: "العمر",
-    showDeathDate: "تاريخ الوفاة",
-    showProfession: "المهنة",
-    showEmail: "البريد الإلكتروني",
-    showTelephone: "الهاتف",
+    showDeathDate: "سنة الوفاة",
   };
 
   const t = {
@@ -1499,9 +1496,6 @@ function App() {
       showBirthPlace: any((p) => p.birthPlace),
       showAge: any((p) => p.birthDate && p.isLiving !== false),
       showDeathDate: any((p) => p.deathDate && p.isLiving === false),
-      showProfession: any((p) => p.profession),
-      showEmail: any((p) => p.email),
-      showTelephone: any((p) => p.phone),
     };
   }, [treePeople]);
 
@@ -5917,7 +5911,7 @@ function App() {
                         {isOpen && !isEditing && (
                           <div className="border-t px-4 pb-2 grid grid-cols-1 md:grid-cols-2 gap-x-8">
                             <div>
-                              <div className="text-[11px] text-[#A5813F] tracking-wide mt-3 mb-1">
+                              <div className="text-[15px] font-bold text-[#A5813F] tracking-wide mt-4 mb-1.5">
                                 السجل
                               </div>
                               {[
@@ -5937,12 +5931,14 @@ function App() {
                                 .map(([k, v]) => (
                                   <div
                                     key={k}
-                                    className="flex justify-between text-[13px] py-1.5 border-b border-gray-50"
+                                    className="flex justify-between py-1.5 border-b border-gray-50"
                                   >
-                                    <span className="text-gray-400">{k}</span>
+                                    <span className="text-sm font-bold text-gray-500">{k}</span>
                                     <span
                                       dir="ltr"
-                                      className={v ? "text-gray-700" : "text-gray-300"}
+                                      className={`text-sm ${
+                                        v ? "text-gray-700" : "text-gray-300"
+                                      }`}
                                     >
                                       {v || "—"}
                                     </span>
@@ -5950,7 +5946,7 @@ function App() {
                                 ))}
                             </div>
                             <div>
-                              <div className="text-[11px] text-[#A5813F] tracking-wide mt-3 mb-1">
+                              <div className="text-[15px] font-bold text-[#A5813F] tracking-wide mt-4 mb-1.5">
                                 الروابط
                               </div>
                               {[
@@ -5979,11 +5975,13 @@ function App() {
                                 .map(([k, v]) => (
                                   <div
                                     key={k}
-                                    className="flex justify-between text-[13px] py-1.5 border-b border-gray-50"
+                                    className="flex justify-between py-1.5 border-b border-gray-50"
                                   >
-                                    <span className="text-gray-400">{k}</span>
+                                    <span className="text-sm font-bold text-gray-500">{k}</span>
                                     <span
-                                      className={v ? "text-gray-700" : "text-gray-300"}
+                                      className={`text-sm ${
+                                        v ? "text-gray-700" : "text-gray-300"
+                                      }`}
                                     >
                                       {v || "—"}
                                     </span>
@@ -5992,11 +5990,11 @@ function App() {
                             </div>
 
                             <div className="md:col-span-2">
-                              <div className="text-[11px] text-[#A5813F] tracking-wide mt-3 mb-1">
+                              <div className="text-[15px] font-bold text-[#A5813F] tracking-wide mt-4 mb-1.5">
                                 الملخّص
                               </div>
                               <p
-                                className={`text-[13px] leading-loose m-0 ${
+                                className={`text-sm leading-loose m-0 ${
                                   person.summary ? "text-gray-700" : "text-gray-300"
                                 }`}
                               >
