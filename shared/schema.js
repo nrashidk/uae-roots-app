@@ -149,6 +149,17 @@ export const trees = pgTable("trees", {
   // an override freezes and a corrected ancestor name leaves a stale family
   // name with no way back.
   familyName: text("family_name"),
+  // How WOMEN appear in the PUBLIC tree. Never affects the owner's own view —
+  // الشجرة always renders in full.
+  //   hidden    — men and their children only. The convention published Gulf
+  //               and ruling-family lineages already use, and the default:
+  //               no female data leaves the server at all.
+  //   anonymous — women render in place as «بنت راشد» / «زوجة سالم», so
+  //               polygamy grouping and رضاعة still read, without names.
+  //   full      — the tree exactly as the owner sees it.
+  // Enforced SERVER-side. A client-side hide leaves the names in the API
+  // response for anyone who opens the network tab.
+  femaleDisplay: text("female_display").notNull().default("hidden"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
