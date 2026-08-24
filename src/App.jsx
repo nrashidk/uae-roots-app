@@ -1458,6 +1458,41 @@ function App() {
   const emirateLabel = (code) =>
     EMIRATES.find((e) => e.code === code)?.label || null;
 
+  // Mirror the tree's stored settings into local state whenever it loads or
+  // changes. familyName stays "" when NULL — empty means "derive", and the
+  // input shows the derived name as its starting point.
+  useEffect(() => {
+    if (!currentTree) return;
+    setTreeSettings({
+      emirate: currentTree.emirate || "",
+      isPublished: currentTree.isPublished === true,
+      familyName: currentTree.familyName || "",
+    });
+    setEditingFamilyName(false);
+  }, [currentTree]);
+
+  const saveTreeSettings = async (patch) => {
+    if (!currentTree || settingsBusy) return;
+    setSettingsBusy(true);
+    try {
+      const updated = await api.trees.updateSettings(currentTree.id, patch);
+      // Take the SERVER's row, not the local guess — the value shown must be
+      // the value stored.
+      setCurrentTree(updated);
+      setTreeSettings({
+        emirate: updated.emirate || "",
+        isPublished: updated.isPublished === true,
+        familyName: updated.familyName || "",
+      });
+      setEditingFamilyName(false);
+    } catch (error) {
+      console.error("Failed to save tree settings:", error);
+      window.alert("تعذّر حفظ الإعدادات: " + error.message);
+    } finally {
+      setSettingsBusy(false);
+    }
+  };
+
   const milkSiblingsOf = (id) =>
     treeRels
       .filter(
@@ -5468,40 +5503,6 @@ function App() {
     return head ? `عائلة ${getGenealogicalName(head)}` : "";
   })();
 
-  // Mirror the tree's stored settings into local state whenever it loads or
-  // changes. familyName stays "" when NULL — empty means "derive", and the
-  // input shows the derived name as its starting point.
-  useEffect(() => {
-    if (!currentTree) return;
-    setTreeSettings({
-      emirate: currentTree.emirate || "",
-      isPublished: currentTree.isPublished === true,
-      familyName: currentTree.familyName || "",
-    });
-    setEditingFamilyName(false);
-  }, [currentTree]);
-
-  const saveTreeSettings = async (patch) => {
-    if (!currentTree || settingsBusy) return;
-    setSettingsBusy(true);
-    try {
-      const updated = await api.trees.updateSettings(currentTree.id, patch);
-      // Take the SERVER's row, not the local guess — the value shown must be
-      // the value stored.
-      setCurrentTree(updated);
-      setTreeSettings({
-        emirate: updated.emirate || "",
-        isPublished: updated.isPublished === true,
-        familyName: updated.familyName || "",
-      });
-      setEditingFamilyName(false);
-    } catch (error) {
-      console.error("Failed to save tree settings:", error);
-      window.alert("تعذّر حفظ الإعدادات: " + error.message);
-    } finally {
-      setSettingsBusy(false);
-    }
-  };
 
   // Reusable person add/edit form panel — rendered in both the tree view and the
   // Family Members dashboard, so people who aren't placed on the tree (e.g. milk
