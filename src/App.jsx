@@ -311,6 +311,7 @@ function App() {
     emirate: "",
     isPublished: false,
     familyName: "",
+    femaleDisplay: "hidden",
   });
   const [editingFamilyName, setEditingFamilyName] = useState(false);
   const [settingsBusy, setSettingsBusy] = useState(false);
@@ -1467,6 +1468,7 @@ function App() {
       emirate: currentTree.emirate || "",
       isPublished: currentTree.isPublished === true,
       familyName: currentTree.familyName || "",
+      femaleDisplay: currentTree.femaleDisplay || "hidden",
     });
     setEditingFamilyName(false);
   }, [currentTree]);
@@ -1483,6 +1485,7 @@ function App() {
         emirate: updated.emirate || "",
         isPublished: updated.isPublished === true,
         familyName: updated.familyName || "",
+        femaleDisplay: updated.femaleDisplay || "hidden",
       });
       setEditingFamilyName(false);
     } catch (error) {
@@ -5498,9 +5501,12 @@ function App() {
   // Taken from the FIRST family group's head — the same root detection العائلات
   // uses — rather than a second implementation that could pick a different
   // person and produce a different name for the same tree.
+  // The NAME only, without «عائلة». The word is a fixed prefix in the UI, not
+  // part of the value: storing it would mean every override had to repeat it,
+  // and a user who cleared the field would lose the word too.
   const derivedFamilyName = (() => {
     const head = familyGroups?.[0]?.heads?.[0];
-    return head ? `عائلة ${getGenealogicalName(head)}` : "";
+    return head ? getGenealogicalName(head) : "";
   })();
 
 
@@ -5882,6 +5888,7 @@ function App() {
                     }`}
                   >
                     <span className="flex-1 text-[15px] text-[#16233D]">
+                      <span className="text-gray-400">عائلة</span>{" "}
                       {nameInUse || "—"}
                     </span>
                     <button
@@ -5915,25 +5922,33 @@ function App() {
                 </>
               ) : (
                 <div className="border-2 border-[#A5813F] rounded-md p-3">
-                  <input
-                    type="text"
-                    autoFocus
-                    maxLength={80}
-                    value={treeSettings.familyName}
-                    placeholder={derivedFamilyName}
-                    onChange={(e) =>
-                      setTreeSettings((prev) => ({
-                        ...prev,
-                        familyName: e.target.value,
-                      }))
-                    }
-                    className="w-full px-3 py-2 border rounded-md text-[15px]"
-                    dir="rtl"
-                  />
-                  <div className="text-[11px] text-gray-400 mt-1.5">
-                    التلقائي: {derivedFamilyName || "—"}
+                  <div className="flex items-center gap-2">
+                    {/* Fixed, outside the input — only the name is editable. */}
+                    <span className="text-[15px] text-gray-400 shrink-0">
+                      عائلة
+                    </span>
+                    <input
+                      type="text"
+                      autoFocus
+                      maxLength={80}
+                      value={treeSettings.familyName}
+                      placeholder={derivedFamilyName}
+                      onChange={(e) =>
+                        setTreeSettings((prev) => ({
+                          ...prev,
+                          familyName: e.target.value,
+                        }))
+                      }
+                      className="flex-1 px-3 py-2 border rounded-md text-[15px]"
+                      dir="rtl"
+                    />
                   </div>
-                  <div className="flex gap-2 mt-3" dir="ltr">
+                  <div className="text-[11px] text-gray-400 mt-1.5">
+                    التلقائي: عائلة {derivedFamilyName || "—"}
+                  </div>
+                  {/* No dir="ltr": in this RTL panel the first child sits on
+                      the RIGHT, so حفظ reads before إلغاء. */}
+                  <div className="flex gap-2 mt-3">
                     <Button
                       size="sm"
                       disabled={settingsBusy}
@@ -6010,6 +6025,40 @@ function App() {
                 </span>
               </label>
             </div>
+
+            {/* Only once النشر is on. There is no reason to ask someone how
+                visitors should see their tree while nobody can. */}
+            {treeSettings.isPublished && (
+              <div>
+                <label className="block text-sm font-bold mb-1">
+                  ظهور النساء في العرض العام
+                </label>
+                <div className="text-[11px] text-gray-400 mb-2 leading-relaxed">
+                  لا يؤثّر هذا على شجرتك — أنت ترى دائماً الشجرة كاملة. الاختيار
+                  هنا يقرّر ما يراه الزائر فقط.
+                </div>
+                <select
+                  value={treeSettings.femaleDisplay}
+                  disabled={settingsBusy}
+                  onChange={(e) =>
+                    saveTreeSettings({ femaleDisplay: e.target.value })
+                  }
+                  className="w-full px-3 py-2 border rounded-md"
+                >
+                  <option value="hidden">بدون النساء</option>
+                  <option value="anonymous">النساء بدون أسماء</option>
+                  <option value="full">الشجرة كاملة بالأسماء</option>
+                </select>
+                <div className="text-[11px] text-gray-400 mt-2 leading-relaxed">
+                  {treeSettings.femaleDisplay === "hidden" &&
+                    "الرجال وأبناؤهم فقط — الصيغة المتّبعة في نشر الأنساب. لن تظهر الزوجات، وبالتالي لن يتبيّن الزائر أبناء أي زوجة، ولن يظهر رابط الرضاعة."}
+                  {treeSettings.femaleDisplay === "anonymous" &&
+                    "تظهر النساء في مواضعهنّ بصفتهنّ — «بنت راشد»، «زوجة سالم» — بلا أسماء، فيبقى ترتيب الأبناء تحت كل زوجة ورابط الرضاعة مفهوماً."}
+                  {treeSettings.femaleDisplay === "full" &&
+                    "يرى الزائر الشجرة كما تراها أنت، بأسماء النساء كاملة."}
+                </div>
+              </div>
+            )}
 
           </div>
         </div>
