@@ -146,19 +146,33 @@ const TreeCanvas = ({
         const lineHeight = Math.round((textSize - 2) * 1.35);
         const nameLineHeight = Math.round(textSize * 1.45);
 
+        // ONE line carries the years and the age, because they can never
+        // co-occur: both years render together as "١٩٦٥ – ٢٠٠٠", and age only
+        // shows for a living person, who has no death year.
+        //
+        // YEAR, not full date — the tree is a navigation surface; the full ISO
+        // date is record detail and lives on الأفراد.
+        const yr = (d) => (d ? String(d).slice(0, 4) : null);
+        const bYear = displayOptions?.showBirthDate ? yr(person?.birthDate) : null;
+        const dYear =
+          displayOptions?.showDeathDate && !isLiving
+            ? yr(person?.deathDate)
+            : null;
+        let yearsText = null;
+        if (bYear && dYear) yearsText = `${bYear} – ${dYear}`;
+        else if (bYear) yearsText = bYear;
+        else if (dYear) yearsText = `– ${dYear}`;
+
+        let ageText = null;
+        if (!yearsText && displayOptions?.showAge && person?.birthDate && isLiving) {
+          const age = new Date().getFullYear() - new Date(person.birthDate).getFullYear();
+          if (age > 0) ageText = formatAge(age);
+        }
+        const yearsLine = yearsText || ageText;
+
         if (person) {
-          if (displayOptions?.showBirthDate && person.birthDate) lineCount++;
-          // `&& !isLiving` mirrors the draw below. A row can hold a deathDate
-          // while isLiving is true — the form hides the field rather than
-          // clearing it — and the tree drew a death date for someone alive.
-          if (displayOptions?.showDeathDate && person.deathDate && !isLiving)
-            lineCount++;
+          if (yearsLine) lineCount++;
           if (displayOptions?.showBirthPlace && person.birthPlace) lineCount++;
-          if (displayOptions?.showAge && person.birthDate && isLiving)
-            lineCount++;
-          if (displayOptions?.showProfession && person.profession) lineCount++;
-          if (displayOptions?.showTelephone && person.phone) lineCount++;
-          if (displayOptions?.showEmail && person.email) lineCount++;
         }
 
         // Calculate dynamic height based on content
@@ -268,13 +282,8 @@ const TreeCanvas = ({
         if (person) {
           ctx.font = `${(stylingOptions?.textSize || 14) - 2}px sans-serif`;
 
-          if (displayOptions?.showBirthDate && person.birthDate) {
-            ctx.fillText(person.birthDate, x, yOffset);
-            yOffset += lineHeight;
-          }
-
-          if (displayOptions?.showDeathDate && person.deathDate && !isLiving) {
-            ctx.fillText(` ${person.deathDate}`, x, yOffset);
+          if (yearsLine) {
+            ctx.fillText(yearsLine, x, yOffset);
             yOffset += lineHeight;
           }
 
@@ -284,43 +293,6 @@ const TreeCanvas = ({
                 ? person.birthPlace.substring(0, 12) + "..."
                 : person.birthPlace;
             ctx.fillText(placeText, x, yOffset);
-            yOffset += lineHeight;
-          }
-
-          if (displayOptions?.showAge && person.birthDate && isLiving) {
-            const birthYear = new Date(person.birthDate).getFullYear();
-            const currentYear = new Date().getFullYear();
-            const age = currentYear - birthYear;
-            if (age > 0) {
-              ctx.fillText(formatAge(age), x, yOffset);
-              yOffset += lineHeight;
-            }
-          }
-
-          if (displayOptions?.showProfession && person.profession) {
-            const profText =
-              person.profession.length > 15
-                ? person.profession.substring(0, 12) + "..."
-                : person.profession;
-            ctx.fillText(profText, x, yOffset);
-            yOffset += lineHeight;
-          }
-
-          if (displayOptions?.showTelephone && person.phone) {
-            const phoneText =
-              person.phone.length > 15
-                ? person.phone.substring(0, 12) + "..."
-                : person.phone;
-            ctx.fillText(phoneText, x, yOffset);
-            yOffset += lineHeight;
-          }
-
-          if (displayOptions?.showEmail && person.email) {
-            const emailText =
-              person.email.length > 20
-                ? person.email.substring(0, 17) + "..."
-                : person.email;
-            ctx.fillText(emailText, x, yOffset);
             yOffset += lineHeight;
           }
         }
