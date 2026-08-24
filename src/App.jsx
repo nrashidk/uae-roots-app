@@ -40,6 +40,10 @@ import {
 } from "lucide-react";
 import LandingPage from "./pages/LandingPage.jsx";
 import PublicLayout from "./pages/PublicLayout.jsx";
+import {
+  DirectoryTiles,
+  DirectoryFamilies,
+} from "./pages/Directory.jsx";
 import { PrivacyPolicy } from "./pages/PrivacyPolicy.jsx";
 import FamilyTreeLayout from "./lib/family-tree-layout.js";
 import {
@@ -85,6 +89,15 @@ const PATH_BY_VIEW = {
   "relationships-detail": "/relationships",
 };
 const PUBLIC_PATHS = ["/", "/privacy"];
+
+// Public paths that carry a parameter, so an exact-match list cannot express
+// them. Without this the route guard bounces a signed-out visitor to "/" and a
+// signed-in one to "/tree", and the page is unreachable by anyone.
+const PUBLIC_PATH_PATTERNS = [/^\/directory\/[A-Za-z]+$/];
+
+const isPublicPath = (path) =>
+  PUBLIC_PATHS.includes(path) ||
+  PUBLIC_PATH_PATTERNS.some((re) => re.test(path));
 
 // Tree display preferences survive a reload. They lived only in component state,
 // so «حفظ» closed the panel and nothing else — colours, box width and text size
@@ -1124,7 +1137,7 @@ function App() {
     if (authLoading || sessionRestoreLoading || !sessionChecked) return;
     const signedIn = isAuthenticated || !!userProfile;
     const path = location.pathname;
-    const isPublic = PUBLIC_PATHS.includes(path);
+    const isPublic = isPublicPath(path);
 
     if (!signedIn && !isPublic) {
       navigate("/", { replace: true });
@@ -5047,6 +5060,32 @@ function App() {
     );
   }
 
+  // /directory/:code — the public families list. A real path, not a query
+  // parameter, because these pages are meant to be shared and indexed, and
+  // /family/:id will need a permanent address too.
+  const directoryMatch = location.pathname.match(/^\/directory\/([A-Za-z]+)$/);
+  if (directoryMatch) {
+    const code = directoryMatch[1];
+    const signedIn = isAuthenticated || !!userProfile;
+    return (
+      <PublicLayout
+        signedIn={signedIn}
+        onBackToApp={() => navigate("/tree")}
+        onHome={() => navigate("/")}
+        onClaims={() => navigate("/")}
+        onSignIn={() => navigate("/")}
+        onSignUp={() => navigate("/")}
+        onPrivacy={() => navigate("/privacy")}
+      >
+        <DirectoryFamilies
+          emirate={code}
+          onBack={() => navigate("/")}
+          onOpenFamily={(id) => navigate(`/family/${id}`)}
+        />
+      </PublicLayout>
+    );
+  }
+
   if (location.pathname === "/privacy") {
     const signedIn = isAuthenticated || !!userProfile;
     return (
@@ -5129,6 +5168,11 @@ function App() {
               setAuthDialogOpen(true);
             }}
             onPrivacy={() => navigate("/privacy")}
+            directory={
+              <DirectoryTiles
+                onOpenEmirate={(code) => navigate(`/directory/${code}`)}
+              />
+            }
           />
 
         {/* A new PHONE user sits here: no Firebase session and no profile yet,
