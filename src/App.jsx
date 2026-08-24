@@ -307,6 +307,16 @@ function App() {
   // which drive the floating form over the tree. Sharing those flags would mount
   // both forms at once — the floating panel and the in-card one — bound to the
   // same formData.
+  const [treeSettings, setTreeSettings] = useState({
+    emirate: "",
+    isPublished: false,
+    familyName: "",
+    femaleDisplay: "hidden",
+  });
+  const [editingFamilyName, setEditingFamilyName] = useState(false);
+  const [settingsBusy, setSettingsBusy] = useState(false);
+  const [settingsSaved, setSettingsSaved] = useState(false);
+
   const [expandedMemberId, setExpandedMemberId] = useState(null);
   const [editingMemberId, setEditingMemberId] = useState(null);
 
@@ -1434,6 +1444,61 @@ function App() {
         .map((pid) => peopleById.get(pid))
         .find((p) => p?.gender === "female") || null
     );
+  };
+
+  // CODES, never Arabic text — the stored value must survive a change of
+  // wording, and an English directory has to stay possible.
+  const EMIRATES = [
+    { code: "AZ", label: "أبوظبي" },
+    { code: "DU", label: "دبي" },
+    { code: "SH", label: "الشارقة" },
+    { code: "AJ", label: "عجمان" },
+    { code: "UQ", label: "أم القيوين" },
+    { code: "RK", label: "رأس الخيمة" },
+    { code: "FU", label: "الفجيرة" },
+  ];
+  const emirateLabel = (code) =>
+    EMIRATES.find((e) => e.code === code)?.label || null;
+
+  // Mirror the tree's stored settings into local state whenever it loads or
+  // changes. familyName stays "" when NULL — empty means "derive", and the
+  // input shows the derived name as its starting point.
+  useEffect(() => {
+    if (!currentTree) return;
+    setTreeSettings({
+      emirate: currentTree.emirate || "",
+      isPublished: currentTree.isPublished === true,
+      familyName: currentTree.familyName || "",
+      femaleDisplay: currentTree.femaleDisplay || "hidden",
+    });
+    setEditingFamilyName(false);
+  }, [currentTree]);
+
+  const saveTreeSettings = async (patch) => {
+    if (!currentTree || settingsBusy) return;
+    setSettingsBusy(true);
+    try {
+      const updated = await api.trees.updateSettings(currentTree.id, patch);
+      // Take the SERVER's row, not the local guess — the value shown must be
+      // the value stored.
+      setCurrentTree(updated);
+      setTreeSettings({
+        emirate: updated.emirate || "",
+        isPublished: updated.isPublished === true,
+        familyName: updated.familyName || "",
+        femaleDisplay: updated.femaleDisplay || "hidden",
+      });
+      setEditingFamilyName(false);
+      // Brief confirmation. The dropdown and the toggle save on change with no
+      // button to press, so without this a change gives no sign it landed.
+      setSettingsSaved(true);
+      setTimeout(() => setSettingsSaved(false), 2000);
+    } catch (error) {
+      console.error("Failed to save tree settings:", error);
+      window.alert("تعذّر حفظ الإعدادات: " + error.message);
+    } finally {
+      setSettingsBusy(false);
+    }
   };
 
   const milkSiblingsOf = (id) =>
@@ -5437,6 +5502,19 @@ function App() {
     return nameParts.join(" ");
   };
 
+  // The name the directory shows when the owner has not overridden it.
+  // Taken from the FIRST family group's head — the same root detection العائلات
+  // uses — rather than a second implementation that could pick a different
+  // person and produce a different name for the same tree.
+  // The NAME only, without «عائلة». The word is a fixed prefix in the UI, not
+  // part of the value: storing it would mean every override had to repeat it,
+  // and a user who cleared the field would lose the word too.
+  const derivedFamilyName = (() => {
+    const head = familyGroups?.[0]?.heads?.[0];
+    return head ? getGenealogicalName(head) : "";
+  })();
+
+
   // Reusable person add/edit form panel — rendered in both the tree view and the
   // Family Members dashboard, so people who aren't placed on the tree (e.g. milk
   // siblings) can still be opened and edited from the dashboard.
@@ -5768,6 +5846,239 @@ function App() {
       )
     );
   };
+
+  if (currentView === "tree-settings") {
+    const nameInUse = treeSettings.familyName || derivedFamilyName;
+    const isOverridden = Boolean(treeSettings.familyName);
+
+    return (
+      <div className="min-h-screen bg-gray-50">
+        <div className="sticky top-0 z-20 bg-white shadow-sm border-b px-4 py-3 flex justify-between items-center">
+          <div className="flex items-center gap-4">
+            <Button
+              onClick={() => setCurrentView("dashboard")}
+              variant="outline"
+              size="sm"
+            >
+              <Home className="w-4 h-4 ml-2" />
+              {t.backToDashboard}
+            </Button>
+            <h1 className="text-xl font-bold">الإعدادات</h1>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button onClick={handleOpenProfile} variant="outline" size="sm">
+              <User className="w-4 h-4 ml-2" />
+              {t.profile}
+            </Button>
+            <Button onClick={handleLogout} variant="outline" size="sm">
+              <LogOut className="w-4 h-4 ml-2" />
+              {t.logout}
+            </Button>
+          </div>
+        </div>
+
+        <div className="max-w-xl mx-auto px-6 py-8">
+          <div className="bg-white rounded-lg shadow p-6 space-y-7 relative">
+            <span
+              className={`absolute top-4 left-6 text-[11px] text-green-700 transition-opacity ${
+                settingsSaved ? "opacity-100" : "opacity-0"
+              }`}
+            >
+              ✓ تم الحفظ
+            </span>
+
+            {/* اسم العائلة — derived unless overridden */}
+            <div>
+              <label className="block text-sm font-bold mb-1">اسم العائلة</label>
+              {!editingFamilyName ? (
+                <>
+                  <div
+                    className={`flex items-center gap-3 rounded-md px-3 py-2.5 ${
+                      isOverridden
+                        ? "border border-gray-300 bg-white"
+                        : "border border-dashed border-gray-300 bg-gray-50"
+                    }`}
+                  >
+                    <span className="flex-1 text-[15px] text-[#16233D]">
+                      <span className="text-gray-400">عائلة</span>{" "}
+                      {nameInUse || "—"}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setEditingFamilyName(true)}
+                      title="تعديل"
+                      aria-label="تعديل"
+                      className="p-1.5 rounded-md border hover:bg-gray-100 transition"
+                    >
+                      <Pencil className="w-4 h-4 text-gray-600" />
+                    </button>
+                  </div>
+                  {isOverridden ? (
+                    // An override FREEZES. Without a way back, a corrected
+                    // ancestor name would leave a stale family name and no route
+                    // to restore it — so this link is part of the feature, not a
+                    // convenience.
+                    <button
+                      type="button"
+                      disabled={settingsBusy}
+                      onClick={() => saveTreeSettings({ familyName: "" })}
+                      className="text-[11px] text-[#A5813F] mt-1.5 hover:underline"
+                    >
+                      ↺ العودة إلى الاسم التلقائي
+                    </button>
+                  ) : (
+                    <div className="text-[11px] text-gray-400 mt-1.5">
+                      تلقائي — من سلسلة النسب
+                    </div>
+                  )}
+                </>
+              ) : (
+                <div className="border-2 border-[#A5813F] rounded-md p-3">
+                  <div className="flex items-center gap-2">
+                    {/* Fixed, outside the input — only the name is editable. */}
+                    <span className="text-[15px] text-gray-400 shrink-0">
+                      عائلة
+                    </span>
+                    <input
+                      type="text"
+                      autoFocus
+                      maxLength={80}
+                      value={treeSettings.familyName}
+                      placeholder={derivedFamilyName}
+                      onChange={(e) =>
+                        setTreeSettings((prev) => ({
+                          ...prev,
+                          familyName: e.target.value,
+                        }))
+                      }
+                      className="flex-1 px-3 py-2 border rounded-md text-[15px]"
+                      dir="rtl"
+                    />
+                  </div>
+                  <div className="text-[11px] text-gray-400 mt-1.5">
+                    التلقائي: عائلة {derivedFamilyName || "—"}
+                  </div>
+                  {/* No dir="ltr": in this RTL panel the first child sits on
+                      the RIGHT, so حفظ reads before إلغاء. */}
+                  <div className="flex gap-2 mt-3">
+                    <Button
+                      size="sm"
+                      disabled={settingsBusy}
+                      onClick={() =>
+                        saveTreeSettings({
+                          familyName: treeSettings.familyName.trim(),
+                        })
+                      }
+                    >
+                      حفظ
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        setTreeSettings((prev) => ({
+                          ...prev,
+                          familyName: currentTree?.familyName || "",
+                        }));
+                        setEditingFamilyName(false);
+                      }}
+                    >
+                      {t.cancel}
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* الإمارة */}
+            <div>
+              <label className="block text-sm font-bold mb-1">الإمارة</label>
+              <div className="text-[11px] text-gray-400 mb-2 leading-relaxed">
+                الإمارة التي صدرت منها خلاصة القيد — وليست مكان السكن الحالي
+              </div>
+              <select
+                value={treeSettings.emirate}
+                disabled={settingsBusy}
+                onChange={(e) => saveTreeSettings({ emirate: e.target.value })}
+                className="w-full px-3 py-2 border rounded-md"
+              >
+                <option value="">غير محدّدة</option>
+                {EMIRATES.map((em) => (
+                  <option key={em.code} value={em.code}>
+                    {em.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* النشر */}
+            <div>
+              <label className="block text-sm font-bold mb-1">النشر</label>
+              <div className="text-[11px] text-gray-400 mb-2 leading-relaxed">
+                عند التفعيل تظهر عائلتك في دليل الإمارة ويمكن لأي زائر عرض الشجرة
+              </div>
+              <label className="flex items-center gap-3 border rounded-md p-3 bg-gray-50 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={treeSettings.isPublished}
+                  disabled={settingsBusy}
+                  onChange={(e) =>
+                    saveTreeSettings({ isPublished: e.target.checked })
+                  }
+                  className="rounded"
+                />
+                <span className="text-sm">
+                  نشر الشجرة للعموم
+                  <span className="block text-[11px] text-gray-400 mt-0.5">
+                    {treeSettings.isPublished
+                      ? "منشورة — يمكن لأي زائر عرضها"
+                      : "غير منشورة — الشجرة خاصة بك وحدك"}
+                  </span>
+                </span>
+              </label>
+            </div>
+
+            {/* Greyed, not hidden, while النشر is off — a control that
+                disappears takes its setting with it and leaves the user
+                wondering where it went. */}
+            <div className={treeSettings.isPublished ? "" : "opacity-40"}>
+                <label className="block text-sm font-bold mb-1">
+                  ظهور النساء في العرض العام
+                </label>
+                <div className="text-[11px] text-gray-400 mb-2 leading-relaxed">
+                  لا يؤثّر هذا على شجرتك — أنت ترى دائماً الشجرة كاملة. الاختيار
+                  هنا يقرّر ما يراه الزائر فقط.
+                </div>
+                <select
+                  value={treeSettings.femaleDisplay}
+                  disabled={settingsBusy || !treeSettings.isPublished}
+                  onChange={(e) =>
+                    saveTreeSettings({ femaleDisplay: e.target.value })
+                  }
+                  className="w-full px-3 py-2 border rounded-md disabled:bg-gray-50"
+                >
+                  <option value="hidden">بدون النساء</option>
+                  <option value="anonymous">النساء بدون أسماء</option>
+                  <option value="full">الشجرة كاملة بالأسماء</option>
+                </select>
+                <div className="text-[11px] text-gray-400 mt-2 leading-relaxed">
+                  {treeSettings.femaleDisplay === "hidden" &&
+                    "الرجال وأبناؤهم الذكور فقط."}
+                  {treeSettings.femaleDisplay === "anonymous" &&
+                    "تظهر النساء في مواضعهنّ بصفتهنّ — «ابنة راشد»، «زوجة سالم» — بلا أسماء حقيقية."}
+                  {treeSettings.femaleDisplay === "full" &&
+                    "يرى الزائر الشجرة كما تراها أنت، بأسماء النساء كاملة."}
+                </div>
+            </div>
+
+          </div>
+        </div>
+        {renderProfileDialog()}
+        {renderSignupGate()}
+        {renderConsentGate()}
+      </div>
+    );
+  }
 
   if (currentView === "family-members") {
     // People involved in any milk-bond (breastfeeding sibling link) — both sides
@@ -6570,7 +6881,7 @@ function App() {
             </div>
           </div>
         </div>
-        <div className="max-w-7xl mx-auto px-8 py-8 grid grid-cols-3 gap-6">
+        <div className="max-w-7xl mx-auto px-8 py-8 grid grid-cols-2 lg:grid-cols-4 gap-6">
           <div
             className="bg-white rounded-lg shadow p-6 cursor-pointer hover:shadow-lg"
             onClick={() => currentTree && setCurrentView("tree-builder")}
@@ -6618,6 +6929,32 @@ function App() {
               }
             </div>
           </div>
+          <div
+            className="bg-white rounded-lg shadow p-6 cursor-pointer hover:shadow-lg relative"
+            onClick={() => currentTree && setCurrentView("tree-settings")}
+          >
+            {/* The pill is the reason this card carries no number: whether the
+                tree is public is the one thing that should never need opening a
+                screen to discover. */}
+            <span
+              className={`absolute top-5 left-6 text-[10px] px-2 py-0.5 rounded-full border ${
+                treeSettings.isPublished
+                  ? "text-green-700 border-green-200 bg-green-50"
+                  : "text-gray-500 border-gray-200 bg-gray-50"
+              }`}
+            >
+              {treeSettings.isPublished ? "منشورة" : "غير منشورة"}
+            </span>
+            <h3 className="text-xl font-bold mb-4">الإعدادات</h3>
+            <div
+              className={`text-2xl font-bold ${
+                treeSettings.emirate ? "text-[#A5813F]" : "text-gray-300"
+              }`}
+            >
+              {emirateLabel(treeSettings.emirate) || "غير محدّدة"}
+            </div>
+          </div>
+
         </div>
         {renderProfileDialog()}
         {renderSignupGate()}

@@ -486,6 +486,8 @@ const treeSchema = z.object({
 // put a family in a bucket that does not exist.
 const EMIRATE_CODES = ["AZ", "DU", "SH", "AJ", "UQ", "RK", "FU"];
 
+const FEMALE_DISPLAY_MODES = ["hidden", "anonymous", "full"];
+
 // Settings the OWNER controls on their own tree. Deliberately does NOT include
 // createdBy — ownership is not something a request may reassign.
 const treeSettingsSchema = z.object({
@@ -493,6 +495,7 @@ const treeSettingsSchema = z.object({
   isPublished: z.boolean().optional(),
   // NULL/empty clears the override and returns the name to the derived one.
   familyName: z.string().max(80).trim().optional().nullable(),
+  femaleDisplay: z.enum(FEMALE_DISPLAY_MODES).optional(),
 });
 
 const relationshipSchema = z.object({
@@ -2092,6 +2095,10 @@ app.patch("/api/trees/:id", authenticateUser, async (req, res) => {
     // root person's lineage", which is the revert path.
     if (validatedData.familyName !== undefined)
       updates.familyName = validatedData.familyName || null;
+    // NOT nullable — the column is NOT NULL and every tree must resolve to one
+    // of the three modes. An absent key means "leave alone", not "clear".
+    if (validatedData.femaleDisplay !== undefined)
+      updates.femaleDisplay = validatedData.femaleDisplay;
 
     if (Object.keys(updates).length === 0) {
       return res.json(ownership.tree);
