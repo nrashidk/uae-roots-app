@@ -491,7 +491,13 @@ const FEMALE_DISPLAY_MODES = ["hidden", "anonymous", "full"];
 // Settings the OWNER controls on their own tree. Deliberately does NOT include
 // createdBy — ownership is not something a request may reassign.
 const treeSettingsSchema = z.object({
-  emirate: z.enum(EMIRATE_CODES).optional().nullable(),
+  // "" is accepted alongside null: an HTML <select> placeholder option carries
+  // an empty string, and rejecting it turns "clear the emirate" into a
+  // validation error.
+  emirate: z
+    .union([z.enum(EMIRATE_CODES), z.literal("")])
+    .optional()
+    .nullable(),
   isPublished: z.boolean().optional(),
   // NULL/empty clears the override and returns the name to the derived one.
   familyName: z.string().max(80).trim().optional().nullable(),
@@ -2102,6 +2108,17 @@ app.patch("/api/trees/:id", authenticateUser, async (req, res) => {
 
     if (Object.keys(updates).length === 0) {
       return res.json(ownership.tree);
+    }
+
+    // A published tree MUST carry a family name and an emirate. The settings
+    // page gates this, but that gate is in the browser — a direct call must not
+    // be able to publish a tree the directory then cannot name or file under an
+    // emirate. Checked against the values AFTER this update, not before.
+    const after = { ...ownership.tree, ...updates };
+    if (after.isPublished && (!after.familyName || !after.emirate)) {
+      return res.status(400).json({
+        error: "لا يمكن النشر قبل تحديد اسم العائلة والإمارة",
+      });
     }
 
     const [tree] = await db
