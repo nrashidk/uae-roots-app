@@ -169,6 +169,14 @@ export const api = {
         method: "POST",
         body: JSON.stringify(data),
       }),
+    // Emirate, publish flag and family-name override. Send only the keys being
+    // changed — the server treats an absent key as "leave alone" and an empty
+    // familyName as "clear the override and derive the name again".
+    updateSettings: (treeId, data) =>
+      fetchAPI(`/trees/${treeId}`, {
+        method: "PATCH",
+        body: JSON.stringify(data),
+      }),
   },
 
   people: {
