@@ -112,7 +112,6 @@ const readStoredOptions = () => {
 function App() {
   const navigate = useNavigate();
   const location = useLocation();
-  const CARD = { w: 140, h: 90 };
   const REL = {
     PARTNER: "partner",
     PARENT_CHILD: "parent-child",
@@ -365,6 +364,50 @@ function App() {
     ...(readStoredOptions()?.styling || {}),
   }));
 
+
+  // Grid cell size. WIDTH fixed; HEIGHT is the ROW PITCH and has to cover the
+  // tallest box the current options can produce, or boxes collide.
+  //
+  // Boxes are centred on their grid point and rows sit CARD.h apart, so this
+  // number is the whole vertical budget for a box plus the gap to the next row.
+  // It was a constant 90 while box height grows with both the number of fields
+  // shown AND the text-size slider — at 90 a full box already overflowed its
+  // row and drew through its neighbours.
+  //
+  // Boxes are still sized PER PERSON in TreeCanvas; this only sets how far
+  // apart the rows are. The arithmetic below mirrors the height calculation
+  // there — if one changes, change the other.
+  const CARD = useMemo(() => {
+    const textSize = stylingOptions?.textSize || 14;
+    const lineHeight = Math.round((textSize - 2) * 1.35);
+    const nameLineHeight = Math.round(textSize * 1.45);
+    const padding = 10;
+
+    // Worst case: every enabled option. showAge and showDeathDate cannot share
+    // a box — a person is living or not — so counting both would pad every row
+    // for a line that can never appear.
+    const opt = (k) => (displayOptions?.[k] ? 1 : 0);
+    const detailLines =
+      opt("showBirthDate") +
+      opt("showBirthPlace") +
+      opt("showProfession") +
+      opt("showTelephone") +
+      opt("showEmail") +
+      Math.max(opt("showDeathDate"), opt("showAge"));
+
+    const tallestBox = padding * 2 + nameLineHeight + detailLines * lineHeight;
+    const ROW_GAP = 24;
+    return { w: 140, h: Math.max(90, tallestBox + ROW_GAP) };
+  }, [
+    stylingOptions?.textSize,
+    displayOptions?.showBirthDate,
+    displayOptions?.showBirthPlace,
+    displayOptions?.showProfession,
+    displayOptions?.showTelephone,
+    displayOptions?.showEmail,
+    displayOptions?.showDeathDate,
+    displayOptions?.showAge,
+  ]);
 
   // Reset options to default.
   // Reset CLEARS THE STORE as well as the state. Setting state alone would look
