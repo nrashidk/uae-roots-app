@@ -2116,8 +2116,16 @@ app.patch("/api/trees/:id", authenticateUser, async (req, res) => {
     // emirate. Checked against the values AFTER this update, not before.
     const after = { ...ownership.tree, ...updates };
     if (after.isPublished && (!after.familyName || !after.emirate)) {
+      // Two ways to reach this: trying to publish while something is missing,
+      // or clearing a required field on an already-published tree. Same rule,
+      // opposite actions — so the message names the action being refused rather
+      // than always talking about publishing.
+      const clearing =
+        ownership.tree.isPublished && updates.isPublished === undefined;
       return res.status(400).json({
-        error: "لا يمكن النشر قبل تحديد اسم العائلة والإمارة",
+        error: clearing
+          ? "الشجرة منشورة — أوقف النشر أولاً قبل حذف اسم العائلة أو الإمارة"
+          : "لا يمكن النشر قبل تحديد اسم العائلة والإمارة",
       });
     }
 
