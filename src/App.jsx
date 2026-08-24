@@ -325,6 +325,7 @@ function App() {
     isPublished: false,
     familyName: "",
     femaleDisplay: "hidden",
+    publicFields: ["name"],
   });
   const [editingFamilyName, setEditingFamilyName] = useState(false);
   const [settingsBusy, setSettingsBusy] = useState(false);
@@ -1483,6 +1484,7 @@ function App() {
       isPublished: currentTree.isPublished === true,
       familyName: currentTree.familyName || "",
       femaleDisplay: currentTree.femaleDisplay || "hidden",
+      publicFields: (currentTree.publicFields || "name").split(","),
     });
     setEditingFamilyName(false);
   }, [currentTree]);
@@ -1500,6 +1502,7 @@ function App() {
         isPublished: updated.isPublished === true,
         familyName: updated.familyName || "",
         femaleDisplay: updated.femaleDisplay || "hidden",
+        publicFields: (updated.publicFields || "name").split(","),
       });
       setEditingFamilyName(false);
       // Brief confirmation. The dropdown and the toggle save on change with no
@@ -6162,6 +6165,54 @@ function App() {
                   {treeSettings.femaleDisplay === "full" &&
                     "يرى الزائر الشجرة كما تراها أنت، بأسماء النساء كاملة."}
                 </div>
+            </div>
+
+            {/* Which fields the public box carries. Same reasoning as
+                femaleDisplay: what a stranger sees is a STORED decision, not a
+                side effect of a display preference living in localStorage. */}
+            <div className={treeSettings.isPublished ? "" : "opacity-40"}>
+              <label className="block text-sm font-bold mb-1">
+                الحقول الظاهرة للزائر
+              </label>
+              <div className="text-[11px] text-gray-400 mb-2 leading-relaxed">
+                {treeSettings.isPublished
+                  ? "الاسم يظهر دائماً. اختر ما يُضاف إليه في صندوق كل فرد."
+                  : "فعّل النشر أولاً"}
+              </div>
+
+              <label className="flex items-center gap-2.5 border rounded-md px-3 py-2 mb-1.5 bg-gray-50">
+                <input type="checkbox" checked readOnly className="rounded" />
+                <span className="text-sm text-gray-400">الاسم</span>
+                <span className="text-[11px] text-gray-400 mr-auto">دائماً</span>
+              </label>
+
+              {[
+                ["birthYear", "سنة الميلاد"],
+                ["deathYear", "سنة الوفاة"],
+                ["age", "العمر"],
+                ["birthPlace", "مكان الميلاد"],
+              ].map(([key, label]) => (
+                <label
+                  key={key}
+                  className="flex items-center gap-2.5 border rounded-md px-3 py-2 mb-1.5"
+                >
+                  <input
+                    type="checkbox"
+                    checked={treeSettings.publicFields.includes(key)}
+                    disabled={settingsBusy || !treeSettings.isPublished}
+                    onChange={(e) => {
+                      const next = e.target.checked
+                        ? [...treeSettings.publicFields, key]
+                        : treeSettings.publicFields.filter((k) => k !== key);
+                      // Send the whole set; the server re-adds "name" and
+                      // filters anything it does not recognise.
+                      saveTreeSettings({ publicFields: next });
+                    }}
+                    className="rounded"
+                  />
+                  <span className="text-sm">{label}</span>
+                </label>
+              ))}
             </div>
 
           </div>
