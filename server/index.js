@@ -481,6 +481,20 @@ const treeSchema = z.object({
   createdBy: z.string().min(1).max(200),
 });
 
+// The seven emirates, as CODES. Whitelisted here rather than accepted as free
+// text: the column feeds a public directory, and an unrecognised value would
+// put a family in a bucket that does not exist.
+const EMIRATE_CODES = ["AZ", "DU", "SH", "AJ", "UQ", "RK", "FU"];
+
+// Settings the OWNER controls on their own tree. Deliberately does NOT include
+// createdBy — ownership is not something a request may reassign.
+const treeSettingsSchema = z.object({
+  emirate: z.enum(EMIRATE_CODES).optional().nullable(),
+  isPublished: z.boolean().optional(),
+  // NULL/empty clears the override and returns the name to the derived one.
+  familyName: z.string().max(80).trim().optional().nullable(),
+});
+
 const relationshipSchema = z.object({
   treeId: z.number().int().positive(),
   type: z.enum(["partner", "parent-child", "sibling"]),
@@ -2046,6 +2060,59 @@ app.post("/api/auth/consent", authenticateUser, async (req, res) => {
 
 app.use("/api/users", apiLimiter);
 app.use("/api/trees", apiLimiter);
+
+// Tree settings — emirate, publish flag, family-name override.
+//
+// The tree is created automatically at signup with no input, so this is the only
+// place these three are ever set. Nothing else may be changed here: name and
+// description are not settings, and createdBy is ownership, which a request must
+// never be able to reassign.
+app.patch("/api/trees/:id", authenticateUser, async (req, res) => {
+  try {
+    const treeId = validateId(req.params.id);
+    if (!treeId) {
+      return res.status(400).json({ error: "Invalid tree ID" });
+    }
+
+    // Ownership BEFORE validation, so a probe cannot learn from the difference
+    // between "bad emirate code" and "not your tree".
+    const ownership = await verifyTreeOwnership(treeId, req.userId);
+    if (!ownership.valid) {
+      return res.status(403).json({ error: ownership.error });
+    }
+
+    const validatedData = treeSettingsSchema.parse(req.body);
+
+    const updates = {};
+    if (validatedData.emirate !== undefined)
+      updates.emirate = validatedData.emirate || null;
+    if (validatedData.isPublished !== undefined)
+      updates.isPublished = validatedData.isPublished;
+    // Empty string clears the override: familyName NULL means "derive from the
+    // root person's lineage", which is the revert path.
+    if (validatedData.familyName !== undefined)
+      updates.familyName = validatedData.familyName || null;
+
+    if (Object.keys(updates).length === 0) {
+      return res.json(ownership.tree);
+    }
+
+    const [tree] = await db
+      .update(trees)
+      .set(updates)
+      .where(eq(trees.id, treeId))
+      .returning();
+
+    await logAudit(req.userId, "update", "tree", String(treeId), updates, req);
+    res.json(tree);
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({ error: "بيانات غير صحيحة" });
+    }
+    handleError(res, error, "Tree settings update", req);
+  }
+});
+
 app.use("/api/people", apiLimiter);
 app.use("/api/relationships", apiLimiter);
 
