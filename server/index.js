@@ -488,6 +488,17 @@ const EMIRATE_CODES = ["AZ", "DU", "SH", "AJ", "UQ", "RK", "FU"];
 
 const FEMALE_DISPLAY_MODES = ["hidden", "anonymous", "full"];
 
+// Everything the public tree box can carry. Phone and email are absent by
+// design — they are the only encrypted columns, and decrypting them for a
+// stranger defeats the reason they are sealed.
+const PUBLIC_FIELD_KEYS = [
+  "name",
+  "birthYear",
+  "deathYear",
+  "age",
+  "birthPlace",
+];
+
 // Settings the OWNER controls on their own tree. Deliberately does NOT include
 // createdBy — ownership is not something a request may reassign.
 const treeSettingsSchema = z.object({
@@ -502,6 +513,10 @@ const treeSettingsSchema = z.object({
   // NULL/empty clears the override and returns the name to the derived one.
   familyName: z.string().max(80).trim().optional().nullable(),
   femaleDisplay: z.enum(FEMALE_DISPLAY_MODES).optional(),
+  // Sent as an array; stored as a comma-separated string. Validated against the
+  // whitelist so an unknown key cannot reach the column, and "name" is forced in
+  // regardless — a tree with no visible names is not a tree.
+  publicFields: z.array(z.enum(PUBLIC_FIELD_KEYS)).optional(),
 });
 
 const relationshipSchema = z.object({
@@ -2203,6 +2218,13 @@ app.patch("/api/trees/:id", authenticateUser, async (req, res) => {
     // of the three modes. An absent key means "leave alone", not "clear".
     if (validatedData.femaleDisplay !== undefined)
       updates.femaleDisplay = validatedData.femaleDisplay;
+    if (validatedData.publicFields !== undefined) {
+      const set = new Set(validatedData.publicFields);
+      set.add("name");
+      updates.publicFields = PUBLIC_FIELD_KEYS.filter((k) => set.has(k)).join(
+        ",",
+      );
+    }
 
     if (Object.keys(updates).length === 0) {
       return res.json(ownership.tree);
