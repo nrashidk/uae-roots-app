@@ -1358,6 +1358,77 @@ function App() {
     return people.filter((p) => p.treeId === currentTree?.id);
   }, [people, currentTree?.id]);
 
+  const treeRels = useMemo(() => {
+    return relationships.filter((r) => r.treeId === currentTree?.id);
+  }, [relationships, currentTree?.id]);
+
+  const peopleById = useMemo(
+    () => new Map(treePeople.map((p) => [p.id, p])),
+    [treePeople],
+  );
+
+  // Relationship lookups, hoisted to component scope.
+  //
+  // These lived inside the العائلات render, closing over ITS local treePeople /
+  // treeRels, so الأفراد could not call them. Rebuilding them there would have
+  // been a seventh copy of parent traversal in this file — parentsOf alone is
+  // already rebuilt in six places — and the next fix would have to be applied
+  // twice. العائلات now calls these same functions; its local copies are gone.
+  const fatherOf = (id) => {
+    const parentIds = treeRels
+      .filter((r) => r.type === "parent-child" && r.childId === id)
+      .map((r) => r.parentId);
+    return (
+      parentIds.map((pid) => peopleById.get(pid)).find((p) => p?.gender === "male") ||
+      null
+    );
+  };
+
+  const getRelationshipCounts = (person) => {
+    const spouseRels = treeRels.filter(
+      (r) =>
+        r.type === "partner" &&
+        (r.person1Id === person.id || r.person2Id === person.id),
+    );
+    // Wives the man has RIGHT NOW: not divorced, and living. Deliberately the
+    // same test the spouse limit uses, so the collapsed card can never show a
+    // number that appears to break the four-wife rule.
+    //
+    // Counting every partner row ever written showed a man with one wife, one
+    // divorce and one deceased wife as having three, while every RULE in the
+    // app treated him as having one. Counting divorces separately fixed half of
+    // it and left the other half: خالد showed SIX against a limit of four,
+    // because two of his wives had died.
+    //
+    // Nothing is hidden — divorced and deceased wives both appear in the
+    // expanded card, badged, with their children under them. The collapsed
+    // card answers "how many wives does he have"; the expanded one answers
+    // "who are they".
+    const wives = spouseRels.filter((r) => {
+      if (r.status === "divorced") return false;
+      const wifeId = r.person1Id === person.id ? r.person2Id : r.person1Id;
+      const wife = treePeople.find((p) => p.id === wifeId);
+      return wife ? wife.isLiving !== false : false;
+    }).length;
+
+    const children = treeRels.filter(
+      (r) => r.type === "parent-child" && r.parentId === person.id,
+    ).length;
+
+    return { wives, children };
+  };
+
+  const motherOf = (id) => {
+    const parentIds = treeRels
+      .filter((r) => r.type === "parent-child" && r.childId === id)
+      .map((r) => r.parentId);
+    return (
+      parentIds
+        .map((pid) => peopleById.get(pid))
+        .find((p) => p?.gender === "female") || null
+    );
+  };
+
   // Which display toggles can actually change anything on THIS tree.
   //
   // Every line in TreeCanvas is already guarded per person — showDeathDate only
@@ -5851,17 +5922,6 @@ function App() {
       return -person.birthOrder;
     };
 
-    const peopleById = new Map(treePeople.map((p) => [p.id, p]));
-    const fatherOf = (id) => {
-      const parentIds = treeRels
-        .filter((r) => r.type === "parent-child" && r.childId === id)
-        .map((r) => r.parentId);
-      const father = parentIds
-        .map((pid) => peopleById.get(pid))
-        .find((p) => p?.gender === "male");
-      return father || null;
-    };
-
     const lineagePathCache = new Map();
     const lineagePath = (person, guard = 0) => {
       if (!person) return [];
@@ -5905,39 +5965,6 @@ function App() {
     // A household: wives and children. The sibling derivation that used to live
     // here went with the counts it fed — sibling links are reciprocal, so each one
     // appeared on two cards of the same page.
-    const getRelationshipCounts = (person) => {
-      const spouseRels = treeRels.filter(
-        (r) =>
-          r.type === "partner" &&
-          (r.person1Id === person.id || r.person2Id === person.id),
-      );
-      // Wives the man has RIGHT NOW: not divorced, and living. Deliberately the
-      // same test the spouse limit uses, so the collapsed card can never show a
-      // number that appears to break the four-wife rule.
-      //
-      // Counting every partner row ever written showed a man with one wife, one
-      // divorce and one deceased wife as having three, while every RULE in the
-      // app treated him as having one. Counting divorces separately fixed half of
-      // it and left the other half: خالد showed SIX against a limit of four,
-      // because two of his wives had died.
-      //
-      // Nothing is hidden — divorced and deceased wives both appear in the
-      // expanded card, badged, with their children under them. The collapsed
-      // card answers "how many wives does he have"; the expanded one answers
-      // "who are they".
-      const wives = spouseRels.filter((r) => {
-        if (r.status === "divorced") return false;
-        const wifeId = r.person1Id === person.id ? r.person2Id : r.person1Id;
-        const wife = treePeople.find((p) => p.id === wifeId);
-        return wife ? wife.isLiving !== false : false;
-      }).length;
-
-      const children = treeRels.filter(
-        (r) => r.type === "parent-child" && r.parentId === person.id,
-      ).length;
-
-      return { wives, children };
-    };
 
     // Arabic counts a noun differently at 1, at 2, at 3–10 and again from 11 up.
     // A single `n === 1 ? "ابن" : "أبناء"` gets three of those four wrong: it
