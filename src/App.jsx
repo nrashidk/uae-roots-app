@@ -5514,6 +5514,19 @@ function App() {
     return head ? getGenealogicalName(head) : "";
   })();
 
+  // The settings page unlocks one step at a time: name, then emirate, then
+  // publish, then how visitors see women.
+  //
+  // This is not decoration. The PUBLIC directory has to print a family name,
+  // and the derived one exists only in this browser — familyGroups, root
+  // detection and getGenealogicalName are all client-side. Requiring the name to
+  // be SAVED before an emirate can be chosen, and an emirate before publishing,
+  // means a published tree always carries a literal string the server can serve
+  // without reimplementing lineage logic that would drift from this one.
+  const settingsHasName = Boolean(treeSettings.familyName);
+  const settingsHasEmirate = Boolean(treeSettings.emirate);
+  const settingsCanPublish = settingsHasName && settingsHasEmirate;
+
 
   // Reusable person add/edit form panel — rendered in both the tree view and the
   // Family Members dashboard, so people who aren't placed on the tree (e.g. milk
@@ -5849,7 +5862,11 @@ function App() {
 
   if (currentView === "tree-settings") {
     const nameInUse = treeSettings.familyName || derivedFamilyName;
-    const isOverridden = Boolean(treeSettings.familyName);
+    // "Overridden" now means DIFFERENT from the lineage, not merely non-null —
+    // every published tree stores a literal name, including the derived one.
+    const isOverridden =
+      Boolean(treeSettings.familyName) &&
+      treeSettings.familyName !== derivedFamilyName;
 
     return (
       <div className="min-h-screen bg-gray-50">
@@ -5913,22 +5930,45 @@ function App() {
                       <Pencil className="w-4 h-4 text-gray-600" />
                     </button>
                   </div>
-                  {isOverridden ? (
-                    // An override FREEZES. Without a way back, a corrected
-                    // ancestor name would leave a stale family name and no route
-                    // to restore it — so this link is part of the feature, not a
-                    // convenience.
+                  {!settingsHasName ? (
+                    // Nothing is stored yet. The box shows the derived name, but
+                    // it has to be SAVED before anything below unlocks — the
+                    // directory needs a literal string, not a value that only
+                    // exists in this browser.
+                    <div className="mt-2 flex items-center gap-2">
+                      <Button
+                        size="sm"
+                        disabled={settingsBusy || !derivedFamilyName}
+                        onClick={() =>
+                          saveTreeSettings({ familyName: derivedFamilyName })
+                        }
+                      >
+                        تأكيد الاسم
+                      </Button>
+                      <span className="text-[11px] text-gray-400">
+                        {derivedFamilyName
+                          ? "أكّد الاسم أو عدّله للمتابعة"
+                          : "أضف أفراداً إلى شجرتك أولاً"}
+                      </span>
+                    </div>
+                  ) : isOverridden ? (
+                    // Rewrites the stored name from the CURRENT lineage rather
+                    // than clearing it. Clearing would re-lock the page, and this
+                    // also picks up a corrected ancestor name — which is what the
+                    // label promises.
                     <button
                       type="button"
                       disabled={settingsBusy}
-                      onClick={() => saveTreeSettings({ familyName: "" })}
+                      onClick={() =>
+                        saveTreeSettings({ familyName: derivedFamilyName })
+                      }
                       className="text-[11px] text-[#A5813F] mt-1.5 hover:underline"
                     >
                       ↺ العودة إلى الاسم التلقائي
                     </button>
                   ) : (
                     <div className="text-[11px] text-gray-400 mt-1.5">
-                      تلقائي — من سلسلة النسب
+                      مطابق للاسم التلقائي — من سلسلة النسب
                     </div>
                   )}
                 </>
@@ -5990,17 +6030,23 @@ function App() {
               )}
             </div>
 
-            {/* الإمارة */}
-            <div>
+            {/* الإمارة — locked until the name is saved */}
+            <div className={settingsHasName ? "" : "opacity-40"}>
               <label className="block text-sm font-bold mb-1">الإمارة</label>
               <div className="text-[11px] text-gray-400 mb-2 leading-relaxed">
-                الإمارة التي صدرت منها خلاصة القيد — وليست مكان السكن الحالي
+                {settingsHasName
+                  ? "الإمارة التي صدرت منها خلاصة القيد — وليست مكان السكن الحالي"
+                  : "أكّد اسم العائلة أولاً"}
               </div>
               <select
                 value={treeSettings.emirate}
-                disabled={settingsBusy}
-                onChange={(e) => saveTreeSettings({ emirate: e.target.value })}
-                className="w-full px-3 py-2 border rounded-md"
+                disabled={settingsBusy || !settingsHasName}
+                // The «غير محدّدة» option carries "", which is neither a valid
+                // code nor null — send null so the server reads it as "clear".
+                onChange={(e) =>
+                  saveTreeSettings({ emirate: e.target.value || null })
+                }
+                className="w-full px-3 py-2 border rounded-md disabled:bg-gray-50"
               >
                 <option value="">غير محدّدة</option>
                 {EMIRATES.map((em) => (
@@ -6011,17 +6057,19 @@ function App() {
               </select>
             </div>
 
-            {/* النشر */}
-            <div>
+            {/* النشر — locked until both the name and the emirate are set */}
+            <div className={settingsCanPublish ? "" : "opacity-40"}>
               <label className="block text-sm font-bold mb-1">النشر</label>
               <div className="text-[11px] text-gray-400 mb-2 leading-relaxed">
-                عند التفعيل تظهر عائلتك في دليل الإمارة ويمكن لأي زائر عرض الشجرة
+                {settingsCanPublish
+                  ? "عند التفعيل تظهر عائلتك في دليل الإمارة ويمكن لأي زائر عرض الشجرة"
+                  : "أكّد اسم العائلة واختر الإمارة أولاً"}
               </div>
-              <label className="flex items-center gap-3 border rounded-md p-3 bg-gray-50 cursor-pointer">
+              <label className="flex items-center gap-3 border rounded-md p-3 bg-gray-50">
                 <input
                   type="checkbox"
                   checked={treeSettings.isPublished}
-                  disabled={settingsBusy}
+                  disabled={settingsBusy || !settingsCanPublish}
                   onChange={(e) =>
                     saveTreeSettings({ isPublished: e.target.checked })
                   }
@@ -6046,8 +6094,9 @@ function App() {
                   ظهور النساء في العرض العام
                 </label>
                 <div className="text-[11px] text-gray-400 mb-2 leading-relaxed">
-                  لا يؤثّر هذا على شجرتك — أنت ترى دائماً الشجرة كاملة. الاختيار
-                  هنا يقرّر ما يراه الزائر فقط.
+                  {treeSettings.isPublished
+                    ? "لا يؤثّر هذا على شجرتك — أنت ترى دائماً الشجرة كاملة. الاختيار هنا يقرّر ما يراه الزائر فقط."
+                    : "فعّل النشر أولاً"}
                 </div>
                 <select
                   value={treeSettings.femaleDisplay}
