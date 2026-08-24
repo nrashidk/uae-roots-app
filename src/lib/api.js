@@ -179,6 +179,17 @@ export const api = {
       }),
   },
 
+  // Unauthenticated. Serves only published trees, and never the owner id.
+  publicDirectory: {
+    summary: () => fetchAPI("/public/directory"),
+    families: (emirate) =>
+      fetchAPI(
+        emirate
+          ? `/public/families?emirate=${encodeURIComponent(emirate)}`
+          : "/public/families",
+      ),
+  },
+
   people: {
     getAll: (treeId) => fetchAPI(`/people?treeId=${treeId}`),
     create: (data) =>
