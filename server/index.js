@@ -470,7 +470,7 @@ const personSchema = z.object({
     .or(z.literal(""))
     .or(z.null()),
   profession: z.string().max(100).optional().nullable(),
-  summary: z.string().max(600).optional().nullable(),
+  summary: z.string().max(520).optional().nullable(),
   birthOrder: z.number().int().optional().nullable(),
   photoUrl: z.string().max(500).optional().nullable(),
 });
@@ -532,7 +532,7 @@ const personUpdateSchema = z.object({
   isBreastfed: z.boolean().optional(),
   phone: z.string().max(20).optional().nullable(),
   profession: z.string().max(100).optional().nullable(),
-  summary: z.string().max(600).optional().nullable(),
+  summary: z.string().max(520).optional().nullable(),
   email: z
     .string()
     .email()
