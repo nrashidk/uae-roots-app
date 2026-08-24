@@ -7417,13 +7417,20 @@ function PersonForm({
           onChange={(e) =>
             setFormData((prev) => ({ ...prev, summary: e.target.value }))
           }
-          className="w-full px-3 py-2 border rounded-md resize-y"
+          className="w-full px-3 py-2 border rounded-md resize-none"
           dir="rtl"
         />
-        {/* Capped at 600 to match the Zod limit server-side. This text appears
+        {/* resize-none, fixed at rows={4}. `resize-y` let the user drag the box
+            down to a single-line sliver or up to an arbitrary height, neither of
+            which the layout expects; long text scrolls inside instead.
+            Capped at 600 to match the Zod limit server-side — this text appears
             in the record card and in the public tree view, and unbounded prose
-            breaks both layouts. */}
-        <div className="text-xs text-gray-400 text-left mt-1">
+            breaks both.
+            dir="ltr" on the counter: in RTL "0 / 600" renders as "600 / 0". */}
+        <div
+          className="text-xs text-gray-400 text-left mt-1"
+          dir="ltr"
+        >
           {(formData.summary || "").length} / 600
         </div>
       </div>
