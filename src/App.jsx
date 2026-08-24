@@ -20,6 +20,7 @@ import {
   UserPlus,
   Link2,
   Trash2,
+  Pencil,
   X,
   Settings,
   Home,
@@ -48,6 +49,7 @@ import {
 import TreeCanvas from "./components/FamilyTree/TreeCanvas.jsx";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "./hooks/useAuth";
+import { formatAge } from "@/lib/utils";
 import {
   api,
   setAuthToken,
@@ -299,6 +301,14 @@ function App() {
   // issued a session cookie by then, but no `users` row exists — so cancelling
   // leaves nothing behind.
   const [pendingSignup, setPendingSignup] = useState(null);
+
+  // الأفراد: which card is expanded to its record, and which is in edit mode.
+  // editingMemberId is DELIBERATELY separate from showPersonForm/editingPerson,
+  // which drive the floating form over the tree. Sharing those flags would mount
+  // both forms at once — the floating panel and the in-card one — bound to the
+  // same formData.
+  const [expandedMemberId, setExpandedMemberId] = useState(null);
+  const [editingMemberId, setEditingMemberId] = useState(null);
 
   // Set when a signed-in account has no recorded consent. Distinct from
   // pendingSignup: that one means "no account exists yet", this one means "the
@@ -1357,6 +1367,117 @@ function App() {
   const treePeople = useMemo(() => {
     return people.filter((p) => p.treeId === currentTree?.id);
   }, [people, currentTree?.id]);
+
+  const treeRels = useMemo(() => {
+    return relationships.filter((r) => r.treeId === currentTree?.id);
+  }, [relationships, currentTree?.id]);
+
+  const peopleById = useMemo(
+    () => new Map(treePeople.map((p) => [p.id, p])),
+    [treePeople],
+  );
+
+  // Relationship lookups, hoisted to component scope.
+  //
+  // These lived inside the العائلات render, closing over ITS local treePeople /
+  // treeRels, so الأفراد could not call them. Rebuilding them there would have
+  // been a seventh copy of parent traversal in this file — parentsOf alone is
+  // already rebuilt in six places — and the next fix would have to be applied
+  // twice. العائلات now calls these same functions; its local copies are gone.
+  const fatherOf = (id) => {
+    const parentIds = treeRels
+      .filter((r) => r.type === "parent-child" && r.childId === id)
+      .map((r) => r.parentId);
+    return (
+      parentIds.map((pid) => peopleById.get(pid)).find((p) => p?.gender === "male") ||
+      null
+    );
+  };
+
+  const getRelationshipCounts = (person) => {
+    const spouseRels = treeRels.filter(
+      (r) =>
+        r.type === "partner" &&
+        (r.person1Id === person.id || r.person2Id === person.id),
+    );
+    // Wives the man has RIGHT NOW: not divorced, and living. Deliberately the
+    // same test the spouse limit uses, so the collapsed card can never show a
+    // number that appears to break the four-wife rule.
+    //
+    // Counting every partner row ever written showed a man with one wife, one
+    // divorce and one deceased wife as having three, while every RULE in the
+    // app treated him as having one. Counting divorces separately fixed half of
+    // it and left the other half: خالد showed SIX against a limit of four,
+    // because two of his wives had died.
+    //
+    // Nothing is hidden — divorced and deceased wives both appear in the
+    // expanded card, badged, with their children under them. The collapsed
+    // card answers "how many wives does he have"; the expanded one answers
+    // "who are they".
+    const wives = spouseRels.filter((r) => {
+      if (r.status === "divorced") return false;
+      const wifeId = r.person1Id === person.id ? r.person2Id : r.person1Id;
+      const wife = treePeople.find((p) => p.id === wifeId);
+      return wife ? wife.isLiving !== false : false;
+    }).length;
+
+    const children = treeRels.filter(
+      (r) => r.type === "parent-child" && r.parentId === person.id,
+    ).length;
+
+    return { wives, children };
+  };
+
+  const motherOf = (id) => {
+    const parentIds = treeRels
+      .filter((r) => r.type === "parent-child" && r.childId === id)
+      .map((r) => r.parentId);
+    return (
+      parentIds
+        .map((pid) => peopleById.get(pid))
+        .find((p) => p?.gender === "female") || null
+    );
+  };
+
+  const milkSiblingsOf = (id) =>
+    treeRels
+      .filter(
+        (r) =>
+          r.type === "sibling" &&
+          r.isBreastfeeding &&
+          (r.person1Id === id || r.person2Id === id),
+      )
+      .map((r) => peopleById.get(r.person1Id === id ? r.person2Id : r.person1Id))
+      .filter(Boolean);
+
+  // Everything the record card on الأفراد shows, in one place, so the compact
+  // line and the expanded body can never disagree.
+  const memberRecord = (person) => {
+    const yr = (d) => (d ? String(d).slice(0, 4) : null);
+    const born = yr(person.birthDate);
+    const died = yr(person.deathDate);
+    const isLiving = person.isLiving !== false;
+
+    // Death date is ignored for a living person: the form hides that field
+    // rather than clearing it on older rows, so a stale value can survive.
+    const lifespan =
+      born && died && !isLiving ? `${born} – ${died}` : born || null;
+
+    const age =
+      isLiving && born ? new Date().getFullYear() - parseInt(born, 10) : null;
+
+    const counts = getRelationshipCounts(person);
+    return {
+      lifespan,
+      ageLabel: age != null && age >= 0 ? formatAge(age) : null,
+      father: fatherOf(person.id),
+      mother: motherOf(person.id),
+      spouseLabel: person.gender === "female" ? "الزوج" : "الزوجات",
+      counts,
+      milk: milkSiblingsOf(person.id),
+      isLiving,
+    };
+  };
 
   // Which display toggles can actually change anything on THIS tree.
   //
@@ -5734,53 +5855,278 @@ function App() {
                             : person._spouseIndex === 4
                               ? "الزوجة الرابعة"
                               : null;
+                    const rec = memberRecord(person);
+                    const isOpen = expandedMemberId === person.id;
+                    const isEditing = editingMemberId === person.id;
                     return (
                       <div
                         key={person.id}
                         data-person-card
                         style={
-                          person._startsNewRow
+                          person._startsNewRow && !isOpen
                             ? { gridColumnStart: 1 }
                             : undefined
                         }
                         onClick={() => {
-                          setEditingPerson(person.id);
-                          setRelationshipType(null);
-                          setFormKey((prev) => prev + 1);
-                          setShowPersonForm(true);
+                          // Card click READS. Editing is the pencil, so the only
+                          // way to see someone's record is no longer to open a
+                          // writable form and look at it.
+                          if (isEditing) return;
+                          setExpandedMemberId(isOpen ? null : person.id);
                         }}
-                        className={`relative overflow-hidden bg-white rounded-lg shadow p-4 cursor-pointer hover:shadow-md hover:border-gray-300 border transition ${
-                          isMilk ? "border-green-300" : "border-transparent"
+                        className={`relative bg-white rounded-lg shadow border transition ${
+                          isOpen ? "md:col-span-2" : ""
+                        } ${
+                          isEditing
+                            ? "ring-2 ring-[#A5813F] border-transparent"
+                            : isOpen
+                              ? "ring-1 ring-[#A5813F] border-transparent cursor-pointer"
+                              : `cursor-pointer hover:shadow-md ${
+                                  isMilk ? "border-green-300" : "border-transparent"
+                                }`
                         }`}
                       >
-                        <div dir="ltr" className="absolute bottom-2 left-2 flex items-center gap-2">
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              deletePerson(person.id);
-                            }}
-                            title={t.delete || "حذف"}
-                            aria-label={t.delete || "حذف"}
-                            className="p-1.5 rounded-md hover:bg-red-50 transition"
+                        <div className="p-4 flex items-start justify-between gap-3">
+                          <div>
+                            <div className="text-lg font-bold leading-relaxed">
+                              {getGenealogicalName(person)}
+                            </div>
+                            <div className="text-sm text-gray-500 mt-1">
+                              {person.gender === "male" ? "ذكر" : "أنثى"}
+                              {rec.lifespan && (
+                                <>
+                                  <span className="text-gray-300 mx-2">·</span>
+                                  {rec.lifespan}
+                                </>
+                              )}
+                              {rec.ageLabel && (
+                                <>
+                                  <span className="text-gray-300 mx-2">·</span>
+                                  {rec.ageLabel}
+                                </>
+                              )}
+                            </div>
+                          </div>
+                          <span className="text-gray-400 text-xs pt-1">
+                            {isOpen ? "⌃" : "⌄"}
+                          </span>
+                        </div>
+
+                        {isOpen && !isEditing && (
+                          <div className="border-t px-4 pb-2 grid grid-cols-1 md:grid-cols-2 gap-x-8">
+                            <div>
+                              <div className="text-[11px] text-[#A5813F] tracking-wide mt-3 mb-1">
+                                السجل
+                              </div>
+                              {[
+                                ["تاريخ الميلاد", person.birthDate],
+                                ["مكان الميلاد", person.birthPlace],
+                                [
+                                  "تاريخ الوفاة",
+                                  rec.isLiving ? null : person.deathDate,
+                                ],
+                                ["الهاتف", person.phone],
+                                ["البريد", person.email],
+                              ]
+                                // Empty rows are omitted, not shown blank — a
+                                // record should say what is known and stay quiet
+                                // about what is not.
+                                .filter(([, v]) => v)
+                                .map(([k, v]) => (
+                                  <div
+                                    key={k}
+                                    className="flex justify-between text-[13px] py-1.5 border-b border-gray-50"
+                                  >
+                                    <span className="text-gray-400">{k}</span>
+                                    <span dir="ltr" className="text-gray-700">
+                                      {v}
+                                    </span>
+                                  </div>
+                                ))}
+                            </div>
+                            <div>
+                              <div className="text-[11px] text-[#A5813F] tracking-wide mt-3 mb-1">
+                                الروابط
+                              </div>
+                              {[
+                                [
+                                  "الأب",
+                                  rec.father ? getGenealogicalName(rec.father) : null,
+                                ],
+                                [
+                                  "الأم",
+                                  rec.mother ? getGenealogicalName(rec.mother) : null,
+                                ],
+                                [
+                                  rec.spouseLabel,
+                                  rec.counts.wives || null,
+                                ],
+                                ["الأبناء", rec.counts.children || null],
+                                [
+                                  "إخوة الرضاعة",
+                                  rec.milk.length
+                                    ? rec.milk
+                                        .map((m) => getGenealogicalName(m))
+                                        .join("، ")
+                                    : null,
+                                ],
+                              ]
+                                .filter(([, v]) => v)
+                                .map(([k, v]) => (
+                                  <div
+                                    key={k}
+                                    className="flex justify-between text-[13px] py-1.5 border-b border-gray-50"
+                                  >
+                                    <span className="text-gray-400">{k}</span>
+                                    <span className="text-gray-700">{v}</span>
+                                  </div>
+                                ))}
+                            </div>
+
+                            {person.summary && (
+                              <div className="md:col-span-2">
+                                <div className="text-[11px] text-[#A5813F] tracking-wide mt-3 mb-1">
+                                  الملخّص
+                                </div>
+                                <p className="text-[13px] leading-loose text-gray-700 m-0">
+                                  {person.summary}
+                                </p>
+                              </div>
+                            )}
+
+                            <div className="md:col-span-2 border-t mt-3 pt-2 pb-1 flex items-center justify-between flex-row-reverse">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  // Reuses the centring that already exists:
+                                  // selectedPerson drives a pan to that person's
+                                  // layout coordinates, highlightedPerson draws
+                                  // the green border.
+                                  setSelectedPerson(person.id);
+                                  setHighlightedPerson(person.id);
+                                  setCurrentView("tree-builder");
+                                }}
+                              >
+                                عرض في الشجرة
+                              </Button>
+                              <div dir="ltr" className="flex items-center gap-2">
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    deletePerson(person.id);
+                                  }}
+                                  title={t.delete || "حذف"}
+                                  aria-label={t.delete || "حذف"}
+                                  className="p-1.5 rounded-md hover:bg-red-50 transition"
+                                >
+                                  <Trash2 className="w-4 h-4 text-red-600" />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setEditingMemberId(person.id);
+                                    setEditingPerson(person.id);
+                                  }}
+                                  title="تعديل"
+                                  aria-label="تعديل"
+                                  className="p-1.5 rounded-md hover:bg-gray-100 transition"
+                                >
+                                  <Pencil className="w-4 h-4 text-gray-600" />
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+
+                        {isEditing && (
+                          // The SAME PersonForm the tree opens, rendered in the
+                          // card instead of a floating panel — so nothing is
+                          // being edited behind an overlay. One component, one
+                          // set of validation rules.
+                          <div
+                            className="border-t px-4 py-4"
+                            onClick={(e) => e.stopPropagation()}
                           >
-                            <Trash2 className="w-4 h-4 text-red-600" />
-                          </button>
-                          {isMilk && (
-                            <span className="bg-green-600 text-white text-[11px] font-bold px-2.5 py-0.5 rounded tracking-wide">
-                              بالرضاعة
-                            </span>
-                          )}
-                          {spouseLabel && (
-                            <span className="bg-gray-600 text-white text-[11px] font-bold px-2.5 py-0.5 rounded tracking-wide">
-                              {spouseLabel}
-                            </span>
-                          )}
-                        </div>
-                        <div className="text-lg">{getGenealogicalName(person)}</div>
-                        <div className="text-sm text-gray-500">
-                          {person.gender === "male" ? "ذكر" : "أنثى"}
-                        </div>
+                            <div className="max-w-[420px]">
+                              <PersonForm
+                                key={`card-edit-${person.id}`}
+                                person={person}
+                                onSave={async (data) => {
+                                  await updatePerson(data);
+                                  setEditingMemberId(null);
+                                  setEditingPerson(null);
+                                }}
+                                onCancel={() => {
+                                  setEditingMemberId(null);
+                                  setEditingPerson(null);
+                                }}
+                                relationshipType={null}
+                                marriage={latestMarriageOf(person.id)}
+                                onRemoveMarriage={removeMarriage}
+                                t={t}
+                              />
+                            </div>
+                          </div>
+                        )}
+
+                        {!isOpen && (
+                          <div
+                            dir="ltr"
+                            className="absolute bottom-2 left-2 flex items-center gap-2"
+                          >
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                deletePerson(person.id);
+                              }}
+                              title={t.delete || "حذف"}
+                              aria-label={t.delete || "حذف"}
+                              className="p-1.5 rounded-md hover:bg-red-50 transition"
+                            >
+                              <Trash2 className="w-4 h-4 text-red-600" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setExpandedMemberId(person.id);
+                                setEditingMemberId(person.id);
+                                // updatePerson resolves WHICH person from the
+                                // editingPerson state, not from the data it is
+                                // handed, so this must be set or the save writes
+                                // to null and silently does nothing.
+                                setEditingPerson(person.id);
+                              }}
+                              title="تعديل"
+                              aria-label="تعديل"
+                              className="p-1.5 rounded-md hover:bg-gray-100 transition"
+                            >
+                              <Pencil className="w-4 h-4 text-gray-600" />
+                            </button>
+                          </div>
+                        )}
+
+                        {!isOpen && (isMilk || spouseLabel) && (
+                          <div className="absolute bottom-2 right-4 flex gap-1.5">
+                            {isMilk && (
+                              <span className="bg-green-600 text-white text-[11px] font-bold px-2.5 py-0.5 rounded tracking-wide">
+                                بالرضاعة
+                              </span>
+                            )}
+                            {spouseLabel && (
+                              <span className="bg-gray-600 text-white text-[11px] font-bold px-2.5 py-0.5 rounded tracking-wide">
+                                {spouseLabel}
+                              </span>
+                            )}
+                          </div>
+                        )}
+
+                        {!isOpen && <div className="h-8" />}
                       </div>
                     );
                   })}
@@ -5851,17 +6197,6 @@ function App() {
       return -person.birthOrder;
     };
 
-    const peopleById = new Map(treePeople.map((p) => [p.id, p]));
-    const fatherOf = (id) => {
-      const parentIds = treeRels
-        .filter((r) => r.type === "parent-child" && r.childId === id)
-        .map((r) => r.parentId);
-      const father = parentIds
-        .map((pid) => peopleById.get(pid))
-        .find((p) => p?.gender === "male");
-      return father || null;
-    };
-
     const lineagePathCache = new Map();
     const lineagePath = (person, guard = 0) => {
       if (!person) return [];
@@ -5905,39 +6240,6 @@ function App() {
     // A household: wives and children. The sibling derivation that used to live
     // here went with the counts it fed — sibling links are reciprocal, so each one
     // appeared on two cards of the same page.
-    const getRelationshipCounts = (person) => {
-      const spouseRels = treeRels.filter(
-        (r) =>
-          r.type === "partner" &&
-          (r.person1Id === person.id || r.person2Id === person.id),
-      );
-      // Wives the man has RIGHT NOW: not divorced, and living. Deliberately the
-      // same test the spouse limit uses, so the collapsed card can never show a
-      // number that appears to break the four-wife rule.
-      //
-      // Counting every partner row ever written showed a man with one wife, one
-      // divorce and one deceased wife as having three, while every RULE in the
-      // app treated him as having one. Counting divorces separately fixed half of
-      // it and left the other half: خالد showed SIX against a limit of four,
-      // because two of his wives had died.
-      //
-      // Nothing is hidden — divorced and deceased wives both appear in the
-      // expanded card, badged, with their children under them. The collapsed
-      // card answers "how many wives does he have"; the expanded one answers
-      // "who are they".
-      const wives = spouseRels.filter((r) => {
-        if (r.status === "divorced") return false;
-        const wifeId = r.person1Id === person.id ? r.person2Id : r.person1Id;
-        const wife = treePeople.find((p) => p.id === wifeId);
-        return wife ? wife.isLiving !== false : false;
-      }).length;
-
-      const children = treeRels.filter(
-        (r) => r.type === "parent-child" && r.parentId === person.id,
-      ).length;
-
-      return { wives, children };
-    };
 
     // Arabic counts a noun differently at 1, at 2, at 3–10 and again from 11 up.
     // A single `n === 1 ? "ابن" : "أبناء"` gets three of those four wrong: it
