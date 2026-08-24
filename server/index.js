@@ -2086,16 +2086,20 @@ app.use("/api/trees", apiLimiter);
 // Counts the people a VISITOR would see, per the tree's own female_display.
 // 'hidden' means men and their male children only — daughters as well as wives —
 // so the count filters on gender, not on marital role.
+// Written as LITERAL SQL rather than interpolating drizzle table objects.
+// `${people}` inside a correlated subquery does not render the bare table
+// reference the `p` alias needs, and the result was a silent 0 rather than an
+// error — the worst kind of wrong.
 const publicPeopleCount = sql`
-  (SELECT COUNT(*)::int FROM ${people} p
-    WHERE p.tree_id = ${trees.id}
-      AND (${trees.femaleDisplay} <> 'hidden' OR p.gender = 'male'))`;
+  (SELECT COUNT(*)::int FROM people p
+    WHERE p.tree_id = trees.id
+      AND (trees.female_display <> 'hidden' OR p.gender = 'male'))`;
 
 const publicOldestYear = sql`
-  (SELECT MIN(SUBSTRING(p.birth_date FROM 1 FOR 4))::int FROM ${people} p
-    WHERE p.tree_id = ${trees.id}
+  (SELECT MIN(SUBSTRING(p.birth_date FROM 1 FOR 4))::int FROM people p
+    WHERE p.tree_id = trees.id
       AND p.birth_date IS NOT NULL AND p.birth_date <> ''
-      AND (${trees.femaleDisplay} <> 'hidden' OR p.gender = 'male'))`;
+      AND (trees.female_display <> 'hidden' OR p.gender = 'male'))`;
 
 app.get("/api/public/directory", readLimiter, async (req, res) => {
   try {
