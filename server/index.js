@@ -2190,21 +2190,25 @@ app.get("/api/public/trees/:id", readLimiter, async (req, res) => {
     // name, which must come from the FULL set — the man may be visible while she
     // is not, or vice versa.
     const byId = new Map(allPeople.map((p) => [p.id, p]));
+    // Search ALL parent rows for the male one. Using .find() took the first
+    // parent-child row and gave up if it happened to be the mother — which is
+    // how two women with fathers fell back to the bare «أنثى».
     const fatherNameOf = (id) => {
-      const rel = allRels.find(
-        (r) => r.type === "parent-child" && r.childId === id,
-      );
-      const parent = rel ? byId.get(rel.parentId) : null;
-      return parent && parent.gender === "male" ? parent.firstName : null;
+      const father = allRels
+        .filter((r) => r.type === "parent-child" && r.childId === id)
+        .map((r) => byId.get(r.parentId))
+        .find((p) => p && p.gender === "male");
+      return father ? father.firstName : null;
     };
     const husbandNameOf = (id) => {
-      const rel = allRels.find(
-        (r) =>
-          r.type === "partner" && (r.person1Id === id || r.person2Id === id),
-      );
-      if (!rel) return null;
-      const other = byId.get(rel.person1Id === id ? rel.person2Id : rel.person1Id);
-      return other && other.gender === "male" ? other.firstName : null;
+      const husband = allRels
+        .filter(
+          (r) =>
+            r.type === "partner" && (r.person1Id === id || r.person2Id === id),
+        )
+        .map((r) => byId.get(r.person1Id === id ? r.person2Id : r.person1Id))
+        .find((p) => p && p.gender === "male");
+      return husband ? husband.firstName : null;
     };
 
     const yr = (d) => (d ? String(d).slice(0, 4) : null);
