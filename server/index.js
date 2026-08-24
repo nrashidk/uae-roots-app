@@ -470,6 +470,7 @@ const personSchema = z.object({
     .or(z.literal(""))
     .or(z.null()),
   profession: z.string().max(100).optional().nullable(),
+  summary: z.string().max(600).optional().nullable(),
   birthOrder: z.number().int().optional().nullable(),
   photoUrl: z.string().max(500).optional().nullable(),
 });
@@ -531,6 +532,7 @@ const personUpdateSchema = z.object({
   isBreastfed: z.boolean().optional(),
   phone: z.string().max(20).optional().nullable(),
   profession: z.string().max(100).optional().nullable(),
+  summary: z.string().max(600).optional().nullable(),
   email: z
     .string()
     .email()
@@ -2679,6 +2681,7 @@ app.post("/api/people", authenticateUser, async (req, res) => {
       phone: encryptPII(sanitizedData.phone),
       email: encryptPII(sanitizedData.email),
       profession: sanitizedData.profession || null,
+      summary: sanitizedData.summary || null,
       birthOrder: sanitizedData.birthOrder ?? null,
       photoUrl: sanitizedData.photoUrl || null,
     };
@@ -2774,6 +2777,8 @@ app.put("/api/people/:id", authenticateUser, async (req, res) => {
       personData.email = encryptPII(sanitizedData.email);
     if (sanitizedData.profession !== undefined)
       personData.profession = sanitizedData.profession || null;
+    if (sanitizedData.summary !== undefined)
+      personData.summary = sanitizedData.summary || null;
     if (sanitizedData.birthOrder !== undefined)
       personData.birthOrder = sanitizedData.birthOrder;
     if (sanitizedData.photoUrl !== undefined)
