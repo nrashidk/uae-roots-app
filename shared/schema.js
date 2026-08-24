@@ -158,6 +158,11 @@ export const people = pgTable("people", {
   email: text("email"),
   identificationNumber: text("identification_number"),
   profession: text("profession"),
+  // Free prose about the person, shown in the record card on الأفراد and in the
+  // public view. Replaces profession in the form; profession itself is LEFT IN
+  // PLACE — one production row still holds a value and dropping the column
+  // would destroy it for no gain.
+  summary: text("summary"),
   birthOrder: integer("birth_order"),
   photoUrl: text("photo_url"), // URL to uploaded photo
   createdAt: timestamp("created_at").defaultNow().notNull(),

@@ -1,5 +1,14 @@
 import { useRef, useEffect, useCallback } from "react";
 
+// Arabic number agreement. `${age} سنة` is only correct for 11 and above.
+//   1 → سنة واحدة   2 → سنتان   3–10 → N سنوات   11+ → N سنة
+const formatAge = (age) => {
+  if (age === 1) return "سنة واحدة";
+  if (age === 2) return "سنتان";
+  if (age >= 3 && age <= 10) return `${age} سنوات`;
+  return `${age} سنة`;
+};
+
 const TreeCanvas = ({
   layout,
   familyData,
@@ -134,11 +143,24 @@ const TreeCanvas = ({
         let lineCount = 1; // Name line
         const isLiving = person?.isLiving !== false;
         const isBreastfed = person?.isBreastfed === true;
-        const lineHeight = 12; // Line height for text rendering
+        // Line heights DERIVED from the fonts actually drawn.
+        //
+        // lineHeight was a constant 12 while textSize is a USER SLIDER running
+        // 10..20, and detail lines are drawn at (textSize - 2). At the top of
+        // that slider it was 18px text advancing 12px: lines overlapped each
+        // other and the block ran outside the box. Even at the default 14 the
+        // bold name got 12px of room, so the birth date sat on its descender.
+        const textSize = stylingOptions?.textSize || 14;
+        const lineHeight = Math.round((textSize - 2) * 1.35);
+        const nameLineHeight = Math.round(textSize * 1.45);
 
         if (person) {
           if (displayOptions?.showBirthDate && person.birthDate) lineCount++;
-          if (displayOptions?.showDeathDate && person.deathDate) lineCount++;
+          // `&& !isLiving` mirrors the draw below. A row can hold a deathDate
+          // while isLiving is true — the form hides the field rather than
+          // clearing it — and the tree drew a death date for someone alive.
+          if (displayOptions?.showDeathDate && person.deathDate && !isLiving)
+            lineCount++;
           if (displayOptions?.showBirthPlace && person.birthPlace) lineCount++;
           if (displayOptions?.showAge && person.birthDate && isLiving)
             lineCount++;
@@ -148,10 +170,9 @@ const TreeCanvas = ({
         }
 
         // Calculate dynamic height based on content
-        const baseHeight = 30; // Minimum height for name
-        const contentHeight = (lineCount - 1) * lineHeight; // Additional lines
         const padding = 10;
-        const calculatedHeight = baseHeight + contentHeight + padding;
+        const calculatedHeight =
+          padding * 2 + nameLineHeight + (lineCount - 1) * lineHeight;
 
         // Convert grid units to pixels
         const x = entity.x * BOX_WIDTH;
@@ -208,10 +229,10 @@ const TreeCanvas = ({
 
         // Calculate starting position - center vertically based on total content
         let yOffset;
-        const totalContentHeight = lineCount * lineHeight;
+        const totalContentHeight = nameLineHeight + (lineCount - 1) * lineHeight;
 
         // Always center the text block vertically
-        yOffset = boxY + (h - totalContentHeight) / 2 + lineHeight / 2;
+        yOffset = boxY + (h - totalContentHeight) / 2 + nameLineHeight / 2;
         ctx.textBaseline = "middle";
 
         // Build name text based on display options
@@ -247,7 +268,8 @@ const TreeCanvas = ({
           }
 
           ctx.fillText(displayText, x, yOffset);
-          yOffset += lineHeight;
+          // Half of each: from the name's centre to the first detail centre.
+          yOffset += nameLineHeight / 2 + lineHeight / 2;
         }
 
         // Draw additional info (birth date, etc.) - only if person data is available
@@ -259,7 +281,7 @@ const TreeCanvas = ({
             yOffset += lineHeight;
           }
 
-          if (displayOptions?.showDeathDate && person.deathDate) {
+          if (displayOptions?.showDeathDate && person.deathDate && !isLiving) {
             ctx.fillText(` ${person.deathDate}`, x, yOffset);
             yOffset += lineHeight;
           }
@@ -278,7 +300,7 @@ const TreeCanvas = ({
             const currentYear = new Date().getFullYear();
             const age = currentYear - birthYear;
             if (age > 0) {
-              ctx.fillText(`${age} سنة`, x, yOffset);
+              ctx.fillText(formatAge(age), x, yOffset);
               yOffset += lineHeight;
             }
           }
