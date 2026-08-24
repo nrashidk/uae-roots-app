@@ -135,6 +135,20 @@ export const trees = pgTable("trees", {
   name: text("name").notNull(),
   description: text("description"),
   createdBy: text("created_by").notNull(),
+  // Emirate of REGISTRATION — the emirate that issued the family's
+  // خلاصة القيد, not where they live. Stored as a fixed CODE
+  // (AZ DU SH AJ UQ RK FU), never Arabic text, so display wording can change
+  // without touching data and an English directory stays possible.
+  emirate: text("emirate"),
+  // Publication is opt-in and explicit. NOT NULL so every existing tree is
+  // definitively private rather than NULL-as-unknown, which is the wrong state
+  // for a privacy flag.
+  isPublished: boolean("is_published").notNull().default(false),
+  // NULL means DERIVE from getGenealogicalName on the root person. A value here
+  // is the owner's override, and clearing it is the revert path — without that,
+  // an override freezes and a corrected ancestor name leaves a stale family
+  // name with no way back.
+  familyName: text("family_name"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
