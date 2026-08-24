@@ -160,6 +160,18 @@ export const trees = pgTable("trees", {
   // Enforced SERVER-side. A client-side hide leaves the names in the API
   // response for anyone who opens the network tab.
   femaleDisplay: text("female_display").notNull().default("hidden"),
+  // Which fields the PUBLIC tree box carries, as a comma-separated list of
+  // keys: name,birthYear,deathYear,age,birthPlace. Name is always present.
+  //
+  // Stored on the TREE, not read from displayOptions: those live in
+  // localStorage and never reach the server, so the server that builds the
+  // public response cannot see them — and a visitor's browser has its own
+  // defaults. Hiding a field client-side hides the DRAWING, not the data.
+  //
+  // A string rather than five booleans or jsonb: the set is small and fixed,
+  // it is read whole and never queried per field, and it stays legible in a
+  // SQL console. Five columns would mean a migration every time the box changes.
+  publicFields: text("public_fields").notNull().default("name"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
