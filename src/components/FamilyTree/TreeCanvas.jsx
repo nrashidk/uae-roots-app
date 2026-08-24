@@ -144,6 +144,12 @@ const TreeCanvas = ({
         const isLiving = person?.isLiving !== false;
         const isBreastfed = person?.isBreastfed === true;
         const lineHeight = 12; // Line height for text rendering
+        // The name is drawn BOLD at textSize (14 by default) while every line
+        // advances by a flat 12, so a 14px glyph got 12px of room and the birth
+        // date landed on its descender. This is the extra room the name needs.
+        // Added to the box height and to the centring total as well, so the
+        // block stays centred and the box still fits its own content.
+        const NAME_GAP = 6;
 
         if (person) {
           if (displayOptions?.showBirthDate && person.birthDate) lineCount++;
@@ -164,7 +170,7 @@ const TreeCanvas = ({
         const baseHeight = 30; // Minimum height for name
         const contentHeight = (lineCount - 1) * lineHeight; // Additional lines
         const padding = 10;
-        const calculatedHeight = baseHeight + contentHeight + padding;
+        const calculatedHeight = baseHeight + contentHeight + padding + NAME_GAP;
 
         // Convert grid units to pixels
         const x = entity.x * BOX_WIDTH;
@@ -221,7 +227,7 @@ const TreeCanvas = ({
 
         // Calculate starting position - center vertically based on total content
         let yOffset;
-        const totalContentHeight = lineCount * lineHeight;
+        const totalContentHeight = lineCount * lineHeight + NAME_GAP;
 
         // Always center the text block vertically
         yOffset = boxY + (h - totalContentHeight) / 2 + lineHeight / 2;
@@ -260,7 +266,7 @@ const TreeCanvas = ({
           }
 
           ctx.fillText(displayText, x, yOffset);
-          yOffset += lineHeight;
+          yOffset += lineHeight + NAME_GAP;
         }
 
         // Draw additional info (birth date, etc.) - only if person data is available
