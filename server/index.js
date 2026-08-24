@@ -2070,6 +2070,104 @@ app.post("/api/auth/consent", authenticateUser, async (req, res) => {
 app.use("/api/users", apiLimiter);
 app.use("/api/trees", apiLimiter);
 
+// ─── PUBLIC DIRECTORY ────────────────────────────────────────────────────────
+// The only UNAUTHENTICATED data routes in the app. Everything here is served to
+// strangers, so the rules are explicit rather than inherited:
+//
+//   • ONLY trees with is_published = true. Nothing else is visible by any path.
+//   • created_by NEVER leaves the server. For phone accounts that column IS the
+//     phone number, so returning a tree row wholesale would publish it.
+//   • Person counts respect female_display: a tree published as 'hidden' must
+//     not report a total that includes people a visitor cannot see, or the card
+//     advertises names it refuses to show.
+//
+// readLimiter keys on IP for anonymous callers, which is what these are.
+
+// Counts the people a VISITOR would see, per the tree's own female_display.
+// 'hidden' means men and their male children only — daughters as well as wives —
+// so the count filters on gender, not on marital role.
+// Written as LITERAL SQL rather than interpolating drizzle table objects.
+// `${people}` inside a correlated subquery does not render the bare table
+// reference the `p` alias needs, and the result was a silent 0 rather than an
+// error — the worst kind of wrong.
+const publicPeopleCount = sql`
+  (SELECT COUNT(*)::int FROM people p
+    WHERE p.tree_id = trees.id
+      AND (trees.female_display <> 'hidden' OR p.gender = 'male'))`;
+
+const publicOldestYear = sql`
+  (SELECT MIN(SUBSTRING(p.birth_date FROM 1 FOR 4))::int FROM people p
+    WHERE p.tree_id = trees.id
+      AND p.birth_date IS NOT NULL AND p.birth_date <> ''
+      AND (trees.female_display <> 'hidden' OR p.gender = 'male'))`;
+
+app.get("/api/public/directory", readLimiter, async (req, res) => {
+  try {
+    const rows = await db
+      .select({
+        emirate: trees.emirate,
+        people: publicPeopleCount,
+        oldestYear: publicOldestYear,
+      })
+      .from(trees)
+      .where(eq(trees.isPublished, true));
+
+    const byEmirate = {};
+    let people = 0;
+    let oldestYear = null;
+    rows.forEach((r) => {
+      // A published tree with no emirate still counts toward the totals and
+      // appears under «كل الإمارات» — publication is the only test. It simply
+      // has no emirate tile to sit under.
+      if (r.emirate) byEmirate[r.emirate] = (byEmirate[r.emirate] || 0) + 1;
+      people += r.people || 0;
+      if (r.oldestYear && (!oldestYear || r.oldestYear < oldestYear))
+        oldestYear = r.oldestYear;
+    });
+
+    res.json({
+      families: rows.length,
+      people,
+      oldestYear,
+      byEmirate,
+    });
+  } catch (error) {
+    handleError(res, error, "Public directory", req);
+  }
+});
+
+app.get("/api/public/families", readLimiter, async (req, res) => {
+  try {
+    const { emirate } = req.query;
+    // No emirate = «كل الإمارات». An unrecognised code returns nothing rather
+    // than everything, so a typo cannot silently widen the result.
+    if (emirate && !EMIRATE_CODES.includes(emirate)) {
+      return res.json([]);
+    }
+
+    const families = await db
+      .select({
+        id: trees.id,
+        familyName: trees.familyName,
+        emirate: trees.emirate,
+        people: publicPeopleCount,
+        oldestYear: publicOldestYear,
+      })
+      .from(trees)
+      .where(
+        emirate
+          ? and(eq(trees.isPublished, true), eq(trees.emirate, emirate))
+          : eq(trees.isPublished, true),
+      )
+      .orderBy(trees.familyName);
+
+    res.json(families);
+  } catch (error) {
+    handleError(res, error, "Public families", req);
+  }
+});
+
+
 // Tree settings — emirate, publish flag, family-name override.
 //
 // The tree is created automatically at signup with no input, so this is the only

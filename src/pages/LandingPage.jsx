@@ -122,7 +122,12 @@ function LineageChain() {
  * Both are callbacks rather than links so this works before URL routing exists;
  * when routing lands, they become route pushes and nothing else changes.
  */
-export default function LandingPage({ onSignIn, onSignUp, onPrivacy }) {
+export default function LandingPage({
+  onSignIn,
+  onSignUp,
+  onPrivacy,
+  directory = null,
+}) {
   const scrollToClaims = () =>
     document.getElementById("lp-claims")?.scrollIntoView({ behavior: "smooth" });
 
@@ -185,6 +190,13 @@ export default function LandingPage({ onSignIn, onSignUp, onPrivacy }) {
           ))}
         </div>
       </section>
+
+      {/* The directory sits AFTER the claims and BEFORE the privacy section: the
+          claims are the pitch, the directory is the proof, and the privacy
+          section is where trust is asked for. It renders nothing at all while no
+          family is published — an empty grid mid-page reads as a broken feature
+          rather than a young one. */}
+      {directory}
 
       <section className="lp-privacy" id="lp-privacy">
         <div className="lp-wrap">
