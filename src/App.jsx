@@ -517,6 +517,7 @@ function App() {
     phone: "الهاتف",
     email: "البريد الإلكتروني",
     profession: "المهنة",
+    summary: "الملخّص",
     save: "حفظ",
     cancel: "إلغاء",
     update: "تحديث",
@@ -7139,6 +7140,7 @@ function PersonForm({
     phone: person?.phone || "",
     email: person?.email || "",
     profession: person?.profession || "",
+    summary: person?.summary || "",
   });
 
   useEffect(() => {
@@ -7164,6 +7166,7 @@ function PersonForm({
       phone: person?.phone || "",
       email: person?.email || "",
       profession: person?.profession || "",
+    summary: person?.summary || "",
     });
   }, [
     person,
@@ -7406,16 +7409,23 @@ function PersonForm({
       </div>
 
       <div>
-        <label className="block text-sm font-bold mb-1">{t.profession}</label>
-        <input
-          type="text"
-          value={formData.profession}
+        <label className="block text-sm font-bold mb-1">{t.summary}</label>
+        <textarea
+          value={formData.summary}
+          maxLength={600}
+          rows={4}
           onChange={(e) =>
-            setFormData((prev) => ({ ...prev, profession: e.target.value }))
+            setFormData((prev) => ({ ...prev, summary: e.target.value }))
           }
-          className="w-full px-3 py-2 border rounded-md"
+          className="w-full px-3 py-2 border rounded-md resize-y"
           dir="rtl"
         />
+        {/* Capped at 600 to match the Zod limit server-side. This text appears
+            in the record card and in the public tree view, and unbounded prose
+            breaks both layouts. */}
+        <div className="text-xs text-gray-400 text-left mt-1">
+          {(formData.summary || "").length} / 600
+        </div>
       </div>
 
       <div className="flex justify-end gap-2 pt-3 border-t mt-4">
