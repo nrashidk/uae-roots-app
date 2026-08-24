@@ -32,6 +32,13 @@ export const emirateLabel = (code) =>
 
 const ar = (n) => (n == null ? "—" : Number(n).toLocaleString("ar-EG"));
 
+// A YEAR is not a quantity: toLocaleString gives ١٬٩٦٥ for 1965. Same digits,
+// no grouping separator.
+const arYear = (n) =>
+  n == null
+    ? "—"
+    : String(n).replace(/[0-9]/g, (d) => "٠١٢٣٤٥٦٧٨٩"[Number(d)]);
+
 /* ─── the band + tiles ─────────────────────────────────────────────────────── */
 
 export function DirectoryTiles({ onOpenEmirate }) {
@@ -75,7 +82,7 @@ export function DirectoryTiles({ onOpenEmirate }) {
           </div>
           <div>
             <div className="text-white text-3xl font-bold leading-none">
-              {ar(data.oldestYear)}
+              {arYear(data.oldestYear)}
             </div>
             <div className="text-[#9AA4B8] text-[11px] mt-2">أقدم سجل</div>
           </div>
@@ -238,7 +245,7 @@ export function DirectoryFamilies({ emirate, onBack, onOpenFamily }) {
               {f.oldestYear && (
                 <>
                   <span className="text-gray-300 mx-2">·</span>
-                  منذ {ar(f.oldestYear)}
+                  منذ {arYear(f.oldestYear)}
                 </>
               )}
             </div>
