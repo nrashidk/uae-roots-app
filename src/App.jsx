@@ -1460,8 +1460,10 @@ function App() {
 
     // Death date is ignored for a living person: the form hides that field
     // rather than clearing it on older rows, so a stale value can survive.
-    const lifespan =
-      born && died && !isLiving ? `${born} – ${died}` : born || null;
+    // Living: the AGE is the useful figure and the birth year is in the record
+    // below, so the compact line does not repeat it. Deceased: the span is what
+    // identifies them, and there is no age to show.
+    const lifespan = !isLiving && born && died ? `${born} – ${died}` : null;
 
     const age =
       isLiving && born ? new Date().getFullYear() - parseInt(born, 10) : null;
@@ -5928,18 +5930,21 @@ function App() {
                                 ["الهاتف", person.phone],
                                 ["البريد", person.email],
                               ]
-                                // Empty rows are omitted, not shown blank — a
-                                // record should say what is known and stay quiet
-                                // about what is not.
-                                .filter(([, v]) => v)
+                                // EVERY row renders, absent or not. Filtering
+                                // empties made each card a different height and
+                                // shape, so two people could not be compared by
+                                // eye — one card showed five rows, the next two.
                                 .map(([k, v]) => (
                                   <div
                                     key={k}
                                     className="flex justify-between text-[13px] py-1.5 border-b border-gray-50"
                                   >
                                     <span className="text-gray-400">{k}</span>
-                                    <span dir="ltr" className="text-gray-700">
-                                      {v}
+                                    <span
+                                      dir="ltr"
+                                      className={v ? "text-gray-700" : "text-gray-300"}
+                                    >
+                                      {v || "—"}
                                     </span>
                                   </div>
                                 ))}
@@ -5971,28 +5976,33 @@ function App() {
                                     : null,
                                 ],
                               ]
-                                .filter(([, v]) => v)
                                 .map(([k, v]) => (
                                   <div
                                     key={k}
                                     className="flex justify-between text-[13px] py-1.5 border-b border-gray-50"
                                   >
                                     <span className="text-gray-400">{k}</span>
-                                    <span className="text-gray-700">{v}</span>
+                                    <span
+                                      className={v ? "text-gray-700" : "text-gray-300"}
+                                    >
+                                      {v || "—"}
+                                    </span>
                                   </div>
                                 ))}
                             </div>
 
-                            {person.summary && (
-                              <div className="md:col-span-2">
-                                <div className="text-[11px] text-[#A5813F] tracking-wide mt-3 mb-1">
-                                  الملخّص
-                                </div>
-                                <p className="text-[13px] leading-loose text-gray-700 m-0">
-                                  {person.summary}
-                                </p>
+                            <div className="md:col-span-2">
+                              <div className="text-[11px] text-[#A5813F] tracking-wide mt-3 mb-1">
+                                الملخّص
                               </div>
-                            )}
+                              <p
+                                className={`text-[13px] leading-loose m-0 ${
+                                  person.summary ? "text-gray-700" : "text-gray-300"
+                                }`}
+                              >
+                                {person.summary || "—"}
+                              </p>
+                            </div>
 
                             <div className="md:col-span-2 border-t mt-3 pt-2 pb-1 flex items-center justify-between flex-row-reverse">
                               <Button
