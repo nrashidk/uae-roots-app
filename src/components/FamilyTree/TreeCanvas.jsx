@@ -143,13 +143,16 @@ const TreeCanvas = ({
         let lineCount = 1; // Name line
         const isLiving = person?.isLiving !== false;
         const isBreastfed = person?.isBreastfed === true;
-        const lineHeight = 12; // Line height for text rendering
-        // The name is drawn BOLD at textSize (14 by default) while every line
-        // advances by a flat 12, so a 14px glyph got 12px of room and the birth
-        // date landed on its descender. This is the extra room the name needs.
-        // Added to the box height and to the centring total as well, so the
-        // block stays centred and the box still fits its own content.
-        const NAME_GAP = 6;
+        // Line heights DERIVED from the fonts actually drawn.
+        //
+        // lineHeight was a constant 12 while textSize is a USER SLIDER running
+        // 10..20, and detail lines are drawn at (textSize - 2). At the top of
+        // that slider it was 18px text advancing 12px: lines overlapped each
+        // other and the block ran outside the box. Even at the default 14 the
+        // bold name got 12px of room, so the birth date sat on its descender.
+        const textSize = stylingOptions?.textSize || 14;
+        const lineHeight = Math.round((textSize - 2) * 1.35);
+        const nameLineHeight = Math.round(textSize * 1.45);
 
         if (person) {
           if (displayOptions?.showBirthDate && person.birthDate) lineCount++;
@@ -167,10 +170,9 @@ const TreeCanvas = ({
         }
 
         // Calculate dynamic height based on content
-        const baseHeight = 30; // Minimum height for name
-        const contentHeight = (lineCount - 1) * lineHeight; // Additional lines
         const padding = 10;
-        const calculatedHeight = baseHeight + contentHeight + padding + NAME_GAP;
+        const calculatedHeight =
+          padding * 2 + nameLineHeight + (lineCount - 1) * lineHeight;
 
         // Convert grid units to pixels
         const x = entity.x * BOX_WIDTH;
@@ -227,10 +229,10 @@ const TreeCanvas = ({
 
         // Calculate starting position - center vertically based on total content
         let yOffset;
-        const totalContentHeight = lineCount * lineHeight + NAME_GAP;
+        const totalContentHeight = nameLineHeight + (lineCount - 1) * lineHeight;
 
         // Always center the text block vertically
-        yOffset = boxY + (h - totalContentHeight) / 2 + lineHeight / 2;
+        yOffset = boxY + (h - totalContentHeight) / 2 + nameLineHeight / 2;
         ctx.textBaseline = "middle";
 
         // Build name text based on display options
@@ -266,7 +268,8 @@ const TreeCanvas = ({
           }
 
           ctx.fillText(displayText, x, yOffset);
-          yOffset += lineHeight + NAME_GAP;
+          // Half of each: from the name's centre to the first detail centre.
+          yOffset += nameLineHeight / 2 + lineHeight / 2;
         }
 
         // Draw additional info (birth date, etc.) - only if person data is available
