@@ -7714,7 +7714,7 @@ function PersonForm({
         <label className="block text-sm font-bold mb-1">{t.summary}</label>
         <textarea
           value={formData.summary}
-          maxLength={600}
+          maxLength={520}
           rows={4}
           onChange={(e) =>
             setFormData((prev) => ({ ...prev, summary: e.target.value }))
@@ -7725,7 +7725,10 @@ function PersonForm({
         {/* resize-none, fixed at rows={4}. `resize-y` let the user drag the box
             down to a single-line sliver or up to an arbitrary height, neither of
             which the layout expects; long text scrolls inside instead.
-            Capped at 600 to match the Zod limit server-side — this text appears
+            Capped at 520 to match the Zod limit server-side — chosen so the
+            paragraph wraps to about two lines in the record card at full width.
+            It is an approximation, not a guarantee: the card is responsive, so
+            the same text runs longer on a narrow screen — this text appears
             in the record card and in the public tree view, and unbounded prose
             breaks both.
             dir="ltr" on the counter: in RTL "0 / 600" renders as "600 / 0". */}
@@ -7733,7 +7736,7 @@ function PersonForm({
           className="text-xs text-gray-400 text-left mt-1"
           dir="ltr"
         >
-          {(formData.summary || "").length} / 600
+          {(formData.summary || "").length} / 520
         </div>
       </div>
 
