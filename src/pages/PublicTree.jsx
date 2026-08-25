@@ -99,6 +99,23 @@ export default function PublicTree({ treeId, onBack }) {
     return { layout, familyData };
   }, [data, people]);
 
+  // How many people the layout actually REACHES from its root.
+  //
+  // Not the same as people.length. Removing women can sever a branch whose only
+  // link to the trunk ran through one of them — a mother, or a رضاعة bond — so
+  // the drawn tree can be a fraction of the payload. Printing the payload count
+  // while drawing eight boxes is the kind of mismatch a visitor notices and
+  // stops trusting.
+  const drawnCount = useMemo(() => {
+    if (!treeLayout) return 0;
+    const seen = new Set();
+    Object.entries(treeLayout.layout.e || {}).forEach(([key, ent]) => {
+      seen.add(key);
+      if (ent?.es) seen.add(ent.es);
+    });
+    return seen.size;
+  }, [treeLayout]);
+
   // Centre and fit the whole tree in the viewport.
   //
   // The signed-in app never needs this: it centres on selectedPerson, and there
@@ -227,7 +244,7 @@ export default function PublicTree({ treeId, onBack }) {
           <p className="text-gray-500 text-[12.5px] mt-1">
             {emirateLabel(tree.emirate) || "—"}
             <span className="text-gray-300 mx-2">·</span>
-            {data.people.length} فرداً
+            {drawnCount} فرداً
             {tree.femaleDisplay !== "full" && (
               <>
                 <span className="text-gray-300 mx-2">·</span>
