@@ -68,11 +68,14 @@ export default function PublicTree({ treeId, onBack }) {
 
   const treeLayout = useMemo(() => {
     if (!data || people.length === 0) return null;
-    const familyData = convertToAlgorithmFormat(
-      people,
-      data.relationships,
-      data.tree.id,
-    );
+    // convertToAlgorithmFormat filters BOTH lists by treeId, so every row needs
+    // it. Stamped here rather than relied on from the payload: a missing treeId
+    // drops every relationship silently and the tree renders as one lone box.
+    const rels = (data.relationships || []).map((r) => ({
+      ...r,
+      treeId: data.tree.id,
+    }));
+    const familyData = convertToAlgorithmFormat(people, rels, data.tree.id);
     const layout = FamilyTreeLayout.generateLayout(
       familyData,
       findRootPerson(familyData),
