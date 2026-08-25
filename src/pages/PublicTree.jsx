@@ -19,7 +19,16 @@ import { emirateLabel } from "./Directory.jsx";
  * relationships and which fields a visitor may have; this draws whatever
  * arrives. Anything filtered in the browser can be read around.
  */
-export default function PublicTree({ treeId, onBack, embedded = false }) {
+export default function PublicTree({
+  treeId,
+  onBack,
+  embedded = false,
+  // Changes whenever the owner saves a setting. The fetch is keyed on treeId,
+  // which never changes while the settings screen is open — so without this the
+  // preview kept showing the FIRST response and silently disagreed with the
+  // options above it.
+  reloadToken = "",
+}) {
   const [data, setData] = useState(null);
   const [status, setStatus] = useState("loading"); // loading | ok | missing
   const [zoom, setZoom] = useState(1);
@@ -46,7 +55,7 @@ export default function PublicTree({ treeId, onBack, embedded = false }) {
     return () => {
       alive = false;
     };
-  }, [treeId]);
+  }, [treeId, reloadToken]);
 
   // The payload carries YEARS; TreeCanvas reads birthDate/deathDate and slices
   // the first four characters itself, so a bare year passes through unchanged.
@@ -156,10 +165,11 @@ export default function PublicTree({ treeId, onBack, embedded = false }) {
   // Once per tree, so it does not fight the user's own panning afterwards.
   useEffect(() => {
     if (!treeLayout) return;
-    if (fittedRef.current === treeId) return;
+    const key = `${treeId}:${reloadToken}`;
+    if (fittedRef.current === key) return;
     fitToView();
-    fittedRef.current = treeId;
-  }, [treeLayout, treeId]);
+    fittedRef.current = key;
+  }, [treeLayout, treeId, reloadToken]);
 
   // Wheel zoom, anchored at the cursor.
   //
@@ -238,6 +248,7 @@ export default function PublicTree({ treeId, onBack, embedded = false }) {
         </button>
       )}
 
+      {!embedded && (
       <div className="flex items-end justify-between flex-wrap gap-3 mb-5">
         <div>
           <h1 className="text-[#16233D] text-xl font-bold">
@@ -261,11 +272,12 @@ export default function PublicTree({ treeId, onBack, embedded = false }) {
           عرض عام
         </span>
       </div>
+      )}
 
       <div
         ref={boxRef}
         className="relative border border-gray-200 rounded-lg bg-white overflow-hidden cursor-grab"
-        style={{ height: embedded ? "340px" : "70vh" }}
+        style={{ height: embedded ? "420px" : "70vh" }}
         onMouseDown={(e) => {
           // Record where the drag started AND the pan at that moment, so the
           // offset is computed from the origin rather than accumulating.
