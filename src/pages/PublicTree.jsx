@@ -45,6 +45,14 @@ export default function PublicTree({
   useEffect(() => {
     let alive = true;
     setStatus("loading");
+    // Any reload starts from the default view. Keeping the previous zoom and pan
+    // meant switching ظهور النساء redrew a different tree at whatever
+    // magnification the last one was left at, so the preview no longer showed
+    // what a visitor arriving fresh would see. fittedRef is cleared too, or the
+    // fit below would consider this view already fitted.
+    setZoom(1);
+    setPanOffset({ x: 0, y: 0 });
+    fittedRef.current = null;
     api.publicTree
       .get(treeId)
       .then((d) => {
