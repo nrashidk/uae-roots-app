@@ -5983,12 +5983,12 @@ function App() {
             {/* Name, emirate and female visibility share a row: three short
                 settings that used to stack into a tall column above a cramped
                 preview. */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-start">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             {/* اسم العائلة — derived unless overridden */}
-            <div className="bg-white rounded-lg shadow p-6">
+            <div className="bg-white rounded-lg shadow p-6 h-full">
               <label className="block text-sm font-bold mb-1">اسم العائلة</label>
               <div className="text-[11px] text-gray-400 mb-3 leading-relaxed">
-                الاسم الذي تظهر به عائلتك في الدليل وفي العرض العام.
+                الاسم الذي تظهر به عائلتك عند نشر الشجرة
               </div>
               {!editingFamilyName ? (
                 <>
@@ -6115,14 +6115,14 @@ function App() {
 
             {/* الإمارة — locked until the name is saved */}
             <div
-              className={`bg-white rounded-lg shadow p-6 ${
+              className={`bg-white rounded-lg shadow p-6 h-full ${
                 settingsHasName ? "" : "opacity-40"
               }`}
             >
               <label className="block text-sm font-bold mb-1">الإمارة</label>
               <div className="text-[11px] text-gray-400 mb-3 leading-relaxed">
                 {settingsHasName
-                  ? "الإمارة التي صدرت منها خلاصة القيد — لا مكان السكن."
+                  ? "الإمارة التي صدرت منها خلاصة القيد"
                   : "أكّد اسم العائلة أولاً."}
               </div>
               <select
@@ -6147,12 +6147,12 @@ function App() {
             {/* Greyed, not hidden, while النشر is off — a control that
                 disappears takes its setting with it and leaves the user
                 wondering where it went. */}
-            <div className="bg-white rounded-lg shadow p-6">
+            <div className="bg-white rounded-lg shadow p-6 h-full">
                 <label className="block text-sm font-bold mb-1">
                   ظهور النساء في العرض العام
                 </label>
                 <div className="text-[11px] text-gray-400 mb-3 leading-relaxed">
-                  ما يراه الزائر. شجرتك تبقى كاملة دائماً.
+                  ما يراه الزائر عند نشر الشجرة
                 </div>
                 <select
                   value={treeSettings.femaleDisplay}
@@ -6177,15 +6177,16 @@ function App() {
                 الحقول الظاهرة للزائر
               </label>
               <div className="text-[11px] text-gray-400 mb-3 leading-relaxed">
-                الاسم يظهر دائماً. اختر ما يُضاف إليه في صندوق كل فرد.
+                الاسم الأول يظهر دائماً. اختر ما يُضاف إليه في صندوق كل فرد.
               </div>
 
               <div className="flex flex-wrap gap-2">
               <label className="flex items-center gap-2.5 border rounded-md px-3 py-2 bg-gray-50">
                 <input type="checkbox" checked readOnly className="rounded" />
-                <span className="text-sm text-gray-400">الاسم</span>
+                <span className="text-sm text-gray-400">الاسم الأول</span>
               </label>
               {[
+                ["surname", "اسم العائلة"],
                 ["birthYear", "سنة الميلاد"],
                 ["deathYear", "سنة الوفاة"],
                 ["age", "العمر"],
