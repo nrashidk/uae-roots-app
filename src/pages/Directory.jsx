@@ -63,72 +63,49 @@ export function DirectoryTiles({ onOpenEmirate }) {
   if (failed || !data || !data.families) return null;
 
   return (
-    <section className="bg-white py-14 px-6" id="lp-directory">
-      <div className="max-w-5xl mx-auto">
-        <div className="bg-[#16233D] rounded-lg py-8 px-6 grid grid-cols-3 gap-6 text-center">
-          <div>
-            <div className="text-white text-3xl font-bold leading-none">
-              {ar(data.families)}
-            </div>
-            <div className="text-[#9AA4B8] text-[11px] mt-2">عائلة موثّقة</div>
+    // Uses the landing page's own classes, not Tailwind: this section sits
+    // between two editorial sections and has to be made of the same material.
+    <section className="lp-dir" id="lp-directory">
+      <div className="lp-wrap">
+        <div className="lp-sec-head">
+          <h2>عائلات نشرت شجرتها</h2>
+          <p>
+            مصنّفة حسب إمارة القيد — الإمارة التي صدرت منها خلاصة القيد، لا مكان
+            السكن.
+          </p>
+        </div>
+
+        <div className="lp-dir-figs">
+          <div className="lp-dir-fig">
+            <b>{ar(data.families)}</b>
+            <span>عائلة</span>
           </div>
-          <div>
-            <div className="text-white text-3xl font-bold leading-none">
-              {ar(data.people)}
-            </div>
-            <div className="text-[#9AA4B8] text-[11px] mt-2">
-              فرداً في الشجرات
-            </div>
+          <div className="lp-dir-fig">
+            <b>{ar(data.people)}</b>
+            <span>فرداً</span>
           </div>
-          <div>
-            <div className="text-white text-3xl font-bold leading-none">
-              {arYear(data.oldestYear)}
-            </div>
-            <div className="text-[#9AA4B8] text-[11px] mt-2">أقدم سجل</div>
+          <div className="lp-dir-fig">
+            <b>{arYear(data.oldestYear)}</b>
+            <span>أقدم سجل</span>
           </div>
         </div>
 
-        <h2 className="text-[#16233D] text-lg font-bold mt-10 mb-1">
-          تصفّح حسب الإمارة
-        </h2>
-        <p className="text-gray-500 text-[13px] mb-5 leading-relaxed">
-          العائلات مصنّفة حسب إمارة القيد — الإمارة التي صدرت منها خلاصة القيد.
-        </p>
-
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <div className="lp-dir-grid">
           {EMIRATES.map((em) => {
             const count = data.byEmirate?.[em.code] || 0;
             // ALL SEVEN always render. A tile that disappears when empty makes
-            // the country look partial; greyed with «—» reads as "nothing yet".
+            // the country look partial; outlined with «—» reads as "nothing yet".
             return (
               <button
                 key={em.code}
                 type="button"
+                className={`lp-em${count ? "" : " is-empty"}`}
                 disabled={!count}
                 onClick={() => onOpenEmirate(em.code)}
-                className={`text-right border rounded-lg p-4 transition ${
-                  count
-                    ? "bg-white border-gray-200 hover:shadow-md cursor-pointer"
-                    : "bg-gray-50 border-gray-100 cursor-default"
-                }`}
               >
-                <div
-                  className={`text-sm font-bold ${
-                    count ? "text-[#16233D]" : "text-gray-400"
-                  }`}
-                >
-                  {em.label}
-                </div>
-                <div
-                  className={`text-2xl font-bold mt-2 leading-none ${
-                    count ? "text-[#A5813F]" : "text-gray-300"
-                  }`}
-                >
-                  {count ? ar(count) : "—"}
-                </div>
-                <div className="text-[10px] text-gray-400 mt-1">
-                  {count ? "عائلة" : "لا توجد عائلات منشورة"}
-                </div>
+                <b>{em.label}</b>
+                <i>{count ? ar(count) : "—"}</i>
+                <span>{count ? "عائلة" : "لا توجد بعد"}</span>
               </button>
             );
           })}
@@ -136,23 +113,22 @@ export function DirectoryTiles({ onOpenEmirate }) {
           {/* The eighth tile. Without it the only way in is by emirate, and the
               common case is someone who knows a family name but not which
               emirate its family book was issued in. It also catches a published
-              tree whose owner never set an emirate — it belongs somewhere. */}
+              tree whose owner never set an emirate. */}
           <button
             type="button"
+            className="lp-em is-all"
             onClick={() => onOpenEmirate("all")}
-            className="text-right border-2 border-[#A5813F] rounded-lg p-4 bg-[#FBF8F2] hover:shadow-md transition"
           >
-            <div className="text-sm font-bold text-[#16233D]">كل الإمارات</div>
-            <div className="text-2xl font-bold mt-2 leading-none text-[#A5813F]">
-              {ar(data.families)}
-            </div>
-            <div className="text-[10px] text-gray-500 mt-1">عائلة</div>
+            <b>كل الإمارات</b>
+            <i>{ar(data.families)}</i>
+            <span>عائلة</span>
           </button>
         </div>
       </div>
     </section>
   );
 }
+
 
 /* ─── one emirate's families ───────────────────────────────────────────────── */
 
@@ -180,19 +156,19 @@ export function DirectoryFamilies({ emirate, onBack, onOpenFamily }) {
   );
 
   return (
-    <div className="max-w-5xl mx-auto px-6 py-10">
+    <div className="lp-wrap lp-dir-page">
       <button
         type="button"
         onClick={onBack}
-        className="text-[13px] text-gray-500 hover:text-[#16233D] mb-4"
+        className="lp-dir-back"
       >
         ← الرئيسية
       </button>
 
-      <h1 className="text-[#16233D] text-xl font-bold mb-1">
+      <h1 className="lp-dir-title">
         {emirateLabel(emirate) || "الإمارة"}
       </h1>
-      <p className="text-gray-500 text-[13px] mb-6">
+      <p className="lp-dir-sub">
         {families === null
           ? "جاري التحميل…"
           : `${ar(families.length)} عائلة منشورة`}
@@ -204,47 +180,47 @@ export function DirectoryFamilies({ emirate, onBack, onOpenFamily }) {
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="ابحث باسم العائلة…"
-          className="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-[13px]"
+          className="lp-dir-search"
           dir="rtl"
         />
       </div>
 
       {failed && (
-        <p className="text-gray-500 text-[13px]">
+        <p className="lp-dir-sub">
           تعذّر تحميل الدليل. حاول مرة أخرى.
         </p>
       )}
 
       {families !== null && !failed && shown.length === 0 && (
-        <p className="text-gray-500 text-[13px]">
+        <p className="lp-dir-sub">
           {q ? "لا توجد عائلة بهذا الاسم." : "لا توجد عائلات منشورة هنا بعد."}
         </p>
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div className="lp-fam-grid">
         {shown.map((f) => (
           <button
             key={f.id}
             type="button"
             onClick={() => onOpenFamily(f.id)}
-            className="text-right bg-white border border-gray-200 rounded-lg p-5 hover:shadow-md transition"
+            className="lp-fam"
           >
-            <div className="text-[15px] font-bold text-[#16233D] leading-relaxed">
+            <div className="lp-fam-name">
               عائلة {f.familyName}
             </div>
-            <div className="text-[12px] text-gray-500 mt-2">
+            <div className="lp-fam-meta">
               {/* Emirate shown only under «كل الإمارات», where the cards come
                   from everywhere and the emirate is the distinguishing fact. */}
               {emirate === "all" && f.emirate && (
                 <>
                   {emirateLabel(f.emirate)}
-                  <span className="text-gray-300 mx-2">·</span>
+                  <span className="lp-fam-dot">·</span>
                 </>
               )}
               {ar(f.people)} فرداً
               {f.oldestYear && (
                 <>
-                  <span className="text-gray-300 mx-2">·</span>
+                  <span className="lp-fam-dot">·</span>
                   منذ {arYear(f.oldestYear)}
                 </>
               )}
