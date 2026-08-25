@@ -158,17 +158,34 @@ const TreeCanvas = ({
           displayOptions?.showDeathDate && !isLiving
             ? yr(person?.deathDate)
             : null;
-        let yearsText = null;
-        if (bYear && dYear) yearsText = `${bYear} – ${dYear}`;
-        else if (bYear) yearsText = bYear;
-        else if (dYear) yearsText = `– ${dYear}`;
 
         let ageText = null;
-        if (!yearsText && displayOptions?.showAge && person?.birthDate && isLiving) {
-          const age = new Date().getFullYear() - new Date(person.birthDate).getFullYear();
+        if (displayOptions?.showAge && person?.birthDate && isLiving) {
+          const age =
+            new Date().getFullYear() - Number(yr(person.birthDate));
           if (age > 0) ageText = formatAge(age);
         }
-        const yearsLine = yearsText || ageText;
+
+        // Still ONE line, but the year and the age now sit on it together.
+        //
+        // The old rule was "years OR age, years win", which meant age could not
+        // be shown at all while a birth year was enabled — and switching the
+        // year off to see the age left a deceased person reading «– ٢٠٠٠».
+        //
+        // Living:   ١٩٩٠ · ٣٦ سنة   /  ١٩٩٠  /  ٣٦ سنة
+        // Deceased: ١٩٦٥ – ٢٠٠٠     /  ١٩٦٥  /  ٢٠٠٠
+        //
+        // A lone death year prints plain: the leading dash read as an error, and
+        // the box already renders a deceased person in grey.
+        let yearsLine = null;
+        if (!isLiving) {
+          if (bYear && dYear) yearsLine = `${bYear} – ${dYear}`;
+          else yearsLine = bYear || dYear;
+        } else if (bYear && ageText) {
+          yearsLine = `${bYear} · ${ageText}`;
+        } else {
+          yearsLine = bYear || ageText;
+        }
 
         if (person) {
           if (yearsLine) lineCount++;
