@@ -6,6 +6,7 @@ import {
   findRootPerson,
 } from "../lib/dataTransform.js";
 import TreeCanvas from "../components/FamilyTree/TreeCanvas.jsx";
+import { ZoomIn, ZoomOut, RotateCcw } from "lucide-react";
 import { emirateLabel } from "./Directory.jsx";
 
 /**
@@ -64,7 +65,13 @@ export default function PublicTree({
       (data?.people || []).map((p) => ({
         ...p,
         treeId: data.tree.id,
-        birthDate: p.birthYear || null,
+        // TreeCanvas derives the age from birthDate itself. The server omits
+        // birthYear when that field is switched off — which is precisely when
+        // age is meant to appear — so age never rendered. Reconstruct a year
+        // from the age the server already computed.
+        birthDate:
+          p.birthYear ||
+          (p.age != null ? String(new Date().getFullYear() - p.age) : null),
         deathDate: p.deathYear || null,
       })),
     [data],
@@ -73,7 +80,7 @@ export default function PublicTree({
   const displayOptions = useMemo(() => {
     const f = new Set(data?.tree?.publicFields || []);
     return {
-      showSurname: true,
+      showSurname: f.has("surname"),
       showBirthDate: f.has("birthYear"),
       showDeathDate: f.has("deathYear"),
       showAge: f.has("age"),
@@ -328,25 +335,25 @@ export default function PublicTree({
           <button
             type="button"
             onClick={() => setZoom((z) => Math.min(2, z + 0.1))}
-            className="w-8 h-8 text-[#16233D]"
+            className="w-8 h-8 flex items-center justify-center text-[#16233D]"
           >
-            +
+            <ZoomIn className="w-4 h-4" />
           </button>
           <button
             type="button"
             onClick={() => setZoom((z) => Math.max(0.3, z - 0.1))}
-            className="w-8 h-8 text-[#16233D] border-t border-gray-200"
+            className="w-8 h-8 flex items-center justify-center text-[#16233D] border-t border-gray-200"
           >
-            −
+            <ZoomOut className="w-4 h-4" />
           </button>
           <button
             type="button"
             // Re-FIT, not reset to origin: {0,0} is exactly the off-screen
             // position this page opens away from.
             onClick={fitToView}
-            className="w-8 h-8 text-[#16233D] border-t border-gray-200 text-xs"
+            className="w-8 h-8 flex items-center justify-center text-[#16233D] border-t border-gray-200"
           >
-            ⤢
+            <RotateCcw className="w-4 h-4" />
           </button>
         </div>
       </div>
