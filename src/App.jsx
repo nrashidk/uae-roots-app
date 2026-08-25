@@ -334,6 +334,7 @@ function App() {
   const [editingFamilyName, setEditingFamilyName] = useState(false);
   const [settingsBusy, setSettingsBusy] = useState(false);
   const [settingsSaved, setSettingsSaved] = useState(false);
+  const [confirmPublish, setConfirmPublish] = useState(false);
 
   const [expandedMemberId, setExpandedMemberId] = useState(null);
   const [editingMemberId, setEditingMemberId] = useState(null);
@@ -6145,9 +6146,13 @@ function App() {
                   type="checkbox"
                   checked={treeSettings.isPublished}
                   disabled={settingsBusy || !settingsCanPublish}
-                  onChange={(e) =>
-                    saveTreeSettings({ isPublished: e.target.checked })
-                  }
+                  onChange={(e) => {
+                    // Publishing is the one setting a stranger can act on, and
+                    // it cannot be un-seen once it has been. Turning it OFF
+                    // needs no ceremony.
+                    if (e.target.checked) setConfirmPublish(true);
+                    else saveTreeSettings({ isPublished: false });
+                  }}
                   className="rounded"
                 />
                 <span className="text-sm">
@@ -6243,8 +6248,80 @@ function App() {
               ))}
             </div>
 
+            {/* PREVIEW — the public page itself, pointed at this tree.
+                Not a mock-up: the same endpoint, the same filtering, the same
+                layout engine and renderer a visitor gets. A hand-drawn preview
+                could disagree with the real thing, and someone would publish on
+                the strength of it.
+
+                The endpoint serves an UNPUBLISHED tree to its owner precisely so
+                this can be seen before deciding. */}
+            <div className="border-t pt-5">
+              <label className="block text-sm font-bold mb-1">
+                معاينة العرض العام
+              </label>
+              <div className="text-[11px] text-gray-400 mb-3 leading-relaxed">
+                هذا ما سيراه الزائر بالضبط، بالإعدادات أعلاه.
+              </div>
+              {currentTree ? (
+                <PublicTree treeId={currentTree.id} embedded />
+              ) : null}
+            </div>
+
           </div>
         </div>
+
+        {/* Publishing is the one setting a stranger can act on, and it cannot be
+            un-seen once it has been. The dialog names what becomes visible
+            rather than asking a bare "are you sure". */}
+        <Dialog open={confirmPublish} onOpenChange={setConfirmPublish}>
+          <DialogContent className="sm:max-w-sm" dir="rtl">
+            <DialogHeader>
+              <DialogTitle className="text-right text-lg">
+                تأكيد نشر الشجرة
+              </DialogTitle>
+            </DialogHeader>
+            <div className="space-y-3 py-1 text-right">
+              <p className="text-sm text-gray-700 leading-relaxed">
+                ستظهر «عائلة{" "}
+                {treeSettings.familyName || derivedFamilyName}» في دليل{" "}
+                {emirateLabel(treeSettings.emirate) || "الإمارة"}، ويمكن لأي
+                زائر عرض الشجرة دون تسجيل دخول.
+              </p>
+              <p className="text-sm text-gray-700 leading-relaxed">
+                {treeSettings.femaleDisplay === "hidden"
+                  ? "لن تظهر النساء."
+                  : treeSettings.femaleDisplay === "anonymous"
+                    ? "ستظهر النساء بلا أسماء."
+                    : "ستظهر أسماء النساء كاملة."}{" "}
+                راجع المعاينة أعلاه قبل التأكيد.
+              </p>
+              <p className="text-[11px] text-gray-400">
+                يمكنك إيقاف النشر في أي وقت.
+              </p>
+              <div className="flex gap-2 pt-1">
+                <Button
+                  size="sm"
+                  disabled={settingsBusy}
+                  onClick={() => {
+                    saveTreeSettings({ isPublished: true });
+                    setConfirmPublish(false);
+                  }}
+                >
+                  تأكيد النشر
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setConfirmPublish(false)}
+                >
+                  {t.cancel}
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+
         {renderProfileDialog()}
         {renderSignupGate()}
         {renderConsentGate()}
