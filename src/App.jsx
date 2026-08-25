@@ -5970,8 +5970,8 @@ function App() {
           </div>
         </div>
 
-        <div className="max-w-5xl mx-auto px-6 py-8">
-          <div className="bg-white rounded-lg shadow p-6 space-y-7 relative">
+        <div className="max-w-6xl mx-auto px-6 py-8">
+          <div className="space-y-6 relative">
             <span
               className={`absolute top-4 left-6 text-[11px] text-green-700 transition-opacity ${
                 settingsSaved ? "opacity-100" : "opacity-0"
@@ -5983,10 +5983,13 @@ function App() {
             {/* Name, emirate and female visibility share a row: three short
                 settings that used to stack into a tall column above a cramped
                 preview. */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-start">
             {/* اسم العائلة — derived unless overridden */}
-            <div>
+            <div className="bg-white rounded-lg shadow p-6">
               <label className="block text-sm font-bold mb-1">اسم العائلة</label>
+              <div className="text-[11px] text-gray-400 mb-3 leading-relaxed">
+                الاسم الذي تظهر به عائلتك في الدليل وفي العرض العام.
+              </div>
               {!editingFamilyName ? (
                 <>
                   <div
@@ -6111,12 +6114,16 @@ function App() {
             </div>
 
             {/* الإمارة — locked until the name is saved */}
-            <div className={settingsHasName ? "" : "opacity-40"}>
+            <div
+              className={`bg-white rounded-lg shadow p-6 ${
+                settingsHasName ? "" : "opacity-40"
+              }`}
+            >
               <label className="block text-sm font-bold mb-1">الإمارة</label>
-              <div className="text-[11px] text-gray-400 mb-2 leading-relaxed">
+              <div className="text-[11px] text-gray-400 mb-3 leading-relaxed">
                 {settingsHasName
-                  ? "الإمارة التي صدرت منها خلاصة القيد — وليست مكان السكن الحالي"
-                  : "أكّد اسم العائلة أولاً"}
+                  ? "الإمارة التي صدرت منها خلاصة القيد — لا مكان السكن."
+                  : "أكّد اسم العائلة أولاً."}
               </div>
               <select
                 value={treeSettings.emirate}
@@ -6140,18 +6147,16 @@ function App() {
             {/* Greyed, not hidden, while النشر is off — a control that
                 disappears takes its setting with it and leaves the user
                 wondering where it went. */}
-            <div className={treeSettings.isPublished ? "" : "opacity-40"}>
+            <div className="bg-white rounded-lg shadow p-6">
                 <label className="block text-sm font-bold mb-1">
                   ظهور النساء في العرض العام
                 </label>
-                <div className="text-[11px] text-gray-400 mb-2 leading-relaxed">
-                  {treeSettings.isPublished
-                    ? "لا يؤثّر هذا على شجرتك — أنت ترى دائماً الشجرة كاملة. الاختيار هنا يقرّر ما يراه الزائر فقط."
-                    : "فعّل النشر أولاً"}
+                <div className="text-[11px] text-gray-400 mb-3 leading-relaxed">
+                  ما يراه الزائر. شجرتك تبقى كاملة دائماً.
                 </div>
                 <select
                   value={treeSettings.femaleDisplay}
-                  disabled={settingsBusy || !treeSettings.isPublished}
+                  disabled={settingsBusy}
                   onChange={(e) =>
                     saveTreeSettings({ femaleDisplay: e.target.value })
                   }
@@ -6161,28 +6166,18 @@ function App() {
                   <option value="anonymous">النساء بدون أسماء</option>
                   <option value="full">الشجرة كاملة بالأسماء</option>
                 </select>
-                <div className="text-[11px] text-gray-400 mt-2 leading-relaxed">
-                  {treeSettings.femaleDisplay === "hidden" &&
-                    "الرجال وأبناؤهم الذكور فقط."}
-                  {treeSettings.femaleDisplay === "anonymous" &&
-                    "تظهر النساء في مواضعهنّ بصفتهنّ — «ابنة راشد»، «زوجة سالم» — بلا أسماء حقيقية."}
-                  {treeSettings.femaleDisplay === "full" &&
-                    "يرى الزائر الشجرة كما تراها أنت، بأسماء النساء كاملة."}
-                </div>
             </div>
             </div>
 
             {/* Which fields the public box carries. Same reasoning as
                 femaleDisplay: what a stranger sees is a STORED decision, not a
                 side effect of a display preference living in localStorage. */}
-            <div className={treeSettings.isPublished ? "" : "opacity-40"}>
+            <div className="bg-white rounded-lg shadow p-6">
               <label className="block text-sm font-bold mb-1">
                 الحقول الظاهرة للزائر
               </label>
-              <div className="text-[11px] text-gray-400 mb-2 leading-relaxed">
-                {treeSettings.isPublished
-                  ? "الاسم يظهر دائماً. اختر ما يُضاف إليه في صندوق كل فرد."
-                  : "فعّل النشر أولاً"}
+              <div className="text-[11px] text-gray-400 mb-3 leading-relaxed">
+                الاسم يظهر دائماً. اختر ما يُضاف إليه في صندوق كل فرد.
               </div>
 
               <div className="flex flex-wrap gap-2">
@@ -6203,7 +6198,7 @@ function App() {
                   <input
                     type="checkbox"
                     checked={treeSettings.publicFields.includes(key)}
-                    disabled={settingsBusy || !treeSettings.isPublished}
+                    disabled={settingsBusy}
                     onChange={(e) => {
                       const next = e.target.checked
                         ? [...treeSettings.publicFields, key]
@@ -6228,7 +6223,7 @@ function App() {
 
                 The endpoint serves an UNPUBLISHED tree to its owner precisely so
                 this can be seen before deciding. */}
-            <div className="border-t pt-5">
+            <div className="bg-white rounded-lg shadow p-6">
               <label className="block text-sm font-bold mb-1">
                 معاينة العرض العام
               </label>
@@ -6248,12 +6243,16 @@ function App() {
             </div>
 
             {/* النشر — locked until both the name and the emirate are set */}
-            <div className={settingsCanPublish ? "" : "opacity-40"}>
+            <div
+              className={`bg-white rounded-lg shadow p-6 ${
+                settingsCanPublish ? "" : "opacity-40"
+              }`}
+            >
               <label className="block text-sm font-bold mb-1">النشر</label>
               <div className="text-[11px] text-gray-400 mb-2 leading-relaxed">
                 {settingsCanPublish
-                  ? "عند التفعيل تظهر عائلتك في دليل الإمارة ويمكن لأي زائر عرض الشجرة"
-                  : "أكّد اسم العائلة واختر الإمارة أولاً"}
+                  ? "عند التفعيل تظهر عائلتك في دليل الإمارة ويمكن لأي زائر عرض الشجرة."
+                  : "أكّد اسم العائلة واختر الإمارة أولاً."}
               </div>
               <label className="flex items-center gap-3 border rounded-md p-3 bg-gray-50">
                 <input
