@@ -4841,10 +4841,13 @@ function App() {
     // single press rather than leaving it half-applied after one.
     beginAction();
     try {
-      await Promise.all(
-        [...finalOrders].map(([id, order]) =>
-          api.people.updateBirthOrder(id, order),
-        ),
+      // ONE transactional request, not N independent ones. Promise.all wrote
+      // each row separately: if any failed, the rows that had already committed
+      // stayed committed, and the rollback below only reverted the LOCAL state —
+      // so the screen showed the old order over a half-renumbered group, and the
+      // next press normalised from corrupted values.
+      await api.people.updateBirthOrders(
+        [...finalOrders].map(([id, birthOrder]) => ({ id, birthOrder })),
       );
       // Refresh the undo pointer HERE, not just from the effect on `people`.
       // This handler updates the UI optimistically BEFORE calling the API, so
