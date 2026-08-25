@@ -6269,14 +6269,7 @@ function App() {
                   }}
                   className="rounded"
                 />
-                <span className="text-sm">
-                  نشر الشجرة للعموم
-                  <span className="block text-[11px] text-gray-400 mt-0.5">
-                    {treeSettings.isPublished
-                      ? "منشورة — يمكن لأي زائر عرضها"
-                      : "غير منشورة — الشجرة خاصة بك وحدك"}
-                  </span>
-                </span>
+                <span className="text-sm">نشر الشجرة للعموم</span>
               </label>
             </div>
 
@@ -6299,13 +6292,13 @@ function App() {
                 ستظهر «عائلة{" "}
                 {treeSettings.familyName || derivedFamilyName}» في دليل{" "}
                 {emirateLabel(treeSettings.emirate) || "الإمارة"}، ويمكن لأي
-                زائر عرض الشجرة دون تسجيل دخول.
+                زائر عرض الشجرة
               </p>
               <p className="text-sm text-gray-700 leading-relaxed">
                 {treeSettings.femaleDisplay === "hidden"
                   ? "لن تظهر النساء."
                   : treeSettings.femaleDisplay === "anonymous"
-                    ? "ستظهر النساء بلا أسماء."
+                    ? "لن تظهر أسماء النساء."
                     : "ستظهر أسماء النساء كاملة."}{" "}
                 راجع المعاينة أعلاه قبل التأكيد.
               </p>
