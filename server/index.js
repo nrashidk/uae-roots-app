@@ -492,7 +492,10 @@ const FEMALE_DISPLAY_MODES = ["hidden", "anonymous", "full"];
 // design — they are the only encrypted columns, and decrypting them for a
 // stranger defeats the reason they are sealed.
 const PUBLIC_FIELD_KEYS = [
+  // "name" is the FIRST name and is always present. The surname is optional —
+  // in a lineage chain it is often the same word for everyone.
   "name",
+  "surname",
   "birthYear",
   "deathYear",
   "age",
@@ -2234,7 +2237,7 @@ app.get("/api/public/trees/:id", readLimiter, optionalAuth, async (req, res) => 
         out.anonymous = true;
       } else {
         out.firstName = p.firstName;
-        out.lastName = p.lastName || null;
+        out.lastName = fields.has("surname") ? p.lastName || null : null;
       }
 
       // YEARS only. A full date of birth for a living person is a thing people
