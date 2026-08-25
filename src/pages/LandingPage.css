@@ -434,7 +434,10 @@
    --------------------------------------------------------------------------- */
 .lp-dir {
   padding: 86px 0 78px;
-  background: var(--parchment-2);
+  /* Same parchment as every other section. The darker --parchment-2 set this
+     block apart as a panel; the ink tiles inside already distinguish it, and
+     two beiges on one page read as an inconsistency rather than a device. */
+  background: var(--parchment);
 }
 
 /* One row with hairline dividers, not a filled band — the figures carry the
@@ -592,7 +595,7 @@
   padding: 11px 15px;
   border: 1px solid rgba(22, 35, 61, 0.22);
   border-radius: 2px;
-  background: var(--parchment-2);
+  background: var(--parchment);
   color: var(--ink);
   margin-bottom: 26px;
 }
