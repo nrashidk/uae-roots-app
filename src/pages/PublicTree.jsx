@@ -291,8 +291,16 @@ export default function PublicTree({
 
       <div
         ref={boxRef}
-        className="relative border border-gray-200 rounded-lg bg-white overflow-hidden cursor-grab"
-        style={{ height: embedded ? "520px" : "70vh" }}
+        className="relative border border-gray-200 rounded-lg overflow-hidden cursor-grab"
+        style={{
+          height: embedded ? "520px" : "70vh",
+          // TreeCanvas clears the canvas to TRANSPARENT — the app paints its
+          // tree surface as a CSS background on this wrapper, not through
+          // stylingOptions, which carries no backgroundColor at all. Parchment
+          // rather than white: the page around it is parchment, and a white
+          // rectangle in the middle reads as a hole rather than a surface.
+          background: "#f4efe3",
+        }}
         onMouseDown={(e) => {
           // Record where the drag started AND the pan at that moment, so the
           // offset is computed from the origin rather than accumulating.
@@ -331,6 +339,14 @@ export default function PublicTree({
             zoom={zoom}
             panOffset={panOffset}
             displayOptions={displayOptions}
+            // EMPTY ON PURPOSE — not an oversight to be tidied away.
+            // TreeCanvas falls back to its built-in colours for every value it
+            // is not given, so every visitor sees the same tree. Passing the
+            // owner's stylingOptions would publish whatever palette that one
+            // person happened to pick. (It could not happen by accident either:
+            // stylingOptions lives in localStorage and never reaches the server,
+            // so it is not in this payload at all.)
+            //
             stylingOptions={{}}
           />
         ) : (
