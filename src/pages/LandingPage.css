@@ -175,17 +175,6 @@
   border-radius: 3px;
   position: relative;
 }
-.lp-chain-label {
-  position: absolute;
-  top: -11px;
-  right: 24px;
-  /* Sits ON the frame's border, so it must match the frame, not the page. */
-  background: var(--ink);
-  padding: 0 10px;
-  font-size: 12px;
-  letter-spacing: 0.1em;
-  color: var(--brass-lift);
-}
 .lp-chain {
   display: flex;
   align-items: baseline;
@@ -259,19 +248,14 @@
   display: grid;
   grid-template-columns: auto 1fr;
   gap: 32px;
-  padding: 26px 28px;
-  /* Dark cards rather than hairline-separated rows. The top border was the
-     separator; with a filled surface it would draw a line across the fill. */
-  background: var(--ink);
-  border: 1px solid var(--ink);
-  border-radius: 3px;
-  margin-bottom: 14px;
+  padding: 34px 0;
+  border-top: 1px solid rgba(22, 35, 61, 0.12);
   align-items: start;
 }
 .lp-num {
   font-family: "Noto Kufi Arabic", "Sakkal Majalla", sans-serif;
   font-size: 30px;
-  color: var(--brass-lift);
+  color: rgba(22, 35, 61, 0.2);
   line-height: 1;
 }
 .lp-claim-line {
@@ -284,16 +268,15 @@
   font-size: 20px;
   margin: 0;
   flex: none;
-  color: var(--parchment);
 }
 .lp-claim-sep {
-  color: rgba(244, 239, 227, 0.4);
+  color: rgba(22, 35, 61, 0.3);
   flex: none;
 }
 .lp-claim p {
   margin: 0;
   font-size: 16px;
-  color: rgba(244, 239, 227, 0.8);
+  color: #5a5344;
 }
 .lp-compare {
   display: flex;

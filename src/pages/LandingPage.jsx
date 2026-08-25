@@ -91,15 +91,15 @@ function LineageChain() {
 
   return (
     <div className="lp-chain-frame">
-      <span className="lp-chain-label">النسب كما يُقال</span>
       <div
         className="lp-chain"
-        aria-label={CHAIN.map((s) => `${s.rel} ${s.name}`.trim()).join(" ")}
+        // Matches what is drawn: the بن/بنت connectors were removed from the
+        // display, so reading them aloud would describe a different chain.
+        aria-label={CHAIN.map((s) => s.name).join(" ")}
       >
         {CHAIN.map((s, i) => (
           <span key={i} className={`lp-seg${i < shown ? " on" : ""}`}>
             {i > 0 && " "}
-            {s.rel && <span className="lp-rel">{s.rel} </span>}
             {s.name}
           </span>
         ))}
