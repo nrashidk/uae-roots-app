@@ -5993,7 +5993,7 @@ function App() {
               {!editingFamilyName ? (
                 <>
                   <div
-                    className={`flex items-center gap-3 rounded-md px-3 py-2.5 ${
+                    className={`flex items-center gap-3 rounded-md px-3 h-[42px] ${
                       isOverridden
                         ? "border border-gray-300 bg-white"
                         : "border border-dashed border-gray-300 bg-gray-50"
@@ -6133,7 +6133,7 @@ function App() {
                 onChange={(e) =>
                   saveTreeSettings({ emirate: e.target.value || null })
                 }
-                className="w-full px-3 py-2 border rounded-md disabled:bg-gray-50"
+                className="w-full px-3 h-[42px] border rounded-md disabled:bg-gray-50"
               >
                 <option value="">غير محدّدة</option>
                 {EMIRATES.map((em) => (
@@ -6160,7 +6160,7 @@ function App() {
                   onChange={(e) =>
                     saveTreeSettings({ femaleDisplay: e.target.value })
                   }
-                  className="w-full px-3 py-2 border rounded-md disabled:bg-gray-50"
+                  className="w-full px-3 h-[42px] border rounded-md disabled:bg-gray-50"
                 >
                   <option value="hidden">بدون النساء</option>
                   <option value="anonymous">النساء بدون أسماء</option>
