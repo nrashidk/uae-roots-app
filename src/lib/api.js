@@ -222,6 +222,14 @@ export const api = {
         method: "PATCH",
         body: JSON.stringify({ birthOrder }),
       }),
+    // A whole sibling reorder in one transactional request. The per-person call
+    // above stays for any single change; a REORDER must not be N of them,
+    // because a failure partway leaves the group half-renumbered server-side.
+    updateBirthOrders: (orders) =>
+      fetchAPI("/people/birthOrder", {
+        method: "POST",
+        body: JSON.stringify({ orders }),
+      }),
   },
 
   deletions: {
