@@ -2154,7 +2154,7 @@ app.get("/api/public/directory", readLimiter, async (req, res) => {
 // The published tree itself. EVERY filtering decision happens here, not in the
 // client: what a stranger may see must not depend on code running in their
 // browser, where it can be read around.
-app.get("/api/public/trees/:id", readLimiter, async (req, res) => {
+app.get("/api/public/trees/:id", readLimiter, optionalAuth, async (req, res) => {
   try {
     const treeId = validateId(req.params.id);
     if (!treeId) {
@@ -2163,9 +2163,15 @@ app.get("/api/public/trees/:id", readLimiter, async (req, res) => {
 
     const [tree] = await db.select().from(trees).where(eq(trees.id, treeId));
 
-    // 404, not 403, for an unpublished tree. A different status would confirm
-    // the tree exists, which is itself information the owner did not publish.
-    if (!tree || !tree.isPublished) {
+    // Published → anyone. Unpublished → the OWNER only, so the settings screen
+    // can preview exactly what visitors would see before publishing. The preview
+    // runs through the same filtering below, so it cannot drift from the real
+    // public view.
+    //
+    // Still 404 rather than 403 for everyone else: a different status would
+    // confirm the tree exists, which is information the owner did not publish.
+    const isOwner = !!req.userId && tree && tree.createdBy === req.userId;
+    if (!tree || (!tree.isPublished && !isOwner)) {
       return res.status(404).json({ error: "غير موجود" });
     }
 
