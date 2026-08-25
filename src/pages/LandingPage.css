@@ -170,8 +170,8 @@
 .lp-chain-frame {
   margin-top: 60px;
   padding: 36px 32px 26px;
-  background: var(--parchment-2);
-  border: 1px solid rgba(22, 35, 61, 0.1);
+  background: var(--ink);
+  border: 1px solid var(--ink);
   border-radius: 3px;
   position: relative;
 }
@@ -179,11 +179,12 @@
   position: absolute;
   top: -11px;
   right: 24px;
-  background: var(--parchment-2);
+  /* Sits ON the frame's border, so it must match the frame, not the page. */
+  background: var(--ink);
   padding: 0 10px;
   font-size: 12px;
   letter-spacing: 0.1em;
-  color: var(--brass);
+  color: var(--brass-lift);
 }
 .lp-chain {
   display: flex;
@@ -193,7 +194,7 @@
   font-size: clamp(23px, 3.4vw, 40px);
   line-height: 1.6;
   font-weight: 500;
-  color: var(--ink);
+  color: var(--parchment);
 }
 .lp-seg {
   opacity: 0;
@@ -209,7 +210,9 @@
   margin-inline-start: 0.4em;
 }
 .lp-rel {
-  color: var(--brass);
+  /* --brass fails contrast on ink; --brass-lift is the variant already used
+     on dark surfaces elsewhere in this file. */
+  color: var(--brass-lift);
   font-weight: 400;
 }
 .lp-chain-foot {
@@ -220,22 +223,22 @@
   flex-wrap: wrap;
   margin-top: 22px;
   padding-top: 16px;
-  border-top: 1px solid rgba(22, 35, 61, 0.1);
+  border-top: 1px solid rgba(244, 239, 227, 0.16);
   font-size: 14px;
-  color: #6b6555;
+  color: rgba(244, 239, 227, 0.66);
 }
 .lp-replay {
   background: none;
-  border: 1px solid rgba(22, 35, 61, 0.22);
-  color: var(--ink-soft);
+  border: 1px solid rgba(244, 239, 227, 0.3);
+  color: var(--parchment);
   font-size: 13px;
   padding: 6px 15px;
   border-radius: 2px;
   cursor: pointer;
 }
 .lp-replay:hover {
-  border-color: var(--brass);
-  color: var(--brass);
+  border-color: var(--brass-lift);
+  color: var(--brass-lift);
 }
 
 .lp-claims {
@@ -256,14 +259,19 @@
   display: grid;
   grid-template-columns: auto 1fr;
   gap: 32px;
-  padding: 34px 0;
-  border-top: 1px solid rgba(22, 35, 61, 0.12);
+  padding: 26px 28px;
+  /* Dark cards rather than hairline-separated rows. The top border was the
+     separator; with a filled surface it would draw a line across the fill. */
+  background: var(--ink);
+  border: 1px solid var(--ink);
+  border-radius: 3px;
+  margin-bottom: 14px;
   align-items: start;
 }
 .lp-num {
   font-family: "Noto Kufi Arabic", "Sakkal Majalla", sans-serif;
   font-size: 30px;
-  color: rgba(22, 35, 61, 0.2);
+  color: var(--brass-lift);
   line-height: 1;
 }
 .lp-claim-line {
@@ -276,15 +284,16 @@
   font-size: 20px;
   margin: 0;
   flex: none;
+  color: var(--parchment);
 }
 .lp-claim-sep {
-  color: rgba(22, 35, 61, 0.3);
+  color: rgba(244, 239, 227, 0.4);
   flex: none;
 }
 .lp-claim p {
   margin: 0;
   font-size: 16px;
-  color: #5a5344;
+  color: rgba(244, 239, 227, 0.8);
 }
 .lp-compare {
   display: flex;
@@ -430,5 +439,222 @@
   }
   .lp-btn-solid:hover {
     transform: none;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   Public directory — the emirate tiles on the landing page.
+
+   Every value here is a var() from the top of this file or a number already
+   used in it. Nothing new is introduced: the section reads as part of the page
+   rather than a panel lifted from the signed-in app.
+   --------------------------------------------------------------------------- */
+.lp-dir {
+  padding: 86px 0 78px;
+  background: var(--parchment-2);
+}
+
+/* One row with hairline dividers, not a filled band — the figures carry the
+   same weight as the ٠١ ٠٢ ٠٣ numerals above them. */
+.lp-dir-figs {
+  display: flex;
+  border-top: 1px solid rgba(22, 35, 61, 0.14);
+  border-bottom: 1px solid rgba(22, 35, 61, 0.14);
+  margin-bottom: 40px;
+}
+.lp-dir-fig {
+  flex: 1;
+  padding: 22px 0;
+  text-align: center;
+  position: relative;
+}
+.lp-dir-fig + .lp-dir-fig::before {
+  content: "";
+  position: absolute;
+  right: 0;
+  top: 22px;
+  bottom: 22px;
+  width: 1px;
+  background: rgba(22, 35, 61, 0.14);
+}
+.lp-dir-fig b {
+  display: block;
+  font-size: 34px;
+  line-height: 1.1;
+  font-weight: 600;
+  color: var(--ink);
+}
+.lp-dir-fig span {
+  display: block;
+  font-size: 13px;
+  color: #6d6656;
+  margin-top: 6px;
+}
+
+/* Eight tiles, four per row. */
+.lp-dir-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 14px;
+}
+.lp-em {
+  background: var(--ink);
+  border: 1px solid var(--ink);
+  border-radius: 2px;
+  padding: 16px 18px;
+  text-align: right;
+  cursor: pointer;
+  font: inherit;
+  transition:
+    background 0.18s ease,
+    transform 0.18s ease;
+}
+.lp-em:hover {
+  background: var(--ink-soft);
+  transform: translateY(-1px);
+}
+.lp-em b {
+  display: block;
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--parchment);
+}
+.lp-em i {
+  display: block;
+  font-style: normal;
+  font-size: 26px;
+  font-weight: 600;
+  /* --brass fails contrast on ink; --brass-lift is the variant this file
+     already uses on dark surfaces. */
+  color: var(--brass-lift);
+  line-height: 1.2;
+  margin-top: 8px;
+}
+.lp-em span {
+  font-size: 12.5px;
+  color: rgba(244, 239, 227, 0.62);
+}
+
+/* An emirate with nothing published stays OUTLINED, not filled: a solid card
+   announcing «لا توجد بعد» reads as a broken button. */
+.lp-em.is-empty {
+  cursor: default;
+  background: none;
+  border-color: rgba(22, 35, 61, 0.16);
+}
+.lp-em.is-empty:hover {
+  background: none;
+  transform: none;
+}
+.lp-em.is-empty b {
+  color: #a09884;
+  font-weight: 400;
+}
+.lp-em.is-empty i {
+  color: #c9c1ae;
+}
+.lp-em.is-empty span {
+  color: #a09884;
+}
+
+/* «كل الإمارات» — an equal entry point, marked by a brass rule rather than a
+   different fill, which would read as a call to action. */
+.lp-em.is-all {
+  border-color: var(--brass);
+}
+
+@media (max-width: 900px) {
+  .lp-dir-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+@media (max-width: 560px) {
+  .lp-dir-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* The per-emirate families page at /directory/:code. Same material as the
+   landing page it is reached from. */
+.lp-dir-page {
+  padding-top: 44px;
+  padding-bottom: 72px;
+}
+.lp-dir-back {
+  background: none;
+  border: 0;
+  font: inherit;
+  font-size: 14px;
+  color: #6b6555;
+  cursor: pointer;
+  padding: 0;
+  margin-bottom: 18px;
+}
+.lp-dir-back:hover {
+  color: var(--brass);
+}
+.lp-dir-title {
+  font-size: clamp(23px, 3vw, 30px);
+  margin: 0 0 6px;
+}
+.lp-dir-sub {
+  font-size: 15px;
+  color: #6b6555;
+  margin: 0 0 26px;
+}
+.lp-dir-search {
+  width: 100%;
+  font: inherit;
+  font-size: 15px;
+  padding: 11px 15px;
+  border: 1px solid rgba(22, 35, 61, 0.22);
+  border-radius: 2px;
+  background: var(--parchment-2);
+  color: var(--ink);
+  margin-bottom: 26px;
+}
+.lp-dir-search:focus {
+  outline: none;
+  border-color: var(--brass);
+}
+.lp-fam-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 14px;
+}
+.lp-fam {
+  text-align: right;
+  background: var(--ink);
+  border: 1px solid var(--ink);
+  border-radius: 2px;
+  padding: 20px 22px;
+  cursor: pointer;
+  font: inherit;
+  transition:
+    background 0.18s ease,
+    transform 0.18s ease;
+}
+.lp-fam:hover {
+  background: var(--ink-soft);
+  transform: translateY(-1px);
+}
+.lp-fam-name {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--parchment);
+  line-height: 1.6;
+}
+.lp-fam-meta {
+  font-size: 13.5px;
+  color: rgba(244, 239, 227, 0.66);
+  margin-top: 8px;
+}
+.lp-fam-dot {
+  color: rgba(244, 239, 227, 0.32);
+  margin: 0 8px;
+}
+@media (max-width: 700px) {
+  .lp-fam-grid {
+    grid-template-columns: 1fr;
   }
 }
