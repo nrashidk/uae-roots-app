@@ -296,10 +296,15 @@ export default function PublicTree({
           height: embedded ? "520px" : "70vh",
           // TreeCanvas clears the canvas to TRANSPARENT — the app paints its
           // tree surface as a CSS background on this wrapper, not through
-          // stylingOptions, which carries no backgroundColor at all. Parchment
-          // rather than white: the page around it is parchment, and a white
-          // rectangle in the middle reads as a hole rather than a surface.
-          background: "#f4efe3",
+          // stylingOptions, which carries no backgroundColor at all.
+          //
+          // Off-white, the app's own tree surface (#f8fafc, its
+          // DEFAULT_STYLING_OPTIONS.backgroundColor). Pure white cut a hole in
+          // the parchment page; full parchment made the pale box fills lose
+          // their edges. This is a hair off white — enough to sit on the page,
+          // still a surface the boxes read against — and it is what a visitor
+          // sees if they sign up, so the two trees match.
+          background: "#f8fafc",
         }}
         onMouseDown={(e) => {
           // Record where the drag started AND the pan at that moment, so the
