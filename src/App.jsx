@@ -5970,7 +5970,7 @@ function App() {
           </div>
         </div>
 
-        <div className="max-w-xl mx-auto px-6 py-8">
+        <div className="max-w-5xl mx-auto px-6 py-8">
           <div className="bg-white rounded-lg shadow p-6 space-y-7 relative">
             <span
               className={`absolute top-4 left-6 text-[11px] text-green-700 transition-opacity ${
@@ -5980,6 +5980,10 @@ function App() {
               ✓ تم الحفظ
             </span>
 
+            {/* Name, emirate and female visibility share a row: three short
+                settings that used to stack into a tall column above a cramped
+                preview. */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             {/* اسم العائلة — derived unless overridden */}
             <div>
               <label className="block text-sm font-bold mb-1">اسم العائلة</label>
@@ -6133,39 +6137,6 @@ function App() {
               </select>
             </div>
 
-            {/* النشر — locked until both the name and the emirate are set */}
-            <div className={settingsCanPublish ? "" : "opacity-40"}>
-              <label className="block text-sm font-bold mb-1">النشر</label>
-              <div className="text-[11px] text-gray-400 mb-2 leading-relaxed">
-                {settingsCanPublish
-                  ? "عند التفعيل تظهر عائلتك في دليل الإمارة ويمكن لأي زائر عرض الشجرة"
-                  : "أكّد اسم العائلة واختر الإمارة أولاً"}
-              </div>
-              <label className="flex items-center gap-3 border rounded-md p-3 bg-gray-50">
-                <input
-                  type="checkbox"
-                  checked={treeSettings.isPublished}
-                  disabled={settingsBusy || !settingsCanPublish}
-                  onChange={(e) => {
-                    // Publishing is the one setting a stranger can act on, and
-                    // it cannot be un-seen once it has been. Turning it OFF
-                    // needs no ceremony.
-                    if (e.target.checked) setConfirmPublish(true);
-                    else saveTreeSettings({ isPublished: false });
-                  }}
-                  className="rounded"
-                />
-                <span className="text-sm">
-                  نشر الشجرة للعموم
-                  <span className="block text-[11px] text-gray-400 mt-0.5">
-                    {treeSettings.isPublished
-                      ? "منشورة — يمكن لأي زائر عرضها"
-                      : "غير منشورة — الشجرة خاصة بك وحدك"}
-                  </span>
-                </span>
-              </label>
-            </div>
-
             {/* Greyed, not hidden, while النشر is off — a control that
                 disappears takes its setting with it and leaves the user
                 wondering where it went. */}
@@ -6199,6 +6170,7 @@ function App() {
                     "يرى الزائر الشجرة كما تراها أنت، بأسماء النساء كاملة."}
                 </div>
             </div>
+            </div>
 
             {/* Which fields the public box carries. Same reasoning as
                 femaleDisplay: what a stranger sees is a STORED decision, not a
@@ -6213,12 +6185,11 @@ function App() {
                   : "فعّل النشر أولاً"}
               </div>
 
-              <label className="flex items-center gap-2.5 border rounded-md px-3 py-2 mb-1.5 bg-gray-50">
+              <div className="flex flex-wrap gap-2">
+              <label className="flex items-center gap-2.5 border rounded-md px-3 py-2 bg-gray-50">
                 <input type="checkbox" checked readOnly className="rounded" />
                 <span className="text-sm text-gray-400">الاسم</span>
-                <span className="text-[11px] text-gray-400 mr-auto">دائماً</span>
               </label>
-
               {[
                 ["birthYear", "سنة الميلاد"],
                 ["deathYear", "سنة الوفاة"],
@@ -6227,7 +6198,7 @@ function App() {
               ].map(([key, label]) => (
                 <label
                   key={key}
-                  className="flex items-center gap-2.5 border rounded-md px-3 py-2 mb-1.5"
+                  className="flex items-center gap-2.5 border rounded-md px-3 py-2"
                 >
                   <input
                     type="checkbox"
@@ -6246,6 +6217,7 @@ function App() {
                   <span className="text-sm">{label}</span>
                 </label>
               ))}
+              </div>
             </div>
 
             {/* PREVIEW — the public page itself, pointed at this tree.
@@ -6264,9 +6236,50 @@ function App() {
                 هذا ما سيراه الزائر بالضبط، بالإعدادات أعلاه.
               </div>
               {currentTree ? (
-                <PublicTree treeId={currentTree.id} embedded />
+                <PublicTree
+                  treeId={currentTree.id}
+                  embedded
+                  // Any saved change re-fetches the preview. Built from the
+                  // SERVER's row, not local state, so it only moves once the
+                  // change has actually landed.
+                  reloadToken={`${currentTree.femaleDisplay}|${currentTree.publicFields}`}
+                />
               ) : null}
             </div>
+
+            {/* النشر — locked until both the name and the emirate are set */}
+            <div className={settingsCanPublish ? "" : "opacity-40"}>
+              <label className="block text-sm font-bold mb-1">النشر</label>
+              <div className="text-[11px] text-gray-400 mb-2 leading-relaxed">
+                {settingsCanPublish
+                  ? "عند التفعيل تظهر عائلتك في دليل الإمارة ويمكن لأي زائر عرض الشجرة"
+                  : "أكّد اسم العائلة واختر الإمارة أولاً"}
+              </div>
+              <label className="flex items-center gap-3 border rounded-md p-3 bg-gray-50">
+                <input
+                  type="checkbox"
+                  checked={treeSettings.isPublished}
+                  disabled={settingsBusy || !settingsCanPublish}
+                  onChange={(e) => {
+                    // Publishing is the one setting a stranger can act on, and
+                    // it cannot be un-seen once it has been. Turning it OFF
+                    // needs no ceremony.
+                    if (e.target.checked) setConfirmPublish(true);
+                    else saveTreeSettings({ isPublished: false });
+                  }}
+                  className="rounded"
+                />
+                <span className="text-sm">
+                  نشر الشجرة للعموم
+                  <span className="block text-[11px] text-gray-400 mt-0.5">
+                    {treeSettings.isPublished
+                      ? "منشورة — يمكن لأي زائر عرضها"
+                      : "غير منشورة — الشجرة خاصة بك وحدك"}
+                  </span>
+                </span>
+              </label>
+            </div>
+
 
           </div>
         </div>
