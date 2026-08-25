@@ -277,7 +277,7 @@ export default function PublicTree({
       <div
         ref={boxRef}
         className="relative border border-gray-200 rounded-lg bg-white overflow-hidden cursor-grab"
-        style={{ height: embedded ? "420px" : "70vh" }}
+        style={{ height: embedded ? "520px" : "70vh" }}
         onMouseDown={(e) => {
           // Record where the drag started AND the pan at that moment, so the
           // offset is computed from the origin rather than accumulating.
