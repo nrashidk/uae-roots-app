@@ -2259,6 +2259,10 @@ app.get("/api/public/trees/:id", readLimiter, async (req, res) => {
       )
       .map((r) => ({
         id: r.id,
+        // convertToAlgorithmFormat filters relationships by treeId. Without it
+        // every row is dropped, the layout gets no links, and the tree renders
+        // as a single isolated box. Not sensitive — it is the id in the URL.
+        treeId: r.treeId,
         type: r.type,
         person1Id: r.person1Id,
         person2Id: r.person2Id,
