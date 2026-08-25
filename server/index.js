@@ -2276,6 +2276,10 @@ app.get("/api/public/trees/:id", readLimiter, async (req, res) => {
         familyName: tree.familyName,
         emirate: tree.emirate,
         femaleDisplay: mode,
+        // Which fields the owner enabled. The client cannot infer this from the
+        // payload: a field is omitted both when it is switched off and when the
+        // person simply has no value for it, and those must not look the same.
+        publicFields: [...fields],
       },
       people: payload,
       relationships: relOut,
