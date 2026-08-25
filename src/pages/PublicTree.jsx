@@ -25,6 +25,8 @@ export default function PublicTree({ treeId, onBack }) {
   const [zoom, setZoom] = useState(1);
   const [panOffset, setPanOffset] = useState({ x: 0, y: 0 });
   const dragRef = useRef(null);
+  const boxRef = useRef(null);
+  const fittedRef = useRef(null);
 
   useEffect(() => {
     let alive = true;
@@ -92,6 +94,51 @@ export default function PublicTree({ treeId, onBack }) {
     layout.n = layout.n || [];
     return { layout, familyData };
   }, [data, people]);
+
+  // Centre and fit the whole tree in the viewport.
+  //
+  // The signed-in app never needs this: it centres on selectedPerson, and there
+  // always is one. A visitor arrives with no selection, so panOffset {0,0} left
+  // the tree wherever the layout engine put it — off-screen, showing an empty
+  // canvas with one corner of a box visible.
+  const fitToView = () => {
+    if (!treeLayout || !boxRef.current) return;
+    const entities = Object.values(treeLayout.layout.e || {});
+    if (entities.length === 0) return;
+
+    const BOX_W = 140;
+    const BOX_H = 90;
+    const xs = entities.map((e) => e.x * BOX_W);
+    const ys = entities.map((e) => e.y * BOX_H);
+    const minX = Math.min(...xs) - BOX_W;
+    const maxX = Math.max(...xs) + BOX_W;
+    const minY = Math.min(...ys) - BOX_H;
+    const maxY = Math.max(...ys) + BOX_H;
+
+    const rect = boxRef.current.getBoundingClientRect();
+    if (!rect.width || !rect.height) return;
+
+    // Never zoom IN past 1:1 — a three-person tree blown up to fill the screen
+    // looks broken rather than generous.
+    const z = Math.max(
+      0.3,
+      Math.min(1, rect.width / (maxX - minX), rect.height / (maxY - minY)),
+    );
+
+    setZoom(z);
+    setPanOffset({
+      x: rect.width / 2 - ((minX + maxX) / 2) * z,
+      y: rect.height / 2 - ((minY + maxY) / 2) * z,
+    });
+  };
+
+  // Once per tree, so it does not fight the user's own panning afterwards.
+  useEffect(() => {
+    if (!treeLayout) return;
+    if (fittedRef.current === treeId) return;
+    fitToView();
+    fittedRef.current = treeId;
+  }, [treeLayout, treeId]);
 
   if (status === "loading") {
     return (
@@ -161,7 +208,8 @@ export default function PublicTree({ treeId, onBack }) {
       </div>
 
       <div
-        className="relative border border-gray-200 rounded-lg bg-white overflow-hidden"
+        ref={boxRef}
+        className="relative border border-gray-200 rounded-lg bg-white overflow-hidden cursor-grab"
         style={{ height: "70vh" }}
         onMouseDown={(e) => {
           // Record where the drag started AND the pan at that moment, so the
@@ -226,10 +274,9 @@ export default function PublicTree({ treeId, onBack }) {
           </button>
           <button
             type="button"
-            onClick={() => {
-              setZoom(1);
-              setPanOffset({ x: 0, y: 0 });
-            }}
+            // Re-FIT, not reset to origin: {0,0} is exactly the off-screen
+            // position this page opens away from.
+            onClick={fitToView}
             className="w-8 h-8 text-[#16233D] border-t border-gray-200 text-xs"
           >
             ⤢
