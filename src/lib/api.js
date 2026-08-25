@@ -180,6 +180,12 @@ export const api = {
   },
 
   // Unauthenticated. Serves only published trees, and never the owner id.
+  // The published tree itself. 404 for an unpublished one, deliberately
+  // indistinguishable from a tree that does not exist.
+  publicTree: {
+    get: (treeId) => fetchAPI(`/public/trees/${treeId}`),
+  },
+
   publicDirectory: {
     summary: () => fetchAPI("/public/directory"),
     families: (emirate) =>

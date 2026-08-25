@@ -44,6 +44,7 @@ import {
   DirectoryTiles,
   DirectoryFamilies,
 } from "./pages/Directory.jsx";
+import PublicTree from "./pages/PublicTree.jsx";
 import { PrivacyPolicy } from "./pages/PrivacyPolicy.jsx";
 import FamilyTreeLayout from "./lib/family-tree-layout.js";
 import {
@@ -93,7 +94,10 @@ const PUBLIC_PATHS = ["/", "/privacy"];
 // Public paths that carry a parameter, so an exact-match list cannot express
 // them. Without this the route guard bounces a signed-out visitor to "/" and a
 // signed-in one to "/tree", and the page is unreachable by anyone.
-const PUBLIC_PATH_PATTERNS = [/^\/directory\/[A-Za-z]+$/];
+const PUBLIC_PATH_PATTERNS = [
+  /^\/directory\/[A-Za-z]+$/,
+  /^\/family\/\d+$/,
+];
 
 const isPublicPath = (path) =>
   PUBLIC_PATHS.includes(path) ||
@@ -330,6 +334,7 @@ function App() {
   const [editingFamilyName, setEditingFamilyName] = useState(false);
   const [settingsBusy, setSettingsBusy] = useState(false);
   const [settingsSaved, setSettingsSaved] = useState(false);
+  const [confirmPublish, setConfirmPublish] = useState(false);
 
   const [expandedMemberId, setExpandedMemberId] = useState(null);
   const [editingMemberId, setEditingMemberId] = useState(null);
@@ -1107,8 +1112,11 @@ function App() {
   useEffect(() => {
     if (!isAuthenticated && !userProfile) return;
     if (currentView === "auth") return;
-    // /privacy is reachable signed in or out; don't drag the user off it.
-    if (location.pathname === "/privacy") return;
+    // Public pages are reachable signed in or out; don't drag the user off them.
+    // This exempted ONLY /privacy, so a signed-in visitor opening /directory/SH
+    // or /family/65 was pulled straight back to their own view — which also made
+    // it impossible to look at your own published tree without logging out.
+    if (isPublicPath(location.pathname)) return;
 
     const want =
       currentView === "tree-builder"
@@ -5066,6 +5074,27 @@ function App() {
   // /directory/:code — the public families list. A real path, not a query
   // parameter, because these pages are meant to be shared and indexed, and
   // /family/:id will need a permanent address too.
+  const familyMatch = location.pathname.match(/^\/family\/(\d+)$/);
+  if (familyMatch) {
+    const signedIn = isAuthenticated || !!userProfile;
+    return (
+      <PublicLayout
+        signedIn={signedIn}
+        onBackToApp={() => navigate("/tree")}
+        onHome={() => navigate("/")}
+        onClaims={() => navigate("/")}
+        onSignIn={() => navigate("/")}
+        onSignUp={() => navigate("/")}
+        onPrivacy={() => navigate("/privacy")}
+      >
+        <PublicTree
+          treeId={familyMatch[1]}
+          onBack={() => navigate("/directory/all")}
+        />
+      </PublicLayout>
+    );
+  }
+
   const directoryMatch = location.pathname.match(/^\/directory\/([A-Za-z]+)$/);
   if (directoryMatch) {
     const code = directoryMatch[1];
@@ -5941,8 +5970,8 @@ function App() {
           </div>
         </div>
 
-        <div className="max-w-xl mx-auto px-6 py-8">
-          <div className="bg-white rounded-lg shadow p-6 space-y-7 relative">
+        <div className="max-w-6xl mx-auto px-6 py-8">
+          <div className="space-y-6 relative">
             <span
               className={`absolute top-4 left-6 text-[11px] text-green-700 transition-opacity ${
                 settingsSaved ? "opacity-100" : "opacity-0"
@@ -5951,13 +5980,20 @@ function App() {
               ✓ تم الحفظ
             </span>
 
+            {/* Name, emirate and female visibility share a row: three short
+                settings that used to stack into a tall column above a cramped
+                preview. */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             {/* اسم العائلة — derived unless overridden */}
-            <div>
+            <div className="bg-white rounded-lg shadow p-6 h-full">
               <label className="block text-sm font-bold mb-1">اسم العائلة</label>
+              <div className="text-[11px] text-gray-400 mb-3 leading-relaxed">
+                الاسم الذي تظهر به عائلتك عند نشر الشجرة
+              </div>
               {!editingFamilyName ? (
                 <>
                   <div
-                    className={`flex items-center gap-3 rounded-md px-3 py-2.5 ${
+                    className={`flex items-center gap-3 rounded-md px-3 h-[42px] ${
                       isOverridden
                         ? "border border-gray-300 bg-white"
                         : "border border-dashed border-gray-300 bg-gray-50"
@@ -6078,12 +6114,16 @@ function App() {
             </div>
 
             {/* الإمارة — locked until the name is saved */}
-            <div className={settingsHasName ? "" : "opacity-40"}>
+            <div
+              className={`bg-white rounded-lg shadow p-6 h-full ${
+                settingsHasName ? "" : "opacity-40"
+              }`}
+            >
               <label className="block text-sm font-bold mb-1">الإمارة</label>
-              <div className="text-[11px] text-gray-400 mb-2 leading-relaxed">
+              <div className="text-[11px] text-gray-400 mb-3 leading-relaxed">
                 {settingsHasName
-                  ? "الإمارة التي صدرت منها خلاصة القيد — وليست مكان السكن الحالي"
-                  : "أكّد اسم العائلة أولاً"}
+                  ? "الإمارة التي صدرت منها خلاصة القيد"
+                  : "أكّد اسم العائلة أولاً."}
               </div>
               <select
                 value={treeSettings.emirate}
@@ -6093,7 +6133,7 @@ function App() {
                 onChange={(e) =>
                   saveTreeSettings({ emirate: e.target.value || null })
                 }
-                className="w-full px-3 py-2 border rounded-md disabled:bg-gray-50"
+                className="w-full px-3 h-[42px] border rounded-md disabled:bg-gray-50"
               >
                 <option value="">غير محدّدة</option>
                 {EMIRATES.map((em) => (
@@ -6104,89 +6144,49 @@ function App() {
               </select>
             </div>
 
-            {/* النشر — locked until both the name and the emirate are set */}
-            <div className={settingsCanPublish ? "" : "opacity-40"}>
-              <label className="block text-sm font-bold mb-1">النشر</label>
-              <div className="text-[11px] text-gray-400 mb-2 leading-relaxed">
-                {settingsCanPublish
-                  ? "عند التفعيل تظهر عائلتك في دليل الإمارة ويمكن لأي زائر عرض الشجرة"
-                  : "أكّد اسم العائلة واختر الإمارة أولاً"}
-              </div>
-              <label className="flex items-center gap-3 border rounded-md p-3 bg-gray-50">
-                <input
-                  type="checkbox"
-                  checked={treeSettings.isPublished}
-                  disabled={settingsBusy || !settingsCanPublish}
-                  onChange={(e) =>
-                    saveTreeSettings({ isPublished: e.target.checked })
-                  }
-                  className="rounded"
-                />
-                <span className="text-sm">
-                  نشر الشجرة للعموم
-                  <span className="block text-[11px] text-gray-400 mt-0.5">
-                    {treeSettings.isPublished
-                      ? "منشورة — يمكن لأي زائر عرضها"
-                      : "غير منشورة — الشجرة خاصة بك وحدك"}
-                  </span>
-                </span>
-              </label>
-            </div>
-
             {/* Greyed, not hidden, while النشر is off — a control that
                 disappears takes its setting with it and leaves the user
                 wondering where it went. */}
-            <div className={treeSettings.isPublished ? "" : "opacity-40"}>
+            <div className="bg-white rounded-lg shadow p-6 h-full">
                 <label className="block text-sm font-bold mb-1">
                   ظهور النساء في العرض العام
                 </label>
-                <div className="text-[11px] text-gray-400 mb-2 leading-relaxed">
-                  {treeSettings.isPublished
-                    ? "لا يؤثّر هذا على شجرتك — أنت ترى دائماً الشجرة كاملة. الاختيار هنا يقرّر ما يراه الزائر فقط."
-                    : "فعّل النشر أولاً"}
+                <div className="text-[11px] text-gray-400 mb-3 leading-relaxed">
+                  ما يراه الزائر عند نشر الشجرة
                 </div>
                 <select
                   value={treeSettings.femaleDisplay}
-                  disabled={settingsBusy || !treeSettings.isPublished}
+                  disabled={settingsBusy}
                   onChange={(e) =>
                     saveTreeSettings({ femaleDisplay: e.target.value })
                   }
-                  className="w-full px-3 py-2 border rounded-md disabled:bg-gray-50"
+                  className="w-full px-3 h-[42px] border rounded-md disabled:bg-gray-50"
                 >
                   <option value="hidden">بدون النساء</option>
                   <option value="anonymous">النساء بدون أسماء</option>
                   <option value="full">الشجرة كاملة بالأسماء</option>
                 </select>
-                <div className="text-[11px] text-gray-400 mt-2 leading-relaxed">
-                  {treeSettings.femaleDisplay === "hidden" &&
-                    "الرجال وأبناؤهم الذكور فقط."}
-                  {treeSettings.femaleDisplay === "anonymous" &&
-                    "تظهر النساء في مواضعهنّ بصفتهنّ — «ابنة راشد»، «زوجة سالم» — بلا أسماء حقيقية."}
-                  {treeSettings.femaleDisplay === "full" &&
-                    "يرى الزائر الشجرة كما تراها أنت، بأسماء النساء كاملة."}
-                </div>
+            </div>
             </div>
 
             {/* Which fields the public box carries. Same reasoning as
                 femaleDisplay: what a stranger sees is a STORED decision, not a
                 side effect of a display preference living in localStorage. */}
-            <div className={treeSettings.isPublished ? "" : "opacity-40"}>
+            <div className="bg-white rounded-lg shadow p-6">
               <label className="block text-sm font-bold mb-1">
                 الحقول الظاهرة للزائر
               </label>
-              <div className="text-[11px] text-gray-400 mb-2 leading-relaxed">
-                {treeSettings.isPublished
-                  ? "الاسم يظهر دائماً. اختر ما يُضاف إليه في صندوق كل فرد."
-                  : "فعّل النشر أولاً"}
+              <div className="text-[11px] text-gray-400 mb-3 leading-relaxed">
+                الاسم الأول يظهر دائماً. اختر ما يُضاف إليه في صندوق كل فرد.
               </div>
 
-              <label className="flex items-center gap-2.5 border rounded-md px-3 py-2 mb-1.5 bg-gray-50">
+              <div className="flex flex-wrap gap-2">
+              <label className="flex items-center gap-2.5 border rounded-md px-3 py-2 bg-gray-50">
                 <input type="checkbox" checked readOnly className="rounded" />
-                <span className="text-sm text-gray-400">الاسم</span>
-                <span className="text-[11px] text-gray-400 mr-auto">دائماً</span>
+                <span className="text-sm text-gray-400">الاسم الأول</span>
               </label>
-
               {[
+                ["surname", "اسم العائلة"],
                 ["birthYear", "سنة الميلاد"],
                 ["deathYear", "سنة الوفاة"],
                 ["age", "العمر"],
@@ -6194,12 +6194,12 @@ function App() {
               ].map(([key, label]) => (
                 <label
                   key={key}
-                  className="flex items-center gap-2.5 border rounded-md px-3 py-2 mb-1.5"
+                  className="flex items-center gap-2.5 border rounded-md px-3 py-2"
                 >
                   <input
                     type="checkbox"
                     checked={treeSettings.publicFields.includes(key)}
-                    disabled={settingsBusy || !treeSettings.isPublished}
+                    disabled={settingsBusy}
                     onChange={(e) => {
                       const next = e.target.checked
                         ? [...treeSettings.publicFields, key]
@@ -6213,10 +6213,121 @@ function App() {
                   <span className="text-sm">{label}</span>
                 </label>
               ))}
+              </div>
             </div>
+
+            {/* PREVIEW — the public page itself, pointed at this tree.
+                Not a mock-up: the same endpoint, the same filtering, the same
+                layout engine and renderer a visitor gets. A hand-drawn preview
+                could disagree with the real thing, and someone would publish on
+                the strength of it.
+
+                The endpoint serves an UNPUBLISHED tree to its owner precisely so
+                this can be seen before deciding. */}
+            <div className="bg-white rounded-lg shadow p-6">
+              <label className="block text-sm font-bold mb-1">
+                معاينة العرض العام
+              </label>
+              <div className="text-[11px] text-gray-400 mb-3 leading-relaxed">
+                هذا ما سيراه الزائر بالضبط، بالإعدادات أعلاه.
+              </div>
+              {currentTree ? (
+                <PublicTree
+                  treeId={currentTree.id}
+                  embedded
+                  // Any saved change re-fetches the preview. Built from the
+                  // SERVER's row, not local state, so it only moves once the
+                  // change has actually landed.
+                  reloadToken={`${currentTree.femaleDisplay}|${currentTree.publicFields}`}
+                />
+              ) : null}
+            </div>
+
+            {/* النشر — locked until both the name and the emirate are set */}
+            <div
+              className={`bg-white rounded-lg shadow p-6 ${
+                settingsCanPublish ? "" : "opacity-40"
+              }`}
+            >
+              <label className="block text-sm font-bold mb-1">النشر</label>
+              <div className="text-[11px] text-gray-400 mb-2 leading-relaxed">
+                {settingsCanPublish
+                  ? "عند التفعيل تظهر عائلتك في دليل الإمارة ويمكن لأي زائر عرض الشجرة."
+                  : "أكّد اسم العائلة واختر الإمارة أولاً."}
+              </div>
+              <label className="flex items-center gap-3 border rounded-md p-3 bg-gray-50">
+                <input
+                  type="checkbox"
+                  checked={treeSettings.isPublished}
+                  disabled={settingsBusy || !settingsCanPublish}
+                  onChange={(e) => {
+                    // Publishing is the one setting a stranger can act on, and
+                    // it cannot be un-seen once it has been. Turning it OFF
+                    // needs no ceremony.
+                    if (e.target.checked) setConfirmPublish(true);
+                    else saveTreeSettings({ isPublished: false });
+                  }}
+                  className="rounded"
+                />
+                <span className="text-sm">نشر الشجرة للعموم</span>
+              </label>
+            </div>
+
 
           </div>
         </div>
+
+        {/* Publishing is the one setting a stranger can act on, and it cannot be
+            un-seen once it has been. The dialog names what becomes visible
+            rather than asking a bare "are you sure". */}
+        <Dialog open={confirmPublish} onOpenChange={setConfirmPublish}>
+          <DialogContent className="sm:max-w-sm" dir="rtl">
+            <DialogHeader>
+              <DialogTitle className="text-right text-lg">
+                تأكيد نشر الشجرة
+              </DialogTitle>
+            </DialogHeader>
+            <div className="space-y-3 py-1 text-right">
+              <p className="text-sm text-gray-700 leading-relaxed">
+                ستظهر «عائلة{" "}
+                {treeSettings.familyName || derivedFamilyName}» في دليل{" "}
+                {emirateLabel(treeSettings.emirate) || "الإمارة"}، ويمكن لأي
+                زائر عرض الشجرة
+              </p>
+              <p className="text-sm text-gray-700 leading-relaxed">
+                {treeSettings.femaleDisplay === "hidden"
+                  ? "لن تظهر النساء."
+                  : treeSettings.femaleDisplay === "anonymous"
+                    ? "لن تظهر أسماء النساء."
+                    : "ستظهر أسماء النساء كاملة."}{" "}
+                راجع المعاينة أعلاه قبل التأكيد.
+              </p>
+              <p className="text-[11px] text-gray-400">
+                يمكنك إيقاف النشر في أي وقت.
+              </p>
+              <div className="flex gap-2 pt-1">
+                <Button
+                  size="sm"
+                  disabled={settingsBusy}
+                  onClick={() => {
+                    saveTreeSettings({ isPublished: true });
+                    setConfirmPublish(false);
+                  }}
+                >
+                  تأكيد النشر
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setConfirmPublish(false)}
+                >
+                  {t.cancel}
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+
         {renderProfileDialog()}
         {renderSignupGate()}
         {renderConsentGate()}

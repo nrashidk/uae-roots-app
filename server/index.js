@@ -492,7 +492,10 @@ const FEMALE_DISPLAY_MODES = ["hidden", "anonymous", "full"];
 // design — they are the only encrypted columns, and decrypting them for a
 // stranger defeats the reason they are sealed.
 const PUBLIC_FIELD_KEYS = [
+  // "name" is the FIRST name and is always present. The surname is optional —
+  // in a lineage chain it is often the same word for everyone.
   "name",
+  "surname",
   "birthYear",
   "deathYear",
   "age",
@@ -2148,6 +2151,154 @@ app.get("/api/public/directory", readLimiter, async (req, res) => {
     });
   } catch (error) {
     handleError(res, error, "Public directory", req);
+  }
+});
+
+// The published tree itself. EVERY filtering decision happens here, not in the
+// client: what a stranger may see must not depend on code running in their
+// browser, where it can be read around.
+app.get("/api/public/trees/:id", readLimiter, optionalAuth, async (req, res) => {
+  try {
+    const treeId = validateId(req.params.id);
+    if (!treeId) {
+      return res.status(404).json({ error: "غير موجود" });
+    }
+
+    const [tree] = await db.select().from(trees).where(eq(trees.id, treeId));
+
+    // Published → anyone. Unpublished → the OWNER only, so the settings screen
+    // can preview exactly what visitors would see before publishing. The preview
+    // runs through the same filtering below, so it cannot drift from the real
+    // public view.
+    //
+    // Still 404 rather than 403 for everyone else: a different status would
+    // confirm the tree exists, which is information the owner did not publish.
+    const isOwner = !!req.userId && tree && tree.createdBy === req.userId;
+    if (!tree || (!tree.isPublished && !isOwner)) {
+      return res.status(404).json({ error: "غير موجود" });
+    }
+
+    const fields = new Set((tree.publicFields || "name").split(","));
+    const mode = tree.femaleDisplay || "hidden";
+
+    const allPeople = await db
+      .select()
+      .from(people)
+      .where(eq(people.treeId, treeId));
+    const allRels = await db
+      .select()
+      .from(relationships)
+      .where(eq(relationships.treeId, treeId));
+
+    const isFemale = (p) => p.gender === "female";
+    const visible =
+      mode === "hidden" ? allPeople.filter((p) => !isFemale(p)) : allPeople;
+    const visibleIds = new Set(visible.map((p) => p.id));
+
+    // For «ابنة راشد» / «زوجة سالم» we need the father's or husband's given
+    // name, which must come from the FULL set — the man may be visible while she
+    // is not, or vice versa.
+    const byId = new Map(allPeople.map((p) => [p.id, p]));
+    // Search ALL parent rows for the male one. Using .find() took the first
+    // parent-child row and gave up if it happened to be the mother — which is
+    // how two women with fathers fell back to the bare «أنثى».
+    const fatherNameOf = (id) => {
+      const father = allRels
+        .filter((r) => r.type === "parent-child" && r.childId === id)
+        .map((r) => byId.get(r.parentId))
+        .find((p) => p && p.gender === "male");
+      return father ? father.firstName : null;
+    };
+    const husbandNameOf = (id) => {
+      const husband = allRels
+        .filter(
+          (r) =>
+            r.type === "partner" && (r.person1Id === id || r.person2Id === id),
+        )
+        .map((r) => byId.get(r.person1Id === id ? r.person2Id : r.person1Id))
+        .find((p) => p && p.gender === "male");
+      return husband ? husband.firstName : null;
+    };
+
+    const yr = (d) => (d ? String(d).slice(0, 4) : null);
+
+    const payload = visible.map((p) => {
+      const living = p.isLiving !== false;
+
+      // A field the owner did not publish is ABSENT, not blank. Sending it
+      // empty would still say "there is something here".
+      const out = { id: p.id, gender: p.gender };
+
+      if (mode === "anonymous" && isFemale(p)) {
+        const f = fatherNameOf(p.id);
+        const h = husbandNameOf(p.id);
+        out.firstName = f ? `ابنة ${f}` : h ? `زوجة ${h}` : "أنثى";
+        out.lastName = null;
+        out.anonymous = true;
+      } else {
+        out.firstName = p.firstName;
+        out.lastName = fields.has("surname") ? p.lastName || null : null;
+      }
+
+      // YEARS only. A full date of birth for a living person is a thing people
+      // use, not a thing they browse.
+      if (fields.has("birthYear")) out.birthYear = yr(p.birthDate);
+      if (fields.has("deathYear") && !living) out.deathYear = yr(p.deathDate);
+      if (fields.has("age") && living && p.birthDate) {
+        const age = new Date().getFullYear() - Number(yr(p.birthDate));
+        if (age >= 0) out.age = age;
+      }
+      if (fields.has("birthPlace")) out.birthPlace = p.birthPlace || null;
+
+      out.isLiving = living;
+      out.isBreastfed = p.isBreastfed === true;
+      out.birthOrder = p.birthOrder;
+      return out;
+    });
+
+    // Drop any relationship touching someone who is not visible. With
+    // female_display=hidden this removes the partner rows and the mother links,
+    // leaving each father with his children and no spouse — which the layout
+    // engine already handles, since a single parent is an ordinary case.
+    const relOut = allRels
+      .filter((r) =>
+        [r.person1Id, r.person2Id, r.childId, r.parentId]
+          .filter((v) => v != null)
+          .every((v) => visibleIds.has(v)),
+      )
+      .map((r) => ({
+        id: r.id,
+        // convertToAlgorithmFormat filters relationships by treeId. Without it
+        // every row is dropped, the layout gets no links, and the tree renders
+        // as a single isolated box. Not sensitive — it is the id in the URL.
+        treeId: r.treeId,
+        type: r.type,
+        person1Id: r.person1Id,
+        person2Id: r.person2Id,
+        childId: r.childId,
+        parentId: r.parentId,
+        status: r.status,
+        isBreastfeeding: r.isBreastfeeding === true,
+      }));
+
+    res.json({
+      // No createdBy, no description. familyName is the literal the owner
+      // confirmed, which is why publishing requires it.
+      tree: {
+        id: tree.id,
+        familyName: tree.familyName,
+        emirate: tree.emirate,
+        femaleDisplay: mode,
+        // Which fields the owner enabled. The client cannot infer this from the
+        // payload: a field is omitted both when it is switched off and when the
+        // person simply has no value for it, and those must not look the same.
+        publicFields: [...fields],
+      },
+      people: payload,
+      relationships: relOut,
+    });
+  } catch (error) {
+    handleError(res, error, "Public tree", req);
   }
 });
 
