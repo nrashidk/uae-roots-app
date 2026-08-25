@@ -44,6 +44,7 @@ import {
   DirectoryTiles,
   DirectoryFamilies,
 } from "./pages/Directory.jsx";
+import PublicTree from "./pages/PublicTree.jsx";
 import { PrivacyPolicy } from "./pages/PrivacyPolicy.jsx";
 import FamilyTreeLayout from "./lib/family-tree-layout.js";
 import {
@@ -93,7 +94,10 @@ const PUBLIC_PATHS = ["/", "/privacy"];
 // Public paths that carry a parameter, so an exact-match list cannot express
 // them. Without this the route guard bounces a signed-out visitor to "/" and a
 // signed-in one to "/tree", and the page is unreachable by anyone.
-const PUBLIC_PATH_PATTERNS = [/^\/directory\/[A-Za-z]+$/];
+const PUBLIC_PATH_PATTERNS = [
+  /^\/directory\/[A-Za-z]+$/,
+  /^\/family\/\d+$/,
+];
 
 const isPublicPath = (path) =>
   PUBLIC_PATHS.includes(path) ||
@@ -1107,8 +1111,11 @@ function App() {
   useEffect(() => {
     if (!isAuthenticated && !userProfile) return;
     if (currentView === "auth") return;
-    // /privacy is reachable signed in or out; don't drag the user off it.
-    if (location.pathname === "/privacy") return;
+    // Public pages are reachable signed in or out; don't drag the user off them.
+    // This exempted ONLY /privacy, so a signed-in visitor opening /directory/SH
+    // or /family/65 was pulled straight back to their own view — which also made
+    // it impossible to look at your own published tree without logging out.
+    if (isPublicPath(location.pathname)) return;
 
     const want =
       currentView === "tree-builder"
@@ -5066,6 +5073,27 @@ function App() {
   // /directory/:code — the public families list. A real path, not a query
   // parameter, because these pages are meant to be shared and indexed, and
   // /family/:id will need a permanent address too.
+  const familyMatch = location.pathname.match(/^\/family\/(\d+)$/);
+  if (familyMatch) {
+    const signedIn = isAuthenticated || !!userProfile;
+    return (
+      <PublicLayout
+        signedIn={signedIn}
+        onBackToApp={() => navigate("/tree")}
+        onHome={() => navigate("/")}
+        onClaims={() => navigate("/")}
+        onSignIn={() => navigate("/")}
+        onSignUp={() => navigate("/")}
+        onPrivacy={() => navigate("/privacy")}
+      >
+        <PublicTree
+          treeId={familyMatch[1]}
+          onBack={() => navigate("/directory/all")}
+        />
+      </PublicLayout>
+    );
+  }
+
   const directoryMatch = location.pathname.match(/^\/directory\/([A-Za-z]+)$/);
   if (directoryMatch) {
     const code = directoryMatch[1];
