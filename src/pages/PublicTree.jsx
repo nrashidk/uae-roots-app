@@ -27,6 +27,10 @@ export default function PublicTree({ treeId, onBack }) {
   const dragRef = useRef(null);
   const boxRef = useRef(null);
   const fittedRef = useRef(null);
+  // Current view, mirrored into a ref so the native wheel listener always reads
+  // the latest values without being torn down and re-attached on every change.
+  const viewRef = useRef({ zoom: 1, pan: { x: 0, y: 0 } });
+  viewRef.current = { zoom, pan: panOffset };
 
   useEffect(() => {
     let alive = true;
@@ -139,6 +143,38 @@ export default function PublicTree({ treeId, onBack }) {
     fitToView();
     fittedRef.current = treeId;
   }, [treeLayout, treeId]);
+
+  // Wheel zoom, anchored at the cursor.
+  //
+  // Attached natively with { passive: false } rather than via onWheel: React
+  // registers wheel listeners as PASSIVE at the root, so preventDefault() inside
+  // a JSX handler is ignored and the page scrolls while the tree zooms.
+  useEffect(() => {
+    const el = boxRef.current;
+    if (!el) return;
+
+    const onWheel = (e) => {
+      e.preventDefault();
+      const { zoom: z0, pan } = viewRef.current;
+      const z1 = Math.min(2, Math.max(0.3, z0 * (e.deltaY > 0 ? 0.9 : 1.1)));
+      if (z1 === z0) return;
+
+      // Keep the point under the cursor fixed: convert it to layout space at the
+      // old zoom, then place it back at the new one. Without this the tree
+      // drifts away from wherever the user is looking.
+      const rect = el.getBoundingClientRect();
+      const mx = e.clientX - rect.left;
+      const my = e.clientY - rect.top;
+      setPanOffset({
+        x: mx - ((mx - pan.x) / z0) * z1,
+        y: my - ((my - pan.y) / z0) * z1,
+      });
+      setZoom(z1);
+    };
+
+    el.addEventListener("wheel", onWheel, { passive: false });
+    return () => el.removeEventListener("wheel", onWheel);
+  }, [status]);
 
   if (status === "loading") {
     return (
