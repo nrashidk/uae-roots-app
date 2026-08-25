@@ -19,7 +19,7 @@ import { emirateLabel } from "./Directory.jsx";
  * relationships and which fields a visitor may have; this draws whatever
  * arrives. Anything filtered in the browser can be read around.
  */
-export default function PublicTree({ treeId, onBack }) {
+export default function PublicTree({ treeId, onBack, embedded = false }) {
   const [data, setData] = useState(null);
   const [status, setStatus] = useState("loading"); // loading | ok | missing
   const [zoom, setZoom] = useState(1);
@@ -227,14 +227,16 @@ export default function PublicTree({ treeId, onBack }) {
   const { tree } = data;
 
   return (
-    <div className="max-w-6xl mx-auto px-6 py-8">
-      <button
-        type="button"
-        onClick={onBack}
-        className="text-[13px] text-gray-500 hover:text-[#16233D] mb-4"
-      >
-        ← الدليل
-      </button>
+    <div className={embedded ? "" : "max-w-6xl mx-auto px-6 py-8"}>
+      {!embedded && (
+        <button
+          type="button"
+          onClick={onBack}
+          className="text-[13px] text-gray-500 hover:text-[#16233D] mb-4"
+        >
+          ← الدليل
+        </button>
+      )}
 
       <div className="flex items-end justify-between flex-wrap gap-3 mb-5">
         <div>
@@ -263,7 +265,7 @@ export default function PublicTree({ treeId, onBack }) {
       <div
         ref={boxRef}
         className="relative border border-gray-200 rounded-lg bg-white overflow-hidden cursor-grab"
-        style={{ height: "70vh" }}
+        style={{ height: embedded ? "340px" : "70vh" }}
         onMouseDown={(e) => {
           // Record where the drag started AND the pan at that moment, so the
           // offset is computed from the origin rather than accumulating.
@@ -337,10 +339,12 @@ export default function PublicTree({ treeId, onBack }) {
         </div>
       </div>
 
-      <p className="text-[11px] text-gray-400 mt-4 leading-relaxed">
-        نشرها مالك الشجرة. إن وجدت بياناتك هنا وترغب في إزالتها، راسلنا على
-        support@uaeroots.com
-      </p>
+      {!embedded && (
+        <p className="text-[11px] text-gray-400 mt-4 leading-relaxed">
+          نشرها مالك الشجرة. إن وجدت بياناتك هنا وترغب في إزالتها، راسلنا على
+          support@uaeroots.com
+        </p>
+      )}
     </div>
   );
 }
