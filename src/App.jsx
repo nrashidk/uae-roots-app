@@ -334,6 +334,10 @@ function App() {
   const [editingFamilyName, setEditingFamilyName] = useState(false);
   const [settingsBusy, setSettingsBusy] = useState(false);
   const [settingsSaved, setSettingsSaved] = useState(false);
+  // Reachability from the public payload, for the fragmentation warning.
+  // Set by the preview so the numbers come from the SAME filtering a visitor
+  // gets rather than a parallel count that could drift.
+  const [previewReach, setPreviewReach] = useState(null);
   const [confirmPublish, setConfirmPublish] = useState(false);
 
   const [expandedMemberId, setExpandedMemberId] = useState(null);
@@ -6232,6 +6236,24 @@ function App() {
                   <option value="anonymous">النساء بدون أسماء</option>
                   <option value="full">الشجرة كاملة بالأسماء</option>
                 </select>
+
+                {/* Only for «بدون النساء», and only when branches are actually
+                    severed. Removing women removes the relationships that
+                    touched them, so a branch whose only link to the trunk ran
+                    through one — a mother, or a رضاعة bond — disappears with
+                    her rather than shortening.
+
+                    Both numbers come from the public payload, counting the same
+                    set, so this cannot disagree with what a visitor sees. */}
+                {treeSettings.femaleDisplay === "hidden" &&
+                  previewReach &&
+                  previewReach.drawn < previewReach.eligible && (
+                    <div className="mt-2 text-[11px] leading-relaxed text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-3 py-2">
+                      ⚠︎ بهذا الاختيار سيرى الزائر {previewReach.drawn} رجال من
+                      أصل {previewReach.eligible} رجلاً. بعض الفروع لا تتصل
+                      بالشجرة إلا عبر امرأة، فتختفي معها.
+                    </div>
+                  )}
             </div>
             </div>
 
@@ -6305,6 +6327,7 @@ function App() {
                   // SERVER's row, not local state, so it only moves once the
                   // change has actually landed.
                   reloadToken={`${currentTree.femaleDisplay}|${currentTree.publicFields}`}
+                  onReach={setPreviewReach}
                 />
               ) : null}
             </div>
