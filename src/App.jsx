@@ -572,6 +572,7 @@ function App() {
     motherOf: "والدة",
     spouseOf: "شريك",
     siblingOf: "شقيق",
+    sisterOf: "شقيقة",
     childOf: "طفل",
     profile: "الملف الشخصي",
     profileSettings: "إعدادات الحساب",
@@ -1222,6 +1223,49 @@ function App() {
     layout.e = layout.e || {};
     layout.n = layout.n || [];
 
+    // Normalise the origin to (0,0).
+    //
+    // The engine positions everything relative to the ROOTED person, so moving
+    // one sibling shifts the whole coordinate space: the box you moved stays
+    // put and the entire tree slides across the screen instead. Anchoring the
+    // top-left corner makes a reorder move only the boxes that actually
+    // changed places.
+    //
+    // Done here rather than by correcting panOffset afterwards: that is a
+    // second setState, so the tree painted once at the old position and again
+    // at the corrected one — two visible jumps per press.
+    //
+    // Entities, connector lines and partner labels share one coordinate space
+    // and must all be shifted, or the lines detach from the boxes.
+    //
+    // This mutates the object generateLayout returned, which may be its cached
+    // tree. Safe because it is idempotent: once shifted, minX/minY are 0 and
+    // the block is skipped. And buildFullTree merges subtrees RELATIVE to an
+    // anchor it reads from the subtree itself, so a normalised subtree still
+    // merges correctly.
+    const ents = Object.values(layout.e);
+    if (ents.length) {
+      const minX = Math.min(...ents.map((e) => e.x));
+      const minY = Math.min(...ents.map((e) => e.y));
+      if (minX !== 0 || minY !== 0) {
+        ents.forEach((e) => {
+          e.x -= minX;
+          e.y -= minY;
+        });
+        (layout.n || []).forEach((n) => {
+          n.x1 -= minX;
+          n.x2 -= minX;
+          n.y1 -= minY;
+          n.y2 -= minY;
+        });
+        (layout.p || []).forEach((pl) => {
+          pl.x1 -= minX;
+          pl.x2 -= minX;
+          pl.y -= minY;
+        });
+      }
+    }
+
     // Return both layout and familyData so TreeCanvas can access person data
     return { layout, familyData };
   }, [people, relationships, currentTree?.id, selectedPerson]);
@@ -1363,20 +1407,39 @@ function App() {
   // person so they stay in view instead of flying off-screen. Only for
   // multi-entity layouts (single-entity is handled by autoPan).
   const lastCenteredPersonRef = useRef(null);
-  const lastCenteredLayoutRef = useRef(null);
+  const lastCenteredKeysRef = useRef(null);
   useEffect(() => {
     if (!selectedPerson || isSingleLayout) {
       lastCenteredPersonRef.current = null;
-      lastCenteredLayoutRef.current = null;
+      lastCenteredKeysRef.current = null;
       return;
     }
-    // Recenter when the selected person changes OR the layout reflows (e.g. after
-    // a delete, the tree repacks and the rooted person moves). Manual dragging
-    // changes panOffset — not treeLayout — so this never fights dragging.
+    // Recenter when the selected person changes, or when the SET OF PEOPLE in
+    // the layout changes — a delete or an add repacks the tree and the rooted
+    // person moves, so they would otherwise fly off-screen.
+    //
+    // Keyed on the entity KEYS, not on the treeLayout object. Keying on the
+    // object recentred on any reflow at all, including a sibling REORDER: the
+    // user nudges one sibling a step and the whole viewport jumps to re-centre
+    // them. That went unnoticed while the layout cache never invalidated on
+    // order — the recompute returned identical coordinates, so the recentre was
+    // a no-op. Fixing the cache made it visible.
+    //
+    // Manual dragging changes panOffset, not the keys, so this never fights it.
+    const keys = treeLayout?.layout?.e
+      ? Object.keys(treeLayout.layout.e).sort().join(",")
+      : null;
     if (
       lastCenteredPersonRef.current === selectedPerson &&
-      lastCenteredLayoutRef.current === treeLayout
+      lastCenteredKeysRef.current === keys
     )
+      // Same people, same selection — a REORDER. Do nothing: the view stays
+      // where the user left it and only the moved sibling changes place.
+      //
+      // The original code recentred on ANY reflow. That was invisible because
+      // the layout cache omitted sibling order, so a reorder usually produced no
+      // new layout — the same defect that made undo look stuck. Fixing the cache
+      // made the recentre fire every press.
       return;
     const entity = treeLayout?.layout?.e?.[`P${selectedPerson}`];
     if (!entity || !canvasDimensions.width || !canvasDimensions.height) return;
@@ -1389,7 +1452,7 @@ function App() {
       y: canvasDimensions.height / 2 - (py + BOX_HEIGHT / 2),
     });
     lastCenteredPersonRef.current = selectedPerson;
-    lastCenteredLayoutRef.current = treeLayout;
+    lastCenteredKeysRef.current = keys;
   }, [selectedPerson, treeLayout, isSingleLayout, canvasDimensions]);
 
   // Get people for the current tree
@@ -8014,7 +8077,9 @@ function PersonForm({
         }
       }
       if (relationshipType === "sibling")
-        return `${t.siblingOf} ${selectedPersonName}`;
+        return `${
+          defaultGender === "female" ? t.sisterOf : t.siblingOf
+        } ${selectedPersonName}`;
     }
     return "";
   };
@@ -8153,9 +8218,25 @@ function PersonForm({
         <label className="block text-sm font-bold mb-1">{t.gender}</label>
         <select
           value={formData.gender}
-          onChange={(e) =>
-            setFormData((prev) => ({ ...prev, gender: e.target.value }))
-          }
+          onChange={(e) => {
+            const gender = e.target.value;
+            setFormData((prev) => {
+              // Follow the gender ONLY while the name is still the untouched
+              // placeholder — «شقيق سالم» becomes «شقيقة سالم». If the user has
+              // typed a real name, leave it alone: overwriting what someone
+              // typed because they corrected the gender would be worse than a
+              // wrong placeholder.
+              let firstName = prev.firstName;
+              if (relationshipType === "sibling" && selectedPersonName) {
+                const male = `${t.siblingOf} ${selectedPersonName}`;
+                const female = `${t.sisterOf} ${selectedPersonName}`;
+                if (firstName === male || firstName === female) {
+                  firstName = gender === "female" ? female : male;
+                }
+              }
+              return { ...prev, gender, firstName };
+            });
+          }}
           className="w-full px-3 py-2 border rounded-md"
         >
           <option value="">اختر الجنس</option>
