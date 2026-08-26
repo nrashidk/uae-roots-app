@@ -1365,6 +1365,7 @@ function App() {
   // multi-entity layouts (single-entity is handled by autoPan).
   const lastCenteredPersonRef = useRef(null);
   const lastCenteredKeysRef = useRef(null);
+  const lastBoundsRef = useRef(null);
   useEffect(() => {
     if (!selectedPerson || isSingleLayout) {
       lastCenteredPersonRef.current = null;
@@ -1389,8 +1390,29 @@ function App() {
     if (
       lastCenteredPersonRef.current === selectedPerson &&
       lastCenteredKeysRef.current === keys
-    )
+    ) {
+      // Same people, same selection — a REORDER. The layout is computed
+      // relative to the rooted person, so moving one sibling shifts the whole
+      // coordinate origin: the reordered box barely moves and every other box
+      // slides across the screen. Compensate by the change in the layout's
+      // bounding box so the tree stays visually anchored and only the sibling
+      // that was moved appears to move.
+      const ents = Object.values(treeLayout?.layout?.e || {});
+      if (ents.length) {
+        const minX = Math.min(...ents.map((e) => e.x));
+        const minY = Math.min(...ents.map((e) => e.y));
+        const prev = lastBoundsRef.current;
+        if (prev && (prev.minX !== minX || prev.minY !== minY)) {
+          const BW = stylingOptions?.boxWidth || CARD.w;
+          setPanOffset((po) => ({
+            x: po.x + (minX - prev.minX) * BW,
+            y: po.y + (minY - prev.minY) * CARD.h,
+          }));
+        }
+        lastBoundsRef.current = { minX, minY };
+      }
       return;
+    }
     const entity = treeLayout?.layout?.e?.[`P${selectedPerson}`];
     if (!entity || !canvasDimensions.width || !canvasDimensions.height) return;
     const BOX_WIDTH = stylingOptions?.boxWidth || CARD.w;
@@ -1403,6 +1425,15 @@ function App() {
     });
     lastCenteredPersonRef.current = selectedPerson;
     lastCenteredKeysRef.current = keys;
+    {
+      const ents = Object.values(treeLayout?.layout?.e || {});
+      lastBoundsRef.current = ents.length
+        ? {
+            minX: Math.min(...ents.map((e) => e.x)),
+            minY: Math.min(...ents.map((e) => e.y)),
+          }
+        : null;
+    }
   }, [selectedPerson, treeLayout, isSingleLayout, canvasDimensions]);
 
   // Get people for the current tree
