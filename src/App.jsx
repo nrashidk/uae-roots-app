@@ -572,6 +572,7 @@ function App() {
     motherOf: "والدة",
     spouseOf: "شريك",
     siblingOf: "شقيق",
+    sisterOf: "شقيقة",
     childOf: "طفل",
     profile: "الملف الشخصي",
     profileSettings: "إعدادات الحساب",
@@ -1363,19 +1364,31 @@ function App() {
   // person so they stay in view instead of flying off-screen. Only for
   // multi-entity layouts (single-entity is handled by autoPan).
   const lastCenteredPersonRef = useRef(null);
-  const lastCenteredLayoutRef = useRef(null);
+  const lastCenteredKeysRef = useRef(null);
   useEffect(() => {
     if (!selectedPerson || isSingleLayout) {
       lastCenteredPersonRef.current = null;
-      lastCenteredLayoutRef.current = null;
+      lastCenteredKeysRef.current = null;
       return;
     }
-    // Recenter when the selected person changes OR the layout reflows (e.g. after
-    // a delete, the tree repacks and the rooted person moves). Manual dragging
-    // changes panOffset — not treeLayout — so this never fights dragging.
+    // Recenter when the selected person changes, or when the SET OF PEOPLE in
+    // the layout changes — a delete or an add repacks the tree and the rooted
+    // person moves, so they would otherwise fly off-screen.
+    //
+    // Keyed on the entity KEYS, not on the treeLayout object. Keying on the
+    // object recentred on any reflow at all, including a sibling REORDER: the
+    // user nudges one sibling a step and the whole viewport jumps to re-centre
+    // them. That went unnoticed while the layout cache never invalidated on
+    // order — the recompute returned identical coordinates, so the recentre was
+    // a no-op. Fixing the cache made it visible.
+    //
+    // Manual dragging changes panOffset, not the keys, so this never fights it.
+    const keys = treeLayout?.layout?.e
+      ? Object.keys(treeLayout.layout.e).sort().join(",")
+      : null;
     if (
       lastCenteredPersonRef.current === selectedPerson &&
-      lastCenteredLayoutRef.current === treeLayout
+      lastCenteredKeysRef.current === keys
     )
       return;
     const entity = treeLayout?.layout?.e?.[`P${selectedPerson}`];
@@ -1389,7 +1402,7 @@ function App() {
       y: canvasDimensions.height / 2 - (py + BOX_HEIGHT / 2),
     });
     lastCenteredPersonRef.current = selectedPerson;
-    lastCenteredLayoutRef.current = treeLayout;
+    lastCenteredKeysRef.current = keys;
   }, [selectedPerson, treeLayout, isSingleLayout, canvasDimensions]);
 
   // Get people for the current tree
@@ -8014,7 +8027,9 @@ function PersonForm({
         }
       }
       if (relationshipType === "sibling")
-        return `${t.siblingOf} ${selectedPersonName}`;
+        return `${
+          defaultGender === "female" ? t.sisterOf : t.siblingOf
+        } ${selectedPersonName}`;
     }
     return "";
   };
@@ -8153,9 +8168,25 @@ function PersonForm({
         <label className="block text-sm font-bold mb-1">{t.gender}</label>
         <select
           value={formData.gender}
-          onChange={(e) =>
-            setFormData((prev) => ({ ...prev, gender: e.target.value }))
-          }
+          onChange={(e) => {
+            const gender = e.target.value;
+            setFormData((prev) => {
+              // Follow the gender ONLY while the name is still the untouched
+              // placeholder — «شقيق سالم» becomes «شقيقة سالم». If the user has
+              // typed a real name, leave it alone: overwriting what someone
+              // typed because they corrected the gender would be worse than a
+              // wrong placeholder.
+              let firstName = prev.firstName;
+              if (relationshipType === "sibling" && selectedPersonName) {
+                const male = `${t.siblingOf} ${selectedPersonName}`;
+                const female = `${t.sisterOf} ${selectedPersonName}`;
+                if (firstName === male || firstName === female) {
+                  firstName = gender === "female" ? female : male;
+                }
+              }
+              return { ...prev, gender, firstName };
+            });
+          }}
           className="w-full px-3 py-2 border rounded-md"
         >
           <option value="">اختر الجنس</option>
