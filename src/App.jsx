@@ -7208,6 +7208,13 @@ function App() {
             onClick={() => currentTree && setCurrentView("tree-builder")}
           >
             <h3 className="text-xl font-bold mb-4">{t.myFamilyTrees}</h3>
+            {/* A literal, and correct: POST /api/trees enforces one tree per
+                account idempotently, so this can only ever be 0 or 1. Counting
+                userTrees.length would add machinery to display a number that
+                cannot vary — and the app has no tree picker, so only
+                userTrees[0] is ever opened anyway. If multiple trees per user
+                ever becomes a product decision, this and the picker change
+                together. */}
             <div className="text-3xl font-bold text-[#A5813F]">
               {currentTree ? 1 : 0}
             </div>
