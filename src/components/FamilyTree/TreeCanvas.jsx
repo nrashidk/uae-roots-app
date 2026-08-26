@@ -384,6 +384,18 @@ const TreeCanvas = ({
 
   // Redraw when dependencies change
   useEffect(() => {
+    // TEMPORARY DIAGNOSTIC — remove once the undo repaint is understood.
+    // Logs the birthOrder the canvas is about to draw with, so we can see
+    // whether this effect fires after an undo and what data it holds.
+    if (typeof window !== "undefined" && window.__TREE_DEBUG) {
+      console.log(
+        "[TreeCanvas] repaint",
+        (people || [])
+          .filter((p) => p.birthOrder != null)
+          .map((p) => `${p.firstName}:${p.birthOrder}`)
+          .join(" "),
+      );
+    }
     drawTree();
   }, [drawTree]);
 
