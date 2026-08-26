@@ -29,6 +29,9 @@ export default function PublicTree({
   // preview kept showing the FIRST response and silently disagreed with the
   // options above it.
   reloadToken = "",
+  // The settings screen uses this to warn when a mode would sever branches. The
+  // numbers come from the payload, so they cannot disagree with what is drawn.
+  onReach = null,
 }) {
   const [data, setData] = useState(null);
   const [status, setStatus] = useState("loading"); // loading | ok | missing
@@ -59,6 +62,7 @@ export default function PublicTree({
         if (!alive) return;
         setData(d);
         setStatus("ok");
+        if (onReach) onReach(d?.tree?.reach || null);
       })
       .catch(() => alive && setStatus("missing"));
     return () => {
