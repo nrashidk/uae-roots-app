@@ -388,11 +388,20 @@ const TreeCanvas = ({
     // Logs the birthOrder the canvas is about to draw with, so we can see
     // whether this effect fires after an undo and what data it holds.
     if (typeof window !== "undefined" && window.__TREE_DEBUG) {
+      // Positions come from LAYOUT, names from PEOPLE. A repaint proves people
+      // changed; it does not prove the layout did. Log both for the same ids.
+      const ids = (people || [])
+        .filter((p) => p.birthOrder != null)
+        .slice(0, 6)
+        .map((p) => p.id);
       console.log(
         "[TreeCanvas] repaint",
-        (people || [])
-          .filter((p) => p.birthOrder != null)
-          .map((p) => `${p.firstName}:${p.birthOrder}`)
+        ids
+          .map((id) => {
+            const per = people.find((p) => p.id === id);
+            const ent = layout?.e?.[`P${id}`];
+            return `${per?.firstName}[o=${per?.birthOrder} x=${ent?.x}]`;
+          })
           .join(" "),
       );
     }
