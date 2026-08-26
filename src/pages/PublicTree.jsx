@@ -29,9 +29,17 @@ export default function PublicTree({
   // preview kept showing the FIRST response and silently disagreed with the
   // options above it.
   reloadToken = "",
+  // The settings screen uses this to warn when a mode would sever branches. The
+  // numbers come from the payload, so they cannot disagree with what is drawn.
+  onReach = null,
 }) {
   const [data, setData] = useState(null);
   const [status, setStatus] = useState("loading"); // loading | ok | missing
+  // Which person the tree is rooted on. A visitor arrives with none, so the
+  // layout picks its own root — but the engine only ever draws ONE branch from
+  // that root, so without this the rest of the family was permanently
+  // unreachable: clicking did nothing on a read-only tree.
+  const [rootPerson, setRootPerson] = useState(null);
   const [zoom, setZoom] = useState(1);
   const [panOffset, setPanOffset] = useState({ x: 0, y: 0 });
   const dragRef = useRef(null);
@@ -59,6 +67,7 @@ export default function PublicTree({
         if (!alive) return;
         setData(d);
         setStatus("ok");
+        if (onReach) onReach(d?.tree?.reach || null);
       })
       .catch(() => alive && setStatus("missing"));
     return () => {
@@ -106,22 +115,26 @@ export default function PublicTree({
       treeId: data.tree.id,
     }));
     const familyData = convertToAlgorithmFormat(people, rels, data.tree.id);
-    const layout = FamilyTreeLayout.generateLayout(
-      familyData,
-      findRootPerson(familyData),
-      {
-        childDepth: 10,
-        parentDepth: 10,
-        siblingDepth: 10,
-        flipLayout: false,
-        displayOptions: {},
-        markedPersonId: null,
-      },
-    );
+    // Same re-rooting the signed-in app uses, so navigation behaves identically
+    // — click a spouse and the tree redraws around their side.
+    const preferredRoot = rootPerson ? `P${rootPerson}` : null;
+    const root =
+      preferredRoot && familyData[preferredRoot]
+        ? preferredRoot
+        : findRootPerson(familyData);
+    const layout = FamilyTreeLayout.generateLayout(familyData, root, {
+      childDepth: 10,
+      parentDepth: 10,
+      siblingDepth: 10,
+      flipLayout: false,
+      displayOptions: {},
+      markedPersonId:
+        preferredRoot && familyData[preferredRoot] ? preferredRoot : null,
+    });
     layout.e = layout.e || {};
     layout.n = layout.n || [];
     return { layout, familyData };
-  }, [data, people]);
+  }, [data, people, rootPerson]);
 
   // How many people the layout actually REACHES from its root.
   //
@@ -180,11 +193,14 @@ export default function PublicTree({
   // Once per tree, so it does not fight the user's own panning afterwards.
   useEffect(() => {
     if (!treeLayout) return;
-    const key = `${treeId}:${reloadToken}`;
+    // Includes the root: clicking a spouse draws a different branch, which can
+    // land anywhere in the coordinate space, so the view has to re-fit or the
+    // visitor is left staring at empty canvas.
+    const key = `${treeId}:${reloadToken}:${rootPerson || ""}`;
     if (fittedRef.current === key) return;
     fitToView();
     fittedRef.current = key;
-  }, [treeLayout, treeId, reloadToken]);
+  }, [treeLayout, treeId, reloadToken, rootPerson]);
 
   // Wheel zoom, anchored at the cursor.
   //
@@ -336,10 +352,13 @@ export default function PublicTree({
             layout={treeLayout.layout}
             familyData={treeLayout.familyData}
             people={people}
-            selectedPerson={null}
+            selectedPerson={rootPerson}
             highlightedPerson={null}
             // Read-only: no click handlers, so nothing opens and nothing edits.
-            onPersonClick={() => {}}
+            // Re-roots the view. Read-only still: nothing opens, nothing edits,
+            // no request is made — the payload already holds every visible
+            // person, so this only changes which branch is drawn.
+            onPersonClick={(personId) => setRootPerson(personId)}
             onBackgroundClick={() => {}}
             zoom={zoom}
             panOffset={panOffset}

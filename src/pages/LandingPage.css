@@ -7,7 +7,6 @@
   --ink: #16233d;
   --ink-soft: #2c3a56;
   --parchment: #f4efe3;
-  --parchment-2: #ede6d6;
   --brass: #a5813f;
   --brass-lift: #c29e58;
   --radaa: #2f8f6b;
@@ -197,12 +196,6 @@
 }
 .lp-seg + .lp-seg {
   margin-inline-start: 0.4em;
-}
-.lp-rel {
-  /* --brass fails contrast on ink; --brass-lift is the variant already used
-     on dark surfaces elsewhere in this file. */
-  color: var(--brass-lift);
-  font-weight: 400;
 }
 .lp-chain-foot {
   display: flex;
@@ -434,9 +427,9 @@
    --------------------------------------------------------------------------- */
 .lp-dir {
   padding: 86px 0 78px;
-  /* Same parchment as every other section. The darker --parchment-2 set this
-     block apart as a panel; the ink tiles inside already distinguish it, and
-     two beiges on one page read as an inconsistency rather than a device. */
+  /* One parchment across the whole page. A second, darker beige set this block
+     apart as a panel and read as an inconsistency rather than a device; the ink
+     tiles inside already distinguish it. */
   background: var(--parchment);
 }
 
