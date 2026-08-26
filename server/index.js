@@ -2236,6 +2236,36 @@ app.get("/api/public/trees/:id", readLimiter, optionalAuth, async (req, res) => 
 
     const yr = (d) => (d ? String(d).slice(0, 4) : null);
 
+    // «زوجة خالد ١، ٢، ٣» — numbered only when there is more than one.
+    //
+    // A lone «زوجة خالد ١» implies others are hidden, so a single wife or
+    // daughter gets no number at all.
+    //
+    // Ordered by birthOrder then id so the numbers are STABLE across loads —
+    // otherwise a visitor bookmarks «زوجة خالد ٢» and finds someone else there
+    // tomorrow. The number is a position in that order, NOT marriage sequence.
+    const anonIndex = new Map();
+    if (mode === "anonymous") {
+      const groups = new Map();
+      allPeople.filter(isFemale).forEach((p) => {
+        const f = fatherNameOf(p.id);
+        const h = husbandNameOf(p.id);
+        const label = f ? `ابنة ${f}` : h ? `زوجة ${h}` : null;
+        if (!label) return;
+        if (!groups.has(label)) groups.set(label, []);
+        groups.get(label).push(p);
+      });
+      groups.forEach((members, label) => {
+        if (members.length < 2) return;
+        members
+          .sort(
+            (a, b) =>
+              (a.birthOrder ?? 0) - (b.birthOrder ?? 0) || a.id - b.id,
+          )
+          .forEach((p, i) => anonIndex.set(p.id, `${label} ${i + 1}`));
+      });
+    }
+
     const payload = visible.map((p) => {
       const living = p.isLiving !== false;
 
@@ -2246,7 +2276,8 @@ app.get("/api/public/trees/:id", readLimiter, optionalAuth, async (req, res) => 
       if (mode === "anonymous" && isFemale(p)) {
         const f = fatherNameOf(p.id);
         const h = husbandNameOf(p.id);
-        out.firstName = f ? `ابنة ${f}` : h ? `زوجة ${h}` : "أنثى";
+        out.firstName =
+          anonIndex.get(p.id) || (f ? `ابنة ${f}` : h ? `زوجة ${h}` : "أنثى");
         out.lastName = null;
         out.anonymous = true;
       } else {
@@ -2295,6 +2326,48 @@ app.get("/api/public/trees/:id", readLimiter, optionalAuth, async (req, res) => 
         isBreastfeeding: r.isBreastfeeding === true,
       }));
 
+    // How many of the visible people the layout can actually REACH.
+    //
+    // Removing women removes the relationships that touched them, and a branch
+    // whose only link to the trunk ran through one — a mother, or a رضاعة bond —
+    // is severed rather than shortened. It is still in the payload; nothing
+    // joins it to anything, so the layout draws one connected component and the
+    // rest are unreachable.
+    //
+    // Counted here, from the SAME filtered sets the payload is built from, so
+    // the owner's warning cannot disagree with what a visitor sees.
+    const adj = new Map();
+    visible.forEach((p) => adj.set(p.id, new Set()));
+    const join = (a, b) => {
+      if (a == null || b == null || !adj.has(a) || !adj.has(b)) return;
+      adj.get(a).add(b);
+      adj.get(b).add(a);
+    };
+    relOut.forEach((r) => {
+      join(r.person1Id, r.person2Id);
+      join(r.parentId, r.childId);
+    });
+
+    let largest = 0;
+    const seen = new Set();
+    for (const startId of adj.keys()) {
+      if (seen.has(startId)) continue;
+      let size = 0;
+      const stack = [startId];
+      seen.add(startId);
+      while (stack.length) {
+        const id = stack.pop();
+        size++;
+        for (const next of adj.get(id) || []) {
+          if (!seen.has(next)) {
+            seen.add(next);
+            stack.push(next);
+          }
+        }
+      }
+      if (size > largest) largest = size;
+    }
+
     res.json({
       // No createdBy, no description. familyName is the literal the owner
       // confirmed, which is why publishing requires it.
@@ -2307,6 +2380,15 @@ app.get("/api/public/trees/:id", readLimiter, optionalAuth, async (req, res) => 
         // payload: a field is omitted both when it is switched off and when the
         // person simply has no value for it, and those must not look the same.
         publicFields: [...fields],
+        // For the owner's warning. `drawn` is the largest connected component;
+        // `eligible` is every person this mode would show if nothing were
+        // severed. Under `hidden` both count MEN ONLY, so the two figures
+        // compare like with like — «٨ رجال من أصل ٣٣ رجلاً». Comparing a
+        // men-only count against a mixed total understates the loss badly.
+        reach: {
+          drawn: largest,
+          eligible: visible.length,
+        },
       },
       people: payload,
       relationships: relOut,
