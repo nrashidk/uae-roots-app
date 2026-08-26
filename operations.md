@@ -284,24 +284,35 @@ disclosure and asking the lawyer about.
 
 Answer these in writing before notifying anyone:
 
-- What data, for how many people? Do not answer this from the three obvious
-  tables. **A phone-login account's `users.id` IS the phone number** —
-  `+9715XXXXXXX`, not a Firebase uid — so every column that stores a user id
-  stores a phone number in plaintext for those accounts. None of those columns
-  has a foreign key, so nothing in the schema marks them as personal data.
+- What data, for how many people?
 
-  Full inventory, verified against both databases on 22 August 2026:
+  **A phone number now appears in exactly ONE place: `auth_identities.identity_value`,
+  where it is a credential.** Until 26 August 2026 a phone-login account's
+  `users.id` WAS the phone number, so every column storing a user id carried one
+  in plaintext — `audit_logs`, `deletions`, `trees`, none of which has a foreign
+  key marking it as personal data. Those five accounts were migrated to opaque
+  uuids and the columns verified clean on both databases.
+
+  Full inventory, verified 26 August 2026:
 
   | table.column | holds | production | staging |
   |---|---|---|---|
   | `people` | names, dates, birth places, professions | all rows | all rows |
   | `people.phone` / `.email` | **AES-256-GCM sealed** | — | — |
-  | `users.id` | phone number, for phone accounts | 3 of 9 | 5 |
-  | `auth_identities.identity_value` | phone or email, **unencrypted** | 3 phone | 5 phone |
-  | `audit_logs.user_id` | phone number | **785 rows** | 1,011 |
-  | `deletions.deleted_by` | phone number | **100 rows** | 198 |
-  | `trees.created_by` | phone number | 3 rows | 4 |
-  | `edit_history.user_id` | phone number | 0 — table empty | 0 |
+  | `auth_identities.identity_value` | phone or email, **unencrypted** | 5 phone | 4 phone |
+  | `users.id` | opaque uuid or Firebase uid | 0 phone | 0 phone |
+  | `audit_logs.user_id` | opaque id | 0 phone | 0 phone |
+  | `deletions.deleted_by` | opaque id | 0 phone | 0 phone |
+  | `trees.created_by` | opaque id | 0 phone | 0 phone |
+  | `edit_history.user_id` | opaque id | 0 — table empty | 0 |
+
+  **Do not assume this stays true.** The rule that keeps it true is that
+  `users.id` is always opaque; anything that reintroduces a credential as a key
+  puts the number back into every one of those columns at once.
+
+  Two audit rows on production hold `sms-unmatched` in place of a mistyped
+  number that never belonged to an account — redacted 26 August rather than
+  left as the only plaintext number in the table.
 
   `deletions.people` / `.people_after` are jsonb snapshots of deleted people and
   carry the same fields as `people`, including birth dates and birth places, in
@@ -336,9 +347,10 @@ people affected, likely consequences, measures taken.
 The people whose data is held fall into two groups, and the difference decides
 the entire procedure:
 
-- **Account holders.** Every one is reachable. Verified 22 August 2026 on
-  production: 8 accounts, of which 3 have a phone as their `users.id` and no
-  email address.
+- **Account holders.** Every one is reachable. Verified 26 August 2026 on
+  production: 7 accounts, of which 5 have a verified phone identity and no email
+  address — reachable by SMS only. Counts drift; re-run the query rather than
+  quoting this number.
 - **Family members in the trees.** Names, birth dates, birth places,
   professions — and **no contact details of any kind**. There is no email, no
   phone, no address for them anywhere in the database. This is not a gap in the
@@ -356,8 +368,9 @@ ORDER BY created_at;
 ```
 
 - **Email**, where `email` is present — from the support address.
-- **SMS via Twilio**, for accounts where `email IS NULL`. Their `users.id` IS the
-  phone number, so no lookup is needed. Keep it to one line pointing at the
+- **SMS via Twilio**, for accounts where `email IS NULL`. The number is in
+  `auth_identities.identity_value` where `identity_type = 'phone'` — it is NO
+  LONGER the `users.id`, so this needs a join rather than reading the id. Keep it to one line pointing at the
   public notice: Arabic SMS segments at 70 characters and a disclosure written as
   a text message fragments into something nobody reads.
 
