@@ -1404,9 +1404,12 @@ function App() {
         const prev = lastBoundsRef.current;
         if (prev && (prev.minX !== minX || prev.minY !== minY)) {
           const BW = stylingOptions?.boxWidth || CARD.w;
+          // prev MINUS new. If the origin moved left by one slot the boxes
+          // draw further left, so the pan must move RIGHT to hold them still.
+          // The other way round doubles the jump instead of cancelling it.
           setPanOffset((po) => ({
-            x: po.x + (minX - prev.minX) * BW,
-            y: po.y + (minY - prev.minY) * CARD.h,
+            x: po.x + (prev.minX - minX) * BW,
+            y: po.y + (prev.minY - minY) * CARD.h,
           }));
         }
         lastBoundsRef.current = { minX, minY };
