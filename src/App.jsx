@@ -1223,6 +1223,49 @@ function App() {
     layout.e = layout.e || {};
     layout.n = layout.n || [];
 
+    // Normalise the origin to (0,0).
+    //
+    // The engine positions everything relative to the ROOTED person, so moving
+    // one sibling shifts the whole coordinate space: the box you moved stays
+    // put and the entire tree slides across the screen instead. Anchoring the
+    // top-left corner makes a reorder move only the boxes that actually
+    // changed places.
+    //
+    // Done here rather than by correcting panOffset afterwards: that is a
+    // second setState, so the tree painted once at the old position and again
+    // at the corrected one — two visible jumps per press.
+    //
+    // Entities, connector lines and partner labels share one coordinate space
+    // and must all be shifted, or the lines detach from the boxes.
+    //
+    // This mutates the object generateLayout returned, which may be its cached
+    // tree. Safe because it is idempotent: once shifted, minX/minY are 0 and
+    // the block is skipped. And buildFullTree merges subtrees RELATIVE to an
+    // anchor it reads from the subtree itself, so a normalised subtree still
+    // merges correctly.
+    const ents = Object.values(layout.e);
+    if (ents.length) {
+      const minX = Math.min(...ents.map((e) => e.x));
+      const minY = Math.min(...ents.map((e) => e.y));
+      if (minX !== 0 || minY !== 0) {
+        ents.forEach((e) => {
+          e.x -= minX;
+          e.y -= minY;
+        });
+        (layout.n || []).forEach((n) => {
+          n.x1 -= minX;
+          n.x2 -= minX;
+          n.y1 -= minY;
+          n.y2 -= minY;
+        });
+        (layout.p || []).forEach((pl) => {
+          pl.x1 -= minX;
+          pl.x2 -= minX;
+          pl.y -= minY;
+        });
+      }
+    }
+
     // Return both layout and familyData so TreeCanvas can access person data
     return { layout, familyData };
   }, [people, relationships, currentTree?.id, selectedPerson]);
