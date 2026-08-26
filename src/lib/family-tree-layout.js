@@ -2205,7 +2205,16 @@ var FamilyTreeLayoutModule;
                         ":" +
                         (p.f1 || "") +
                         ":" +
-                        pcLen
+                        pcLen +
+                        ":" +
+                        // Sibling ORDER was missing from this signature, so a
+                        // reorder left it unchanged: the cache hit and
+                        // buildFullTree returned the previous tree with the old
+                        // positions. The names updated (they are drawn from
+                        // people) while the boxes stayed put — which is why an
+                        // undo appeared to do nothing until some other change
+                        // happened to move the signature.
+                        (p.O === undefined || p.O === null ? "" : p.O)
                     );
                 });
                 return ids.length + "|" + parts.join(",");
@@ -2300,7 +2309,10 @@ var FamilyTreeLayoutModule;
                 dp: person.dp || null, // divorce dates
                 bp: person.bp || null, // begin dates
                 rp: person.rp || null, // relationship dates
-                O: person.O || null, // order
+                // ?? not ||: an order of 0 is a real position, and `0 || null`
+                // silently discarded it — that person lost their manual order
+                // and fell back to whatever the tie-break produced.
+                O: person.O ?? null, // order
                 ai: person.ai || 0, // auto index
             };
         }

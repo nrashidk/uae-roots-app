@@ -586,6 +586,20 @@ const personUpdateSchema = z.object({
   photoUrl: z.string().max(500).optional().nullable(),
 });
 
+// A whole sibling group in one request. Capped at 64: a sibling group is
+// bounded in reality, and an unbounded array here is an unbounded transaction.
+const birthOrderBatchSchema = z.object({
+  orders: z
+    .array(
+      z.object({
+        id: z.number().int().positive(),
+        birthOrder: z.number().int().nullable(),
+      }),
+    )
+    .min(1)
+    .max(64),
+});
+
 const birthOrderSchema = z.object({
   birthOrder: z.number().int().nullable().optional(),
 });
@@ -3629,6 +3643,74 @@ app.post("/api/people/batch-delete", authenticateUser, async (req, res) => {
     });
   } catch (error) {
     handleError(res, error, "Batch delete", req);
+  }
+});
+
+// A whole sibling reorder, in ONE transaction.
+//
+// The client used to fire one PATCH per sibling through Promise.all and roll
+// back its OWN state if any failed — but the rows that already committed stayed
+// committed. A normalising press writes the entire group, so a failure partway
+// left the group half-renumbered on the server while the screen showed the old
+// order. The next press then normalised from corrupted values.
+//
+// node-postgres gives a real interactive transaction, so either every row moves
+// or none does.
+app.post("/api/people/birthOrder", authenticateUser, async (req, res) => {
+  try {
+    const { orders } = birthOrderBatchSchema.parse(req.body);
+    const ids = orders.map((o) => o.id);
+
+    const rows = await db.select().from(people).where(inArray(people.id, ids));
+    if (rows.length !== ids.length) {
+      return res.status(404).json({ error: "Person not found" });
+    }
+
+    // EVERY row must belong to ONE tree, and that tree must be the caller's.
+    // Checked before anything is written: a batch is the natural place to smuggle
+    // an id from someone else's tree in among your own.
+    const treeIds = [...new Set(rows.map((r) => r.treeId))];
+    if (treeIds.length !== 1) {
+      return res.status(400).json({ error: "بيانات غير صحيحة" });
+    }
+    const ownership = await verifyTreeOwnership(treeIds[0], req.userId);
+    if (!ownership.valid) {
+      return res.status(403).json({ error: ownership.error });
+    }
+
+    const before = new Map(rows.map((r) => [r.id, r]));
+    const after = await db.transaction(async (tx) => {
+      const out = [];
+      for (const o of orders) {
+        const [row] = await tx
+          .update(people)
+          .set({ birthOrder: o.birthOrder })
+          .where(eq(people.id, o.id))
+          .returning();
+        out.push(row);
+      }
+      return out;
+    });
+
+    // ONE undo entry for the whole reorder. Per-row entries would make undoing a
+    // single press take as many presses as the group had members, and leave the
+    // group half-reverted in between.
+    await recordUndo({
+      treeId: treeIds[0],
+      userId: req.userId,
+      groupId: req.headers["x-action-group"] || null,
+      kind: "update",
+      label: before.get(orders[0].id)?.firstName || null,
+      peopleBefore: orders.map((o) => before.get(o.id)),
+      peopleAfter: after,
+    });
+
+    res.json(after);
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({ error: "بيانات غير صحيحة" });
+    }
+    handleError(res, error, "Birth order batch", req);
   }
 });
 
