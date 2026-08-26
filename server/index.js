@@ -2216,23 +2216,26 @@ app.get("/api/public/trees/:id", readLimiter, optionalAuth, async (req, res) => 
     // Search ALL parent rows for the male one. Using .find() took the first
     // parent-child row and gave up if it happened to be the mother — which is
     // how two women with fathers fell back to the bare «أنثى».
-    const fatherNameOf = (id) => {
-      const father = allRels
+    // Return the PERSON, not the name. Numbering groups on identity: six
+    // different men called خالد must be six groups, not one — otherwise an only
+    // wife is labelled «زوجة خالد ٦» because five other men's wives were counted
+    // alongside her.
+    const fatherOfPerson = (id) =>
+      allRels
         .filter((r) => r.type === "parent-child" && r.childId === id)
         .map((r) => byId.get(r.parentId))
-        .find((p) => p && p.gender === "male");
-      return father ? father.firstName : null;
-    };
-    const husbandNameOf = (id) => {
-      const husband = allRels
+        .find((p) => p && p.gender === "male") || null;
+    const husbandOfPerson = (id) =>
+      allRels
         .filter(
           (r) =>
             r.type === "partner" && (r.person1Id === id || r.person2Id === id),
         )
         .map((r) => byId.get(r.person1Id === id ? r.person2Id : r.person1Id))
-        .find((p) => p && p.gender === "male");
-      return husband ? husband.firstName : null;
-    };
+        .find((p) => p && p.gender === "male") || null;
+
+    const fatherNameOf = (id) => fatherOfPerson(id)?.firstName || null;
+    const husbandNameOf = (id) => husbandOfPerson(id)?.firstName || null;
 
     const yr = (d) => (d ? String(d).slice(0, 4) : null);
 
@@ -2248,14 +2251,17 @@ app.get("/api/public/trees/:id", readLimiter, optionalAuth, async (req, res) => 
     if (mode === "anonymous") {
       const groups = new Map();
       allPeople.filter(isFemale).forEach((p) => {
-        const f = fatherNameOf(p.id);
-        const h = husbandNameOf(p.id);
-        const label = f ? `ابنة ${f}` : h ? `زوجة ${h}` : null;
-        if (!label) return;
-        if (!groups.has(label)) groups.set(label, []);
-        groups.get(label).push(p);
+        const father = fatherOfPerson(p.id);
+        const husband = father ? null : husbandOfPerson(p.id);
+        const man = father || husband;
+        if (!man) return;
+        // Keyed on the man's ID, not his name.
+        const key = `${father ? "d" : "w"}:${man.id}`;
+        const label = `${father ? "ابنة" : "زوجة"} ${man.firstName}`;
+        if (!groups.has(key)) groups.set(key, { label, members: [] });
+        groups.get(key).members.push(p);
       });
-      groups.forEach((members, label) => {
+      groups.forEach(({ label, members }) => {
         if (members.length < 2) return;
         members
           .sort(
