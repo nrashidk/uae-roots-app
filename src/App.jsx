@@ -587,10 +587,15 @@ function App() {
     options: "خيارات",
     fatherOf: "والد",
     motherOf: "والدة",
-    spouseOf: "شريك",
+    // Gendered by the NEW person: a man's spouse is «زوجة فلان», a woman's is
+    // «زوج فلانة». «شريك» was neutral and read as a placeholder rather than a
+    // relationship.
+    wifeOf: "زوجة",
+    husbandOf: "زوج",
+    sonOf: "ابن",
+    daughterOf: "ابنة",
     siblingOf: "شقيق",
     sisterOf: "شقيقة",
-    childOf: "طفل",
     profile: "الملف الشخصي",
     profileSettings: "إعدادات الحساب",
     deleteAccount: "حذف الحساب",
@@ -1712,6 +1717,18 @@ function App() {
           spousesOf.get(r.person2Id).push(r.person1Id);
         }
       });
+    // Divorced pairs, so the wife-order label can skip them. The layout still
+    // shows a divorced wife and her children — nothing is hidden — but she no
+    // longer occupies a number, which was making a remarried man's only current
+    // wife read as «الزوجة الثانية».
+    const divorcedPair = new Set();
+    partnerRels.forEach((r) => {
+      if (r.status === "divorced") {
+        divorcedPair.add(`${r.person1Id}:${r.person2Id}`);
+        divorcedPair.add(`${r.person2Id}:${r.person1Id}`);
+      }
+    });
+
     // Convenience: first/primary spouse (kept for root-couple detection).
     const spouseOf = new Map();
     spousesOf.forEach((list, id) => {
@@ -1816,21 +1833,32 @@ function App() {
         });
       };
 
-      const hasMultipleWives = otherSpouseIds.length > 1;
+      // Counted over CURRENT wives only. Using every partner row meant a
+      // divorced first wife still held position 1, so a remarried man's only
+      // wife was labelled «الزوجة الثانية». Same rule getRelationshipCounts
+      // uses, and the same one behind the four-wife limit.
+      const currentSpouseIds = otherSpouseIds.filter(
+        (sid) => !divorcedPair.has(`${maleFirstHead.id}:${sid}`),
+      );
+      const hasMultipleWives = currentSpouseIds.length > 1;
+      let wifeNo = 0;
       otherSpouseIds.forEach((sid, idx) => {
         if (!byId.has(sid)) return;
         const sp = byId.get(sid);
-        // Wife-order labels appear ONLY when there is more than one wife —
-        // a single-wife family stays clean. Wives from the second onward also
-        // start a new row so each wife heads her own group.
+        const isDivorced = divorcedPair.has(`${maleFirstHead.id}:${sid}`);
+        if (!isDivorced) wifeNo += 1;
+        // Wife-order labels appear ONLY when there is more than one CURRENT
+        // wife — a single-wife family stays clean, and a divorced wife carries
+        // no number at all. Wives from the second onward start a new row so
+        // each heads her own group.
         cards.push(
-          hasMultipleWives
+          hasMultipleWives && !isDivorced
             ? {
                 ...sp,
-                _spouseIndex: idx + 1,
+                _spouseIndex: wifeNo,
                 _startsNewRow: idx > 0,
               }
-            : sp,
+            : { ...sp, _startsNewRow: idx > 0 },
         );
         pushChildrenOf(sid);
       });
@@ -8119,9 +8147,15 @@ function PersonForm({
     if (defaultFirstName) return defaultFirstName;
     if (relationshipType && selectedPersonName) {
       if (relationshipType === "spouse")
-        return `${t.spouseOf} ${selectedPersonName}`;
+        return `${
+          defaultGender === "female" ? t.wifeOf : t.husbandOf
+        } ${selectedPersonName}`;
+      // The child is named after the parent that was clicked — «ابن فلان» when
+      // added from the father, «ابنة فلانة» when added from the mother.
       if (relationshipType === "child")
-        return `${t.childOf} ${selectedPersonName}`;
+        return `${
+          defaultGender === "female" ? t.daughterOf : t.sonOf
+        } ${selectedPersonName}`;
       if (relationshipType === "parent") {
         // If we have pendingFatherId, we're adding mother (second parent)
         // If we have pendingMotherId, we're adding father (second parent)
@@ -8287,9 +8321,14 @@ function PersonForm({
               // typed because they corrected the gender would be worse than a
               // wrong placeholder.
               let firstName = prev.firstName;
-              if (relationshipType === "sibling" && selectedPersonName) {
-                const male = `${t.siblingOf} ${selectedPersonName}`;
-                const female = `${t.sisterOf} ${selectedPersonName}`;
+              const pair = {
+                sibling: [t.siblingOf, t.sisterOf],
+                spouse: [t.husbandOf, t.wifeOf],
+                child: [t.sonOf, t.daughterOf],
+              }[relationshipType];
+              if (pair && selectedPersonName) {
+                const male = `${pair[0]} ${selectedPersonName}`;
+                const female = `${pair[1]} ${selectedPersonName}`;
                 if (firstName === male || firstName === female) {
                   firstName = gender === "female" ? female : male;
                 }
