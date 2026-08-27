@@ -6380,17 +6380,30 @@ function App() {
             </div>
 
             {/* النشر — locked until both the name and the emirate are set */}
-            <div
-              className={`bg-white rounded-lg shadow p-6 ${
-                settingsCanPublish ? "" : "opacity-40"
-              }`}
-            >
+            {/* The card stays at full opacity and only the CONTROL is dimmed:
+                dimming the whole block dimmed the explanation too, so the one
+                thing the user needed to read was the least legible thing on the
+                screen. */}
+            <div className="bg-white rounded-lg shadow p-6">
               <label className="block text-sm font-bold mb-1">النشر</label>
               <div className="text-[11px] text-gray-400 mb-2 leading-relaxed">
-                {settingsCanPublish
-                  ? "عند التفعيل تظهر عائلتك في دليل الإمارة ويمكن لأي زائر عرض الشجرة."
-                  : "أكّد اسم العائلة واختر الإمارة أولاً."}
+                عند التفعيل تظهر عائلتك في دليل الإمارة ويمكن لأي زائر عرض
+                الشجرة.
               </div>
+
+              {/* Names the MISSING requirement, not both. Clearing the emirate on
+                  a published tree unpublishes it, and the user then met a greyed
+                  toggle that did not say which of the two prerequisites had gone. */}
+              {!settingsCanPublish && (
+                <div className="mb-3 text-[12px] leading-relaxed text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-3 py-2">
+                  {!settingsHasName && !settingsHasEmirate
+                    ? "لتفعيل النشر: أكّد اسم العائلة ثم اختر الإمارة."
+                    : !settingsHasName
+                      ? "لتفعيل النشر: أكّد اسم العائلة أولاً."
+                      : "لتفعيل النشر: اختر الإمارة التي صدرت منها خلاصة القيد."}
+                </div>
+              )}
+              <div className={settingsCanPublish ? "" : "opacity-40"}>
               <label className="flex items-center gap-3 border rounded-md p-3 bg-gray-50">
                 <input
                   type="checkbox"
@@ -6407,8 +6420,8 @@ function App() {
                 />
                 <span className="text-sm">نشر الشجرة للعموم</span>
               </label>
+              </div>
             </div>
-
 
           </div>
         </div>
