@@ -6116,9 +6116,19 @@ function App() {
                         : "border border-dashed border-gray-300 bg-gray-50"
                     }`}
                   >
-                    <span className="flex-1 text-[15px] text-[#16233D]">
+                    {/* Shows the STORED name only. While nothing is saved the
+                        box printed the derived name in the same style as a saved
+                        one, so a cleared field looked exactly like a confirmed
+                        one — «عائلة جاسم», as though that were already the
+                        published name. The suggestion now lives under the box,
+                        where the confirm button is. */}
+                    <span
+                      className={`flex-1 text-[15px] ${
+                        settingsHasName ? "text-[#16233D]" : "text-gray-300"
+                      }`}
+                    >
                       <span className="text-gray-400">عائلة</span>{" "}
-                      {nameInUse || "—"}
+                      {settingsHasName ? treeSettings.familyName : "—"}
                     </span>
                     <button
                       type="button"
@@ -6131,25 +6141,34 @@ function App() {
                     </button>
                   </div>
                   {!settingsHasName ? (
-                    // Nothing is stored yet. The box shows the derived name, but
-                    // it has to be SAVED before anything below unlocks — the
-                    // directory needs a literal string, not a value that only
-                    // exists in this browser.
-                    <div className="mt-2 flex items-center gap-2">
-                      <Button
-                        size="sm"
-                        disabled={settingsBusy || !derivedFamilyName}
-                        onClick={() =>
-                          saveTreeSettings({ familyName: derivedFamilyName })
-                        }
-                      >
-                        تأكيد الاسم
-                      </Button>
-                      <span className="text-[11px] text-gray-400">
-                        {derivedFamilyName
-                          ? "أكّد الاسم أو عدّله للمتابعة"
-                          : "أضف أفراداً إلى شجرتك أولاً"}
-                      </span>
+                    // Nothing is stored. The derived name is a SUGGESTION and is
+                    // named here, next to the button that would save it — never
+                    // in the box above, which shows only what is actually stored.
+                    <div className="mt-2">
+                      {derivedFamilyName && (
+                        <div className="text-[11px] text-gray-500 mb-2 leading-relaxed">
+                          الاسم المقترح من سلسلة النسب:{" "}
+                          <span className="text-[#16233D] font-bold">
+                            عائلة {derivedFamilyName}
+                          </span>
+                        </div>
+                      )}
+                      <div className="flex items-center gap-2">
+                        <Button
+                          size="sm"
+                          disabled={settingsBusy || !derivedFamilyName}
+                          onClick={() =>
+                            saveTreeSettings({ familyName: derivedFamilyName })
+                          }
+                        >
+                          تأكيد الاسم المقترح
+                        </Button>
+                        <span className="text-[11px] text-gray-400">
+                          {derivedFamilyName
+                            ? "أو عدّله بالقلم أعلاه"
+                            : "أضف أفراداً إلى شجرتك أولاً"}
+                        </span>
+                      </div>
                     </div>
                   ) : isOverridden ? (
                     // Rewrites the stored name from the CURRENT lineage rather
