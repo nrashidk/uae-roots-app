@@ -5,6 +5,7 @@ import {
   useMemo,
   useLayoutEffect,
   useCallback,
+  Fragment,
 } from "react";
 import { Button } from "@/components/ui/button.jsx";
 import {
@@ -6115,9 +6116,19 @@ function App() {
                         : "border border-dashed border-gray-300 bg-gray-50"
                     }`}
                   >
-                    <span className="flex-1 text-[15px] text-[#16233D]">
+                    {/* Shows the STORED name only. While nothing is saved the
+                        box printed the derived name in the same style as a saved
+                        one, so a cleared field looked exactly like a confirmed
+                        one — «عائلة جاسم», as though that were already the
+                        published name. The suggestion now lives under the box,
+                        where the confirm button is. */}
+                    <span
+                      className={`flex-1 text-[15px] ${
+                        settingsHasName ? "text-[#16233D]" : "text-gray-300"
+                      }`}
+                    >
                       <span className="text-gray-400">عائلة</span>{" "}
-                      {nameInUse || "—"}
+                      {settingsHasName ? treeSettings.familyName : "—"}
                     </span>
                     <button
                       type="button"
@@ -6130,25 +6141,34 @@ function App() {
                     </button>
                   </div>
                   {!settingsHasName ? (
-                    // Nothing is stored yet. The box shows the derived name, but
-                    // it has to be SAVED before anything below unlocks — the
-                    // directory needs a literal string, not a value that only
-                    // exists in this browser.
-                    <div className="mt-2 flex items-center gap-2">
-                      <Button
-                        size="sm"
-                        disabled={settingsBusy || !derivedFamilyName}
-                        onClick={() =>
-                          saveTreeSettings({ familyName: derivedFamilyName })
-                        }
-                      >
-                        تأكيد الاسم
-                      </Button>
-                      <span className="text-[11px] text-gray-400">
-                        {derivedFamilyName
-                          ? "أكّد الاسم أو عدّله للمتابعة"
-                          : "أضف أفراداً إلى شجرتك أولاً"}
-                      </span>
+                    // Nothing is stored. The derived name is a SUGGESTION and is
+                    // named here, next to the button that would save it — never
+                    // in the box above, which shows only what is actually stored.
+                    <div className="mt-2">
+                      {derivedFamilyName && (
+                        <div className="text-[11px] text-gray-500 mb-2 leading-relaxed">
+                          الاسم المقترح من سلسلة النسب:{" "}
+                          <span className="text-[#16233D] font-bold">
+                            عائلة {derivedFamilyName}
+                          </span>
+                        </div>
+                      )}
+                      <div className="flex items-center gap-2">
+                        <Button
+                          size="sm"
+                          disabled={settingsBusy || !derivedFamilyName}
+                          onClick={() =>
+                            saveTreeSettings({ familyName: derivedFamilyName })
+                          }
+                        >
+                          تأكيد الاسم المقترح
+                        </Button>
+                        <span className="text-[11px] text-gray-400">
+                          {derivedFamilyName
+                            ? "أو عدّله بالقلم أعلاه"
+                            : "أضف أفراداً إلى شجرتك أولاً"}
+                        </span>
+                      </div>
                     </div>
                   ) : isOverridden ? (
                     // Rewrites the stored name from the CURRENT lineage rather
@@ -6379,17 +6399,30 @@ function App() {
             </div>
 
             {/* النشر — locked until both the name and the emirate are set */}
-            <div
-              className={`bg-white rounded-lg shadow p-6 ${
-                settingsCanPublish ? "" : "opacity-40"
-              }`}
-            >
+            {/* The card stays at full opacity and only the CONTROL is dimmed:
+                dimming the whole block dimmed the explanation too, so the one
+                thing the user needed to read was the least legible thing on the
+                screen. */}
+            <div className="bg-white rounded-lg shadow p-6">
               <label className="block text-sm font-bold mb-1">النشر</label>
               <div className="text-[11px] text-gray-400 mb-2 leading-relaxed">
-                {settingsCanPublish
-                  ? "عند التفعيل تظهر عائلتك في دليل الإمارة ويمكن لأي زائر عرض الشجرة."
-                  : "أكّد اسم العائلة واختر الإمارة أولاً."}
+                عند التفعيل تظهر عائلتك في دليل الإمارة ويمكن لأي زائر عرض
+                الشجرة.
               </div>
+
+              {/* Names the MISSING requirement, not both. Clearing the emirate on
+                  a published tree unpublishes it, and the user then met a greyed
+                  toggle that did not say which of the two prerequisites had gone. */}
+              {!settingsCanPublish && (
+                <div className="mb-3 text-[12px] leading-relaxed text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-3 py-2">
+                  {!settingsHasName && !settingsHasEmirate
+                    ? "لتفعيل النشر: أكّد اسم العائلة ثم اختر الإمارة."
+                    : !settingsHasName
+                      ? "لتفعيل النشر: أكّد اسم العائلة أولاً."
+                      : "لتفعيل النشر: اختر الإمارة التي صدرت منها خلاصة القيد."}
+                </div>
+              )}
+              <div className={settingsCanPublish ? "" : "opacity-40"}>
               <label className="flex items-center gap-3 border rounded-md p-3 bg-gray-50">
                 <input
                   type="checkbox"
@@ -6406,8 +6439,8 @@ function App() {
                 />
                 <span className="text-sm">نشر الشجرة للعموم</span>
               </label>
+              </div>
             </div>
-
 
           </div>
         </div>
@@ -6567,12 +6600,17 @@ function App() {
                     {visiblePeople.length}
                   </div>
                 )}
-                {shownGroups.map(({ group, cards }, gi) => (
-              <div
-                key={group.key}
-                className={gi > 0 ? "mt-4 pt-4 border-t border-dashed border-gray-300" : ""}
-              >
+                {/* ONE continuous grid, like العائلات.
+                    Each family group used to get its own grid with a dashed rule
+                    between them. Most groups hold one or two people, so the rule
+                    fired after almost every row and left ragged gaps where a
+                    group did not fill the second column — the page read as a
+                    stack of strips rather than a grid, and the separator was too
+                    frequent to signal anything. The list is ordered by lineage,
+                    so the grouping is carried by the order itself. */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {shownGroups.map(({ group, cards }) => (
+                  <Fragment key={group.key}>
                   {cards.map((person) => {
                     const isMilk = milkPersonIds.has(person.id);
                     const spouseLabel =
@@ -6872,9 +6910,9 @@ function App() {
                       </div>
                     );
                   })}
-                </div>
-              </div>
+                  </Fragment>
                 ))}
+                </div>
               </>
             );
           })()}
