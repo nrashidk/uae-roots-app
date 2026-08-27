@@ -339,6 +339,10 @@ function App() {
   const [previewReach, setPreviewReach] = useState(null);
   const [confirmPublish, setConfirmPublish] = useState(false);
 
+  // One box per page. Cleared on view change with the rest of the page state,
+  // so returning to a page does not land you inside a stale filter.
+  const [memberSearch, setMemberSearch] = useState("");
+  const [familySearch, setFamilySearch] = useState("");
   const [expandedMemberId, setExpandedMemberId] = useState(null);
   const [editingMemberId, setEditingMemberId] = useState(null);
 
@@ -509,6 +513,8 @@ function App() {
     setExpandedMemberId(null);
     setEditingMemberId(null);
     setExpandedFamilyId(null);
+    setMemberSearch("");
+    setFamilySearch("");
   }, [currentView]);
 
   useEffect(() => {
@@ -6517,9 +6523,51 @@ function App() {
           </div>
         </div>
         <div className="max-w-7xl mx-auto px-8 py-8">
-          {familyGroups.map((group, gi) => {
-            const cards = group.cards || [...group.heads, ...(group.children || [])];
+          {/* Same input the spouse picker uses. Filters as you type — matching
+              the directory search — rather than jumping to the first hit, which
+              leaves the whole list on screen and reads as the page scrolling by
+              itself. */}
+          <input
+            type="text"
+            value={memberSearch}
+            onChange={(e) => setMemberSearch(e.target.value)}
+            placeholder={t.searchPlaceholder}
+            className="w-full px-3 py-2 border rounded-md mb-4"
+            dir="rtl"
+          />
+          {(() => {
+            const q = memberSearch.trim();
+            // Matches the FULL lineage name, so «راشد» finds anyone with راشد
+            // anywhere in their chain — which is what the cards display.
+            const matches = (p) => !q || getGenealogicalName(p).includes(q);
+            const shownGroups = familyGroups
+              .map((group) => {
+                const cards = (
+                  group.cards || [...group.heads, ...(group.children || [])]
+                ).filter(matches);
+                return { group, cards };
+              })
+              // A group with no match disappears entirely — otherwise the
+              // dashed separator would still be drawn around nothing.
+              .filter(({ cards }) => cards.length > 0);
+
+            if (q && shownGroups.length === 0) {
+              return (
+                <p className="text-sm text-gray-500 py-6">
+                  لا يوجد فرد بهذا الاسم.
+                </p>
+              );
+            }
+
             return (
+              <>
+                {q && (
+                  <div className="text-sm text-gray-500 mb-3">
+                    {shownGroups.reduce((n, g) => n + g.cards.length, 0)} من{" "}
+                    {visiblePeople.length}
+                  </div>
+                )}
+                {shownGroups.map(({ group, cards }, gi) => (
               <div
                 key={group.key}
                 className={gi > 0 ? "mt-4 pt-4 border-t border-dashed border-gray-300" : ""}
@@ -6826,8 +6874,10 @@ function App() {
                   })}
                 </div>
               </div>
+                ))}
+              </>
             );
-          })}
+          })()}
           {visiblePeople.length === 0 && (
             <div className="text-center text-gray-500 py-8">
               لا يوجد أفراد في العائلة بعد
@@ -7081,8 +7131,37 @@ function App() {
           </div>
         </div>
         <div className="max-w-7xl mx-auto px-8 py-8">
+          <input
+            type="text"
+            value={familySearch}
+            onChange={(e) => setFamilySearch(e.target.value)}
+            placeholder={t.searchPlaceholder}
+            className="w-full px-3 py-2 border rounded-md mb-4"
+            dir="rtl"
+          />
+          {(() => {
+            const q = familySearch.trim();
+            // Matches the head's full lineage name — the same string the card
+            // titles show as «عائلة …».
+            const shown = maleParents.filter(
+              (p) => !q || getGenealogicalName(p).includes(q),
+            );
+            if (q && shown.length === 0) {
+              return (
+                <p className="text-sm text-gray-500 py-6">
+                  لا توجد عائلة بهذا الاسم.
+                </p>
+              );
+            }
+            return (
+              <>
+                {q && (
+                  <div className="text-sm text-gray-500 mb-3">
+                    {shown.length} من {maleParents.length}
+                  </div>
+                )}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {maleParents.map((person) => {
+            {shown.map((person) => {
               const counts = getRelationshipCounts(person);
               const isOpen = expandedFamilyId === person.id;
               const groups = isOpen ? familyDetail(person) : null;
@@ -7220,6 +7299,9 @@ function App() {
               );
             })}
           </div>
+              </>
+            );
+          })()}
           {maleParents.length === 0 && (
             <div className="text-center text-gray-500 py-8">
               لا توجد عائلات بعد
