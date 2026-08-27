@@ -502,6 +502,13 @@ function App() {
     setSpouseSourceFor(null);
     setLinkChildrenFor(null);
     setLinkChildrenSelected(new Set());
+    // Collapse any expanded card. App never unmounts when the view changes, so
+    // a record left open on الأفراد or a family left open on العائلات was still
+    // open on returning — the page reopened mid-scroll on something the user had
+    // finished with.
+    setExpandedMemberId(null);
+    setEditingMemberId(null);
+    setExpandedFamilyId(null);
   }, [currentView]);
 
   useEffect(() => {
