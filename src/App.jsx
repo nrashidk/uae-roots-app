@@ -5,6 +5,7 @@ import {
   useMemo,
   useLayoutEffect,
   useCallback,
+  Fragment,
 } from "react";
 import { Button } from "@/components/ui/button.jsx";
 import {
@@ -6567,12 +6568,17 @@ function App() {
                     {visiblePeople.length}
                   </div>
                 )}
-                {shownGroups.map(({ group, cards }, gi) => (
-              <div
-                key={group.key}
-                className={gi > 0 ? "mt-4 pt-4 border-t border-dashed border-gray-300" : ""}
-              >
+                {/* ONE continuous grid, like العائلات.
+                    Each family group used to get its own grid with a dashed rule
+                    between them. Most groups hold one or two people, so the rule
+                    fired after almost every row and left ragged gaps where a
+                    group did not fill the second column — the page read as a
+                    stack of strips rather than a grid, and the separator was too
+                    frequent to signal anything. The list is ordered by lineage,
+                    so the grouping is carried by the order itself. */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {shownGroups.map(({ group, cards }) => (
+                  <Fragment key={group.key}>
                   {cards.map((person) => {
                     const isMilk = milkPersonIds.has(person.id);
                     const spouseLabel =
@@ -6872,9 +6878,9 @@ function App() {
                       </div>
                     );
                   })}
-                </div>
-              </div>
+                  </Fragment>
                 ))}
+                </div>
               </>
             );
           })()}
