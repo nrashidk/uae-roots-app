@@ -2263,11 +2263,21 @@ app.get("/api/public/trees/:id", readLimiter, optionalAuth, async (req, res) => 
       });
       groups.forEach(({ label, members }) => {
         if (members.length < 2) return;
+        // ELDEST FIRST, matching sortByBirth in the client.
+        //
+        // birthOrder stores YOUNGER children as MORE NEGATIVE values, and null
+        // means the original eldest. So the order is null first, then
+        // DESCENDING — not ascending with null treated as 0, which numbered the
+        // youngest as ١ and put the eldest in the middle.
         members
-          .sort(
-            (a, b) =>
-              (a.birthOrder ?? 0) - (b.birthOrder ?? 0) || a.id - b.id,
-          )
+          .sort((a, b) => {
+            const va = a.birthOrder;
+            const vb = b.birthOrder;
+            if (va == null && vb == null) return a.id - b.id;
+            if (va == null) return -1;
+            if (vb == null) return 1;
+            return vb - va || a.id - b.id;
+          })
           .forEach((p, i) => anonIndex.set(p.id, `${label} ${i + 1}`));
       });
     }
