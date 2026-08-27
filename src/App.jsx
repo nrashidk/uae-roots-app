@@ -23,7 +23,6 @@ import {
   Pencil,
   X,
   Settings,
-  Home,
   ChevronDown,
   ZoomIn,
   ZoomOut,
@@ -78,16 +77,16 @@ const DEBUG = false;
 // works, and a reload lands where you were. Views keep their internal names so
 // nothing downstream had to change.
 const VIEW_BY_PATH = {
-  "/dashboard": "dashboard",
   "/tree": "tree-builder",
   "/members": "family-members",
   "/relationships": "relationships-detail",
+  "/settings": "tree-settings",
 };
 const PATH_BY_VIEW = {
-  dashboard: "/dashboard",
   "tree-builder": "/tree",
   "family-members": "/members",
   "relationships-detail": "/relationships",
+  "tree-settings": "/settings",
 };
 const PUBLIC_PATHS = ["/", "/privacy"];
 
@@ -532,8 +531,9 @@ function App() {
 
   const t = {
     uaeMobile: "الدخول عبر الهاتف الإماراتي",
-    dashboard: "لوحة التحكم",
-    myFamilyTrees: "أشجار عائلتي",
+    // Singular: the server enforces ONE tree per account, so a plural label
+    // promised something the app cannot produce.
+    myFamilyTrees: "شجرة عائلتي",
     familyMembers: "أفراد العائلة",
     // "العائلات", not "العلاقات". Each card is one man with his wives and
     // children, so the page shows families rather than every relationship.
@@ -565,7 +565,6 @@ function App() {
     addParent: "إضافة والد",
     addChild: "إضافة طفل",
     addSibling: "إضافة شقيق",
-    backToDashboard: "العودة إلى لوحة التحكم",
     narrowScreen:
       "لا يمكن تصفح الشجرة من خلال الهاتف، يرجى استخدام جهاز الكمبيوتر.",
     familyTreeName: "شجرة عائلتي",
@@ -3787,6 +3786,46 @@ function App() {
   // a COUNT.
   // min-w on the button: "تراجع" is shorter than its neighbours, so without a
   // floor it sat noticeably narrower than الملف الشخصي and تسجيل الخروج.
+  // The four sections, in the header of every one of them.
+  //
+  // Replaces the dashboard, which was a menu pretending to be a destination —
+  // nobody's goal was to reach it, and it cost a click between every two
+  // sections. Its counts moved to the pages that own them.
+  //
+  // Uses the existing Button: `default` for the open section, `ghost` for the
+  // rest. Nothing new is styled.
+  const NAV_SECTIONS = [
+    ["tree-builder", t.myFamilyTrees],
+    ["family-members", t.familyMembers],
+    ["relationships-detail", t.relationships],
+    ["tree-settings", "الإعدادات"],
+  ];
+
+  const renderNav = () => {
+    // A tree with nobody in it has nothing to list, group or publish, so the
+    // other three are dimmed until the first person exists.
+    const hasPeople = treePeople.length > 0;
+    return (
+      <div className="flex items-center gap-1">
+        {NAV_SECTIONS.map(([view, label]) => {
+          const isOpen = currentView === view;
+          const locked = view !== "tree-builder" && !hasPeople;
+          return (
+            <Button
+              key={view}
+              onClick={() => !locked && setCurrentView(view)}
+              disabled={locked}
+              variant={isOpen ? "default" : "ghost"}
+              size="sm"
+            >
+              {label}
+            </Button>
+          );
+        })}
+      </div>
+    );
+  };
+
   const renderUndoButton = () => (
     <div className="relative group">
       <Button
@@ -3993,7 +4032,10 @@ function App() {
           if (
             updated.filter((p) => p.treeId === currentTree?.id).length === 0
           ) {
-            setCurrentView("dashboard");
+            // Deleting the last person used to fall back to the dashboard.
+            // With that view gone, go to the tree — which now carries its own
+            // empty state, and is where the nav sends a new account anyway.
+            setCurrentView("tree-builder");
           }
           return updated;
         });
@@ -6017,17 +6059,8 @@ function App() {
     return (
       <div className="min-h-screen bg-gray-50">
         <div className="sticky top-0 z-20 bg-white shadow-sm border-b px-4 py-3 flex justify-between items-center">
-          <div className="flex items-center gap-4">
-            <Button
-              onClick={() => setCurrentView("dashboard")}
-              variant="outline"
-              size="sm"
-            >
-              <Home className="w-4 h-4 ml-2" />
-              {t.backToDashboard}
-            </Button>
-            <h1 className="text-xl font-bold">الإعدادات</h1>
-          </div>
+          {renderNav()}
+          <h1 className="sr-only">الإعدادات</h1>
           <div className="flex items-center gap-2">
             <Button onClick={handleOpenProfile} variant="outline" size="sm">
               <User className="w-4 h-4 ml-2" />
@@ -6462,17 +6495,8 @@ function App() {
         }}
       >
         <div className="sticky top-0 z-20 bg-white shadow-sm border-b px-4 py-3 flex justify-between items-center">
-          <div className="flex items-center gap-4">
-            <Button
-              onClick={() => setCurrentView("dashboard")}
-              variant="outline"
-              size="sm"
-            >
-              <Home className="w-4 h-4 ml-2" />
-              {t.backToDashboard}
-            </Button>
-            <h1 className="text-xl font-bold">{t.familyMembers}</h1>
-          </div>
+          {renderNav()}
+          <h1 className="sr-only">{t.familyMembers}</h1>
           <div className="flex items-center gap-2">
             {renderUndoButton()}
             <Button onClick={handleOpenProfile} variant="outline" size="sm">
@@ -7036,17 +7060,8 @@ function App() {
     return (
       <div className="min-h-screen bg-gray-50">
         <div className="sticky top-0 z-20 bg-white shadow-sm border-b px-4 py-3 flex justify-between items-center">
-          <div className="flex items-center gap-4">
-            <Button
-              onClick={() => setCurrentView("dashboard")}
-              variant="outline"
-              size="sm"
-            >
-              <Home className="w-4 h-4 ml-2" />
-              {t.backToDashboard}
-            </Button>
-            <h1 className="text-xl font-bold">{t.relationships}</h1>
-          </div>
+          {renderNav()}
+          <h1 className="sr-only">{t.relationships}</h1>
           <div className="flex items-center gap-2">
             <Button onClick={handleOpenProfile} variant="outline" size="sm">
               <User className="w-4 h-4 ml-2" />
@@ -7207,113 +7222,6 @@ function App() {
     );
   }
 
-  if (currentView === "dashboard") {
-    return (
-      <div className="min-h-screen bg-gray-50">
-        <div className="sticky top-0 z-20 bg-white shadow-sm border-b px-4 py-3 flex justify-between items-center">
-          <h1 className="text-xl font-bold">{t.dashboard}</h1>
-          <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2">
-              <Button onClick={handleOpenProfile} variant="outline" size="sm">
-                <User className="w-4 h-4 ml-2" />
-                {t.profile}
-              </Button>
-              <Button onClick={handleLogout} variant="outline" size="sm">
-                <LogOut className="w-4 h-4 ml-2" />
-                {t.logout}
-              </Button>
-            </div>
-          </div>
-        </div>
-        <div className="max-w-7xl mx-auto px-8 py-8 grid grid-cols-2 lg:grid-cols-4 gap-6">
-          <div
-            className="bg-white rounded-lg shadow p-6 cursor-pointer hover:shadow-lg"
-            onClick={() => currentTree && setCurrentView("tree-builder")}
-          >
-            <h3 className="text-xl font-bold mb-4">{t.myFamilyTrees}</h3>
-            {/* A literal, and correct: POST /api/trees enforces one tree per
-                account idempotently, so this can only ever be 0 or 1. Counting
-                userTrees.length would add machinery to display a number that
-                cannot vary — and the app has no tree picker, so only
-                userTrees[0] is ever opened anyway. If multiple trees per user
-                ever becomes a product decision, this and the picker change
-                together. */}
-            <div className="text-3xl font-bold text-[#A5813F]">
-              {currentTree ? 1 : 0}
-            </div>
-          </div>
-          <div
-            className="bg-white rounded-lg shadow p-6 cursor-pointer hover:shadow-lg"
-            onClick={() => currentTree && setCurrentView("family-members")}
-          >
-            <h3 className="text-xl font-bold mb-4">{t.familyMembers}</h3>
-            <div className="text-3xl font-bold text-blue-600">
-              {visibleFamilyMembers.length}
-            </div>
-          </div>
-          <div
-            className="bg-white rounded-lg shadow p-6 cursor-pointer hover:shadow-lg"
-            onClick={() =>
-              currentTree && setCurrentView("relationships-detail")
-            }
-          >
-            <h3 className="text-xl font-bold mb-4">{t.relationships}</h3>
-            <div className="text-3xl font-bold text-green-600">
-              {/* The number the card leads to: married men, one card each. It
-                  used to count RELATIONSHIP ROWS — every partner, parent-child
-                  and sibling edge — which read 204 on a tree whose العائلات page
-                  lists 24. That was correct for the old العلاقات page; the label
-                  was renamed and the number underneath was not. Same filter the
-                  detail view uses, so the two can no longer disagree. */}
-              {
-                people.filter(
-                  (p) =>
-                    p.treeId === currentTree?.id &&
-                    p.gender === "male" &&
-                    relationships.some(
-                      (r) =>
-                        r.treeId === currentTree?.id &&
-                        r.type === "partner" &&
-                        (r.person1Id === p.id || r.person2Id === p.id),
-                    ),
-                ).length
-              }
-            </div>
-          </div>
-          <div
-            className="bg-white rounded-lg shadow p-6 cursor-pointer hover:shadow-lg relative"
-            onClick={() => currentTree && setCurrentView("tree-settings")}
-          >
-            {/* The pill is the reason this card carries no number: whether the
-                tree is public is the one thing that should never need opening a
-                screen to discover. */}
-            <span
-              className={`absolute top-5 left-6 text-[10px] px-2 py-0.5 rounded-full border ${
-                treeSettings.isPublished
-                  ? "text-green-700 border-green-200 bg-green-50"
-                  : "text-gray-500 border-gray-200 bg-gray-50"
-              }`}
-            >
-              {treeSettings.isPublished ? "منشورة" : "غير منشورة"}
-            </span>
-            <h3 className="text-xl font-bold mb-4">الإعدادات</h3>
-            <div
-              className={`text-2xl font-bold ${
-                treeSettings.emirate ? "text-[#A5813F]" : "text-gray-300"
-              }`}
-            >
-              {emirateLabel(treeSettings.emirate) || "غير محدّدة"}
-            </div>
-          </div>
-
-        </div>
-        {renderProfileDialog()}
-        {renderSignupGate()}
-        {renderConsentGate()}
-      </div>
-    );
-  }
-
   return (
     <div className="h-screen bg-gray-100 overflow-hidden">
       {/* In normal flow, not fixed: it pushes the header down instead of covering
@@ -7348,17 +7256,8 @@ function App() {
         </div>
       )}
       <div className="bg-white shadow-sm border-b px-4 py-3 flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <Button
-            onClick={() => setCurrentView("dashboard")}
-            variant="outline"
-            size="sm"
-          >
-            <Home className="w-4 h-4 ml-2" />
-            {t.backToDashboard}
-          </Button>
-          <h1 className="text-xl font-bold">{t.familyTreeName}</h1>
-        </div>
+        {renderNav()}
+        <h1 className="sr-only">{t.familyTreeName}</h1>
         <div className="flex items-center gap-2">
           {renderUndoButton()}
           <Button onClick={handleOpenProfile} variant="outline" size="sm">
