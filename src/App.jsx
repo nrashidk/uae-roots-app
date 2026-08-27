@@ -7092,7 +7092,11 @@ function App() {
                   /* An open card spans BOTH columns. The mother groups need the
                      width, and letting one cell in a two-column grid grow taller
                      shoves its neighbour around for no reason. */
-                  className={`bg-white rounded-lg shadow ${
+                  /* Same box model as the الأفراد card — border and transition
+                     included. Without the border these cards were 2px smaller
+                     than the ones on the neighbouring page, which reads as the
+                     layout shifting when you move between them. */
+                  className={`bg-white rounded-lg shadow border border-transparent transition ${
                     isOpen ? "md:col-span-2 ring-1 ring-[#A5813F]" : ""
                   }`}
                 >
@@ -7105,7 +7109,7 @@ function App() {
                     className="w-full text-right p-4 flex items-start justify-between gap-3"
                   >
                     <div>
-                      <div className="text-lg font-bold mb-2">
+                      <div className="text-lg font-bold leading-relaxed mb-2">
                         عائلة {getGenealogicalName(person)}
                       </div>
                       <div className="space-y-1 text-sm">
