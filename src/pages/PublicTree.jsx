@@ -277,7 +277,7 @@ export default function PublicTree({
           onClick={onBack}
           className="text-[13px] text-gray-500 hover:text-[#16233D] mb-4"
         >
-          ← الدليل
+          {shareToken ? "← الرئيسية" : "← الدليل"}
         </button>
       )}
 
@@ -301,8 +301,17 @@ export default function PublicTree({
             )}
           </p>
         </div>
-        <span className="text-[10px] text-[#A5813F] border border-[#A5813F] rounded px-2 py-0.5">
-          عرض عام
+        {/* A shared tree is NOT published, and must not look as though it is —
+            an owner opening their own link would otherwise conclude the tree
+            was in the directory. */}
+        <span
+          className={`text-[10px] rounded px-2 py-0.5 border ${
+            shareToken
+              ? "text-[#16233D] border-[#16233D]"
+              : "text-[#A5813F] border-[#A5813F]"
+          }`}
+        >
+          {shareToken ? "رابط مشاركة" : "عرض عام"}
         </span>
       </div>
       )}
@@ -410,8 +419,9 @@ export default function PublicTree({
 
       {!embedded && (
         <p className="text-[11px] text-gray-400 mt-4 leading-relaxed">
-          نشرها مالك الشجرة. إن وجدت بياناتك هنا وترغب في إزالتها، راسلنا على
-          support@uaeroots.com
+          {shareToken
+            ? "وصلك هذا الرابط من مالك الشجرة. الشجرة غير منشورة ولا تظهر في الدليل، ولا يفتحها إلا من يملك الرابط."
+            : "نشرها مالك الشجرة. إن وجدت بياناتك هنا وترغب في إزالتها، راسلنا على support@uaeroots.com"}
         </p>
       )}
     </div>
