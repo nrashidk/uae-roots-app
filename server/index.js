@@ -2437,6 +2437,43 @@ app.get("/api/public/trees/:id", readLimiter, optionalAuth, async (req, res) => 
   }
 });
 
+// Resolves a share token to its tree id, and nothing else.
+//
+// The share URL carries no tree id — /share/:token — so this is the lookup that
+// turns one into the other. Deliberately NOT a second copy of the payload
+// builder: the client then calls /public/trees/:id?token=… and goes through the
+// same filtering everyone else does.
+//
+// Returns 404 for an unknown, disabled or expired token, with no hint as to
+// which — the same rule the tree endpoint follows.
+app.get("/api/public/share/:token", readLimiter, async (req, res) => {
+  try {
+    const token = req.params.token;
+    if (typeof token !== "string" || token.length !== 32) {
+      return res.status(404).json({ error: "غير موجود" });
+    }
+
+    const [tree] = await db
+      .select({
+        id: trees.id,
+        shareEnabled: trees.shareEnabled,
+        shareExpiresAt: trees.shareExpiresAt,
+      })
+      .from(trees)
+      .where(eq(trees.shareToken, token));
+
+    const live =
+      tree &&
+      tree.shareEnabled === true &&
+      (!tree.shareExpiresAt || new Date(tree.shareExpiresAt) > new Date());
+
+    if (!live) return res.status(404).json({ error: "غير موجود" });
+    res.json({ treeId: tree.id });
+  } catch (error) {
+    handleError(res, error, "Share resolve", req);
+  }
+});
+
 app.get("/api/public/families", readLimiter, async (req, res) => {
   try {
     const { emirate } = req.query;
