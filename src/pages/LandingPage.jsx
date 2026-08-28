@@ -10,13 +10,14 @@ import "./LandingPage.css";
 // the Arabic placeholder for "so-and-so", the equivalent of Doe. A real tribal
 // or family name here would attach an invented lineage to actual people, and
 // any Arabic family name plausibly belongs to someone.
+// `rel` was dropped when the بن/بنت connectors were removed from the display;
+// nothing reads it, so the entries are plain names.
 const CHAIN = [
-  { rel: "", name: "حصه" },
-  { rel: "بنت", name: "ناصر" },
-  { rel: "بن", name: "راشد" },
-  { rel: "بن", name: "عبيد" },
-  { rel: "بن", name: "عيسى" },
-  { rel: "", name: "آل فلان" },
+  { name: "سعيد" },
+  { name: "علي" },
+  { name: "عبدالله" },
+  { name: "مصبح" },
+  { name: "بن ربيعه" },
 ];
 
 const CLAIMS = [
