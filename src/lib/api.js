@@ -177,13 +177,33 @@ export const api = {
         method: "PATCH",
         body: JSON.stringify(data),
       }),
+    // enable | disable | delete | expiry. `enable` REUSES an existing token;
+    // only `delete` clears it.
+    share: (treeId, action, expires) =>
+      fetchAPI(`/trees/${treeId}/share`, {
+        method: "POST",
+        body: JSON.stringify({ action, expires }),
+      }),
   },
 
   // Unauthenticated. Serves only published trees, and never the owner id.
   // The published tree itself. 404 for an unpublished one, deliberately
   // indistinguishable from a tree that does not exist.
+  // Resolves /share/:token to a tree id. Returns 404 for unknown, disabled or
+  // expired tokens alike.
+  publicShare: {
+    resolve: (token) => fetchAPI(`/public/share/${encodeURIComponent(token)}`),
+  },
+
   publicTree: {
-    get: (treeId) => fetchAPI(`/public/trees/${treeId}`),
+    // The token is the ONLY way in for a shared, unpublished tree — the server
+    // decides, this just carries it.
+    get: (treeId, token) =>
+      fetchAPI(
+        token
+          ? `/public/trees/${treeId}?token=${encodeURIComponent(token)}`
+          : `/public/trees/${treeId}`,
+      ),
   },
 
   publicDirectory: {
