@@ -44,7 +44,7 @@ import {
   DirectoryTiles,
   DirectoryFamilies,
 } from "./pages/Directory.jsx";
-import PublicTree from "./pages/PublicTree.jsx";
+import PublicTree, { SharedTree } from "./pages/PublicTree.jsx";
 import { PrivacyPolicy } from "./pages/PrivacyPolicy.jsx";
 import FamilyTreeLayout from "./lib/family-tree-layout.js";
 import {
@@ -97,6 +97,7 @@ const PUBLIC_PATHS = ["/", "/privacy"];
 const PUBLIC_PATH_PATTERNS = [
   /^\/directory\/[A-Za-z]+$/,
   /^\/family\/\d+$/,
+  /^\/share\/[a-f0-9]{32}$/,
 ];
 
 const isPublicPath = (path) =>
@@ -330,6 +331,9 @@ function App() {
     familyName: "",
     femaleDisplay: "hidden",
     publicFields: ["name"],
+    shareEnabled: false,
+    shareToken: null,
+    shareExpiresAt: null,
   });
   const [editingFamilyName, setEditingFamilyName] = useState(false);
   const [settingsBusy, setSettingsBusy] = useState(false);
@@ -339,6 +343,9 @@ function App() {
   // gets rather than a parallel count that could drift.
   const [previewReach, setPreviewReach] = useState(null);
   const [confirmPublish, setConfirmPublish] = useState(false);
+  const [confirmRevokeShare, setConfirmRevokeShare] = useState(false);
+  const [shareCopied, setShareCopied] = useState(false);
+  const [showShareQr, setShowShareQr] = useState(false);
 
   // One box per page. Cleared on view change with the rest of the page state,
   // so returning to a page does not land you inside a stale filter.
@@ -1578,9 +1585,72 @@ function App() {
       familyName: currentTree.familyName || "",
       femaleDisplay: currentTree.femaleDisplay || "hidden",
       publicFields: (currentTree.publicFields || "name").split(","),
+      shareEnabled: currentTree.shareEnabled === true,
+      shareToken: currentTree.shareToken || null,
+      shareExpiresAt: currentTree.shareExpiresAt || null,
     });
     setEditingFamilyName(false);
   }, [currentTree]);
+
+  // enable | disable | delete | expiry. The server owns the token: this never
+  // generates one, and never assumes what the result will be.
+  const saveShare = async (action, expires) => {
+    if (!currentTree || settingsBusy) return;
+    setSettingsBusy(true);
+    try {
+      const r = await api.trees.share(currentTree.id, action, expires);
+      setTreeSettings((prev) => ({
+        ...prev,
+        shareEnabled: r.shareEnabled === true,
+        shareToken: r.shareToken || null,
+        shareExpiresAt: r.shareExpiresAt || null,
+      }));
+      setSettingsSaved(true);
+      setTimeout(() => setSettingsSaved(false), 2000);
+    } catch (error) {
+      console.error("Failed to update share link:", error);
+      window.alert("تعذّر تحديث رابط المشاركة: " + error.message);
+    } finally {
+      setSettingsBusy(false);
+    }
+  };
+
+  const shareUrl = () =>
+    treeSettings.shareToken
+      ? `${window.location.origin}/share/${treeSettings.shareToken}`
+      : null;
+
+  const shareVia = async (how) => {
+    const url = shareUrl();
+    if (!url) return;
+    if (how === "copy") {
+      try {
+        await navigator.clipboard.writeText(url);
+        setShareCopied(true);
+        setTimeout(() => setShareCopied(false), 2000);
+      } catch {
+        // Clipboard is blocked outside a secure context and in some
+        // in-app browsers. Falling back to a prompt is ugly but always works.
+        window.prompt("انسخ الرابط:", url);
+      }
+      return;
+    }
+    if (how === "qr") {
+      setShowShareQr(true);
+      return;
+    }
+    // The device's own share sheet — WhatsApp, Mail, Messages. Absent on most
+    // desktops, so fall back to copying rather than doing nothing.
+    if (navigator.share) {
+      try {
+        await navigator.share({ url });
+      } catch {
+        /* the user dismissed the sheet */
+      }
+    } else {
+      shareVia("copy");
+    }
+  };
 
   const saveTreeSettings = async (patch) => {
     if (!currentTree || settingsBusy) return;
@@ -1596,7 +1666,10 @@ function App() {
         familyName: updated.familyName || "",
         femaleDisplay: updated.femaleDisplay || "hidden",
         publicFields: (updated.publicFields || "name").split(","),
-      });
+        shareEnabled: updated.shareEnabled === true,
+      shareToken: updated.shareToken || null,
+      shareExpiresAt: updated.shareExpiresAt || null,
+    });
       setEditingFamilyName(false);
       // Brief confirmation. The dropdown and the toggle save on change with no
       // button to press, so without this a change gives no sign it landed.
@@ -5228,6 +5301,27 @@ function App() {
   // /directory/:code — the public families list. A real path, not a query
   // parameter, because these pages are meant to be shared and indexed, and
   // /family/:id will need a permanent address too.
+  // /share/:token — a private link. Resolves the token to a tree id, then
+  // renders the SAME public tree everyone else sees, with the token carried
+  // through so the server lets it past the publish check.
+  const shareMatch = location.pathname.match(/^\/share\/([a-f0-9]{32})$/);
+  if (shareMatch) {
+    const signedIn = isAuthenticated || !!userProfile;
+    return (
+      <PublicLayout
+        signedIn={signedIn}
+        onBackToApp={() => navigate("/tree")}
+        onHome={() => navigate("/")}
+        onClaims={() => navigate("/")}
+        onSignIn={() => navigate("/")}
+        onSignUp={() => navigate("/")}
+        onPrivacy={() => navigate("/privacy")}
+      >
+        <SharedTree token={shareMatch[1]} onBack={() => navigate("/")} />
+      </PublicLayout>
+    );
+  }
+
   const familyMatch = location.pathname.match(/^\/family\/(\d+)$/);
   if (familyMatch) {
     const signedIn = isAuthenticated || !!userProfile;
@@ -6426,6 +6520,7 @@ function App() {
               ) : null}
             </div>
 
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
             {/* النشر — locked until both the name and the emirate are set */}
             {/* The card stays at full opacity and only the CONTROL is dimmed:
                 dimming the whole block dimmed the explanation too, so the one
@@ -6470,8 +6565,164 @@ function App() {
               </div>
             </div>
 
+            {/* رابط المشاركة — independent of النشر by design: the whole point
+                is sharing a tree that is NOT in the directory. Uses the same
+                ظهور النساء and الحقول الظاهرة, so there is one set of settings
+                and one preview rather than two mental models. */}
+            <div className="bg-white rounded-lg shadow p-6 h-full">
+              <label className="block text-sm font-bold mb-1">
+                رابط المشاركة
+              </label>
+              <div className="text-[11px] text-gray-400 mb-2 leading-relaxed">
+                رابط خاص لمشاركة شجرة عائلتك مع أي شخص تختاره.
+              </div>
+
+              <label className="flex items-center gap-3 border rounded-md p-3 bg-gray-50">
+                <input
+                  type="checkbox"
+                  checked={treeSettings.shareEnabled}
+                  disabled={settingsBusy}
+                  onChange={(e) =>
+                    // Enable REUSES the existing token, so turning this off and
+                    // on again does not cut off anyone already holding the link.
+                    saveShare(e.target.checked ? "enable" : "disable")
+                  }
+                  className="rounded"
+                />
+                <span className="text-sm">تفعيل رابط المشاركة</span>
+              </label>
+
+              <div
+                className={`mt-3 flex items-center gap-2 flex-wrap ${
+                  treeSettings.shareEnabled ? "" : "opacity-40"
+                }`}
+              >
+                <Button
+                  size="sm"
+                  disabled={!treeSettings.shareEnabled || settingsBusy}
+                  onClick={() => shareVia("share")}
+                >
+                  مشاركة
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={!treeSettings.shareEnabled || settingsBusy}
+                  onClick={() => shareVia("copy")}
+                >
+                  {shareCopied ? "✓ نُسخ" : "نسخ الرابط"}
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={!treeSettings.shareEnabled || settingsBusy}
+                  onClick={() => shareVia("qr")}
+                >
+                  رمز QR
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={!treeSettings.shareEnabled || settingsBusy}
+                  onClick={() => setConfirmRevokeShare(true)}
+                  className="text-red-600"
+                >
+                  إلغاء الرابط
+                </Button>
+                <label className="flex items-center gap-2 text-[13px] text-gray-600 mr-1">
+                  <input
+                    type="checkbox"
+                    checked={!!treeSettings.shareExpiresAt}
+                    disabled={!treeSettings.shareEnabled || settingsBusy}
+                    onChange={(e) => saveShare("expiry", e.target.checked)}
+                    className="rounded"
+                  />
+                  ينتهي بعد ٣٠ يوماً
+                </label>
+              </div>
+            </div>
+            </div>
+
           </div>
         </div>
+
+        {/* «إلغاء الرابط» is the only action here that cannot be undone by
+            flipping something back, so it names what happens and points at the
+            alternative — the toggle, which pauses without destroying. */}
+        <Dialog open={confirmRevokeShare} onOpenChange={setConfirmRevokeShare}>
+          <DialogContent className="sm:max-w-sm" dir="rtl">
+            <DialogHeader>
+              <DialogTitle className="text-right text-lg">
+                إلغاء رابط المشاركة
+              </DialogTitle>
+            </DialogHeader>
+            <div className="space-y-3 py-1 text-right">
+              <p className="text-sm text-gray-700 leading-relaxed">
+                سيتوقف الرابط نهائياً ولن يستطيع أي شخص استخدامه لعرض شجرة
+                عائلتك.
+              </p>
+              <p className="text-sm text-gray-700 leading-relaxed">
+                إن فعّلت المشاركة لاحقاً سيُنشأ رابط جديد، وعليك مشاركته مرة
+                أخرى مع من تريد.
+              </p>
+              <p className="text-[12px] text-gray-500 leading-relaxed">
+                لإيقاف الرابط مؤقتاً دون حذفه، أطفئ «تفعيل رابط المشاركة» —
+                وسيعود الرابط نفسه للعمل عند تشغيله.
+              </p>
+              <div className="flex gap-2 pt-1" dir="ltr">
+                <Button
+                  size="sm"
+                  disabled={settingsBusy}
+                  className="bg-red-600 hover:bg-red-700"
+                  onClick={() => {
+                    saveShare("delete");
+                    setConfirmRevokeShare(false);
+                  }}
+                >
+                  إلغاء الرابط
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setConfirmRevokeShare(false)}
+                >
+                  رجوع
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        <Dialog open={showShareQr} onOpenChange={setShowShareQr}>
+          <DialogContent className="sm:max-w-xs" dir="rtl">
+            <DialogHeader>
+              <DialogTitle className="text-right text-lg">
+                رمز المشاركة
+              </DialogTitle>
+            </DialogHeader>
+            <div className="text-center py-1">
+              {/* Rendered by a public QR service rather than a bundled library:
+                  one <img> against ~50 KB of JavaScript for a feature used
+                  occasionally. The token is in the URL, so it is visible to that
+                  service — acceptable for a link the owner is about to show on
+                  screen anyway, and the alternative is shipping the library. */}
+              {treeSettings.shareToken && (
+                <img
+                  alt="رمز المشاركة"
+                  className="mx-auto border rounded-md"
+                  width={200}
+                  height={200}
+                  src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(
+                    `${window.location.origin}/share/${treeSettings.shareToken}`,
+                  )}`}
+                />
+              )}
+              <p className="text-[11px] text-gray-400 mt-3 leading-relaxed">
+                اعرض الرمز على من أمامك ليمسحه بجهازه.
+              </p>
+            </div>
+          </DialogContent>
+        </Dialog>
 
         {/* Publishing is the one setting a stranger can act on, and it cannot be
             un-seen once it has been. The dialog names what becomes visible
