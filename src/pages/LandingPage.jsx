@@ -13,11 +13,13 @@ import "./LandingPage.css";
 // `rel` was dropped when the بن/بنت connectors were removed from the display;
 // nothing reads it, so the entries are plain names.
 const CHAIN = [
-  { name: "سعيد" },
-  { name: "علي" },
-  { name: "عبدالله" },
-  { name: "مصبح" },
-  { name: "بن ربيعه" },
+  { name: "محمد" },
+  { name: "ناصر" },
+  { name: "راشد" },
+  { name: "عبيد" },
+  { name: "عيسى" },
+  { name: "الكشف" },
+  { name: "آل علي" },
 ];
 
 const CLAIMS = [
