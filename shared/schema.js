@@ -172,6 +172,19 @@ export const trees = pgTable("trees", {
   // it is read whole and never queried per field, and it stays legible in a
   // SQL console. Five columns would mean a migration every time the box changes.
   publicFields: text("public_fields").notNull().default("name"),
+  // Private share link. NULL means sharing was never enabled, or the link was
+  // deleted — the two are the same state on purpose: a deleted link leaves
+  // nothing behind to resurrect, and enabling again mints a new token.
+  //
+  // Independent of is_published: the whole point is sharing a tree that is NOT
+  // in the directory.
+  shareToken: text("share_token"),
+  // Separate from shareToken on purpose. Turning sharing OFF keeps the token so
+  // the SAME link returns when it is turned back on; only «إلغاء الرابط» clears
+  // the token. Without this flag the two actions could not be told apart.
+  shareEnabled: boolean("share_enabled").notNull().default(false),
+  // NULL means no expiry. The owner toggles it; the endpoint enforces it.
+  shareExpiresAt: timestamp("share_expires_at"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
