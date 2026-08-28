@@ -29,6 +29,8 @@ export default function PublicTree({
   // preview kept showing the FIRST response and silently disagreed with the
   // options above it.
   reloadToken = "",
+  // Present when the visitor arrived through /share/:token.
+  shareToken = null,
   // The settings screen uses this to warn when a mode would sever branches. The
   // numbers come from the payload, so they cannot disagree with what is drawn.
   onReach = null,
@@ -62,7 +64,7 @@ export default function PublicTree({
     setPanOffset({ x: 0, y: 0 });
     fittedRef.current = null;
     api.publicTree
-      .get(treeId)
+      .get(treeId, shareToken)
       .then((d) => {
         if (!alive) return;
         setData(d);
@@ -73,7 +75,7 @@ export default function PublicTree({
     return () => {
       alive = false;
     };
-  }, [treeId, reloadToken]);
+  }, [treeId, reloadToken, shareToken]);
 
   // The payload carries YEARS; TreeCanvas reads birthDate/deathDate and slices
   // the first four characters itself, so a bare year passes through unchanged.
@@ -275,7 +277,7 @@ export default function PublicTree({
           onClick={onBack}
           className="text-[13px] text-gray-500 hover:text-[#16233D] mb-4"
         >
-          ← الدليل
+          {shareToken ? "← الرئيسية" : "← الدليل"}
         </button>
       )}
 
@@ -299,8 +301,17 @@ export default function PublicTree({
             )}
           </p>
         </div>
-        <span className="text-[10px] text-[#A5813F] border border-[#A5813F] rounded px-2 py-0.5">
-          عرض عام
+        {/* A shared tree is NOT published, and must not look as though it is —
+            an owner opening their own link would otherwise conclude the tree
+            was in the directory. */}
+        <span
+          className={`text-[10px] rounded px-2 py-0.5 border ${
+            shareToken
+              ? "text-[#16233D] border-[#16233D]"
+              : "text-[#A5813F] border-[#A5813F]"
+          }`}
+        >
+          {shareToken ? "رابط مشاركة" : "عرض عام"}
         </span>
       </div>
       )}
@@ -408,10 +419,71 @@ export default function PublicTree({
 
       {!embedded && (
         <p className="text-[11px] text-gray-400 mt-4 leading-relaxed">
-          نشرها مالك الشجرة. إن وجدت بياناتك هنا وترغب في إزالتها، راسلنا على
-          support@uaeroots.com
+          {shareToken
+            ? "وصلك هذا الرابط من مالك الشجرة. الشجرة غير منشورة ولا تظهر في الدليل، ولا يفتحها إلا من يملك الرابط."
+            : "نشرها مالك الشجرة. إن وجدت بياناتك هنا وترغب في إزالتها، راسلنا على support@uaeroots.com"}
         </p>
       )}
     </div>
   );
+}
+
+/**
+ * /share/:token — a private link.
+ *
+ * Resolves the token to a tree id, then renders the SAME PublicTree everyone
+ * else sees. Two steps rather than one endpoint, because a second payload
+ * builder would drift from the first — and this one is what strangers get.
+ */
+export function SharedTree({ token, onBack }) {
+  const [treeId, setTreeId] = useState(null);
+  const [status, setStatus] = useState("loading");
+
+  useEffect(() => {
+    let alive = true;
+    setStatus("loading");
+    api.publicShare
+      .resolve(token)
+      .then((d) => {
+        if (!alive) return;
+        setTreeId(d.treeId);
+        setStatus("ok");
+      })
+      .catch(() => alive && setStatus("missing"));
+    return () => {
+      alive = false;
+    };
+  }, [token]);
+
+  if (status === "loading") {
+    return (
+      <div className="max-w-5xl mx-auto px-6 py-16 text-center text-gray-500 text-[13px]">
+        جاري التحميل…
+      </div>
+    );
+  }
+
+  // Unknown, disabled and expired all land here — the server does not say
+  // which, and neither does this.
+  if (status === "missing") {
+    return (
+      <div className="max-w-5xl mx-auto px-6 py-16 text-center">
+        <p className="text-[#16233D] text-lg font-bold mb-2">
+          هذا الرابط لم يعد يعمل
+        </p>
+        <p className="text-gray-500 text-[13px] mb-6">
+          قد يكون صاحب الشجرة أوقف المشاركة أو ألغى الرابط.
+        </p>
+        <button
+          type="button"
+          onClick={onBack}
+          className="text-[13px] text-[#A5813F] hover:underline"
+        >
+          ← الرئيسية
+        </button>
+      </div>
+    );
+  }
+
+  return <PublicTree treeId={treeId} shareToken={token} onBack={onBack} />;
 }

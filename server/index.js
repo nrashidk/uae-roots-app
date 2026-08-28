@@ -504,6 +504,11 @@ const PUBLIC_FIELD_KEYS = [
 
 // Settings the OWNER controls on their own tree. Deliberately does NOT include
 // createdBy — ownership is not something a request may reassign.
+const shareActionSchema = z.object({
+  action: z.enum(["enable", "disable", "delete", "expiry"]),
+  expires: z.boolean().optional(),
+});
+
 const treeSettingsSchema = z.object({
   // "" is accepted alongside null: an HTML <select> placeholder option carries
   // an empty string, and rejecting it turns "clear the emirate" into a
@@ -2180,15 +2185,33 @@ app.get("/api/public/trees/:id", readLimiter, optionalAuth, async (req, res) => 
 
     const [tree] = await db.select().from(trees).where(eq(trees.id, treeId));
 
-    // Published → anyone. Unpublished → the OWNER only, so the settings screen
-    // can preview exactly what visitors would see before publishing. The preview
-    // runs through the same filtering below, so it cannot drift from the real
-    // public view.
+    // THREE ways in, and only three:
+    //   published        → anyone
+    //   the OWNER        → so the settings preview runs through this same code
+    //   a valid ?token=  → a private share link, which deliberately does NOT
+    //                      require the tree to be published
     //
     // Still 404 rather than 403 for everyone else: a different status would
     // confirm the tree exists, which is information the owner did not publish.
     const isOwner = !!req.userId && tree && tree.createdBy === req.userId;
-    if (!tree || (!tree.isPublished && !isOwner)) {
+
+    // Compared with timingSafeEqual: a plain === leaks token bytes through
+    // response timing, and this is the only secret a stranger can guess at.
+    const supplied = typeof req.query.token === "string" ? req.query.token : "";
+    const tokenOk =
+      !!tree?.shareToken &&
+      supplied.length === tree.shareToken.length &&
+      crypto.timingSafeEqual(
+        Buffer.from(supplied),
+        Buffer.from(tree.shareToken),
+      );
+    // An expired link is dead even though the token still matches.
+    const shareLive =
+      tokenOk &&
+      tree.shareEnabled === true &&
+      (!tree.shareExpiresAt || new Date(tree.shareExpiresAt) > new Date());
+
+    if (!tree || (!tree.isPublished && !isOwner && !shareLive)) {
       return res.status(404).json({ error: "غير موجود" });
     }
 
@@ -2414,6 +2437,43 @@ app.get("/api/public/trees/:id", readLimiter, optionalAuth, async (req, res) => 
   }
 });
 
+// Resolves a share token to its tree id, and nothing else.
+//
+// The share URL carries no tree id — /share/:token — so this is the lookup that
+// turns one into the other. Deliberately NOT a second copy of the payload
+// builder: the client then calls /public/trees/:id?token=… and goes through the
+// same filtering everyone else does.
+//
+// Returns 404 for an unknown, disabled or expired token, with no hint as to
+// which — the same rule the tree endpoint follows.
+app.get("/api/public/share/:token", readLimiter, async (req, res) => {
+  try {
+    const token = req.params.token;
+    if (typeof token !== "string" || token.length !== 32) {
+      return res.status(404).json({ error: "غير موجود" });
+    }
+
+    const [tree] = await db
+      .select({
+        id: trees.id,
+        shareEnabled: trees.shareEnabled,
+        shareExpiresAt: trees.shareExpiresAt,
+      })
+      .from(trees)
+      .where(eq(trees.shareToken, token));
+
+    const live =
+      tree &&
+      tree.shareEnabled === true &&
+      (!tree.shareExpiresAt || new Date(tree.shareExpiresAt) > new Date());
+
+    if (!live) return res.status(404).json({ error: "غير موجود" });
+    res.json({ treeId: tree.id });
+  } catch (error) {
+    handleError(res, error, "Share resolve", req);
+  }
+});
+
 app.get("/api/public/families", readLimiter, async (req, res) => {
   try {
     const { emirate } = req.query;
@@ -2452,6 +2512,70 @@ app.get("/api/public/families", readLimiter, async (req, res) => {
 // place these three are ever set. Nothing else may be changed here: name and
 // description are not settings, and createdBy is ownership, which a request must
 // never be able to reassign.
+// The private share link.
+//
+// THREE actions, deliberately distinct, because two of them look alike from the
+// outside and one of them cannot be undone:
+//   enable  → mints a token if there is none, otherwise REUSES the existing one
+//   disable → keeps the token; the link stops working and comes back unchanged
+//   delete  → clears the token; every shared link dies, and enabling later
+//             mints a NEW one that has to be shared again
+app.post("/api/trees/:id/share", authenticateUser, async (req, res) => {
+  try {
+    const treeId = validateId(req.params.id);
+    if (!treeId) return res.status(400).json({ error: "Invalid tree ID" });
+
+    const ownership = await verifyTreeOwnership(treeId, req.userId);
+    if (!ownership.valid) {
+      return res.status(403).json({ error: ownership.error });
+    }
+
+    const { action, expires } = shareActionSchema.parse(req.body);
+    const tree = ownership.tree;
+    const updates = {};
+
+    if (action === "enable") {
+      // Reuse, do not regenerate: someone who already has the link must not be
+      // cut off by the owner toggling this off and on.
+      updates.shareToken = tree.shareToken || crypto.randomBytes(16).toString("hex");
+      updates.shareEnabled = true;
+      updates.shareExpiresAt = expires
+        ? new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
+        : null;
+    } else if (action === "disable") {
+      updates.shareEnabled = false;
+    } else if (action === "delete") {
+      updates.shareToken = null;
+      updates.shareEnabled = false;
+      updates.shareExpiresAt = null;
+    } else if (action === "expiry") {
+      updates.shareExpiresAt = expires
+        ? new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
+        : null;
+    }
+
+    const [updated] = await db
+      .update(trees)
+      .set(updates)
+      .where(eq(trees.id, treeId))
+      .returning();
+
+    await logAudit(req.userId, "update", "tree", String(treeId), { action }, req);
+
+    // Return the TOKEN only to the owner, who just asked for it.
+    res.json({
+      shareEnabled: updated.shareEnabled,
+      shareToken: updated.shareToken,
+      shareExpiresAt: updated.shareExpiresAt,
+    });
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({ error: "بيانات غير صحيحة" });
+    }
+    handleError(res, error, "Tree share", req);
+  }
+});
+
 app.patch("/api/trees/:id", authenticateUser, async (req, res) => {
   try {
     const treeId = validateId(req.params.id);
