@@ -6520,13 +6520,13 @@ function App() {
               ) : null}
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {/* النشر — locked until both the name and the emirate are set */}
             {/* The card stays at full opacity and only the CONTROL is dimmed:
                 dimming the whole block dimmed the explanation too, so the one
                 thing the user needed to read was the least legible thing on the
                 screen. */}
-            <div className="bg-white rounded-lg shadow p-6">
+            <div className="bg-white rounded-lg shadow p-6 h-full">
               <label className="block text-sm font-bold mb-1">النشر</label>
               <div className="text-[11px] text-gray-400 mb-2 leading-relaxed">
                 عند التفعيل تظهر عائلتك في دليل الإمارة ويمكن لأي زائر عرض
