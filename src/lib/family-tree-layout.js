@@ -672,6 +672,19 @@ var FamilyTreeLayoutModule;
      */
     function addPersonBox(d, f, i, si, x, y, pd, sr, da) {
         const p = f[i];
+        // TEMPORARY DIAGNOSTIC — remove once the missing parent stub is
+        // understood. Prints who was placed, whether parent lines were asked
+        // for, and whether the parents are recorded at all.
+        if (typeof window !== "undefined" && window.__STUB_DEBUG) {
+            console.log(
+                "[box]",
+                i,
+                p && p.n,
+                "pd=" + pd,
+                "m1=" + (p && p.m1),
+                "f1=" + (p && p.f1),
+            );
+        }
         addEntity(d, i, p, x, y);
         if (pd) {
             if (p.m1 || p.f1) {
@@ -1204,6 +1217,17 @@ var FamilyTreeLayoutModule;
                 depth: h,
                 hasSpouse: !!p.es,
             });
+            // NOTE: the ROOT is placed with addEntity, not addPersonBox, so it
+            // never gets the upward "parents exist but are not drawn" stub.
+            if (typeof window !== "undefined" && window.__STUB_DEBUG) {
+                console.log(
+                    "[root via addEntity]",
+                    i,
+                    p && p.n,
+                    "m1=" + (p && p.m1),
+                    "f1=" + (p && p.f1),
+                );
+            }
             addEntity(d, i, p, 0, 0);
 
             // Get all children
