@@ -406,14 +406,30 @@ function App() {
   // since; replacing wholesale would leave those keys undefined and render
   // colours as `undefined`. Merging means a new option simply takes its default.
   // Lazy initialisers, so storage is read once on mount rather than every render.
-  const [displayOptions, setDisplayOptions] = useState(() => ({
-    ...DEFAULT_DISPLAY_OPTIONS,
-    ...(readStoredOptions()?.display || {}),
-  }));
-  const [stylingOptions, setStylingOptions] = useState(() => ({
-    ...DEFAULT_STYLING_OPTIONS,
-    ...(readStoredOptions()?.styling || {}),
-  }));
+  // Only keys the app still HAS are taken from storage. A plain spread kept
+  // options that were later removed — showProfession, showEmail and
+  // showTelephone survived in existing browsers and the panel rendered them as
+  // «إظهار showProfession», because it listed whatever the object contained and
+  // fell back to the raw key when there was no label.
+  //
+  // Dropping unknown keys here retires a removed option everywhere on the next
+  // load, with no migration.
+  const pickKnown = (defaults, stored) => {
+    const out = { ...defaults };
+    if (stored) {
+      for (const k in defaults) {
+        if (stored[k] !== undefined) out[k] = stored[k];
+      }
+    }
+    return out;
+  };
+
+  const [displayOptions, setDisplayOptions] = useState(() =>
+    pickKnown(DEFAULT_DISPLAY_OPTIONS, readStoredOptions()?.display),
+  );
+  const [stylingOptions, setStylingOptions] = useState(() =>
+    pickKnown(DEFAULT_STYLING_OPTIONS, readStoredOptions()?.styling),
+  );
 
 
   // Grid cell size. WIDTH fixed; HEIGHT is the ROW PITCH and has to cover the
@@ -8197,7 +8213,10 @@ function App() {
                 <div>
                   <h3 className="font-medium mb-3">عرض المعلومات</h3>
                   <div className="space-y-2">
-                    {Object.keys(displayOptions).map((key) => {
+                    {/* Iterate the KNOWN options, not the stored object: a key
+                        that no longer exists must not appear, and one without a
+                        label would render as its own variable name. */}
+                    {Object.keys(DEFAULT_DISPLAY_OPTIONS).map((key) => {
                       // Greyed, NOT hidden. A list that changes length as data
                       // changes loses the user's place, and a toggle that
                       // vanishes takes its setting with it.
@@ -8224,7 +8243,7 @@ function App() {
                         <span
                           className={`text-sm ${hasData ? "" : "text-gray-400"}`}
                         >
-                          إظهار {displayOptionLabels[key] || key}
+                          إظهار {displayOptionLabels[key]}
                         </span>
                       </label>
                       );
