@@ -672,22 +672,15 @@ var FamilyTreeLayoutModule;
      */
     function addPersonBox(d, f, i, si, x, y, pd, sr, da) {
         const p = f[i];
-        // TEMPORARY DIAGNOSTIC — remove once the missing parent stub is
-        // understood. Prints who was placed, whether parent lines were asked
-        // for, and whether the parents are recorded at all.
-        if (typeof window !== "undefined" && window.__STUB_DEBUG) {
-            console.log(
-                "[box]",
-                i,
-                p && p.n,
-                "pd=" + pd,
-                "m1=" + (p && p.m1),
-                "f1=" + (p && p.f1),
-            );
-        }
         addEntity(d, i, p, x, y);
         if (pd) {
             if (p.m1 || p.f1) {
+                // Doubles as the first segment of the real parent connector when
+                // the parents ARE drawn, so it is not only a marker and must not
+                // be removed. Recorded so the post-pass in generateLayout does
+                // not draw a second one on top.
+                if (!d._upward) d._upward = {};
+                d._upward[i] = true;
                 addLine(
                     d,
                     x,
@@ -1217,17 +1210,9 @@ var FamilyTreeLayoutModule;
                 depth: h,
                 hasSpouse: !!p.es,
             });
-            // NOTE: the ROOT is placed with addEntity, not addPersonBox, so it
-            // never gets the upward "parents exist but are not drawn" stub.
-            if (typeof window !== "undefined" && window.__STUB_DEBUG) {
-                console.log(
-                    "[root via addEntity]",
-                    i,
-                    p && p.n,
-                    "m1=" + (p && p.m1),
-                    "f1=" + (p && p.f1),
-                );
-            }
+            // The ROOT is placed with addEntity, not addPersonBox, so it never
+            // gets the upward mark here — the post-pass in generateLayout adds
+            // it, along with every other placement path that misses it.
             addEntity(d, i, p, 0, 0);
 
             // Get all children
@@ -2284,6 +2269,45 @@ var FamilyTreeLayoutModule;
             entitiesCount: Object.keys(treeData.e || {}).length,
             linesCount: treeData.n?.length || 0,
         });
+
+        // The "parents exist but are not drawn" mark, applied as a POST-PASS.
+        //
+        // It used to be emitted inside addPersonBox, so whether a person got it
+        // depended on HOW they were placed rather than on the facts:
+        //   • the rooted person is placed with addEntity and never got one, even
+        //     with both parents recorded;
+        //   • ancestors are placed with pd=false and never got one either.
+        //
+        // On the owner's tree that is a missing hint. On a PUBLIC or SHARED tree
+        // it removes the only signal that the family continues past what is
+        // drawn — a visitor navigates by clicking, sees four boxes, and
+        // concludes that is the whole family.
+        //
+        // Doing it here makes the mark a property of the DATA, not of the code
+        // path: every drawn person whose parents exist but are absent gets one,
+        // and nobody whose parents are on screen does.
+        if (treeData.e) {
+            for (const key in treeData.e) {
+                const ent = treeData.e[key];
+                const person = familyData[key];
+                if (!ent || !person) continue;
+                const m = person.m1;
+                const fa = person.f1;
+                if (!m && !fa) continue;
+                // Already connected upward — the real connector is there.
+                if ((m && treeData.e[m]) || (fa && treeData.e[fa])) continue;
+                // Already marked by addPersonBox.
+                if (treeData._upward && treeData._upward[key]) continue;
+                addLine(
+                    treeData,
+                    ent.x,
+                    ent.y,
+                    ent.x,
+                    ent.y - 0.425,
+                    isParentSetNonBio(person, 1) ? "c" : "b",
+                );
+            }
+        }
 
         return treeData;
     }
