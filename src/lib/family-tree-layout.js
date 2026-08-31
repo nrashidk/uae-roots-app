@@ -748,12 +748,8 @@ var FamilyTreeLayoutModule;
         excludeChildren,
         pcx,
         excludeParent,
-        // Side for رضاعة bonds. Defaults to the spouse side, so any call that
-        // does not pass it behaves exactly as before.
-        milkDr,
     ) {
         const p = f[i];
-        const mdr = milkDr === undefined ? dr : milkDr;
         const ps = getSortedSpouses(p, si, false);
         let yt = 0;
         for (const pi in ps) {
@@ -771,23 +767,7 @@ var FamilyTreeLayoutModule;
         let ly = cy + (LINE_STEP * (yt - 1)) / 2;
         const uo = 0.1 / (yt + 1);
         let uy = cy - 0.5 + uo * (yt + 1);
-        // Seeded with the PRIMARY spouse when she is on this side.
-        //
-        // ax only ever tracked ADDITIONAL spouses, so the first one drew a
-        // STRAIGHT line from the person to her — correct only while she sat on
-        // the opposite side with nothing in between. Stack the wives together
-        // and that same line crosses wife 1. Confirmed by diagnostic:
-        // ax=[] STRAIGHT for the second wife.
-        //
-        // Seeded, anyone placed after her arcs OVER her instead.
         const ax = [];
-        if (si && d.e[si] && typeof d.e[si].x === "number") {
-            const sx0 = d.e[si].x;
-            if (dr ? sx0 >= fx : sx0 <= fx) ax.push(sx0);
-        }
-        // Milk bonds route around each other only — the wives are on the far
-        // side and are not in the way.
-        const mkx = [];
         // Overhead lanes: any connector that has to route OVER already-placed
         // boxes (a 2nd/3rd/4th spouse, or a milk bond) gets its own horizontal
         // lane above this person. One shared counter so spouse lanes and milk
@@ -813,15 +793,15 @@ var FamilyTreeLayoutModule;
                     dp.p[i + "-" + pi] = true;
                     dp.p[pi + "-" + i] = true;
                     // Childless placement (a milk bond never has shared children)
-                    const px = mdr ? d.r : d.l - 1;
-                    if (pcx) pcx[pi] = px - (mdr ? 0.5 : -0.5);
+                    const px = dr ? d.r : d.l - 1;
+                    if (pcx) pcx[pi] = px - (dr ? 0.5 : -0.5);
                     // Route the connector the SAME way successive spouses are
                     // routed: if partners are already placed, go around them
                     // rather than drawing one long line straight through.
-                    if (mkx.length) {
-                        const xo = mdr ? 0.5 : -0.5;
-                        const x1 = mkx[0] - xo * (1 + mkx.length / 10);
-                        const x2 = mkx[mkx.length - 1] + xo + xo / 10;
+                    if (ax.length) {
+                        const xo = dr ? 0.5 : -0.5;
+                        const x1 = ax[0] - xo * (1 + ax.length / 10);
+                        const x2 = ax[ax.length - 1] + xo + xo / 10;
                         const muy = nextLaneY();
                         addLine(d, fx, ly, x1, ly, "r");
                         addLine(d, x1, ly, x1, muy, "r");
@@ -832,8 +812,8 @@ var FamilyTreeLayoutModule;
                     } else {
                         addLine(d, fx, ly, px, ly, "r");
                     }
-                    addPersonBox(d, f, pi, i, px, cy, true, mdr, true);
-                    mkx[mkx.length] = px;
+                    addPersonBox(d, f, pi, i, px, cy, true, dr, true);
+                    ax[ax.length] = px;
                 }
                 ly -= lo;
                 uy -= uo;
@@ -1451,10 +1431,7 @@ var FamilyTreeLayoutModule;
                         p.es,
                         i,
                         h - 1,
-                        // Additional partners join the PRIMARY partner's side.
-                        // Flipped together with the call below — changing only
-                        // one made the layout depend on who was rooted.
-                        !sr,
+                        sr,
                         sx,
                         0,
                         fl,
@@ -1474,8 +1451,7 @@ var FamilyTreeLayoutModule;
                 i,
                 p.es,
                 h - 1,
-                // Wives together on wife 1's side; رضاعة bonds take the other.
-                sr,
+                !sr,
                 0,
                 0,
                 fl,
@@ -1484,7 +1460,6 @@ var FamilyTreeLayoutModule;
                 childrenOfSpouse,
                 spouseChildPositions,
                 p.es,
-                !sr,
             );
 
             // Draw lines for children with second/third parent sets
