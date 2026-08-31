@@ -540,7 +540,12 @@ var FamilyTreeLayoutModule;
     //
     // Every one of those must move together. GEN is the only place the number
     // lives; nothing below should contain a bare 1 or -1 meaning "a generation".
-    const GEN = 2;
+    // 5/3 of a row. At the default 90px row that is 150px between generations,
+    // against 90px before and 180px at GEN = 2 — which read as too much empty
+    // space. Chosen for the CLEARANCE the رضاعة lanes need, not for a round
+    // number: the children bus sits midway at GEN/2 = 0.833, and lanes run
+    // 0.36, 0.435, 0.51 … so seven fit clear where one did at GEN = 1.
+    const GEN = 5 / 3;
 
     function addLine(d, x1, y1, x2, y2, t, c) {
         const l = { x1, y1, x2, y2, t };
