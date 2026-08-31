@@ -485,6 +485,10 @@ var FamilyTreeLayoutModule;
      * @param {boolean} k - Is key person
      */
     function addEntity(d, i, p, x, y, k) {
+        // TEMPORARY DIAGNOSTIC — remove once the partner sides are understood.
+        if (typeof window !== "undefined" && window.__SIDE_DEBUG) {
+            console.log("[place]", i, "x=" + x, "y=" + y, "tag=" + (PLACE_TAG || "?"));
+        }
         const e = { p, x, y, k };
 
         if (d.e[i]) {
@@ -528,6 +532,9 @@ var FamilyTreeLayoutModule;
      * @param {string} t - Line type
      * @param {string} c - Line class
      */
+    // Set by each call site so the log says WHICH path placed a box.
+    let PLACE_TAG = null;
+
     function addLine(d, x1, y1, x2, y2, t, c) {
         const l = { x1, y1, x2, y2, t };
         if (c) {
@@ -794,6 +801,7 @@ var FamilyTreeLayoutModule;
                     dp.p[pi + "-" + i] = true;
                     // Childless placement (a milk bond never has shared children)
                     const px = dr ? d.r : d.l - 1;
+                    PLACE_TAG = "milk dr=" + dr;
                     if (pcx) pcx[pi] = px - (dr ? 0.5 : -0.5);
                     // Route the connector the SAME way successive spouses are
                     // routed: if partners are already placed, go around them
@@ -978,6 +986,7 @@ var FamilyTreeLayoutModule;
                 addLine(d, fx, ly, px, ly, s);
                 addPartnerLabel(d, i, pi, fx, px, ly, true);
             }
+            PLACE_TAG = "addSpouse dr=" + dr;
             addPersonBox(d, f, pi, i, px, cy, true, dr, true);
             ax[ax.length] = px;
         }
@@ -1379,6 +1388,7 @@ var FamilyTreeLayoutModule;
                         isCurrentPartnership(f, i, p.es) ? "S" : "P",
                     );
                     addPartnerLabel(d, i, p.es, 0, sx, 0, false);
+                    PLACE_TAG = "primarySpouse sx=" + sx + " sr=" + sr;
                     addPersonBox(d, f, p.es, i, sx, 0, true, null, false);
                     personChildPositions[""] = sx;
 
