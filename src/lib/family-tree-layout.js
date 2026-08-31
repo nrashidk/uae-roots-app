@@ -944,6 +944,20 @@ var FamilyTreeLayoutModule;
         }
         if (pi && f[pi]) {
             const s = isCurrentPartnership(f, i, pi) ? "S" : "P";
+            // TEMPORARY DIAGNOSTIC — remove once the spouse routing is settled.
+            // Shows whether ax already holds anything when each additional
+            // spouse is drawn, i.e. whether the connector arcs over an existing
+            // box or runs straight to her.
+            if (typeof window !== "undefined" && window.__AX_DEBUG) {
+                console.log(
+                    "[spouse]", i, "->", pi,
+                    "dr=" + dr,
+                    "px=" + px,
+                    "fx=" + fx,
+                    "ax=[" + ax.join(",") + "]",
+                    ax.length ? "ARC" : "STRAIGHT",
+                );
+            }
             if (ax.length) {
                 const xo = dr ? 0.5 : -0.5;
                 const x1 = ax[0] - xo * (1 + ax.length / 10);
