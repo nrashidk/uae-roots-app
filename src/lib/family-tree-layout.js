@@ -779,6 +779,17 @@ var FamilyTreeLayoutModule;
         // Splitting them halves the row width, and a milk connector now routes
         // only around other milk siblings, so most need no lane at all.
         const mx = [];
+        // Seeded with the PRIMARY spouse when she sits on the milk side.
+        //
+        // She is placed beside this person before this function runs and is in
+        // neither routing array, so a milk connector drew straight THROUGH her
+        // box on its way outward. The milk sibling itself was positioned
+        // correctly beyond her — only the line was wrong.
+        if (si && d.e[si]) {
+            const sx0 = d.e[si].x;
+            const spouseOnMilkSide = !dr ? sx0 >= fx : sx0 <= fx;
+            if (spouseOnMilkSide) mx.push(sx0);
+        }
         // Overhead lanes: any connector that has to route OVER already-placed
         // boxes (a 2nd/3rd/4th spouse, or a milk bond) gets its own horizontal
         // lane above this person. One shared counter so spouse lanes and milk
