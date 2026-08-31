@@ -485,10 +485,6 @@ var FamilyTreeLayoutModule;
      * @param {boolean} k - Is key person
      */
     function addEntity(d, i, p, x, y, k) {
-        // TEMPORARY DIAGNOSTIC — remove once the partner sides are understood.
-        if (typeof window !== "undefined" && window.__SIDE_DEBUG) {
-            console.log("[place]", i, "x=" + x, "y=" + y, "tag=" + (PLACE_TAG || "?"));
-        }
         const e = { p, x, y, k };
 
         if (d.e[i]) {
@@ -532,9 +528,6 @@ var FamilyTreeLayoutModule;
      * @param {string} t - Line type
      * @param {string} c - Line class
      */
-    // Set by each call site so the log says WHICH path placed a box.
-    let PLACE_TAG = null;
-
     function addLine(d, x1, y1, x2, y2, t, c) {
         const l = { x1, y1, x2, y2, t };
         if (c) {
@@ -755,8 +748,17 @@ var FamilyTreeLayoutModule;
         excludeChildren,
         pcx,
         excludeParent,
+        // Side for رضاعة bonds. Defaults to the spouse side, so every existing
+        // call behaves exactly as before.
+        milkDr,
     ) {
         const p = f[i];
+        // Wives and milk bonds can be sent to OPPOSITE sides. Measured layout
+        // put wife 1 left, wife 2 right and the milk siblings right — so each
+        // milk connector had to arc over wife 2, three lanes into a band with
+        // room for one. Putting the wives together on one side and the milk
+        // bonds on the other removes the crossing rather than routing around it.
+        const mdr = milkDr === undefined ? dr : milkDr;
         const ps = getSortedSpouses(p, si, false);
         let yt = 0;
         for (const pi in ps) {
@@ -775,6 +777,10 @@ var FamilyTreeLayoutModule;
         const uo = 0.1 / (yt + 1);
         let uy = cy - 0.5 + uo * (yt + 1);
         const ax = [];
+        // Milk placements, tracked separately: when they sit on the opposite
+        // side from the wives, routing around `ax` would arc over boxes that
+        // are not in the way.
+        const mkx = [];
         // Overhead lanes: any connector that has to route OVER already-placed
         // boxes (a 2nd/3rd/4th spouse, or a milk bond) gets its own horizontal
         // lane above this person. One shared counter so spouse lanes and milk
@@ -800,16 +806,15 @@ var FamilyTreeLayoutModule;
                     dp.p[i + "-" + pi] = true;
                     dp.p[pi + "-" + i] = true;
                     // Childless placement (a milk bond never has shared children)
-                    const px = dr ? d.r : d.l - 1;
-                    PLACE_TAG = "milk dr=" + dr;
-                    if (pcx) pcx[pi] = px - (dr ? 0.5 : -0.5);
+                    const px = mdr ? d.r : d.l - 1;
+                    if (pcx) pcx[pi] = px - (mdr ? 0.5 : -0.5);
                     // Route the connector the SAME way successive spouses are
                     // routed: if partners are already placed, go around them
                     // rather than drawing one long line straight through.
-                    if (ax.length) {
-                        const xo = dr ? 0.5 : -0.5;
-                        const x1 = ax[0] - xo * (1 + ax.length / 10);
-                        const x2 = ax[ax.length - 1] + xo + xo / 10;
+                    if (mkx.length) {
+                        const xo = mdr ? 0.5 : -0.5;
+                        const x1 = mkx[0] - xo * (1 + mkx.length / 10);
+                        const x2 = mkx[mkx.length - 1] + xo + xo / 10;
                         const muy = nextLaneY();
                         addLine(d, fx, ly, x1, ly, "r");
                         addLine(d, x1, ly, x1, muy, "r");
@@ -820,8 +825,8 @@ var FamilyTreeLayoutModule;
                     } else {
                         addLine(d, fx, ly, px, ly, "r");
                     }
-                    addPersonBox(d, f, pi, i, px, cy, true, dr, true);
-                    ax[ax.length] = px;
+                    addPersonBox(d, f, pi, i, px, cy, true, mdr, true);
+                    mkx[mkx.length] = px;
                 }
                 ly -= lo;
                 uy -= uo;
@@ -986,7 +991,6 @@ var FamilyTreeLayoutModule;
                 addLine(d, fx, ly, px, ly, s);
                 addPartnerLabel(d, i, pi, fx, px, ly, true);
             }
-            PLACE_TAG = "addSpouse dr=" + dr;
             addPersonBox(d, f, pi, i, px, cy, true, dr, true);
             ax[ax.length] = px;
         }
@@ -1388,7 +1392,6 @@ var FamilyTreeLayoutModule;
                         isCurrentPartnership(f, i, p.es) ? "S" : "P",
                     );
                     addPartnerLabel(d, i, p.es, 0, sx, 0, false);
-                    PLACE_TAG = "primarySpouse sx=" + sx + " sr=" + sr;
                     addPersonBox(d, f, p.es, i, sx, 0, true, null, false);
                     personChildPositions[""] = sx;
 
@@ -1461,7 +1464,8 @@ var FamilyTreeLayoutModule;
                 i,
                 p.es,
                 h - 1,
-                !sr,
+                // Wives join wife 1 on HER side; milk bonds take the other.
+                sr,
                 0,
                 0,
                 fl,
@@ -1470,6 +1474,7 @@ var FamilyTreeLayoutModule;
                 childrenOfSpouse,
                 spouseChildPositions,
                 p.es,
+                !sr,
             );
 
             // Draw lines for children with second/third parent sets
