@@ -528,6 +528,25 @@ var FamilyTreeLayoutModule;
      * @param {string} t - Line type
      * @param {string} c - Line class
      */
+    // Rows per generation.
+    //
+    // The first attempt at this changed only the obvious placements and broke
+    // the tree, because a row coordinate is not only a position:
+    //   • mergeTreeData() takes it as a subtree OFFSET (1682, 1732, 1740)
+    //   • d.yl / d.yr are keyed BY ROW, so ad.yl[-1] at 1686 asks for a
+    //     specific row and returns undefined — hence NaN coordinates and
+    //     connectors flying the width of the tree
+    //   • drawChildrenLines takes the parent AND child rows (1684 uses -2/-1)
+    //
+    // Every one of those must move together. GEN is the only place the number
+    // lives; nothing below should contain a bare 1 or -1 meaning "a generation".
+    // 5/3 of a row. At the default 90px row that is 150px between generations,
+    // against 90px before and 180px at GEN = 2 — which read as too much empty
+    // space. Chosen for the CLEARANCE the رضاعة lanes need, not for a round
+    // number: the children bus sits midway at GEN/2 = 0.833, and lanes run
+    // 0.36, 0.435, 0.51 … so seven fit clear where one did at GEN = 1.
+    const GEN = 5 / 3;
+
     function addLine(d, x1, y1, x2, y2, t, c) {
         const l = { x1, y1, x2, y2, t };
         if (c) {
@@ -931,7 +950,7 @@ var FamilyTreeLayoutModule;
                 d,
                 ds,
                 cx,
-                cy + 1,
+                cy + GEN,
                 pi && f[pi] ? cx : fx,
                 ly,
                 pi === null ? -0.15 : 0,
@@ -1283,7 +1302,7 @@ var FamilyTreeLayoutModule;
                         dp,
                         p.es,
                     );
-                    placeChildrenGroup(d, ds, 0, 1, 0, 0, 0);
+                    placeChildrenGroup(d, ds, 0, GEN, 0, 0, 0);
                 }
             }
 
@@ -1355,7 +1374,7 @@ var FamilyTreeLayoutModule;
                         } else {
                             cx = sr ? sx - g / 2 : sx + g / 2;
                         }
-                        placeChildrenGroup(d, ds, cx, 1, cx, 0, 0);
+                        placeChildrenGroup(d, ds, cx, GEN, cx, 0, 0);
                         spouseChildPositions[p.es] = cx;
                         personChildPositions[i] = cx;
                     }
@@ -1416,7 +1435,7 @@ var FamilyTreeLayoutModule;
                                 sr
                                     ? d.r + (ds.tw - ds.fl - ds.lr) / 2
                                     : d.l - (ds.tw + ds.lr + ds.fl) / 2,
-                                1,
+                                GEN,
                                 sx,
                                 0,
                                 -0.15,
@@ -1478,7 +1497,7 @@ var FamilyTreeLayoutModule;
                                 spouseChildPositions[op || ""] + 0,
                                 [d.e[ci].x + oxy],
                                 0,
-                                1,
+                                GEN,
                                 [isParentSetNonBio(f[ci], k)],
                                 -oxy,
                             );
@@ -1498,7 +1517,7 @@ var FamilyTreeLayoutModule;
                                 personChildPositions[op || ""] + 0,
                                 [d.e[ci].x - oxy],
                                 0,
-                                1,
+                                GEN,
                                 [isParentSetNonBio(f[ci], k)],
                                 oxy,
                             );
@@ -1603,9 +1622,9 @@ var FamilyTreeLayoutModule;
                 addLine(
                     d,
                     fx + 0.05,
-                    -1,
+                    -GEN,
                     fx + 0.05,
-                    -1.45,
+                    -GEN - 0.45,
                     isParentSetNonBio(p, 2) ? "c" : "b",
                 );
             }
@@ -1613,9 +1632,9 @@ var FamilyTreeLayoutModule;
                 addLine(
                     d,
                     fx,
-                    -1,
+                    -GEN,
                     fx,
-                    -1.4,
+                    -GEN - 0.4,
                     isParentSetNonBio(p, 1) ? "c" : "b",
                 );
             } else {
@@ -1634,7 +1653,7 @@ var FamilyTreeLayoutModule;
                                 bs,
                                 h - 1,
                                 dr,
-                                -1,
+                                -GEN,
                                 fl,
                                 pg,
                                 dp,
@@ -1647,7 +1666,7 @@ var FamilyTreeLayoutModule;
                                 bs,
                                 h - 1,
                                 null,
-                                -1,
+                                -GEN,
                                 fl,
                                 pg,
                                 dp,
@@ -1679,14 +1698,14 @@ var FamilyTreeLayoutModule;
                     pg,
                     dp,
                 );
-                mergeTreeData(d, ad, bx, -1);
+                mergeTreeData(d, ad, bx, -GEN);
                 if (h > 0) {
                     drawChildrenLines(
                         d,
-                        bx + (ad.yl[-1] + ad.yr[-1] - 1) / 2,
+                        bx + (ad.yl[-GEN] + ad.yr[-GEN] - 1) / 2,
                         ax,
-                        -2,
-                        -1,
+                        -2 * GEN,
+                        -GEN,
                         gs,
                         0,
                     );
@@ -1733,33 +1752,33 @@ var FamilyTreeLayoutModule;
                         d,
                         buildAncestorTree(f, i1, h - 1, d1, true, fl, pg, dp),
                         x1,
-                        -1,
+                        -GEN,
                     );
-                    addPersonBox(d, f, i1, i2, x1, -1, false, d1, true);
+                    addPersonBox(d, f, i1, i2, x1, -GEN, false, d1, true);
                     x2 = d2 ? d.r + g - 1 : d.l - g;
                     mergeTreeData(
                         d,
                         buildAncestorTree(f, i2, h - 1, d2, true, fl, pg, dp),
                         x2,
-                        -1,
+                        -GEN,
                     );
-                    addPersonBox(d, f, i2, i1, x2, -1, false, d2, true);
+                    addPersonBox(d, f, i2, i1, x2, -GEN, false, d2, true);
                     addLine(
                         d,
                         x1,
-                        -1,
+                        -GEN,
                         x2,
-                        -1,
+                        -GEN,
                         isCurrentPartnership(f, i1, i2) ? "S" : "P",
                     );
-                    addPartnerLabel(d, i1, i2, x1, x2, -1, false);
+                    addPartnerLabel(d, i1, i2, x1, x2, -GEN, false);
                 } else {
                     const pi = p.m1 || p.f1;
                     mergeTreeData(
                         d,
                         buildAncestorTree(f, pi, h - 1, dr, true, fl, pg, dp),
                         x1,
-                        -1,
+                        -GEN,
                     );
                     addPersonBox(
                         d,
@@ -1767,7 +1786,7 @@ var FamilyTreeLayoutModule;
                         pi,
                         null,
                         x1,
-                        -1,
+                        -GEN,
                         false,
                         f[pi].g !== (fl ? "f" : "m"),
                         false,
@@ -1776,9 +1795,9 @@ var FamilyTreeLayoutModule;
                 if (da) {
                     const gr = isParentSetNonBio(p, 1);
                     const x = (x1 + x2) / 2;
-                    addLine(d, x, -0.5, x, -1, gr ? "C" : "B");
-                    addLine(d, x, -0.5, 0, -0.5, gr ? "C" : "B");
-                    addLine(d, 0, -0.5, 0, 0, gr ? "C" : "B");
+                    addLine(d, x, -GEN / 2, x, -GEN, gr ? "C" : "B");
+                    addLine(d, x, -GEN / 2, 0, -GEN / 2, gr ? "C" : "B");
+                    addLine(d, 0, -GEN / 2, 0, 0, gr ? "C" : "B");
                     const bs = getSiblings(f, i, 1);
                     if (bs.length) {
                         let sl = false;
@@ -1799,7 +1818,7 @@ var FamilyTreeLayoutModule;
                             }
                         }
                         const lx = x - (sl ? (sr ? 0.05 : 0.1) : 0);
-                        addLine(d, lx, -0.5, lx + 0.1, -0.5, gr ? "c" : "b");
+                        addLine(d, lx, -GEN / 2, lx + 0.1, -GEN / 2, gr ? "c" : "b");
                     }
                 }
             }
@@ -1929,7 +1948,7 @@ var FamilyTreeLayoutModule;
                     let mx = px,
                         fx = px;
                     const p2 = p.m2 || p.f2;
-                    drawChildrenLines(d, px, ax, -1, 0, gs, 0);
+                    drawChildrenLines(d, px, ax, -GEN, 0, gs, 0);
                     if (p.m1 && p.f1) {
                         dp.p[p.m1 + "-" + p.f1] = true;
                         dp.p[p.f1 + "-" + p.m1] = true;
@@ -1939,12 +1958,12 @@ var FamilyTreeLayoutModule;
                         addLine(
                             d,
                             mx,
-                            -1,
+                            -GEN,
                             fx,
-                            -1,
+                            -GEN,
                             isCurrentPartnership(f, p.m1, p.f1) ? "S" : "P",
                         );
-                        addPartnerLabel(d, p.m1, p.f1, mx, fx, -1, false);
+                        addPartnerLabel(d, p.m1, p.f1, mx, fx, -GEN, false);
                     }
                     if (p.m1) {
                         addPersonBox(
@@ -1953,7 +1972,7 @@ var FamilyTreeLayoutModule;
                             p.m1,
                             p.f1,
                             mx,
-                            -1,
+                            -GEN,
                             false,
                             p2 ? fl : null,
                             p2,
@@ -1966,7 +1985,7 @@ var FamilyTreeLayoutModule;
                             p.f1,
                             p.m1,
                             fx,
-                            -1,
+                            -GEN,
                             false,
                             p2 ? !fl : null,
                             p2,
@@ -1985,9 +2004,9 @@ var FamilyTreeLayoutModule;
                                     oh,
                                     fl,
                                     mx,
-                                    -1,
-                                    -1,
-                                    -1,
+                                    -GEN,
+                                    -GEN,
+                                    -GEN,
                                     fl,
                                     pg,
                                     dp,
@@ -2004,7 +2023,7 @@ var FamilyTreeLayoutModule;
                                 oh,
                                 fl,
                                 mx,
-                                -1,
+                                -GEN,
                                 fl,
                                 pg,
                                 dp,
@@ -2025,9 +2044,9 @@ var FamilyTreeLayoutModule;
                                     oh,
                                     !fl,
                                     fx,
-                                    -1,
-                                    -1,
-                                    -1,
+                                    -GEN,
+                                    -GEN,
+                                    -GEN,
                                     fl,
                                     pg,
                                     dp,
@@ -2044,7 +2063,7 @@ var FamilyTreeLayoutModule;
                                 oh,
                                 !fl,
                                 fx,
-                                -1,
+                                -GEN,
                                 fl,
                                 pg,
                                 dp,
