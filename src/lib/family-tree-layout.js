@@ -528,6 +528,24 @@ var FamilyTreeLayoutModule;
      * @param {string} t - Line type
      * @param {string} c - Line class
      */
+    // Vertical distance between a generation and its parents, in grid units.
+    //
+    // Was a hardcoded 1 in several places. Overhead lanes for رضاعة connectors
+    // start 0.36 above a box and step up by 0.075, while the parent-to-children
+    // bus sits MIDWAY between the two rows — so at a gap of 1 the bus was at
+    // 0.5 and only ONE lane fitted before they collided. A father with three
+    // milk siblings drew three connectors on top of each other and through the
+    // children line.
+    //
+    // Doubling moves the bus to 1.0 while the lanes stay put, which is what
+    // separates them. Raising the pixel row height does NOT work: both are in
+    // grid units and scale together.
+    //
+    // Blunt on purpose — every tree gets taller, including a couple with no
+    // milk bonds at all. Good for roughly six or seven lanes; past that the
+    // gap has to adapt per row instead.
+    const GEN = 2;
+
     function addLine(d, x1, y1, x2, y2, t, c) {
         const l = { x1, y1, x2, y2, t };
         if (c) {
@@ -931,7 +949,7 @@ var FamilyTreeLayoutModule;
                 d,
                 ds,
                 cx,
-                cy + 1,
+                cy + GEN,
                 pi && f[pi] ? cx : fx,
                 ly,
                 pi === null ? -0.15 : 0,
@@ -1283,7 +1301,7 @@ var FamilyTreeLayoutModule;
                         dp,
                         p.es,
                     );
-                    placeChildrenGroup(d, ds, 0, 1, 0, 0, 0);
+                    placeChildrenGroup(d, ds, 0, GEN, 0, 0, 0);
                 }
             }
 
@@ -1355,7 +1373,7 @@ var FamilyTreeLayoutModule;
                         } else {
                             cx = sr ? sx - g / 2 : sx + g / 2;
                         }
-                        placeChildrenGroup(d, ds, cx, 1, cx, 0, 0);
+                        placeChildrenGroup(d, ds, cx, GEN, cx, 0, 0);
                         spouseChildPositions[p.es] = cx;
                         personChildPositions[i] = cx;
                     }
@@ -1416,7 +1434,7 @@ var FamilyTreeLayoutModule;
                                 sr
                                     ? d.r + (ds.tw - ds.fl - ds.lr) / 2
                                     : d.l - (ds.tw + ds.lr + ds.fl) / 2,
-                                1,
+                                GEN,
                                 sx,
                                 0,
                                 -0.15,
@@ -1735,7 +1753,7 @@ var FamilyTreeLayoutModule;
                         x1,
                         -1,
                     );
-                    addPersonBox(d, f, i1, i2, x1, -1, false, d1, true);
+                    addPersonBox(d, f, i1, i2, x1, -GEN, false, d1, true);
                     x2 = d2 ? d.r + g - 1 : d.l - g;
                     mergeTreeData(
                         d,
@@ -1743,7 +1761,7 @@ var FamilyTreeLayoutModule;
                         x2,
                         -1,
                     );
-                    addPersonBox(d, f, i2, i1, x2, -1, false, d2, true);
+                    addPersonBox(d, f, i2, i1, x2, -GEN, false, d2, true);
                     addLine(
                         d,
                         x1,
@@ -1752,7 +1770,7 @@ var FamilyTreeLayoutModule;
                         -1,
                         isCurrentPartnership(f, i1, i2) ? "S" : "P",
                     );
-                    addPartnerLabel(d, i1, i2, x1, x2, -1, false);
+                    addPartnerLabel(d, i1, i2, x1, x2, -GEN, false);
                 } else {
                     const pi = p.m1 || p.f1;
                     mergeTreeData(
@@ -1776,9 +1794,9 @@ var FamilyTreeLayoutModule;
                 if (da) {
                     const gr = isParentSetNonBio(p, 1);
                     const x = (x1 + x2) / 2;
-                    addLine(d, x, -0.5, x, -1, gr ? "C" : "B");
-                    addLine(d, x, -0.5, 0, -0.5, gr ? "C" : "B");
-                    addLine(d, 0, -0.5, 0, 0, gr ? "C" : "B");
+                    addLine(d, x, -GEN / 2, x, -GEN, gr ? "C" : "B");
+                    addLine(d, x, -GEN / 2, 0, -GEN / 2, gr ? "C" : "B");
+                    addLine(d, 0, -GEN / 2, 0, 0, gr ? "C" : "B");
                     const bs = getSiblings(f, i, 1);
                     if (bs.length) {
                         let sl = false;
@@ -1929,7 +1947,7 @@ var FamilyTreeLayoutModule;
                     let mx = px,
                         fx = px;
                     const p2 = p.m2 || p.f2;
-                    drawChildrenLines(d, px, ax, -1, 0, gs, 0);
+                    drawChildrenLines(d, px, ax, -GEN, 0, gs, 0);
                     if (p.m1 && p.f1) {
                         dp.p[p.m1 + "-" + p.f1] = true;
                         dp.p[p.f1 + "-" + p.m1] = true;
@@ -1944,7 +1962,7 @@ var FamilyTreeLayoutModule;
                             -1,
                             isCurrentPartnership(f, p.m1, p.f1) ? "S" : "P",
                         );
-                        addPartnerLabel(d, p.m1, p.f1, mx, fx, -1, false);
+                        addPartnerLabel(d, p.m1, p.f1, mx, fx, -GEN, false);
                     }
                     if (p.m1) {
                         addPersonBox(
