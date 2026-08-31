@@ -768,6 +768,17 @@ var FamilyTreeLayoutModule;
         const uo = 0.1 / (yt + 1);
         let uy = cy - 0.5 + uo * (yt + 1);
         const ax = [];
+        // Milk bonds are placed on the OPPOSITE side to the marriages, and
+        // tracked separately.
+        //
+        // Before, wives and رضاعة siblings shared one side and one routing
+        // array: a father with two wives and three milk brothers put all five
+        // in one row, and each milk connector had to arc OVER the wives —
+        // three overhead lanes stacked into a band with room for one.
+        //
+        // Splitting them halves the row width, and a milk connector now routes
+        // only around other milk siblings, so most need no lane at all.
+        const mx = [];
         // Overhead lanes: any connector that has to route OVER already-placed
         // boxes (a 2nd/3rd/4th spouse, or a milk bond) gets its own horizontal
         // lane above this person. One shared counter so spouse lanes and milk
@@ -792,16 +803,18 @@ var FamilyTreeLayoutModule;
                 if (!dp.p[i + "-" + pi] && f[pi]) {
                     dp.p[i + "-" + pi] = true;
                     dp.p[pi + "-" + i] = true;
+                    // Opposite side to the marriages.
+                    const mdr = !dr;
                     // Childless placement (a milk bond never has shared children)
-                    const px = dr ? d.r : d.l - 1;
-                    if (pcx) pcx[pi] = px - (dr ? 0.5 : -0.5);
+                    const px = mdr ? d.r : d.l - 1;
+                    if (pcx) pcx[pi] = px - (mdr ? 0.5 : -0.5);
                     // Route the connector the SAME way successive spouses are
                     // routed: if partners are already placed, go around them
                     // rather than drawing one long line straight through.
-                    if (ax.length) {
-                        const xo = dr ? 0.5 : -0.5;
-                        const x1 = ax[0] - xo * (1 + ax.length / 10);
-                        const x2 = ax[ax.length - 1] + xo + xo / 10;
+                    if (mx.length) {
+                        const xo = mdr ? 0.5 : -0.5;
+                        const x1 = mx[0] - xo * (1 + mx.length / 10);
+                        const x2 = mx[mx.length - 1] + xo + xo / 10;
                         const muy = nextLaneY();
                         addLine(d, fx, ly, x1, ly, "r");
                         addLine(d, x1, ly, x1, muy, "r");
@@ -812,8 +825,8 @@ var FamilyTreeLayoutModule;
                     } else {
                         addLine(d, fx, ly, px, ly, "r");
                     }
-                    addPersonBox(d, f, pi, i, px, cy, true, dr, true);
-                    ax[ax.length] = px;
+                    addPersonBox(d, f, pi, i, px, cy, true, mdr, true);
+                    mx[mx.length] = px;
                 }
                 ly -= lo;
                 uy -= uo;
