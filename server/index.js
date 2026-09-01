@@ -1230,12 +1230,26 @@ app.post("/api/sms/send-code", smsLimiter, async (req, res) => {
       .services(verifySid)
       .verifications.create({ to: formattedPhone, channel: "sms" });
 
+    // NEVER the phone number.
+    //
+    // This passed formattedPhone as the USER ID, so every sign-in attempt wrote
+    // a plaintext number straight back into audit_logs.user_id — the column the
+    // 26 August migration cleaned, and the one operations.md §3 states holds no
+    // numbers. Four rows for a single failed attempt by someone without an
+    // account. The rule is that a credential is never a key, and this broke it
+    // on every send.
+    //
+    // Resolve the account where the number belongs to one; otherwise a marker,
+    // matching the two rows redacted by hand on production. `details` carries
+    // the last two digits only — enough to recognise a repeated attempt in a
+    // log, not enough to be a phone number.
+    const smsOwner = await findUserByIdentity("phone", formattedPhone);
     await logAudit(
-      formattedPhone,
+      smsOwner?.id || "sms-unmatched",
       "sms_sent",
       "auth",
       null,
-      { phone: formattedPhone },
+      { phoneSuffix: formattedPhone.slice(-2) },
       req,
     );
 
