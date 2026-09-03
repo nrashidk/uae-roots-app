@@ -266,12 +266,6 @@ function App() {
   const [spouseSourceFor, setSpouseSourceFor] = useState(null); // personId
   const [existingSpouseFor, setExistingSpouseFor] = useState(null); // personId
   const [linkChildrenFor, setLinkChildrenFor] = useState(null); // personId
-  // Linking an EXISTING person as a milk sibling. A رضاعة bond joins two people
-  // who may both already be in the tree from different branches — adding one
-  // through the normal form would create a duplicate of someone already there,
-  // splitting one person into two ids that maḥram then reads as two people.
-  const [linkMilkFor, setLinkMilkFor] = useState(null); // personId
-  const [linkMilkSearch, setLinkMilkSearch] = useState("");
   const [linkChildrenSelected, setLinkChildrenSelected] = useState(new Set());
   const [existingSpouseSearch, setExistingSpouseSearch] = useState("");
   // The picker fills the same panel as the edit form, so it pages rather than
@@ -536,8 +530,6 @@ function App() {
     setSpouseSourceFor(null);
     setLinkChildrenFor(null);
     setLinkChildrenSelected(new Set());
-    setLinkMilkFor(null);
-    setLinkMilkSearch("");
     // Collapse any expanded card. App never unmounts when the view changes, so
     // a record left open on الأفراد or a family left open on العائلات was still
     // open on returning — the page reopened mid-scroll on something the user had
@@ -4971,12 +4963,24 @@ function App() {
         )
         .map((r) => r.childId),
     );
+    // Partners, current or former. A wife is the same generation as her
+    // husband, so without this the list offered the person's own mother.
+    const partners = new Set(
+      rels
+        .filter(
+          (r) =>
+            r.type === "partner" &&
+            (r.person1Id === personId || r.person2Id === personId),
+        )
+        .map((r) => (r.person1Id === personId ? r.person2Id : r.person1Id)),
+    );
     return treePeople.filter(
       (c) =>
         c.id !== personId &&
         !already.has(c.id) &&
         // A blood sibling cannot also be a milk sibling — they share parents.
         !bloodSibs.has(c.id) &&
+        !partners.has(c.id) &&
         generationDepths[c.id] === selfGen,
     );
   };
@@ -4993,8 +4997,6 @@ function App() {
         isBreastfeeding: true,
       });
       setRelationships((prev) => [...prev, rel]);
-      setLinkMilkFor(null);
-      setLinkMilkSearch("");
     } catch (error) {
       console.error("Failed to link milk sibling:", error);
       window.alert("تعذّر الربط: " + error.message);
@@ -6242,6 +6244,25 @@ function App() {
                 relationshipType={relationshipType}
                 marriage={editingPerson ? latestMarriageOf(editingPerson) : null}
                 onRemoveMarriage={removeMarriage}
+                // Same generation only, computed against the person the sibling
+                // is being added to.
+                milkCandidates={
+                  relationshipType === "sibling" && selectedPerson
+                    ? eligibleMilkFor(selectedPerson).map((c) => ({
+                        id: c.id,
+                        label: getGenealogicalName(c),
+                      }))
+                    : []
+                }
+                onLinkMilk={
+                  relationshipType === "sibling" && selectedPerson
+                    ? (otherId) => {
+                        linkExistingMilkSibling(selectedPerson, otherId);
+                        setShowPersonForm(false);
+                        setRelationshipType(null);
+                      }
+                    : null
+                }
                 defaultGender={defaultSpouseGender}
                 pendingFatherId={pendingFatherId}
                 pendingMotherId={pendingMotherId}
@@ -8006,28 +8027,7 @@ function App() {
                       >
                         <UserPlus className="w-4 h-4" />
                       </Button>
-                      {/* Link an EXISTING person as a milk sibling. Separate
-                          from the button above, which always creates a new
-                          person: a رضاعة bond often joins two people already in
-                          the tree from different branches, and adding one
-                          through the form duplicates someone who is already
-                          there. Shown only when there is somebody eligible. */}
-                      {eligibleMilkFor(selectedPerson).length > 0 && (
-                        <Button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setLinkMilkSearch("");
-                            setLinkMilkFor(selectedPerson);
-                            setShowActionMenu(false);
-                          }}
-                          size="sm"
-                          variant="ghost"
-                          className="w-8 h-8 p-0 text-green-700"
-                          title="ربط أخ أو أخت بالرضاعة من الشجرة"
-                        >
-                          <Link2 className="w-4 h-4" />
-                        </Button>
-                      )}
+
                       {hasSiblings && (
                         <>
                           <Button
@@ -8248,76 +8248,6 @@ function App() {
 
         {existingSpouseFor && renderSpousePicker()}
 
-        {linkMilkFor && (
-          <Dialog
-            open={true}
-            onOpenChange={(open) => {
-              if (!open) {
-                setLinkMilkFor(null);
-                setLinkMilkSearch("");
-              }
-            }}
-          >
-            <DialogContent
-              className="sm:max-w-md"
-              dir="rtl"
-              aria-describedby={undefined}
-            >
-              <DialogHeader>
-                <DialogTitle className="text-right text-xl">
-                  ربط أخ أو أخت بالرضاعة
-                </DialogTitle>
-              </DialogHeader>
-              <div className="space-y-3">
-                <p className="text-[11px] text-gray-400 leading-relaxed">
-                  يظهر هنا من هم في الجيل نفسه فقط — الرضاعة تجمع من رضعوا معاً،
-                  فهم في مرحلة واحدة من العمر.
-                </p>
-                <input
-                  type="text"
-                  value={linkMilkSearch}
-                  onChange={(e) => setLinkMilkSearch(e.target.value)}
-                  placeholder={t.searchPlaceholder}
-                  className="w-full px-3 py-2 border rounded-md"
-                  dir="rtl"
-                />
-                {(() => {
-                  const q = linkMilkSearch.trim();
-                  const all = eligibleMilkFor(linkMilkFor).filter(
-                    (c) => !q || getGenealogicalName(c).includes(q),
-                  );
-                  if (all.length === 0) {
-                    return (
-                      <p className="text-sm text-gray-500 py-6 text-center">
-                        {q
-                          ? "لا يوجد أحد بهذا الاسم في الجيل نفسه."
-                          : "لا يوجد أحد في الجيل نفسه يمكن ربطه."}
-                      </p>
-                    );
-                  }
-                  return (
-                    <div className="max-h-72 overflow-y-auto space-y-1">
-                      {all.map((c) => (
-                        <button
-                          key={c.id}
-                          type="button"
-                          onClick={() =>
-                            linkExistingMilkSibling(linkMilkFor, c.id)
-                          }
-                          className="w-full text-right px-3 py-2 border rounded-md hover:bg-gray-50"
-                        >
-                          <span className="text-sm">
-                            {getGenealogicalName(c)}
-                          </span>
-                        </button>
-                      ))}
-                    </div>
-                  );
-                })()}
-              </div>
-            </DialogContent>
-          </Dialog>
-        )}
 
         {linkChildrenFor && renderLinkChildrenPanel()}
 
@@ -8572,6 +8502,10 @@ function PersonForm({
   selectedPersonName,
   pendingFatherId,
   pendingMotherId,
+  // Only supplied for the sibling flow. Lets the form offer an EXISTING person
+  // once رضاعة is ticked, instead of always creating a new one.
+  milkCandidates,
+  onLinkMilk,
 }) {
   const getDefaultFirstName = () => {
     if (person?.firstName) return person.firstName;
@@ -8874,6 +8808,48 @@ function PersonForm({
             </label>
           </div>
         )}
+
+        {/* Only once رضاعة is ticked. A milk bond often joins two people already
+            in the tree from different branches, and adding one through this form
+            duplicates someone who is already there — one person becoming two ids
+            that maḥram then reads as two people.
+            
+            Kept behind the toggle deliberately: adding a blood brother is the
+            common act and must not sit one click from this one. */}
+        {!person &&
+          relationshipType === "sibling" &&
+          formData.isBreastfed &&
+          onLinkMilk && (
+            <div className="border rounded-md p-3 bg-gray-50 space-y-2">
+              <div className="text-[11px] text-gray-500 leading-relaxed">
+                إن كان موجوداً في الشجرة، اختره بدل إضافته من جديد — الرضاعة قد
+                تجمع شخصين من فرعين مختلفين.
+              </div>
+              {milkCandidates && milkCandidates.length > 0 ? (
+                <select
+                  defaultValue=""
+                  onChange={(e) => {
+                    const id = Number(e.target.value);
+                    if (id) onLinkMilk(id);
+                  }}
+                  className="w-full px-3 py-2 border rounded-md bg-white text-sm"
+                  dir="rtl"
+                >
+                  <option value="">شخص جديد — أكمل النموذج</option>
+                  {milkCandidates.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.label}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <div className="text-[11px] text-gray-400">
+                  لا يوجد أحد في الجيل نفسه يمكن ربطه — أكمل النموذج لإضافة شخص
+                  جديد.
+                </div>
+              )}
+            </div>
+          )}
       </div>
 
       {!formData.isLiving && (
