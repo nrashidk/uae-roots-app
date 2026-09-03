@@ -8808,6 +8808,7 @@ function PersonForm({
             </label>
           </div>
         )}
+      </div>
 
         {/* Only once رضاعة is ticked. A milk bond often joins two people already
             in the tree from different branches, and adding one through this form
@@ -8850,7 +8851,6 @@ function PersonForm({
               )}
             </div>
           )}
-      </div>
 
       {!formData.isLiving && (
         <div>
