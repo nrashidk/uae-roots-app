@@ -8471,15 +8471,23 @@ function App() {
                         <label className="text-sm w-36 text-gray-500">
                           أخ أو أخت بالرضاعة
                         </label>
-                        <svg width="48" height="32" aria-hidden="true">
+                        {/* Same w-12 h-8 box as the colour swatches above, and
+                            the stroke spans its full width, so the line sits in
+                            the same column rather than reading as a narrower
+                            control. */}
+                        <svg
+                          className="w-12 h-8"
+                          viewBox="0 0 48 32"
+                          aria-hidden="true"
+                        >
                           <line
-                            x1="2"
+                            x1="0"
                             y1="16"
-                            x2="46"
+                            x2="48"
                             y2="16"
                             stroke="#16a34a"
                             strokeWidth="2"
-                            strokeDasharray="5 4"
+                            strokeDasharray="6 4"
                           />
                         </svg>
                       </div>
