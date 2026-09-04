@@ -8331,7 +8331,11 @@ function App() {
               <div className="grid grid-cols-3 gap-6">
                 <div>
                   <h3 className="font-medium mb-3">عرض المعلومات</h3>
-                  <div className="space-y-2">
+                  {/* Same rhythm as the الألوان column beside it: space-y-3 and
+                      an h-8 row, so each checkbox lines up with its neighbouring
+                      swatch. With space-y-2 and auto-height rows the two columns
+                      drifted further apart down the page. */}
+                  <div className="space-y-3">
                     {/* Iterate the KNOWN options, not the stored object: a key
                         that no longer exists must not appear, and one without a
                         label would render as its own variable name. */}
@@ -8343,7 +8347,7 @@ function App() {
                       return (
                       <label
                         key={key}
-                        className={`flex items-center gap-2 ${
+                        className={`flex items-center gap-2 h-8 ${
                           hasData ? "cursor-pointer" : "cursor-default"
                         }`}
                       >
