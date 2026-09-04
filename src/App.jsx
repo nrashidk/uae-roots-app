@@ -4940,8 +4940,6 @@ function App() {
   // once when documenting an older branch, so the restriction costs little and
   // stops a bond being recorded against the wrong person.
   const eligibleMilkFor = (personId) => {
-    const selfGen = generationDepths[personId];
-    if (selfGen === undefined) return [];
     const rels = relationships.filter((r) => r.treeId === currentTree?.id);
     const already = new Set(
       rels
@@ -4974,6 +4972,37 @@ function App() {
         )
         .map((r) => (r.person1Id === personId ? r.person2Id : r.person1Id)),
     );
+    // Generation RELATIVE to this person, not absolute depth.
+    //
+    // generationDepths counts recorded ancestors above someone, so it is 0 for
+    // anyone whose parents are not in the tree and grows with how much of their
+    // line has been entered. Two unrelated branches with equally deep ancestry
+    // land on the same number — which is why a wife's family showed up as her
+    // father-in-law's generation. Fine for SORTING, wrong as a filter.
+    //
+    // Walking out from the person instead: a parent is -1, a child +1, and a
+    // spouse or sibling 0. Offset 0 is this person's generation, whichever
+    // branch it is reached through.
+    const offset = { [personId]: 0 };
+    const queue = [personId];
+    while (queue.length) {
+      const id = queue.shift();
+      const step = (other, delta) => {
+        if (other == null || offset[other] !== undefined) return;
+        offset[other] = offset[id] + delta;
+        queue.push(other);
+      };
+      rels.forEach((r) => {
+        if (r.type === "parent-child") {
+          if (r.childId === id) step(r.parentId, -1);
+          if (r.parentId === id) step(r.childId, 1);
+        } else if (r.type === "partner" || r.type === "sibling") {
+          if (r.person1Id === id) step(r.person2Id, 0);
+          if (r.person2Id === id) step(r.person1Id, 0);
+        }
+      });
+    }
+
     return treePeople.filter(
       (c) =>
         c.id !== personId &&
@@ -4981,7 +5010,7 @@ function App() {
         // A blood sibling cannot also be a milk sibling — they share parents.
         !bloodSibs.has(c.id) &&
         !partners.has(c.id) &&
-        generationDepths[c.id] === selfGen,
+        offset[c.id] === 0,
     );
   };
 
@@ -6250,7 +6279,6 @@ function App() {
                   relationshipType === "sibling" && selectedPerson
                     ? eligibleMilkFor(selectedPerson).map((c) => ({
                         id: c.id,
-                        // TEMPORARY: the generation each side is compared on.
                         label: `${getGenealogicalName(c)}  ⟨ج${
                           generationDepths[c.id]
                         } · هو ج${generationDepths[selectedPerson]}⟩`,
