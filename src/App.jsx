@@ -8459,7 +8459,13 @@ function App() {
 
                         The rule above it separates settings that change from an
                         explanation that is read, so this is not mistaken for a
-                        disabled control. */}
+                        disabled control.
+
+                        NOTE: green is the ONLY colour convention the canvas
+                        has. Dashes elsewhere mean a COLLAPSED or TRUNCATED
+                        connector, not divorce — the canvas does not know about
+                        divorce at all. Do not add legend rows for conventions
+                        that are not drawn. */}
                     <div className="pt-3 mt-1 border-t">
                       <div className="flex items-center gap-2">
                         <label className="text-sm w-36 text-gray-500">
@@ -8478,8 +8484,8 @@ function App() {
                         </svg>
                       </div>
                       <p className="text-[11px] text-gray-400 mt-1 leading-relaxed">
-                        يُرسم الخطّ الأخضر المتقطّع بين المرتبطَين بالرضاعة. لون
-                        ثابت لا يتغيّر — كالإطار المتقطّع للطلاق.
+                        يُرسم الخطّ الأخضر المتقطّع بين المرتبطَين بالرضاعة.
+                        لونه ثابت لا يتغيّر.
                       </p>
                     </div>
                   </div>
