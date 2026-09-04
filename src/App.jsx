@@ -393,7 +393,6 @@ function App() {
     backgroundColor: "#f8fafc",
     maleBoxColor: "#e6f3ff",
     femaleBoxColor: "#ffe4e1",
-    breastfedBoxColor: "#d1fae5",
     livingTextColor: "#000000",
     deceasedTextColor: "#6b7280",
     boxWidth: 140,
@@ -8332,7 +8331,11 @@ function App() {
               <div className="grid grid-cols-3 gap-6">
                 <div>
                   <h3 className="font-medium mb-3">عرض المعلومات</h3>
-                  <div className="space-y-2">
+                  {/* Same rhythm as the الألوان column beside it: space-y-3 and
+                      an h-8 row, so each checkbox lines up with its neighbouring
+                      swatch. With space-y-2 and auto-height rows the two columns
+                      drifted further apart down the page. */}
+                  <div className="space-y-3">
                     {/* Iterate the KNOWN options, not the stored object: a key
                         that no longer exists must not appear, and one without a
                         label would render as its own variable name. */}
@@ -8344,7 +8347,7 @@ function App() {
                       return (
                       <label
                         key={key}
-                        className={`flex items-center gap-2 ${
+                        className={`flex items-center gap-2 h-8 ${
                           hasData ? "cursor-pointer" : "cursor-default"
                         }`}
                       >
@@ -8402,20 +8405,6 @@ function App() {
                       />
                     </div>
                     <div className="flex items-center gap-2">
-                      <label className="text-sm w-36">أخ أو أخت بالرضاعة</label>
-                      <input
-                        type="color"
-                        value={stylingOptions.breastfedBoxColor}
-                        onChange={(e) =>
-                          setStylingOptions((prev) => ({
-                            ...prev,
-                            breastfedBoxColor: e.target.value,
-                          }))
-                        }
-                        className="w-12 h-8 rounded cursor-pointer"
-                      />
-                    </div>
-                    <div className="flex items-center gap-2">
                       <label className="text-sm w-36">لون الخلفية</label>
                       <input
                         type="color"
@@ -8456,6 +8445,59 @@ function App() {
                         }
                         className="w-12 h-8 rounded cursor-pointer"
                       />
+                    </div>
+
+                    {/* A LEGEND, not a setting.
+                        
+                        The رضاعة connector colour is hardcoded and never was
+                        configurable, so a colour swatch would imply it can be
+                        changed. It also has to stay fixed for the same reason
+                        `lineColor` has no picker: رضاعة is a convention to be
+                        read, not a personal preference — if everyone picks their
+                        own colour, green stops meaning anything.
+
+                        The old swatch here controlled the BOX fill, which is
+                        gone; removing it also removed the only place the product
+                        explained what the green line means. This restores the
+                        explanation without restoring the setting.
+
+                        The rule above it separates settings that change from an
+                        explanation that is read, so this is not mistaken for a
+                        disabled control.
+
+                        NOTE: green is the ONLY colour convention the canvas
+                        has. Dashes elsewhere mean a COLLAPSED or TRUNCATED
+                        connector, not divorce — the canvas does not know about
+                        divorce at all. Do not add legend rows for conventions
+                        that are not drawn. */}
+                    {/* pt-3 only. The parent's space-y-3 already puts 12px
+                        above the rule; mt-1 on top of that dropped this row
+                        4px lower than the swatches above it. */}
+                    <div className="pt-3 border-t">
+                      <div className="flex items-center gap-2">
+                        <label className="text-sm w-36 text-gray-500">
+                          أخ أو أخت بالرضاعة
+                        </label>
+                        {/* Same w-12 h-8 box as the colour swatches above, and
+                            the stroke spans its full width, so the line sits in
+                            the same column rather than reading as a narrower
+                            control. */}
+                        <svg
+                          className="w-12 h-8"
+                          viewBox="0 0 48 32"
+                          aria-hidden="true"
+                        >
+                          <line
+                            x1="0"
+                            y1="16"
+                            x2="48"
+                            y2="16"
+                            stroke="#16a34a"
+                            strokeWidth="2"
+                            strokeDasharray="6 4"
+                          />
+                        </svg>
+                      </div>
                     </div>
                   </div>
                 </div>

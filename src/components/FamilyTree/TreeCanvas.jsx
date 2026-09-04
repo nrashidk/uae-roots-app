@@ -134,7 +134,6 @@ const TreeCanvas = ({
         // Calculate how many lines of text will be shown
         let lineCount = 1; // Name line
         const isLiving = person?.isLiving !== false;
-        const isBreastfed = person?.isBreastfed === true;
         // Line heights DERIVED from the fonts actually drawn.
         //
         // lineHeight was a constant 12 while textSize is a USER SLIDER running
@@ -207,12 +206,23 @@ const TreeCanvas = ({
         const boxX = x - w / 2;
         const boxY = y - h / 2;
 
-        // Determine box color based on gender (from personData or person)
+        // Gender only.
+        //
+        // A green box used to mark رضاعة, and it was wrong twice over:
+        //   • it REPLACED the gender colour, so a milk sibling lost the one
+        //     thing every other box carries
+        //   • it keyed on `person.isBreastfed`, a column set only when someone
+        //     is CREATED through the sibling form — so a person LINKED as a
+        //     milk sibling stayed blue or pink while a created one turned green,
+        //     for the same relationship
+        //
+        // A milk bond is a RELATIONSHIP, not a property: someone is a milk
+        // sibling OF someone, never in general. The green dashed connector says
+        // that, between the right two people, and الأفراد derives the same fact
+        // from the relationships rather than the column.
         const gender = personData.g || person?.gender;
         let boxColor = "#e5e7eb"; // default gray
-        if (isBreastfed) {
-          boxColor = stylingOptions?.breastfedBoxColor || "#d1fae5"; // light green highlight for breastfed flag
-        } else if (gender === "m" || gender === "male") {
+        if (gender === "m" || gender === "male") {
           boxColor = stylingOptions?.maleBoxColor || "#e6f3ff";
         } else if (gender === "f" || gender === "female") {
           boxColor = stylingOptions?.femaleBoxColor || "#ffe4e1";
