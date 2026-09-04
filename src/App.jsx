@@ -8466,7 +8466,10 @@ function App() {
                         connector, not divorce — the canvas does not know about
                         divorce at all. Do not add legend rows for conventions
                         that are not drawn. */}
-                    <div className="pt-3 mt-1 border-t">
+                    {/* pt-3 only. The parent's space-y-3 already puts 12px
+                        above the rule; mt-1 on top of that dropped this row
+                        4px lower than the swatches above it. */}
+                    <div className="pt-3 border-t">
                       <div className="flex items-center gap-2">
                         <label className="text-sm w-36 text-gray-500">
                           أخ أو أخت بالرضاعة
