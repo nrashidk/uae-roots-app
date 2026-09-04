@@ -8442,6 +8442,46 @@ function App() {
                         className="w-12 h-8 rounded cursor-pointer"
                       />
                     </div>
+
+                    {/* A LEGEND, not a setting.
+                        
+                        The رضاعة connector colour is hardcoded and never was
+                        configurable, so a colour swatch would imply it can be
+                        changed. It also has to stay fixed for the same reason
+                        `lineColor` has no picker: رضاعة is a convention to be
+                        read, not a personal preference — if everyone picks their
+                        own colour, green stops meaning anything.
+
+                        The old swatch here controlled the BOX fill, which is
+                        gone; removing it also removed the only place the product
+                        explained what the green line means. This restores the
+                        explanation without restoring the setting.
+
+                        The rule above it separates settings that change from an
+                        explanation that is read, so this is not mistaken for a
+                        disabled control. */}
+                    <div className="pt-3 mt-1 border-t">
+                      <div className="flex items-center gap-2">
+                        <label className="text-sm w-36 text-gray-500">
+                          أخ أو أخت بالرضاعة
+                        </label>
+                        <svg width="48" height="32" aria-hidden="true">
+                          <line
+                            x1="2"
+                            y1="16"
+                            x2="46"
+                            y2="16"
+                            stroke="#16a34a"
+                            strokeWidth="2"
+                            strokeDasharray="5 4"
+                          />
+                        </svg>
+                      </div>
+                      <p className="text-[11px] text-gray-400 mt-1 leading-relaxed">
+                        يُرسم الخطّ الأخضر المتقطّع بين المرتبطَين بالرضاعة. لون
+                        ثابت لا يتغيّر — كالإطار المتقطّع للطلاق.
+                      </p>
+                    </div>
                   </div>
                 </div>
                 <div>
