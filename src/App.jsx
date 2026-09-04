@@ -8483,10 +8483,6 @@ function App() {
                           />
                         </svg>
                       </div>
-                      <p className="text-[11px] text-gray-400 mt-1 leading-relaxed">
-                        يُرسم الخطّ الأخضر المتقطّع بين المرتبطَين بالرضاعة.
-                        لونه ثابت لا يتغيّر.
-                      </p>
                     </div>
                   </div>
                 </div>
