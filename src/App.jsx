@@ -6279,9 +6279,7 @@ function App() {
                   relationshipType === "sibling" && selectedPerson
                     ? eligibleMilkFor(selectedPerson).map((c) => ({
                         id: c.id,
-                        label: `${getGenealogicalName(c)}  ⟨ج${
-                          generationDepths[c.id]
-                        } · هو ج${generationDepths[selectedPerson]}⟩`,
+                        label: getGenealogicalName(c),
                       }))
                     : []
                 }
