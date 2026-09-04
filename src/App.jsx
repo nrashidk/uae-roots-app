@@ -4933,6 +4933,105 @@ function App() {
     proceedAddChild(personId, spouseIds[0]);
   };
 
+  // Candidates for a رضاعة bond with `personId`.
+  //
+  // SAME GENERATION only: nursing together means the same stage of life. Most
+  // milk bonds in practice belong to the parents' generation and are entered
+  // once when documenting an older branch, so the restriction costs little and
+  // stops a bond being recorded against the wrong person.
+  const eligibleMilkFor = (personId) => {
+    const rels = relationships.filter((r) => r.treeId === currentTree?.id);
+    const already = new Set(
+      rels
+        .filter(
+          (r) =>
+            r.type === "sibling" &&
+            r.isBreastfeeding &&
+            (r.person1Id === personId || r.person2Id === personId),
+        )
+        .map((r) => (r.person1Id === personId ? r.person2Id : r.person1Id)),
+    );
+    const parentIds = rels
+      .filter((r) => r.type === "parent-child" && r.childId === personId)
+      .map((r) => r.parentId);
+    const bloodSibs = new Set(
+      rels
+        .filter(
+          (r) => r.type === "parent-child" && parentIds.includes(r.parentId),
+        )
+        .map((r) => r.childId),
+    );
+    // Partners, current or former. A wife is the same generation as her
+    // husband, so without this the list offered the person's own mother.
+    const partners = new Set(
+      rels
+        .filter(
+          (r) =>
+            r.type === "partner" &&
+            (r.person1Id === personId || r.person2Id === personId),
+        )
+        .map((r) => (r.person1Id === personId ? r.person2Id : r.person1Id)),
+    );
+    // Generation RELATIVE to this person, not absolute depth.
+    //
+    // generationDepths counts recorded ancestors above someone, so it is 0 for
+    // anyone whose parents are not in the tree and grows with how much of their
+    // line has been entered. Two unrelated branches with equally deep ancestry
+    // land on the same number — which is why a wife's family showed up as her
+    // father-in-law's generation. Fine for SORTING, wrong as a filter.
+    //
+    // Walking out from the person instead: a parent is -1, a child +1, and a
+    // spouse or sibling 0. Offset 0 is this person's generation, whichever
+    // branch it is reached through.
+    const offset = { [personId]: 0 };
+    const queue = [personId];
+    while (queue.length) {
+      const id = queue.shift();
+      const step = (other, delta) => {
+        if (other == null || offset[other] !== undefined) return;
+        offset[other] = offset[id] + delta;
+        queue.push(other);
+      };
+      rels.forEach((r) => {
+        if (r.type === "parent-child") {
+          if (r.childId === id) step(r.parentId, -1);
+          if (r.parentId === id) step(r.childId, 1);
+        } else if (r.type === "partner" || r.type === "sibling") {
+          if (r.person1Id === id) step(r.person2Id, 0);
+          if (r.person2Id === id) step(r.person1Id, 0);
+        }
+      });
+    }
+
+    return treePeople.filter(
+      (c) =>
+        c.id !== personId &&
+        !already.has(c.id) &&
+        // A blood sibling cannot also be a milk sibling — they share parents.
+        !bloodSibs.has(c.id) &&
+        !partners.has(c.id) &&
+        offset[c.id] === 0,
+    );
+  };
+
+  const linkExistingMilkSibling = async (personId, otherId) => {
+    try {
+      // ONE row, exactly what the create path writes: a direct sibling link
+      // flagged breastfeeding, with NO parents inherited.
+      const rel = await api.relationships.create({
+        treeId: currentTree?.id,
+        type: "sibling",
+        person1Id: personId,
+        person2Id: otherId,
+        isBreastfeeding: true,
+      });
+      setRelationships((prev) => [...prev, rel]);
+    } catch (error) {
+      console.error("Failed to link milk sibling:", error);
+      window.alert("تعذّر الربط: " + error.message);
+    }
+  };
+
   const handleQuickCreateSibling = (personId) => {
     const selected = people.find((p) => p.id === personId);
     if (!selected) return;
@@ -6174,6 +6273,25 @@ function App() {
                 relationshipType={relationshipType}
                 marriage={editingPerson ? latestMarriageOf(editingPerson) : null}
                 onRemoveMarriage={removeMarriage}
+                // Same generation only, computed against the person the sibling
+                // is being added to.
+                milkCandidates={
+                  relationshipType === "sibling" && selectedPerson
+                    ? eligibleMilkFor(selectedPerson).map((c) => ({
+                        id: c.id,
+                        label: getGenealogicalName(c),
+                      }))
+                    : []
+                }
+                onLinkMilk={
+                  relationshipType === "sibling" && selectedPerson
+                    ? (otherId) => {
+                        linkExistingMilkSibling(selectedPerson, otherId);
+                        setShowPersonForm(false);
+                        setRelationshipType(null);
+                      }
+                    : null
+                }
                 defaultGender={defaultSpouseGender}
                 pendingFatherId={pendingFatherId}
                 pendingMotherId={pendingMotherId}
@@ -7938,6 +8056,7 @@ function App() {
                       >
                         <UserPlus className="w-4 h-4" />
                       </Button>
+
                       {hasSiblings && (
                         <>
                           <Button
@@ -8157,6 +8276,7 @@ function App() {
         )}
 
         {existingSpouseFor && renderSpousePicker()}
+
 
         {linkChildrenFor && renderLinkChildrenPanel()}
 
@@ -8411,6 +8531,10 @@ function PersonForm({
   selectedPersonName,
   pendingFatherId,
   pendingMotherId,
+  // Only supplied for the sibling flow. Lets the form offer an EXISTING person
+  // once رضاعة is ticked, instead of always creating a new one.
+  milkCandidates,
+  onLinkMilk,
 }) {
   const getDefaultFirstName = () => {
     if (person?.firstName) return person.firstName;
@@ -8714,6 +8838,48 @@ function PersonForm({
           </div>
         )}
       </div>
+
+        {/* Only once رضاعة is ticked. A milk bond often joins two people already
+            in the tree from different branches, and adding one through this form
+            duplicates someone who is already there — one person becoming two ids
+            that maḥram then reads as two people.
+            
+            Kept behind the toggle deliberately: adding a blood brother is the
+            common act and must not sit one click from this one. */}
+        {!person &&
+          relationshipType === "sibling" &&
+          formData.isBreastfed &&
+          onLinkMilk && (
+            <div className="border rounded-md p-3 bg-gray-50 space-y-2">
+              <div className="text-[11px] text-gray-500 leading-relaxed">
+                إن كان موجوداً في الشجرة، اختره بدل إضافته من جديد — الرضاعة قد
+                تجمع شخصين من فرعين مختلفين.
+              </div>
+              {milkCandidates && milkCandidates.length > 0 ? (
+                <select
+                  defaultValue=""
+                  onChange={(e) => {
+                    const id = Number(e.target.value);
+                    if (id) onLinkMilk(id);
+                  }}
+                  className="w-full px-3 py-2 border rounded-md bg-white text-sm"
+                  dir="rtl"
+                >
+                  <option value="">شخص جديد — أكمل النموذج</option>
+                  {milkCandidates.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.label}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <div className="text-[11px] text-gray-400">
+                  لا يوجد أحد في الجيل نفسه يمكن ربطه — أكمل النموذج لإضافة شخص
+                  جديد.
+                </div>
+              )}
+            </div>
+          )}
 
       {!formData.isLiving && (
         <div>
