@@ -6231,7 +6231,9 @@ function App() {
           className="fixed right-4 top-1/2 transform -translate-y-1/2 bg-white shadow-2xl border rounded-lg z-50"
           style={{
             width: "380px",
-            maxHeight: "min(800px, 85vh)",
+            // 90vh, not 85: two extra fields fit without scrolling at all on
+            // a normal screen. The sticky footer covers the rest.
+            maxHeight: "min(880px, 90vh)",
             overflow: "hidden",
           }}
         >
@@ -9001,7 +9003,18 @@ function PersonForm({
         </div>
       </div>
 
-      <div className="flex justify-end gap-2 pt-3 border-t mt-4">
+      {/* PINNED to the bottom of the scrolling panel.
+          
+          These buttons used to sit at the end of the scroll content, so any
+          field that appeared pushed تحديث out of view — ticking «متوفى» adds a
+          death-date field, ticking «بالرضاعة» adds the link panel, and either
+          one meant scrolling down to save. Raising the panel height only
+          postpones that; sticky keeps the action reachable however tall the
+          form grows.
+
+          -m-4 px-4 cancels the parent's p-4 so the bar spans the full width and
+          nothing shows through beside it while content scrolls underneath. */}
+      <div className="sticky bottom-0 -m-4 mt-4 px-4 py-3 bg-white border-t flex justify-end gap-2">
         <Button type="submit" disabled={submitting}>
           {person ? t.update : t.save}
         </Button>
