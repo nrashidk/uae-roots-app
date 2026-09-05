@@ -549,6 +549,20 @@ function App() {
       if (!insideAction && !insideForm && !insideAddButton) {
         setShowActionMenu(false);
       }
+      // الخيارات closes the same way — it used to need the X or حفظ, which is
+      // inconsistent with every other floating surface here. The trigger is
+      // excluded too, or the click that opens it would close it in the same
+      // event. Colour inputs open a NATIVE picker whose clicks land outside
+      // the panel, so the swatch itself is treated as inside.
+      const insideOptions = target.closest("[data-options-panel]");
+      const insideOptionsButton = target.closest("[data-options-button]");
+      const insideColorInput =
+        target instanceof HTMLElement &&
+        target.tagName === "INPUT" &&
+        target.getAttribute("type") === "color";
+      if (!insideOptions && !insideOptionsButton && !insideColorInput) {
+        setShowOptions(false);
+      }
     };
     document.addEventListener("click", handleDocClick, true);
     return () => document.removeEventListener("click", handleDocClick, true);
@@ -8226,6 +8240,7 @@ function App() {
 
         <div className="fixed bottom-4 left-1/2 transform -translate-x-1/2 z-40">
           <Button
+            data-options-button
             onClick={() => setShowOptions(true)}
             size="sm"
             variant="outline"
@@ -8319,7 +8334,10 @@ function App() {
 
         {showOptions && (
           <div className="fixed inset-0 z-40 pointer-events-none">
-            <div className="fixed bottom-4 left-1/2 transform -translate-x-1/2 bg-white bg-opacity-95 backdrop-blur-sm shadow-2xl border rounded-lg z-50 pointer-events-auto w-[90vw] max-w-[1000px] p-6">
+            <div
+              data-options-panel
+              className="fixed bottom-4 left-1/2 transform -translate-x-1/2 bg-white bg-opacity-95 backdrop-blur-sm shadow-2xl border rounded-lg z-50 pointer-events-auto w-[90vw] max-w-[1000px] p-6"
+            >
               <div className="flex justify-between items-center mb-4">
                 <h2 className="text-xl font-semibold">{t.options}</h2>
                 <Button
