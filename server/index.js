@@ -552,6 +552,8 @@ const userCreateSchema = z.object({
     .nullable()
     .or(z.literal(""))
     .or(z.null()),
+  // Accepted and IGNORED: the client still sends it, and rejecting the field
+  // would break sign-in for anyone on an older bundle. It is simply not stored.
   displayName: z.string().max(200).trim().optional().nullable(),
   phoneNumber: z.string().max(20).optional().nullable(),
   provider: z
@@ -2710,9 +2712,14 @@ app.post("/api/users", authenticateUser, async (req, res) => {
     if (existingUser.length > 0) {
       const [updatedUser] = await db
         .update(users)
+        // displayName is NOT stored. Google sends it at sign-in and nothing in
+        // the product ever reads it back — not the profile screen, not the tree.
+        // Storing a person's name that is never displayed is collection without
+        // purpose, and the privacy policy had to disclose a field that did
+        // nothing. The column is LEFT in place rather than dropped, like
+        // `profession`: existing rows keep whatever is already there.
         .set({
           lastLoginAt: new Date(),
-          displayName: validatedData.displayName,
           email: validatedData.email,
         })
         .where(eq(users.id, validatedData.id))
@@ -2728,7 +2735,6 @@ app.post("/api/users", authenticateUser, async (req, res) => {
       .values({
         id: validatedData.id,
         email: validatedData.email || null,
-        displayName: validatedData.displayName || null,
         phoneNumber: validatedData.phoneNumber || null,
         provider: validatedData.provider || "unknown",
         termsAcceptedAt: new Date(),
