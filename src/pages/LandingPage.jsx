@@ -42,8 +42,13 @@ const CLAIMS = [
 
 const PRIVACY = [
   {
-    h: "شجرتك خاصة",
-    p: "لا تظهر في نتائج البحث، ولا يراها مستخدم آخر. لا ملفات عامة ولا فهرسة.",
+    // "خاصة" alone became false when publishing shipped: a published tree is
+    // listed in the emirate directory and visible to anyone, and a share link
+    // opens an unpublished one to whoever holds it. The claim now says private
+    // BY DEFAULT and names the choice, rather than promising something the
+    // product no longer guarantees.
+    h: "خاصة، حتى تختار غير ذلك",
+    p: "لا يراها أحد ولا تظهر في البحث. وإن نشرتها، ظهرت في دليل إمارتك بالإعدادات التي تحدّدها أنت.",
   },
   {
     // Names the THREE fields that are actually encrypted (encryptPII is applied to

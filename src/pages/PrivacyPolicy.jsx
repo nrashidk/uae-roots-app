@@ -48,7 +48,10 @@ export function PrivacyPolicy() {
               نجمع المعلومات التي تقدمها لنا مباشرة عند استخدام خدمتنا، بما في ذلك:
             </p>
             <ul className="list-disc list-inside space-y-2 text-[#DDD6C6] mr-4">
-              <li>معلومات الحساب (البريد الإلكتروني، رقم الهاتف، اسم المستخدم)</li>
+              {/* Two fields, and only two. There is no username — there never
+                  was one. The Google display name is no longer stored either:
+                  nothing read it back, so collecting it had no purpose. */}
+              <li>معلومات الحساب: البريد الإلكتروني ورقم الهاتف</li>
               <li>بيانات شجرة العائلة (الأسماء، تواريخ الميلاد والوفاة، العلاقات الأسرية)</li>
               <li>سجلات الاستخدام والنشاط</li>
             </ul>
