@@ -8913,11 +8913,40 @@ function PersonForm({
           formData.isBreastfed &&
           onLinkMilk && (
             <div className="border rounded-md p-3 bg-gray-50 space-y-2">
+              {/* THE DIRECTION IS THE RECORD.
+                  
+                  A رضاعة bond is stored with the person you clicked as
+                  person1_id and the one you add as person2_id, and that order
+                  now MEANS something: person1 nursed from person2's MOTHER.
+                  
+                  Without it the bond is symmetric and the nursing mother is
+                  unknowable, so nothing can be derived — two of someone's milk
+                  siblings might or might not be milk siblings of each other,
+                  and the app has to stay silent. With it, same mother means
+                  related and different mothers means not.
+                  
+                  Which makes this line load-bearing: get the direction wrong
+                  and the data is wrong in a way that still looks right. Hence
+                  naming the person, and saying what to do if it is reversed. */}
+              <div className="text-[12px] text-gray-700 leading-relaxed">
+                الاتجاه مهم:{" "}
+                <span className="font-bold">
+                  {selectedPersonName} رضع من أمّ
+                </span>{" "}
+                من تضيفه الآن.
+              </div>
+              <div className="text-[11px] text-gray-400 leading-relaxed">
+                إن كان العكس، أضف الرضاعة من ذلك الشخص.
+              </div>
               <div className="text-[11px] text-gray-500 leading-relaxed">
                 إن كان موجوداً في الشجرة، اختره بدل إضافته من جديد — الرضاعة قد
                 تجمع شخصين من فرعين مختلفين.
               </div>
               {milkCandidates && milkCandidates.length > 0 ? (
+                <>
+                <div className="text-[11px] text-gray-500 leading-relaxed">
+                  اختر من رضع <span className="font-bold">{selectedPersonName}</span> من أمّه:
+                </div>
                 <select
                   defaultValue=""
                   onChange={(e) => {
@@ -8928,12 +8957,15 @@ function PersonForm({
                   dir="rtl"
                 >
                   <option value="">شخص جديد — أكمل النموذج</option>
+                  {/* Reframed from "who is his milk sibling" to "whose mother
+                      nursed him" — the direction is then unavoidable. */}
                   {milkCandidates.map((c) => (
                     <option key={c.id} value={c.id}>
                       {c.label}
                     </option>
                   ))}
                 </select>
+                </>
               ) : (
                 <div className="text-[11px] text-gray-400">
                   لا يوجد أحد في الجيل نفسه يمكن ربطه — أكمل النموذج لإضافة شخص
