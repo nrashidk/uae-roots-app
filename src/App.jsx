@@ -6310,6 +6310,12 @@ function App() {
                 defaultGender={defaultSpouseGender}
                 pendingFatherId={pendingFatherId}
                 pendingMotherId={pendingMotherId}
+                selectedPersonGender={
+                  selectedPerson
+                    ? treePeople.find((p) => p.id === selectedPerson)?.gender ||
+                      null
+                    : null
+                }
                 selectedPersonName={
                   selectedPerson
                     ? (() => {
@@ -8591,6 +8597,9 @@ function PersonForm({
   defaultGender,
   defaultFirstName,
   selectedPersonName,
+  // Needed for verb agreement: رضع for a man, رضعت for a woman. Getting it
+  // wrong is a grammatical error, not an informality.
+  selectedPersonGender,
   pendingFatherId,
   pendingMotherId,
   // Only supplied for the sibling flow. Lets the form offer an EXISTING person
@@ -8929,7 +8938,10 @@ function PersonForm({
                   and the data is wrong in a way that still looks right. Hence
                   naming the person, and saying what to do if it is reversed. */}
               <div className="text-[12px] text-gray-700 leading-relaxed">
-                <span className="font-bold">{selectedPersonName} رضع من أمّ</span>{" "}
+                <span className="font-bold">
+                  {selectedPersonName}{" "}
+                  {selectedPersonGender === "female" ? "رضعت" : "رضع"} من أمّ
+                </span>{" "}
                 من تختاره أو تضيفه.
               </div>
               <div className="text-[11px] text-gray-400 leading-relaxed">
