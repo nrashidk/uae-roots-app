@@ -2368,6 +2368,15 @@ function App() {
   };
 
   const handleLogout = async () => {
+    // Undo is scoped to the login, so signing out ends it. Warned only when
+    // there is actually something to lose — a confirmation that fires every
+    // time teaches people to dismiss it unread.
+    if (restorableDeletion) {
+      const ok = window.confirm(
+        "تسجيل الخروج ينهي إمكانية التراجع عن تعديلات هذه الجلسة.\nهل تريد المتابعة؟",
+      );
+      if (!ok) return;
+    }
     try {
       // Call backend logout API to clear httpOnly cookie
       try {

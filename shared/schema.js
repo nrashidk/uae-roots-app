@@ -46,6 +46,16 @@ export const users = pgTable("users", {
   // It carries no authority. Firebase or the SMS code remains the only way in;
   // this is evidence of prior holdership, not a credential.
   currentSessionId: text("current_session_id"),
+  // When the CURRENT login began. Undo is scoped to it: the button offers only
+  // what you did in this session, the way an editor's undo stack dies with the
+  // document. Without this, تراجع reached back through everything ever done —
+  // fifty actions, no time limit — so pressing it idly could resurrect someone
+  // deliberately removed months ago.
+  //
+  // A timestamp rather than threading a session id through all 8 recordUndo
+  // call sites: `deletions` rows are already stamped with deleted_at, so the
+  // filter is a comparison rather than a new column on every write path.
+  sessionStartedAt: timestamp("session_started_at"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   lastLoginAt: timestamp("last_login_at").defaultNow().notNull(),
 });
