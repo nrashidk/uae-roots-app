@@ -20,7 +20,7 @@ import {
   deletions,
   authIdentities,
 } from "../shared/schema.js";
-import { eq, and, or, ilike, desc, lt, inArray, isNull, sql } from "drizzle-orm";
+import { eq, and, or, ilike, desc, lt, gte, inArray, isNull, sql } from "drizzle-orm";
 import { z } from "zod";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -840,7 +840,8 @@ const startSession = async (res, userId) => {
   try {
     await db
       .update(users)
-      .set({ currentSessionId: sid })
+      // sessionStartedAt scopes UNDO to this login — see the schema comment.
+      .set({ currentSessionId: sid, sessionStartedAt: new Date() })
       .where(eq(users.id, userId));
     res.cookie(SID_COOKIE_NAME, sid, SID_COOKIE_OPTIONS);
   } catch (error) {
@@ -3525,6 +3526,12 @@ app.get("/api/deletions/:treeId", authenticateUser, async (req, res) => {
       return res.status(403).json({ error: ownership.error });
     }
 
+    const [me] = await db
+      .select({ sessionStartedAt: users.sessionStartedAt })
+      .from(users)
+      .where(eq(users.id, req.userId));
+    const sessionStart = me?.sessionStartedAt || null;
+
     // The client needs `kind` and `groupId` to collapse a group into one action,
     // and NAMES to say what undoing would do. This used to return counts only —
     // so the group collapse and the preview both read fields that were never
@@ -3559,7 +3566,29 @@ app.get("/api/deletions/:treeId", authenticateUser, async (req, res) => {
         relationshipsAfterCount: sql`jsonb_array_length(${deletions.relationshipsAfter})`,
       })
       .from(deletions)
-      .where(eq(deletions.treeId, treeId))
+      // ONLY this login's actions.
+      //
+      // Undo used to reach back through every un-restored entry, fifty deep and
+      // with no time limit, so a stray press could restore someone removed
+      // months ago. Scoping it to the session makes تراجع mean "what I just
+      // did", which is what people expect from an undo button.
+      //
+      // The rows themselves are NOT touched: `deletions` stays the recovery
+      // record and the evidence trail operations.md relies on. What changes is
+      // only what the button is offered.
+      //
+      // A session lasts at most SESSION_HOURS (48), so this is never a long
+      // window. A NULL sessionStartedAt — a session begun before this column
+      // existed — offers nothing rather than everything, which is the safe way
+      // round.
+      .where(
+        and(
+          eq(deletions.treeId, treeId),
+          sessionStart
+            ? gte(deletions.deletedAt, sessionStart)
+            : sql`false`,
+        ),
+      )
       .orderBy(desc(deletions.id))
       .limit(50);
 
