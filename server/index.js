@@ -1598,6 +1598,17 @@ app.post("/api/auth/token", loginLimiter, async (req, res) => {
     // A real login takes over: new session id, stored and handed to this browser.
     // A restore keeps the one it already holds — rotating it there would treat a
     // cookie expiring as if it were a sign-in.
+    // TEMPORARY DIAGNOSTIC — remove once the session stamp is understood.
+    // session_started_at stays null after a real login, and startSession logs
+    // no failure, so it is not being reached. These are the two values that
+    // decide that.
+    console.log(
+      "[session]",
+      "resolvedUserId=" + resolvedUserId,
+      "existingAccount=" + (existingAccount ? "yes" : "NO"),
+      "restoring=" + restoring,
+      "provider=" + provider,
+    );
     if (existingAccount && !restoring) {
       await startSession(res, resolvedUserId);
     }
