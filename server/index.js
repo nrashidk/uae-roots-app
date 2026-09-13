@@ -19,6 +19,7 @@ import {
   editHistory,
   deletions,
   authIdentities,
+  treeCopies,
 } from "../shared/schema.js";
 import { eq, and, or, ilike, desc, lt, gte, inArray, isNull, sql } from "drizzle-orm";
 import { z } from "zod";
@@ -501,6 +502,125 @@ const PUBLIC_FIELD_KEYS = [
   "age",
   "birthPlace",
 ];
+
+// Fields a COPY may carry, per person.
+//
+// firstName, gender and birthOrder are absent BY DESIGN — they are always
+// copied and never offered. The layout depends on them: gender sets the box
+// colour and which side a wife is placed, birthOrder sets sibling sequence, and
+// a person with no first name draws as a blank box. Offering them as choices
+// would permit a copy that cannot be drawn.
+//
+// phone and email are absent for a different reason: the answer is always no.
+// Unlike the staging copy, a recipient on production decrypts under the same
+// key, so copying them would hand over relatives' contact details.
+const COPY_FIELD_KEYS = [
+  "lastName",
+  "birthDate",
+  "birthPlace",
+  "deathDate",
+  "summary",
+  "milk",
+];
+
+// Always copied, whatever the whitelist says.
+const COPY_FORCED_FIELDS = ["firstName", "gender", "birthOrder", "isLiving"];
+
+// Everyone still in the copy after the sender's removals, plus the
+// relationships that remain wholly inside that set.
+//
+// A relationship whose other end was removed is DROPPED, not kept dangling:
+// convertToAlgorithmFormat filters both lists by treeId and a reference to a
+// missing person yields an empty layout and a single box.
+const buildCopyScope = (allPeople, allRels, excludedIds, fields) => {
+  const excluded = new Set(excludedIds.map(Number));
+  const kept = allPeople.filter((p) => !excluded.has(p.id));
+  const keptIds = new Set(kept.map((p) => p.id));
+
+  const wanted = new Set(fields);
+  const includeMilk = wanted.has("milk");
+
+  const projected = kept.map((p) => {
+    const out = {};
+    // Explicit assignment, never a spread of the row — the same rule the public
+    // payload follows. A column added to `people` tomorrow cannot reach a copy
+    // unless someone writes a line to put it there.
+    for (const k of COPY_FORCED_FIELDS) out[k] = p[k] ?? null;
+    out.id = p.id;
+    if (wanted.has("lastName")) out.lastName = p.lastName ?? null;
+    if (wanted.has("birthDate")) out.birthDate = p.birthDate ?? null;
+    if (wanted.has("birthPlace")) out.birthPlace = p.birthPlace ?? null;
+    if (wanted.has("deathDate")) out.deathDate = p.deathDate ?? null;
+    if (wanted.has("summary")) out.summary = p.summary ?? null;
+    // isBreastfed rides with the رضاعة choice: the column marks someone created
+    // through the sibling form, and without the bonds it means nothing.
+    out.isBreastfed = includeMilk ? p.isBreastfed === true : false;
+    return out;
+  });
+
+  const rels = allRels.filter((r) => {
+    const ends = [r.person1Id, r.person2Id, r.parentId, r.childId].filter(
+      (x) => x != null,
+    );
+    if (!ends.length || !ends.every((id) => keptIds.has(id))) return false;
+    if (!includeMilk && r.type === "sibling" && r.isBreastfeeding) return false;
+    return true;
+  });
+
+  const projectedRels = rels.map((r) => ({
+    id: r.id,
+    type: r.type,
+    person1Id: r.person1Id ?? null,
+    person2Id: r.person2Id ?? null,
+    parentId: r.parentId ?? null,
+    childId: r.childId ?? null,
+    // Direction MEANS something on a رضاعة bond — person1 nursed from person2's
+    // mother — so the pair order is preserved exactly as stored.
+    isBreastfeeding: includeMilk ? r.isBreastfeeding === true : false,
+    parentSet: r.parentSet ?? null,
+    status: r.status ?? null,
+  }));
+
+  return { people: projected, relationships: projectedRels };
+};
+
+// Anyone left unreachable once `removedIds` go.
+//
+// Removing a wife removes her family: they are not deleted, they are STRANDED,
+// and a person with no connection draws as an isolated box. So the cascade is
+// computed and named before the removal is confirmed.
+const strandedBy = (allPeople, allRels, removedIds, rootId) => {
+  const gone = new Set(removedIds.map(Number));
+  const adj = new Map();
+  const link = (a, b) => {
+    if (a == null || b == null || gone.has(a) || gone.has(b)) return;
+    if (!adj.has(a)) adj.set(a, []);
+    if (!adj.has(b)) adj.set(b, []);
+    adj.get(a).push(b);
+    adj.get(b).push(a);
+  };
+  allRels.forEach((r) => {
+    if (r.type === "parent-child") link(r.parentId, r.childId);
+    else link(r.person1Id, r.person2Id);
+  });
+
+  const start = gone.has(Number(rootId)) ? null : Number(rootId);
+  if (start == null) return [];
+  const seen = new Set([start]);
+  const queue = [start];
+  while (queue.length) {
+    const id = queue.shift();
+    for (const n of adj.get(id) || []) {
+      if (!seen.has(n)) {
+        seen.add(n);
+        queue.push(n);
+      }
+    }
+  }
+  return allPeople
+    .filter((p) => !gone.has(p.id) && !seen.has(p.id))
+    .map((p) => p.id);
+};
 
 // Settings the OWNER controls on their own tree. Deliberately does NOT include
 // createdBy — ownership is not something a request may reassign.
