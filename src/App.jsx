@@ -7009,9 +7009,12 @@ function App() {
                     with no py and h-9 too: `py-2` made it ~38px against a
                     size="sm" Button's 32px, so they could never line up. */}
                 <div className="flex gap-2 mb-3 h-9 items-stretch">
+                  {/* w-36 on every action control in this section, so the
+                      two cards' rows read as one row. The code input takes
+                      whatever is left. */}
                   <Button
                     size="sm"
-                    className="h-9"
+                    className="h-9 w-36"
                     onClick={openPrepareCopy}
                     disabled={!treePeople.length}
                   >
@@ -7021,7 +7024,7 @@ function App() {
                     <Button
                       size="sm"
                       variant="outline"
-                      className="h-9"
+                      className="h-9 w-36"
                       onClick={() => setShowCopyLog(true)}
                     >
                       السجلّ ({copyLog.length})
@@ -7078,7 +7081,7 @@ function App() {
                       <Button
                         size="sm"
                         variant="outline"
-                        className="h-9"
+                        className="h-9 w-36"
                         onClick={checkRedeemCode}
                         disabled={copyBusy}
                       >
@@ -7115,15 +7118,15 @@ function App() {
                         شجرتك فارغة، فلا شيء يُحذف. تصير النسخة شجرتك.
                       </div>
                     )}
-                    <div className="flex gap-2">
+                    <div className="flex gap-2 h-9 items-stretch">
                       <Button
                         size="sm"
                         disabled={copyBusy}
-                        className={
+                        className={`h-9 w-36 ${
                           redeemInfo.myPeopleCount > 0
                             ? "bg-red-600 hover:bg-red-700"
                             : ""
-                        }
+                        }`}
                         onClick={() =>
                           redeemInfo.myPeopleCount > 0
                             ? setShowRedeemConfirm(true)
@@ -7137,6 +7140,7 @@ function App() {
                       <Button
                         size="sm"
                         variant="outline"
+                        className="h-9 w-36"
                         onClick={() => {
                           setRedeemInfo(null);
                           setRedeemCode("");
