@@ -589,13 +589,21 @@ const buildCopyScope = (allPeople, allRels, excludedIds, fields) => {
 // Removing a wife removes her family: they are not deleted, they are STRANDED,
 // and a person with no connection draws as an isolated box. So the cascade is
 // computed and named before the removal is confirmed.
-const strandedBy = (allPeople, allRels, removedIds, rootId) => {
+//
+// Anchored on the LARGEST remaining component, not on a root person: `trees`
+// has no root column, and an earlier draft passed an undefined id — with no
+// anchor the walk reaches nobody and every single person reads as stranded.
+// Largest-component is also what the public payload's reach { drawn, eligible }
+// already does, so the two cannot disagree.
+const strandedBy = (allPeople, allRels, removedIds) => {
   const gone = new Set(removedIds.map(Number));
+  const alive = allPeople.filter((p) => !gone.has(p.id));
+  if (!alive.length) return [];
+
   const adj = new Map();
+  alive.forEach((p) => adj.set(p.id, []));
   const link = (a, b) => {
-    if (a == null || b == null || gone.has(a) || gone.has(b)) return;
-    if (!adj.has(a)) adj.set(a, []);
-    if (!adj.has(b)) adj.set(b, []);
+    if (a == null || b == null || !adj.has(a) || !adj.has(b)) return;
     adj.get(a).push(b);
     adj.get(b).push(a);
   };
@@ -604,22 +612,27 @@ const strandedBy = (allPeople, allRels, removedIds, rootId) => {
     else link(r.person1Id, r.person2Id);
   });
 
-  const start = gone.has(Number(rootId)) ? null : Number(rootId);
-  if (start == null) return [];
-  const seen = new Set([start]);
-  const queue = [start];
-  while (queue.length) {
-    const id = queue.shift();
-    for (const n of adj.get(id) || []) {
-      if (!seen.has(n)) {
-        seen.add(n);
-        queue.push(n);
+  const seen = new Set();
+  let biggest = [];
+  for (const p of alive) {
+    if (seen.has(p.id)) continue;
+    const comp = [];
+    const queue = [p.id];
+    seen.add(p.id);
+    while (queue.length) {
+      const id = queue.shift();
+      comp.push(id);
+      for (const n of adj.get(id) || []) {
+        if (!seen.has(n)) {
+          seen.add(n);
+          queue.push(n);
+        }
       }
     }
+    if (comp.length > biggest.length) biggest = comp;
   }
-  return allPeople
-    .filter((p) => !gone.has(p.id) && !seen.has(p.id))
-    .map((p) => p.id);
+  const kept = new Set(biggest);
+  return alive.filter((p) => !kept.has(p.id)).map((p) => p.id);
 };
 
 // Settings the OWNER controls on their own tree. Deliberately does NOT include
@@ -2075,6 +2088,229 @@ app.post(
     }
   },
 );
+
+// ===== Tree copies =====
+//
+// A copy is DISTRIBUTION, not display: it hands names, birth dates and birth
+// places to someone who did not have them, permanently. Hence the log that
+// outlives audit_logs, and the field whitelist that phone and email are not on.
+
+// Unambiguous alphabet: no 0/O, no 1/I/L. The code gets read aloud and retyped.
+const COPY_CODE_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
+const newCopyCode = () => {
+  const bytes = crypto.randomBytes(8);
+  let out = "";
+  for (let i = 0; i < 8; i++) {
+    out += COPY_CODE_ALPHABET[bytes[i] % COPY_CODE_ALPHABET.length];
+  }
+  return out;
+};
+
+const copyPrepareSchema = z.object({
+  treeId: z.coerce.number().int().positive(),
+  excludedIds: z.array(z.coerce.number().int()).max(5000).default([]),
+  fields: z.array(z.enum(COPY_FIELD_KEYS)).default([]),
+});
+
+// What the sender is about to hand over — counts only, no code created.
+//
+// Separate from prepare so the screen can show a live total as people are
+// removed without minting a code on every keystroke.
+app.post("/api/copies/preview", authenticateUser, async (req, res) => {
+  try {
+    const { treeId, excludedIds, fields } = copyPrepareSchema.parse(req.body);
+    const ownership = await verifyTreeOwnership(treeId, req.userId);
+    if (!ownership.valid) {
+      return res.status(403).json({ error: ownership.error });
+    }
+    const allPeople = await db
+      .select()
+      .from(people)
+      .where(eq(people.treeId, treeId));
+    const allRels = await db
+      .select()
+      .from(relationships)
+      .where(eq(relationships.treeId, treeId));
+
+    const stranded = strandedBy(allPeople, allRels, excludedIds);
+    const scope = buildCopyScope(
+      allPeople,
+      allRels,
+      [...excludedIds, ...stranded],
+      fields,
+    );
+    res.json({
+      peopleCount: scope.people.length,
+      relationshipsCount: scope.relationships.length,
+      strandedIds: stranded,
+      totalPeople: allPeople.length,
+    });
+  } catch (error) {
+    handleError(res, error, "Preview copy", req);
+  }
+});
+
+// Freeze the snapshot and mint the code.
+app.post("/api/copies", authenticateUser, async (req, res) => {
+  try {
+    const { treeId, excludedIds, fields } = copyPrepareSchema.parse(req.body);
+    const ownership = await verifyTreeOwnership(treeId, req.userId);
+    if (!ownership.valid) {
+      return res.status(403).json({ error: ownership.error });
+    }
+    const allPeople = await db
+      .select()
+      .from(people)
+      .where(eq(people.treeId, treeId));
+    const allRels = await db
+      .select()
+      .from(relationships)
+      .where(eq(relationships.treeId, treeId));
+
+    const stranded = strandedBy(allPeople, allRels, excludedIds);
+    const scope = buildCopyScope(
+      allPeople,
+      allRels,
+      [...excludedIds, ...stranded],
+      fields,
+    );
+    if (!scope.people.length) {
+      return res.status(400).json({ error: "لا يمكن إنشاء نسخة فارغة" });
+    }
+
+    const expires = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+    const [row] = await db
+      .insert(treeCopies)
+      .values({
+        code: newCopyCode(),
+        sourceTreeId: treeId,
+        createdBy: req.userId,
+        fields: fields.join(","),
+        people: scope.people,
+        relationships: scope.relationships,
+        peopleCount: scope.people.length,
+        relationshipsCount: scope.relationships.length,
+        expiresAt: expires,
+      })
+      .returning();
+
+    await logAudit(req.userId, "create", "copy", String(row.id), {
+      peopleCount: row.peopleCount,
+      fields: row.fields,
+    }, req);
+
+    res.json({
+      id: row.id,
+      code: row.code,
+      peopleCount: row.peopleCount,
+      relationshipsCount: row.relationshipsCount,
+      expiresAt: row.expiresAt,
+    });
+  } catch (error) {
+    handleError(res, error, "Create copy", req);
+  }
+});
+
+// The sender's log. Rows are KEPT after use — see the schema comment.
+app.get("/api/copies", authenticateUser, async (req, res) => {
+  try {
+    const rows = await db
+      .select({
+        id: treeCopies.id,
+        code: treeCopies.code,
+        fields: treeCopies.fields,
+        peopleCount: treeCopies.peopleCount,
+        relationshipsCount: treeCopies.relationshipsCount,
+        createdAt: treeCopies.createdAt,
+        expiresAt: treeCopies.expiresAt,
+        usedAt: treeCopies.usedAt,
+        cancelledAt: treeCopies.cancelledAt,
+      })
+      .from(treeCopies)
+      .where(eq(treeCopies.createdBy, req.userId))
+      .orderBy(desc(treeCopies.id))
+      .limit(50);
+    // NOT who redeemed it — that column does not exist, deliberately.
+    res.json(rows);
+  } catch (error) {
+    handleError(res, error, "List copies", req);
+  }
+});
+
+// Cancel an unredeemed code. A used one cannot be recalled.
+app.post("/api/copies/:id/cancel", authenticateUser, async (req, res) => {
+  try {
+    const id = validateId(req.params.id);
+    const [row] = await db
+      .select()
+      .from(treeCopies)
+      .where(and(eq(treeCopies.id, id), eq(treeCopies.createdBy, req.userId)));
+    if (!row) return res.status(404).json({ error: "غير موجود" });
+    if (row.usedAt) {
+      return res.status(400).json({ error: "استُعملت النسخة، ولا يمكن إلغاؤها" });
+    }
+    await db
+      .update(treeCopies)
+      .set({ cancelledAt: new Date() })
+      .where(eq(treeCopies.id, id));
+    await logAudit(req.userId, "update", "copy", String(id), { action: "cancel" }, req);
+    res.json({ success: true });
+  } catch (error) {
+    handleError(res, error, "Cancel copy", req);
+  }
+});
+
+// What is behind a code, before committing to it.
+//
+// 404 for unknown, expired, cancelled and already-used alike, with no hint
+// which — the same rule the share link follows, so someone trying codes learns
+// nothing about which were ever real.
+app.get("/api/copies/code/:code", authenticateUser, async (req, res) => {
+  try {
+    const code = String(req.params.code || "").trim().toUpperCase();
+    if (!/^[A-Z2-9]{8}$/.test(code)) {
+      return res.status(404).json({ error: "رمز غير صالح" });
+    }
+    const [row] = await db
+      .select()
+      .from(treeCopies)
+      .where(eq(treeCopies.code, code));
+    if (
+      !row ||
+      row.usedAt ||
+      row.cancelledAt ||
+      new Date(row.expiresAt) < new Date()
+    ) {
+      return res.status(404).json({ error: "رمز غير صالح" });
+    }
+    // A sender redeeming their own code would replace their tree with a copy of
+    // itself — pointless and destructive.
+    if (row.createdBy === req.userId) {
+      return res.status(400).json({ error: "لا يمكنك استلام نسختك" });
+    }
+
+    const [sender] = await db
+      .select({ tree: trees.familyName })
+      .from(trees)
+      .where(eq(trees.id, row.sourceTreeId));
+    const mine = await db
+      .select({ id: people.id })
+      .from(people)
+      .innerJoin(trees, eq(trees.id, people.treeId))
+      .where(eq(trees.createdBy, req.userId));
+
+    res.json({
+      id: row.id,
+      peopleCount: row.peopleCount,
+      relationshipsCount: row.relationshipsCount,
+      fields: row.fields,
+      senderFamily: sender?.tree || null,
+      myPeopleCount: mine.length,
+    });
+  } catch (error) {
+    handleError(res, error, "Check copy code", req);
+  }
+});
 
 app.post("/api/auth/logout", authenticateUser, async (req, res) => {
   await logAudit(req.userId, "logout", "auth", null, null, req);
