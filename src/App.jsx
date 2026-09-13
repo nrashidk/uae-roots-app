@@ -7074,7 +7074,10 @@ function App() {
                         placeholder="K7M29QX8"
                         maxLength={8}
                         dir="ltr"
-                        className={`flex-1 h-9 px-3 border rounded-md text-sm tracking-widest ${
+                        // w-36, not flex-1: eight characters need no more, and
+                        // a stretched field made this row look nothing like the
+                        // two fixed buttons in the card opposite.
+                        className={`h-9 w-36 px-3 border rounded-md text-sm tracking-widest text-center ${
                           redeemError ? "border-red-300" : ""
                         }`}
                       />
