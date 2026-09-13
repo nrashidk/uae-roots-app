@@ -2312,6 +2312,154 @@ app.get("/api/copies/code/:code", authenticateUser, async (req, res) => {
   }
 });
 
+// Redeem a code: the recipient's tree is REPLACED by the snapshot.
+//
+// Replace, not merge. Merging means deciding that THIS راشد is THAT راشد — two
+// people of the same name and generation with no dates look identical, a wrong
+// match fuses two relatives into one and a missed one leaves duplicates, and
+// neither announces itself. So nothing is matched; the tree is emptied and
+// refilled, and the whole thing is one undo entry.
+//
+// In a TRANSACTION because the ids have to be remapped: relationships in the
+// snapshot reference the SENDER's person ids, which mean nothing here. A loop
+// of statements can half-apply and leave relationships pointing at rows that
+// were never inserted.
+app.post("/api/copies/code/:code/redeem", authenticateUser, async (req, res) => {
+  try {
+    const code = String(req.params.code || "").trim().toUpperCase();
+    if (!/^[A-Z2-9]{8}$/.test(code)) {
+      return res.status(404).json({ error: "رمز غير صالح" });
+    }
+    const [copy] = await db
+      .select()
+      .from(treeCopies)
+      .where(eq(treeCopies.code, code));
+    if (
+      !copy ||
+      copy.usedAt ||
+      copy.cancelledAt ||
+      new Date(copy.expiresAt) < new Date()
+    ) {
+      return res.status(404).json({ error: "رمز غير صالح" });
+    }
+    if (copy.createdBy === req.userId) {
+      return res.status(400).json({ error: "لا يمكنك استلام نسختك" });
+    }
+
+    // The recipient's own tree, created if they have none — the same
+    // idempotent rule POST /api/trees follows, so no second tree appears.
+    let [myTree] = await db
+      .select()
+      .from(trees)
+      .where(eq(trees.createdBy, req.userId))
+      .orderBy(trees.id)
+      .limit(1);
+    if (!myTree) {
+      [myTree] = await db
+        .insert(trees)
+        .values({ name: "شجرتي", createdBy: req.userId })
+        .returning();
+    }
+    const treeId = myTree.id;
+
+    const result = await db.transaction(async (tx) => {
+      // BEFORE state, for undo. Raw rows: phone/email are ciphertext here and
+      // stay that way, which is what a restore needs.
+      const peopleBefore = await tx
+        .select()
+        .from(people)
+        .where(eq(people.treeId, treeId));
+      const relsBefore = await tx
+        .select()
+        .from(relationships)
+        .where(eq(relationships.treeId, treeId));
+
+      await tx.delete(relationships).where(eq(relationships.treeId, treeId));
+      await tx.delete(people).where(eq(people.treeId, treeId));
+
+      // Insert the snapshot's people and learn their NEW ids. The snapshot's
+      // own `id` is the sender's and is dropped on the way in.
+      const idMap = new Map();
+      const insertedPeople = [];
+      for (const src of copy.people) {
+        const { id: oldId, ...fields } = src;
+        const [row] = await tx
+          .insert(people)
+          .values({ ...fields, treeId })
+          .returning();
+        idMap.set(oldId, row.id);
+        insertedPeople.push(row);
+      }
+
+      // Remap every reference. A relationship whose end is missing from the map
+      // is DROPPED rather than inserted with a null — buildCopyScope already
+      // excluded those, so this is a belt-and-braces check, not a filter.
+      const insertedRels = [];
+      for (const src of copy.relationships) {
+        const map = (x) => (x == null ? null : idMap.get(x));
+        const p1 = map(src.person1Id);
+        const p2 = map(src.person2Id);
+        const pa = map(src.parentId);
+        const ch = map(src.childId);
+        const ends = [src.person1Id, src.person2Id, src.parentId, src.childId]
+          .filter((x) => x != null);
+        if (!ends.every((x) => idMap.has(x))) continue;
+        const [row] = await tx
+          .insert(relationships)
+          .values({
+            treeId,
+            type: src.type,
+            person1Id: p1,
+            person2Id: p2,
+            parentId: pa,
+            childId: ch,
+            isBreastfeeding: src.isBreastfeeding === true,
+            parentSet: src.parentSet ?? null,
+            status: src.status ?? null,
+          })
+          .returning();
+        insertedRels.push(row);
+      }
+
+      await tx
+        .update(treeCopies)
+        .set({ usedAt: new Date() })
+        .where(eq(treeCopies.id, copy.id));
+
+      return { peopleBefore, relsBefore, insertedPeople, insertedRels };
+    });
+
+    // ONE undo entry for the whole replacement, so تراجع reverses it in a single
+    // press rather than person by person.
+    await recordUndo({
+      treeId,
+      userId: req.userId,
+      kind: "delete",
+      label: `استلام نسخة (${copy.peopleCount} فرداً)`,
+      peopleBefore: result.peopleBefore,
+      relationshipsBefore: result.relsBefore,
+      peopleAfter: result.insertedPeople,
+      relationshipsAfter: result.insertedRels,
+    });
+
+    await logAudit(req.userId, "create", "copy", String(copy.id), {
+      action: "redeem",
+      peopleCount: result.insertedPeople.length,
+      replaced: result.peopleBefore.length,
+    }, req);
+
+    res.json({
+      success: true,
+      treeId,
+      peopleCount: result.insertedPeople.length,
+      relationshipsCount: result.insertedRels.length,
+      replacedPeople: result.peopleBefore.length,
+    });
+  } catch (error) {
+    handleError(res, error, "Redeem copy", req);
+  }
+});
+
 app.post("/api/auth/logout", authenticateUser, async (req, res) => {
   await logAudit(req.userId, "logout", "auth", null, null, req);
   res.clearCookie("auth_token", COOKIE_OPTIONS);
