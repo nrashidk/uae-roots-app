@@ -6988,7 +6988,7 @@ function App() {
                 screen explaining two opposite outcomes gets got wrong on the
                 dangerous one. */}
             <h3 className="text-sm font-bold text-gray-500 mt-8 mb-3">
-              النسخ — شجرة يملكها غيرك
+              النسخ — إرسال واستلام
             </h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {/* إرسال نسخة */}
