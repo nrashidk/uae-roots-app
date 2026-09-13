@@ -6867,18 +6867,11 @@ function App() {
                 الشجرة.
               </div>
 
-              {/* Names the MISSING requirement, not both. Clearing the emirate on
-                  a published tree unpublishes it, and the user then met a greyed
-                  toggle that did not say which of the two prerequisites had gone. */}
-              {!settingsCanPublish && (
-                <div className="mb-3 text-[12px] leading-relaxed text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-3 py-2">
-                  {!settingsHasName && !settingsHasEmirate
-                    ? "لتفعيل النشر: أكّد اسم العائلة ثم اختر الإمارة."
-                    : !settingsHasName
-                      ? "لتفعيل النشر: أكّد اسم العائلة أولاً."
-                      : "لتفعيل النشر: اختر الإمارة التي صدرت منها خلاصة القيد."}
-                </div>
-              )}
+              {/* The TOGGLE first, then the prerequisite notice below it.
+                  The notice used to sit above, which put this checkbox on a
+                  different row from «تفعيل رابط المشاركة» in the card beside
+                  it — and that card's toggle comes first. Same order in both
+                  now, so the two line up. */}
               <div className={settingsCanPublish ? "" : "opacity-40"}>
               <label className="flex items-center gap-3 border rounded-md p-3 bg-gray-50">
                 <input
@@ -6897,6 +6890,21 @@ function App() {
                 <span className="text-sm">نشر الشجرة للعموم</span>
               </label>
               </div>
+
+              {/* Names the MISSING requirement, not both. Clearing the emirate on
+                  a published tree unpublishes it, and the user then met a greyed
+                  toggle that did not say which of the two prerequisites had gone.
+                  Kept at FULL opacity while only the control above is dimmed —
+                  dimming the explanation too was the original mistake. */}
+              {!settingsCanPublish && (
+                <div className="mt-3 text-[12px] leading-relaxed text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-3 py-2">
+                  {!settingsHasName && !settingsHasEmirate
+                    ? "لتفعيل النشر: أكّد اسم العائلة ثم اختر الإمارة."
+                    : !settingsHasName
+                      ? "لتفعيل النشر: أكّد اسم العائلة أولاً."
+                      : "لتفعيل النشر: اختر الإمارة التي صدرت منها خلاصة القيد."}
+                </div>
+              )}
             </div>
 
             {/* رابط المشاركة — independent of النشر by design: the whole point
