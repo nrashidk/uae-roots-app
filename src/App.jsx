@@ -6995,8 +6995,7 @@ function App() {
               <div className="bg-white rounded-lg shadow p-6 h-full flex flex-col">
                 <label className="block text-sm font-bold mb-1">إرسال نسخة</label>
                 <div className="text-[11px] text-gray-400 mb-4 leading-relaxed h-10">
-                  نسخة من شجرتك يملكها قريبك ويعدّل فيها — تنفصل عنك لحظة
-                  استلامها
+                  نسخة من شجرتك يملكها قريبك ويعدّل فيها
                 </div>
                 {/* h-9 on both cards' action rows. The code input is px-3
                     with no py and h-9 too: `py-2` made it ~38px against a
