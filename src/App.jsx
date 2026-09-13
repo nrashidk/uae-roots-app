@@ -7246,6 +7246,7 @@ function App() {
                 <div className="flex gap-2 flex-wrap">
                   <Button
                     size="sm"
+                    className="h-9 w-28"
                     onClick={() => {
                       if (navigator.share) {
                         navigator.share({ text: newCopy.code }).catch(() => {});
@@ -7259,6 +7260,7 @@ function App() {
                   <Button
                     size="sm"
                     variant="outline"
+                    className="h-9 w-28"
                     onClick={() => {
                       navigator.clipboard?.writeText(newCopy.code);
                       setCodeCopied(true);
@@ -7274,29 +7276,25 @@ function App() {
                   <Button
                     size="sm"
                     variant="outline"
+                    className="h-9 w-28"
                     onClick={() => setShowPrepareCopy(false)}
                   >
                     تمّ
                   </Button>
                 </div>
-                <div className="text-[11px] text-gray-400 leading-relaxed">
-                  بعد استلامه لا يمكن سحبه.
-                </div>
 
-                {/* Destructive, so deliberately separated from the row above by
-                    a rule rather than sitting beside نسخ. */}
+                {/* Destructive, so separated by a rule rather than sitting
+                    beside نسخ — where a close button belongs, and where it was
+                    pressed by mistake twice in testing. */}
                 <div className="border-t pt-3 mt-1">
                   <Button
                     size="sm"
                     variant="outline"
-                    className="text-red-600"
+                    className="h-9 w-28 text-red-600"
                     onClick={() => cancelCopy(newCopy.id)}
                   >
                     إلغاء الرمز
                   </Button>
-                  <div className="text-[11px] text-gray-400 leading-relaxed mt-2">
-                    يبطل الرمز فلا يعمل عند قريبك. أنشئ رمزاً جديداً بعده.
-                  </div>
                 </div>
               </div>
             ) : (
