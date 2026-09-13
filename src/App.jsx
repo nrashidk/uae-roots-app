@@ -1688,8 +1688,8 @@ function App() {
   // Loaded when الإعدادات opens, so the card can show the last copy's state
   // without a second click.
   useEffect(() => {
-    if (currentView === "tree-settings" && currentUser) loadCopyLog();
-  }, [currentView, currentUser]);
+    if (currentView === "tree-settings" && currentTree) loadCopyLog();
+  }, [currentView, currentTree]);
 
   const openPrepareCopy = async () => {
     setCopyExcluded([]);
