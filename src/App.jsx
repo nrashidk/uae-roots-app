@@ -7022,32 +7022,40 @@ function App() {
                   >
                     تجهيز نسخة
                   </Button>
-                  {copyLog.length > 0 && (
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="h-9 w-36"
-                      onClick={() => setShowCopyLog(true)}
-                    >
-                      السجلّ ({copyLog.length})
-                    </Button>
+                  {/* Always present, disabled at zero rather than hidden: a
+                      row that appears later makes this card stop matching the
+                      one beside it. */}
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-9 w-36"
+                    disabled={copyLog.length === 0}
+                    onClick={() => setShowCopyLog(true)}
+                  >
+                    السجلّ ({copyLog.length})
+                  </Button>
+                </div>
+                {/* Same slot as the receive card's status box, filled either
+                    way — the two cards' rows have to correspond. */}
+                <div className="border rounded-md px-3 py-2 bg-gray-50 text-[11.5px] leading-6">
+                  {copyLog[0] ? (
+                    <>
+                      آخر نسخة:{" "}
+                      {new Date(copyLog[0].createdAt).toLocaleDateString("ar-AE")}{" "}
+                      — {copyLog[0].peopleCount} فرداً،{" "}
+                      {copyLog[0].usedAt
+                        ? "استُعملت"
+                        : copyLog[0].cancelledAt
+                          ? "ألغيتها"
+                          : new Date(copyLog[0].expiresAt) < new Date()
+                            ? "انتهت"
+                            : "لم تُستعمل بعد"}
+                      .
+                    </>
+                  ) : (
+                    <>لم ترسل نسخاً بعد.</>
                   )}
                 </div>
-                {copyLog[0] && (
-                  <div className="border rounded-md px-3 py-2 bg-gray-50 text-[11.5px] leading-6">
-                    آخر نسخة:{" "}
-                    {new Date(copyLog[0].createdAt).toLocaleDateString("ar-AE")}{" "}
-                    — {copyLog[0].peopleCount} فرداً،{" "}
-                    {copyLog[0].usedAt
-                      ? "استُعملت"
-                      : copyLog[0].cancelledAt
-                        ? "ألغيتها"
-                        : new Date(copyLog[0].expiresAt) < new Date()
-                          ? "انتهت"
-                          : "لم تُستعمل بعد"}
-                    .
-                  </div>
-                )}
                 <div className="text-[11px] text-gray-400 leading-relaxed mt-auto">
                   لا يتم نسخ رقم الهاتف أو البريد الإلكتروني، ولا رجعة بعد
                   الاستلام.
