@@ -287,6 +287,8 @@ function App() {
   const [copyLog, setCopyLog] = useState([]);
   const [showCopyLog, setShowCopyLog] = useState(false);
   const [copyBusy, setCopyBusy] = useState(false);
+  // A copy button that does nothing visible leaves the user pressing it again.
+  const [codeCopied, setCodeCopied] = useState(false);
 
   // Receiving
   const [redeemCode, setRedeemCode] = useState("");
@@ -7249,9 +7251,13 @@ function App() {
                   <Button
                     size="sm"
                     variant="outline"
-                    onClick={() => navigator.clipboard?.writeText(newCopy.code)}
+                    onClick={() => {
+                      navigator.clipboard?.writeText(newCopy.code);
+                      setCodeCopied(true);
+                      setTimeout(() => setCodeCopied(false), 2000);
+                    }}
                   >
-                    نسخ
+                    {codeCopied ? "✓ نُسخ" : "نسخ"}
                   </Button>
                   <Button
                     size="sm"
@@ -8898,6 +8904,59 @@ function App() {
                   <UserPlus className="w-5 h-5 ml-2" />
                   {t.addPerson}
                 </Button>
+
+                {/* The ONLY route in for a relative who was sent a code.
+                    الإعدادات and every other section are dimmed until the tree
+                    holds one person, so «استلام نسخة» there is unreachable —
+                    which would have forced someone to invent a person and
+                    delete them again. */}
+                <div className="mt-8 pt-6 border-t max-w-xs mx-auto">
+                  <div className="text-sm font-bold mb-1">لديك رمز نسخة؟</div>
+                  <div className="text-[11px] text-gray-400 mb-3 leading-relaxed">
+                    أرسل لك قريب نسخة من شجرته؟ أدخل الرمز لتصير شجرتك.
+                  </div>
+                  <div className="flex gap-2 justify-center h-9 items-stretch">
+                    <input
+                      type="text"
+                      value={redeemCode}
+                      onChange={(e) => {
+                        setRedeemCode(e.target.value.toUpperCase());
+                        setRedeemError("");
+                      }}
+                      placeholder="K7M29QX8"
+                      maxLength={8}
+                      dir="ltr"
+                      className={`h-9 w-36 px-3 border rounded-md text-sm tracking-widest text-center ${
+                        redeemError ? "border-red-300" : ""
+                      }`}
+                    />
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-9 w-24"
+                      onClick={checkRedeemCode}
+                      disabled={copyBusy}
+                    >
+                      تحقّق
+                    </Button>
+                  </div>
+                  {redeemError && (
+                    <div className="text-[11.5px] text-red-600 mt-2 leading-relaxed">
+                      {redeemError}
+                    </div>
+                  )}
+                  {redeemInfo && (
+                    <div className="mt-3 space-y-2">
+                      <div className="border rounded-md px-3 py-2 bg-gray-50 text-[11.5px] leading-6 text-right">
+                        نسخة من {redeemInfo.senderFamily || "قريبك"} —{" "}
+                        {redeemInfo.peopleCount} فرداً.
+                      </div>
+                      <Button size="sm" className="h-9" disabled={copyBusy} onClick={redeem}>
+                        استلام النسخة
+                      </Button>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           )}
