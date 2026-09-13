@@ -186,6 +186,31 @@ export const api = {
       }),
   },
 
+  // A copy is DISTRIBUTION, not display: it hands names, birth dates and birth
+  // places to someone who did not have them, permanently.
+  copies: {
+    // Counts only, no code minted — so the screen can show a live total while
+    // people are removed without creating a code per keystroke.
+    preview: (treeId, excludedIds, fields) =>
+      fetchAPI("/copies/preview", {
+        method: "POST",
+        body: JSON.stringify({ treeId, excludedIds, fields }),
+      }),
+    create: (treeId, excludedIds, fields) =>
+      fetchAPI("/copies", {
+        method: "POST",
+        body: JSON.stringify({ treeId, excludedIds, fields }),
+      }),
+    list: () => fetchAPI("/copies"),
+    cancel: (id) => fetchAPI(`/copies/${id}/cancel`, { method: "POST" }),
+    // 404 for unknown, expired, cancelled and used alike — no hint which.
+    check: (code) => fetchAPI(`/copies/code/${encodeURIComponent(code)}`),
+    redeem: (code) =>
+      fetchAPI(`/copies/code/${encodeURIComponent(code)}/redeem`, {
+        method: "POST",
+      }),
+  },
+
   // Unauthenticated. Serves only published trees, and never the owner id.
   // The published tree itself. 404 for an unpublished one, deliberately
   // indistinguishable from a tree that does not exist.
