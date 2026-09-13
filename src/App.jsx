@@ -6998,9 +6998,13 @@ function App() {
                   نسخة من شجرتك يملكها قريبك ويعدّل فيها — تنفصل عنك لحظة
                   استلامها
                 </div>
-                <div className="flex gap-2 mb-3">
+                {/* h-9 on both cards' action rows. The code input is px-3
+                    with no py and h-9 too: `py-2` made it ~38px against a
+                    size="sm" Button's 32px, so they could never line up. */}
+                <div className="flex gap-2 mb-3 h-9 items-stretch">
                   <Button
                     size="sm"
+                    className="h-9"
                     onClick={openPrepareCopy}
                     disabled={!treePeople.length}
                   >
@@ -7010,6 +7014,7 @@ function App() {
                     <Button
                       size="sm"
                       variant="outline"
+                      className="h-9"
                       onClick={() => setShowCopyLog(true)}
                     >
                       السجلّ ({copyLog.length})
@@ -7048,7 +7053,7 @@ function App() {
 
                 {!redeemInfo ? (
                   <>
-                    <div className="flex gap-2 mb-2">
+                    <div className="flex gap-2 mb-3 h-9 items-stretch">
                       <input
                         type="text"
                         value={redeemCode}
@@ -7059,22 +7064,32 @@ function App() {
                         placeholder="K7M29QX8"
                         maxLength={8}
                         dir="ltr"
-                        className={`flex-1 px-3 py-2 border rounded-md text-sm tracking-widest ${
+                        className={`flex-1 h-9 px-3 border rounded-md text-sm tracking-widest ${
                           redeemError ? "border-red-300" : ""
                         }`}
                       />
                       <Button
                         size="sm"
                         variant="outline"
+                        className="h-9"
                         onClick={checkRedeemCode}
                         disabled={copyBusy}
                       >
                         تحقّق
                       </Button>
                     </div>
-                    {redeemError && (
-                      <div className="text-[11.5px] text-red-600 leading-relaxed">
+                    {/* Same slot as «آخر نسخة» opposite, so the two cards' rows
+                        correspond. This was in the footer, which is why they
+                        did not. */}
+                    {redeemError ? (
+                      <div className="border border-red-200 rounded-md px-3 py-2 bg-red-50 text-[11.5px] leading-6 text-red-600">
                         {redeemError}
+                      </div>
+                    ) : (
+                      <div className="border rounded-md px-3 py-2 bg-gray-50 text-[11.5px] leading-6">
+                        {treePeople.length
+                          ? `شجرتك الحالية: ${treePeople.length} فرداً — ستُستبدل بالنسخة.`
+                          : "شجرتك فارغة، فلا شيء يُحذف."}
                       </div>
                     )}
                   </>
