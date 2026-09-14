@@ -2656,6 +2656,51 @@ const publicPeopleCount = sql`
     WHERE p.tree_id = trees.id
       AND (trees.female_display <> 'hidden' OR p.gender = 'male'))`;
 
+// The DRAWN count: the largest connected component among visible people.
+//
+// publicPeopleCount is a plain SQL count of who the mode ALLOWS to be seen. The
+// tree draws only what is REACHABLE, and under `hidden` removing women also
+// removes the links that ran through them — so a branch whose only route to the
+// trunk was a mother is severed. The card could then promise more people than
+// the page draws. Both numbers were honest and measured different things.
+//
+// Extracted from GET /api/public/trees/:id, which already did this inline, so
+// the directory and the tree cannot disagree about the same tree.
+const largestComponent = (visiblePeople, rels) => {
+  const adj = new Map();
+  visiblePeople.forEach((p) => adj.set(p.id, new Set()));
+  const join = (a, b) => {
+    if (a == null || b == null || !adj.has(a) || !adj.has(b)) return;
+    adj.get(a).add(b);
+    adj.get(b).add(a);
+  };
+  rels.forEach((r) => {
+    join(r.person1Id, r.person2Id);
+    join(r.parentId, r.childId);
+  });
+
+  let largest = 0;
+  const seen = new Set();
+  for (const startId of adj.keys()) {
+    if (seen.has(startId)) continue;
+    let size = 0;
+    const stack = [startId];
+    seen.add(startId);
+    while (stack.length) {
+      const id = stack.pop();
+      size++;
+      for (const next of adj.get(id) || []) {
+        if (!seen.has(next)) {
+          seen.add(next);
+          stack.push(next);
+        }
+      }
+    }
+    if (size > largest) largest = size;
+  }
+  return largest;
+};
+
 const publicOldestYear = sql`
   (SELECT MIN(SUBSTRING(p.birth_date FROM 1 FOR 4))::int FROM people p
     WHERE p.tree_id = trees.id
@@ -2899,37 +2944,10 @@ app.get("/api/public/trees/:id", readLimiter, optionalAuth, async (req, res) => 
     //
     // Counted here, from the SAME filtered sets the payload is built from, so
     // the owner's warning cannot disagree with what a visitor sees.
-    const adj = new Map();
-    visible.forEach((p) => adj.set(p.id, new Set()));
-    const join = (a, b) => {
-      if (a == null || b == null || !adj.has(a) || !adj.has(b)) return;
-      adj.get(a).add(b);
-      adj.get(b).add(a);
-    };
-    relOut.forEach((r) => {
-      join(r.person1Id, r.person2Id);
-      join(r.parentId, r.childId);
-    });
-
-    let largest = 0;
-    const seen = new Set();
-    for (const startId of adj.keys()) {
-      if (seen.has(startId)) continue;
-      let size = 0;
-      const stack = [startId];
-      seen.add(startId);
-      while (stack.length) {
-        const id = stack.pop();
-        size++;
-        for (const next of adj.get(id) || []) {
-          if (!seen.has(next)) {
-            seen.add(next);
-            stack.push(next);
-          }
-        }
-      }
-      if (size > largest) largest = size;
-    }
+    // Same helper the directory uses, so the card and the page cannot disagree
+    // about the same tree. Built from the SAME filtered sets the payload uses,
+    // so the owner's warning cannot disagree with what a visitor sees.
+    const largest = largestComponent(visible, relOut);
 
     res.json({
       // No createdBy, no description. familyName is the literal the owner
@@ -3012,6 +3030,7 @@ app.get("/api/public/families", readLimiter, async (req, res) => {
         id: trees.id,
         familyName: trees.familyName,
         emirate: trees.emirate,
+        femaleDisplay: trees.femaleDisplay,
         people: publicPeopleCount,
         oldestYear: publicOldestYear,
       })
@@ -3023,7 +3042,43 @@ app.get("/api/public/families", readLimiter, async (req, res) => {
       )
       .orderBy(trees.familyName);
 
-    res.json(families);
+    // `people` above is a SQL count of who the mode ALLOWS to be seen. The card
+    // has to show what the page will DRAW, which is the largest connected
+    // component — see largestComponent.
+    //
+    // Only `hidden` can sever anything: the other two modes keep every person
+    // in the payload and so keep every link. So the walk runs ONLY for those
+    // trees, and the directory costs nothing extra for everyone else.
+    const needsWalk = families.filter((f) => f.femaleDisplay === "hidden");
+    if (needsWalk.length) {
+      const ids = needsWalk.map((f) => f.id);
+      const visible = await db
+        .select({ id: people.id, treeId: people.treeId })
+        .from(people)
+        .where(and(inArray(people.treeId, ids), eq(people.gender, "male")));
+      const rels = await db
+        .select({
+          treeId: relationships.treeId,
+          person1Id: relationships.person1Id,
+          person2Id: relationships.person2Id,
+          parentId: relationships.parentId,
+          childId: relationships.childId,
+        })
+        .from(relationships)
+        .where(inArray(relationships.treeId, ids));
+
+      for (const f of needsWalk) {
+        const mine = visible.filter((p) => p.treeId === f.id);
+        const myRels = rels.filter((r) => r.treeId === f.id);
+        f.people = largestComponent(mine, myRels);
+      }
+    }
+
+    // femaleDisplay was fetched only to decide the walk — a visitor has no use
+    // for it, and the directory has never exposed a tree's settings.
+    res.json(
+      families.map(({ femaleDisplay, ...rest }) => rest),
+    );
   } catch (error) {
     handleError(res, error, "Public families", req);
   }
