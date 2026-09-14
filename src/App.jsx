@@ -6082,6 +6082,51 @@ function App() {
   }
 
   // Helper function to build genealogical name chain (follows paternal line)
+  // Arabic counted-noun agreement. «20 رجال» is wrong — it is «20 رجلاً».
+  //
+  //   1        → رجل واحد
+  //   2        → رجلان
+  //   3–10     → رجال      (plural)
+  //   11–99    → رجلاً     (accusative singular)
+  //   round 100 → رجل
+  //
+  // Keyed on n % 100, so 120 behaves like 20 and 103 like 3.
+  const COUNT_FORMS = {
+    person: {
+      one: "فرد واحد",
+      two: "فردان",
+      few: "أفراد",
+      many: "فرداً",
+      base: "فرد",
+    },
+    man: {
+      one: "رجل واحد",
+      two: "رجلان",
+      few: "رجال",
+      many: "رجلاً",
+      base: "رجل",
+    },
+    relation: {
+      one: "صلة واحدة",
+      two: "صلتان",
+      few: "صلات",
+      many: "صلة",
+      base: "صلة",
+    },
+  };
+
+  const arCount = (n, kind = "person") => {
+    const f = COUNT_FORMS[kind];
+    const num = Number(n);
+    if (!Number.isFinite(num)) return `${n} ${f.base}`;
+    const r = Math.abs(num) % 100;
+    if (r === 1) return num === 1 ? f.one : `${num} ${f.base}`;
+    if (r === 2) return num === 2 ? f.two : `${num} ${f.base}`;
+    if (r >= 3 && r <= 10) return `${num} ${f.few}`;
+    if (r >= 11 && r <= 99) return `${num} ${f.many}`;
+    return `${num} ${f.base}`;
+  };
+
   const getGenealogicalName = (person) => {
     const treePeople = people.filter((p) => p.treeId === currentTree?.id);
     const treeRels = relationships.filter((r) => r.treeId === currentTree?.id);
@@ -6773,8 +6818,8 @@ function App() {
                   previewReach &&
                   previewReach.drawn < previewReach.eligible && (
                     <div className="mt-2 text-[11px] leading-relaxed text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-3 py-2">
-                      ⚠︎ بهذا الاختيار سيرى الزائر {previewReach.drawn} رجال من
-                      أصل {previewReach.eligible} رجلاً. بعض الفروع لا تتصل
+                      ⚠︎ بهذا الاختيار سيرى الزائر {arCount(previewReach.drawn, "man")} من
+                      أصل {arCount(previewReach.eligible, "man")}. بعض الفروع لا تتصل
                       بالشجرة إلا عبر امرأة، فتختفي معها.
                     </div>
                   )}
@@ -7042,7 +7087,7 @@ function App() {
                     <>
                       آخر نسخة:{" "}
                       {new Date(copyLog[0].createdAt).toLocaleDateString("ar-AE")}{" "}
-                      — {copyLog[0].peopleCount} فرداً،{" "}
+                      — {arCount(copyLog[0].peopleCount)}،{" "}
                       {copyLog[0].usedAt
                         ? "استُعملت"
                         : copyLog[0].cancelledAt
@@ -7067,7 +7112,7 @@ function App() {
                 <label className="block text-sm font-bold mb-1">استلام نسخة</label>
                 <div className="text-[11px] text-gray-400 mb-4 leading-relaxed h-10">
                   {redeemInfo
-                    ? `نسخة من ${redeemInfo.senderFamily || "قريبك"} — ${redeemInfo.peopleCount} فرداً، ${redeemInfo.relationshipsCount} صلة`
+                    ? `نسخة من ${redeemInfo.senderFamily || "قريبك"} — ${arCount(redeemInfo.peopleCount)}، ${arCount(redeemInfo.relationshipsCount, "relation")}`
                     : "أرسل لك قريب رمزاً؟ أدخله لتصير نسخته شجرتك"}
                 </div>
 
@@ -7111,7 +7156,7 @@ function App() {
                     ) : (
                       <div className="border rounded-md px-3 py-2 bg-gray-50 text-[11.5px] leading-6">
                         {treePeople.length
-                          ? `شجرتك الحالية: ${treePeople.length} فرداً — ستُستبدل بالنسخة.`
+                          ? `شجرتك الحالية: ${arCount(treePeople.length)} — ستُستبدل بالنسخة المستلمة.`
                           : "شجرتك فارغة، فلا شيء يُحذف."}
                       </div>
                     )}
@@ -7124,7 +7169,7 @@ function App() {
                     {redeemInfo.myPeopleCount > 0 ? (
                       <div className="border border-red-200 rounded-md px-3 py-2 bg-red-50 text-[11.5px] leading-6 mb-3">
                         <b className="text-red-700">شجرتك ستُستبدل</b> —{" "}
-                        {redeemInfo.myPeopleCount} فرداً يُحذفون.
+                        {arCount(redeemInfo.myPeopleCount)} يُحذفون.
                       </div>
                     ) : (
                       <div className="border rounded-md px-3 py-2 bg-gray-50 text-[11.5px] leading-6 mb-3">
@@ -7240,7 +7285,7 @@ function App() {
                     {newCopy.code}
                   </div>
                   <div className="text-[11px] text-gray-400 mt-1">
-                    {newCopy.peopleCount} فرداً · {newCopy.relationshipsCount} صلة
+                    {arCount(newCopy.peopleCount)} · {arCount(newCopy.relationshipsCount, "relation")}
                   </div>
                 </div>
                 <div className="flex gap-2 flex-wrap">
@@ -7451,8 +7496,8 @@ function App() {
                 <div className="border-t pt-4 flex items-center justify-between">
                   <div className="text-[12.5px]">
                     في النسخة:{" "}
-                    <b>{copyPreview ? copyPreview.peopleCount : "—"} فرداً</b> ·{" "}
-                    {copyPreview ? copyPreview.relationshipsCount : "—"} صلة
+                    <b>{copyPreview ? arCount(copyPreview.peopleCount) : "—"}</b> ·{" "}
+                    {copyPreview ? arCount(copyPreview.relationshipsCount, "relation") : "—"}
                   </div>
                   <div className="flex gap-2">
                     <Button
@@ -7540,7 +7585,7 @@ function App() {
                   <div className="flex justify-between items-start gap-2">
                     <span>
                       <b>{new Date(c.createdAt).toLocaleDateString("ar-AE")}</b> —{" "}
-                      {c.peopleCount} فرداً
+                      {arCount(c.peopleCount)}
                     </span>
                     <span className="text-[11px] whitespace-nowrap">
                       {c.usedAt ? (
@@ -7581,8 +7626,8 @@ function App() {
               <DialogTitle className="text-right text-lg">استبدال شجرتك</DialogTitle>
             </DialogHeader>
             <p className="text-sm text-gray-700 leading-relaxed">
-              سيُحذف من شجرتك <b>{redeemInfo?.myPeopleCount} فرداً</b>، وتحلّ
-              محلّها النسخة ({redeemInfo?.peopleCount} فرداً).
+              سيُحذف من شجرتك <b>{arCount(redeemInfo?.myPeopleCount)}</b>، وتحلّ
+              محلّها النسخة ({arCount(redeemInfo?.peopleCount)}).
             </p>
             <p className="text-[12px] text-gray-500 leading-relaxed">
               يمكنك التراجع من زرّ «تراجع» ما دمت في الجلسة نفسها. بعد تسجيل
@@ -8974,7 +9019,7 @@ function App() {
                     <div className="mt-3 space-y-2">
                       <div className="border rounded-md px-3 py-2 bg-gray-50 text-[11.5px] leading-6 text-right">
                         نسخة من {redeemInfo.senderFamily || "قريبك"} —{" "}
-                        {redeemInfo.peopleCount} فرداً.
+                        {arCount(redeemInfo.peopleCount)}.
                       </div>
                       <Button size="sm" className="h-9" disabled={copyBusy} onClick={redeem}>
                         استلام النسخة
