@@ -266,6 +266,35 @@ function App() {
   const [spouseSourceFor, setSpouseSourceFor] = useState(null); // personId
   const [existingSpouseFor, setExistingSpouseFor] = useState(null); // personId
   const [linkChildrenFor, setLinkChildrenFor] = useState(null); // personId
+
+  // ===== Tree copies =====
+  // A copy hands relatives' data to someone permanently. The sender prepares
+  // and reviews; the recipient replaces their own tree with it.
+  const [showPrepareCopy, setShowPrepareCopy] = useState(false);
+  const [copyExcluded, setCopyExcluded] = useState([]); // personId[]
+  const [copyStranded, setCopyStranded] = useState([]); // removed as a consequence
+  const [copyFields, setCopyFields] = useState([
+    "lastName",
+    "birthDate",
+    "birthPlace",
+    "deathDate",
+    "milk",
+  ]); // `summary` deliberately absent — free text, opt in
+  const [copyPreview, setCopyPreview] = useState(null);
+  const [copySearch, setCopySearch] = useState("");
+  const [copyCascade, setCopyCascade] = useState(null); // { person, alsoRemoved }
+  const [newCopy, setNewCopy] = useState(null); // the minted code
+  const [copyLog, setCopyLog] = useState([]);
+  const [showCopyLog, setShowCopyLog] = useState(false);
+  const [copyBusy, setCopyBusy] = useState(false);
+  // A copy button that does nothing visible leaves the user pressing it again.
+  const [codeCopied, setCodeCopied] = useState(false);
+
+  // Receiving
+  const [redeemCode, setRedeemCode] = useState("");
+  const [redeemInfo, setRedeemInfo] = useState(null);
+  const [redeemError, setRedeemError] = useState("");
+  const [showRedeemConfirm, setShowRedeemConfirm] = useState(false);
   const [linkChildrenSelected, setLinkChildrenSelected] = useState(new Set());
   const [existingSpouseSearch, setExistingSpouseSearch] = useState("");
   // The picker fills the same panel as the edit form, so it pages rather than
@@ -1641,6 +1670,149 @@ function App() {
       window.alert("تعذّر تحديث رابط المشاركة: " + error.message);
     } finally {
       setSettingsBusy(false);
+    }
+  };
+
+  // Counts come from the SERVER, never computed here: the cascade rule and the
+  // whitelist must have one implementation, or the number on screen and the
+  // number in the snapshot drift apart.
+  const refreshCopyPreview = async (excluded, fields) => {
+    if (!currentTree) return;
+    try {
+      const r = await api.copies.preview(currentTree.id, excluded, fields);
+      setCopyPreview(r);
+      setCopyStranded(r.strandedIds || []);
+    } catch (error) {
+      console.error("Failed to preview copy:", error);
+    }
+  };
+
+  // Loaded when الإعدادات opens, so the card can show the last copy's state
+  // without a second click.
+  useEffect(() => {
+    if (currentView === "tree-settings" && currentTree) loadCopyLog();
+  }, [currentView, currentTree]);
+
+  const openPrepareCopy = async () => {
+    setCopyExcluded([]);
+    setCopyStranded([]);
+    setCopySearch("");
+    setNewCopy(null);
+    setShowPrepareCopy(true);
+    await refreshCopyPreview([], copyFields);
+  };
+
+  // Removing someone strands anyone whose only route in was through them. The
+  // dialog NAMES them before it happens — a count alone cannot be judged.
+  const askRemoveFromCopy = async (person) => {
+    const next = [...copyExcluded, person.id];
+    try {
+      const r = await api.copies.preview(currentTree.id, next, copyFields);
+      const also = (r.strandedIds || []).filter(
+        (id) => !copyStranded.includes(id),
+      );
+      if (also.length) {
+        setCopyCascade({ person, alsoRemoved: also, nextExcluded: next });
+      } else {
+        setCopyExcluded(next);
+        setCopyPreview(r);
+        setCopyStranded(r.strandedIds || []);
+      }
+    } catch (error) {
+      console.error("Failed to check removal:", error);
+    }
+  };
+
+  const confirmRemoveFromCopy = async () => {
+    if (!copyCascade) return;
+    const next = copyCascade.nextExcluded;
+    setCopyCascade(null);
+    setCopyExcluded(next);
+    await refreshCopyPreview(next, copyFields);
+  };
+
+  const restoreToCopy = async (personId) => {
+    const next = copyExcluded.filter((id) => id !== personId);
+    setCopyExcluded(next);
+    await refreshCopyPreview(next, copyFields);
+  };
+
+  const toggleCopyField = async (key) => {
+    const next = copyFields.includes(key)
+      ? copyFields.filter((k) => k !== key)
+      : [...copyFields, key];
+    setCopyFields(next);
+    await refreshCopyPreview(copyExcluded, next);
+  };
+
+  const createCopy = async () => {
+    if (!currentTree || copyBusy) return;
+    setCopyBusy(true);
+    try {
+      const r = await api.copies.create(currentTree.id, copyExcluded, copyFields);
+      setNewCopy(r);
+      await loadCopyLog();
+    } catch (error) {
+      window.alert("تعذّر إنشاء النسخة: " + error.message);
+    } finally {
+      setCopyBusy(false);
+    }
+  };
+
+  const loadCopyLog = async () => {
+    try {
+      setCopyLog(await api.copies.list());
+    } catch (error) {
+      console.error("Failed to load copy log:", error);
+    }
+  };
+
+  const cancelCopy = async (id) => {
+    try {
+      await api.copies.cancel(id);
+      await loadCopyLog();
+      if (newCopy?.id === id) setNewCopy(null);
+    } catch (error) {
+      window.alert("تعذّر الإلغاء: " + error.message);
+    }
+  };
+
+  // 404 for unknown, expired, cancelled and used alike — the message says all
+  // three without distinguishing, so trying codes reveals nothing.
+  const checkRedeemCode = async () => {
+    const code = redeemCode.trim().toUpperCase();
+    setRedeemError("");
+    setRedeemInfo(null);
+    if (code.length !== 8) {
+      setRedeemError("الرمز ثمانية أحرف.");
+      return;
+    }
+    setCopyBusy(true);
+    try {
+      setRedeemInfo(await api.copies.check(code));
+    } catch (error) {
+      setRedeemError(
+        error.message?.includes("نسختك")
+          ? "هذه نسختك أنت."
+          : "رمز غير صالح، أو انتهت صلاحيته، أو استُعمل من قبل.",
+      );
+    } finally {
+      setCopyBusy(false);
+    }
+  };
+
+  const redeem = async () => {
+    setCopyBusy(true);
+    try {
+      await api.copies.redeem(redeemCode.trim().toUpperCase());
+      setShowRedeemConfirm(false);
+      setRedeemInfo(null);
+      setRedeemCode("");
+      // The whole tree changed underneath: reload rather than patch state.
+      window.location.reload();
+    } catch (error) {
+      window.alert("تعذّر الاستلام: " + error.message);
+      setCopyBusy(false);
     }
   };
 
@@ -6697,18 +6869,11 @@ function App() {
                 الشجرة.
               </div>
 
-              {/* Names the MISSING requirement, not both. Clearing the emirate on
-                  a published tree unpublishes it, and the user then met a greyed
-                  toggle that did not say which of the two prerequisites had gone. */}
-              {!settingsCanPublish && (
-                <div className="mb-3 text-[12px] leading-relaxed text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-3 py-2">
-                  {!settingsHasName && !settingsHasEmirate
-                    ? "لتفعيل النشر: أكّد اسم العائلة ثم اختر الإمارة."
-                    : !settingsHasName
-                      ? "لتفعيل النشر: أكّد اسم العائلة أولاً."
-                      : "لتفعيل النشر: اختر الإمارة التي صدرت منها خلاصة القيد."}
-                </div>
-              )}
+              {/* The TOGGLE first, then the prerequisite notice below it.
+                  The notice used to sit above, which put this checkbox on a
+                  different row from «تفعيل رابط المشاركة» in the card beside
+                  it — and that card's toggle comes first. Same order in both
+                  now, so the two line up. */}
               <div className={settingsCanPublish ? "" : "opacity-40"}>
               <label className="flex items-center gap-3 border rounded-md p-3 bg-gray-50">
                 <input
@@ -6727,6 +6892,21 @@ function App() {
                 <span className="text-sm">نشر الشجرة للعموم</span>
               </label>
               </div>
+
+              {/* Names the MISSING requirement, not both. Clearing the emirate on
+                  a published tree unpublishes it, and the user then met a greyed
+                  toggle that did not say which of the two prerequisites had gone.
+                  Kept at FULL opacity while only the control above is dimmed —
+                  dimming the explanation too was the original mistake. */}
+              {!settingsCanPublish && (
+                <div className="mt-3 text-[12px] leading-relaxed text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-3 py-2">
+                  {!settingsHasName && !settingsHasEmirate
+                    ? "لتفعيل النشر: أكّد اسم العائلة ثم اختر الإمارة."
+                    : !settingsHasName
+                      ? "لتفعيل النشر: أكّد اسم العائلة أولاً."
+                      : "لتفعيل النشر: اختر الإمارة التي صدرت منها خلاصة القيد."}
+                </div>
+              )}
             </div>
 
             {/* رابط المشاركة — independent of النشر by design: the whole point
@@ -6807,6 +6987,189 @@ function App() {
             </div>
             </div>
 
+            {/* ===== النسخ =====
+                Deliberately a SEPARATE section, below the preview and the
+                publish controls. A copy has nothing to do with publishing, and
+                inserting it between a setting and its preview would break the
+                one block on this page that has to stay together.
+
+                «مشاركة للعرض» and «إرسال نسخة» are NOT merged: one is revocable
+                with a press, the other is irreversible once redeemed. A single
+                screen explaining two opposite outcomes gets got wrong on the
+                dangerous one. */}
+            <h3 className="text-sm font-bold text-gray-500 mt-8 mb-3">
+              النسخ — إرسال واستلام
+            </h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* إرسال نسخة */}
+              <div className="bg-white rounded-lg shadow p-6 h-full flex flex-col">
+                <label className="block text-sm font-bold mb-1">إرسال نسخة</label>
+                <div className="text-[11px] text-gray-400 mb-4 leading-relaxed h-10">
+                  نسخة من شجرتك يملكها قريبك ويعدّل فيها
+                </div>
+                {/* h-9 on both cards' action rows. The code input is px-3
+                    with no py and h-9 too: `py-2` made it ~38px against a
+                    size="sm" Button's 32px, so they could never line up. */}
+                <div className="flex gap-2 mb-3 h-9 items-stretch">
+                  {/* w-36 on every action control in this section, so the
+                      two cards' rows read as one row. The code input takes
+                      whatever is left. */}
+                  <Button
+                    size="sm"
+                    className="h-9 w-36"
+                    onClick={openPrepareCopy}
+                    disabled={!treePeople.length}
+                  >
+                    تجهيز نسخة
+                  </Button>
+                  {/* Always present, disabled at zero rather than hidden: a
+                      row that appears later makes this card stop matching the
+                      one beside it. */}
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-9 w-36"
+                    disabled={copyLog.length === 0}
+                    onClick={() => setShowCopyLog(true)}
+                  >
+                    السجلّ ({copyLog.length})
+                  </Button>
+                </div>
+                {/* Same slot as the receive card's status box, filled either
+                    way — the two cards' rows have to correspond. */}
+                <div className="border rounded-md px-3 py-2 bg-gray-50 text-[11.5px] leading-6">
+                  {copyLog[0] ? (
+                    <>
+                      آخر نسخة:{" "}
+                      {new Date(copyLog[0].createdAt).toLocaleDateString("ar-AE")}{" "}
+                      — {copyLog[0].peopleCount} فرداً،{" "}
+                      {copyLog[0].usedAt
+                        ? "استُعملت"
+                        : copyLog[0].cancelledAt
+                          ? "ألغيتها"
+                          : new Date(copyLog[0].expiresAt) < new Date()
+                            ? "انتهت"
+                            : "لم تُستعمل بعد"}
+                      .
+                    </>
+                  ) : (
+                    <>لم ترسل نسخاً بعد.</>
+                  )}
+                </div>
+                <div className="text-[11px] text-gray-400 leading-relaxed mt-auto">
+                  لا يتم نسخ رقم الهاتف أو البريد الإلكتروني، ولا رجعة بعد
+                  الاستلام.
+                </div>
+              </div>
+
+              {/* استلام نسخة */}
+              <div className="bg-white rounded-lg shadow p-6 h-full flex flex-col">
+                <label className="block text-sm font-bold mb-1">استلام نسخة</label>
+                <div className="text-[11px] text-gray-400 mb-4 leading-relaxed h-10">
+                  {redeemInfo
+                    ? `نسخة من ${redeemInfo.senderFamily || "قريبك"} — ${redeemInfo.peopleCount} فرداً، ${redeemInfo.relationshipsCount} صلة`
+                    : "أرسل لك قريب رمزاً؟ أدخله لتصير نسخته شجرتك"}
+                </div>
+
+                {!redeemInfo ? (
+                  <>
+                    <div className="flex gap-2 mb-3 h-9 items-stretch">
+                      <input
+                        type="text"
+                        value={redeemCode}
+                        onChange={(e) => {
+                          setRedeemCode(e.target.value.toUpperCase());
+                          setRedeemError("");
+                        }}
+                        placeholder="K7M29QX8"
+                        maxLength={8}
+                        dir="ltr"
+                        // w-36, not flex-1: eight characters need no more, and
+                        // a stretched field made this row look nothing like the
+                        // two fixed buttons in the card opposite.
+                        className={`h-9 w-36 px-3 border rounded-md text-sm tracking-widest text-center ${
+                          redeemError ? "border-red-300" : ""
+                        }`}
+                      />
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-9 w-36"
+                        onClick={checkRedeemCode}
+                        disabled={copyBusy}
+                      >
+                        تحقّق
+                      </Button>
+                    </div>
+                    {/* Same slot as «آخر نسخة» opposite, so the two cards' rows
+                        correspond. This was in the footer, which is why they
+                        did not. */}
+                    {redeemError ? (
+                      <div className="border border-red-200 rounded-md px-3 py-2 bg-red-50 text-[11.5px] leading-6 text-red-600">
+                        {redeemError}
+                      </div>
+                    ) : (
+                      <div className="border rounded-md px-3 py-2 bg-gray-50 text-[11.5px] leading-6">
+                        {treePeople.length
+                          ? `شجرتك الحالية: ${treePeople.length} فرداً — ستُستبدل بالنسخة.`
+                          : "شجرتك فارغة، فلا شيء يُحذف."}
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <>
+                    {/* Empty tree gets NO warning: nothing is lost, and making
+                        someone confirm a loss that is not happening teaches
+                        them to confirm without reading. */}
+                    {redeemInfo.myPeopleCount > 0 ? (
+                      <div className="border border-red-200 rounded-md px-3 py-2 bg-red-50 text-[11.5px] leading-6 mb-3">
+                        <b className="text-red-700">شجرتك ستُستبدل</b> —{" "}
+                        {redeemInfo.myPeopleCount} فرداً يُحذفون.
+                      </div>
+                    ) : (
+                      <div className="border rounded-md px-3 py-2 bg-gray-50 text-[11.5px] leading-6 mb-3">
+                        شجرتك فارغة، فلا شيء يُحذف. تصير النسخة شجرتك.
+                      </div>
+                    )}
+                    <div className="flex gap-2 h-9 items-stretch">
+                      <Button
+                        size="sm"
+                        disabled={copyBusy}
+                        className={`h-9 w-36 ${
+                          redeemInfo.myPeopleCount > 0
+                            ? "bg-red-600 hover:bg-red-700"
+                            : ""
+                        }`}
+                        onClick={() =>
+                          redeemInfo.myPeopleCount > 0
+                            ? setShowRedeemConfirm(true)
+                            : redeem()
+                        }
+                      >
+                        {redeemInfo.myPeopleCount > 0
+                          ? "استبدل شجرتي"
+                          : "استلام النسخة"}
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-9 w-36"
+                        onClick={() => {
+                          setRedeemInfo(null);
+                          setRedeemCode("");
+                        }}
+                      >
+                        إلغاء
+                      </Button>
+                    </div>
+                  </>
+                )}
+                <div className="text-[11px] text-gray-400 leading-relaxed mt-auto">
+                  يمكنك التراجع ما دمت في الجلسة نفسها.
+                </div>
+              </div>
+            </div>
+
           </div>
         </div>
 
@@ -6853,6 +7216,394 @@ function App() {
                   رجوع
                 </Button>
               </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* تجهيز نسخة — the sender's one screen.
+            NO full list of the tree: 163 names in a scrolling box is scenery,
+            not a tool. Generation-free: removal is by search and by cascade,
+            and the count comes from the server on every change. */}
+        <Dialog open={showPrepareCopy} onOpenChange={setShowPrepareCopy}>
+          <DialogContent className="sm:max-w-2xl" dir="rtl" aria-describedby={undefined}>
+            <DialogHeader>
+              <DialogTitle className="text-right text-xl">تجهيز نسخة</DialogTitle>
+            </DialogHeader>
+
+            {newCopy ? (
+              <div className="space-y-3">
+                <div className="text-[11px] text-gray-400 leading-relaxed">
+                  يُستعمل مرّة واحدة، وينتهي بعد ٧ أيام.
+                </div>
+                <div className="border-2 border-dashed rounded-md p-5 text-center">
+                  <div className="text-2xl font-bold tracking-widest" dir="ltr">
+                    {newCopy.code}
+                  </div>
+                  <div className="text-[11px] text-gray-400 mt-1">
+                    {newCopy.peopleCount} فرداً · {newCopy.relationshipsCount} صلة
+                  </div>
+                </div>
+                <div className="flex gap-2 flex-wrap">
+                  <Button
+                    size="sm"
+                    className="h-9 w-28"
+                    onClick={() => {
+                      if (navigator.share) {
+                        navigator.share({ text: newCopy.code }).catch(() => {});
+                      } else {
+                        navigator.clipboard?.writeText(newCopy.code);
+                      }
+                    }}
+                  >
+                    مشاركة
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-9 w-28"
+                    onClick={() => {
+                      navigator.clipboard?.writeText(newCopy.code);
+                      setCodeCopied(true);
+                      setTimeout(() => setCodeCopied(false), 2000);
+                    }}
+                  >
+                    {codeCopied ? "✓ نُسخ" : "نسخ"}
+                  </Button>
+                  {/* The SAFE exit, in the primary row. «إلغاء الرمز» used to
+                      sit here — where a close button belongs — so pressing it
+                      to leave the dialog destroyed the code instead. Two codes
+                      were cancelled that way in testing. */}
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-9 w-28"
+                    onClick={() => setShowPrepareCopy(false)}
+                  >
+                    تمّ
+                  </Button>
+                </div>
+
+                {/* Destructive, so separated by a rule rather than sitting
+                    beside نسخ — where a close button belongs, and where it was
+                    pressed by mistake twice in testing. */}
+                <div className="border-t pt-3 mt-1">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-9 w-28 text-red-600"
+                    onClick={() => cancelCopy(newCopy.id)}
+                  >
+                    إلغاء الرمز
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <div className="text-[11px] text-gray-400 leading-relaxed">
+                  تبدأ النسخة بشجرتك كاملة. ما تحذفه هنا يُحذف من النسخة وحدها،
+                  ولا يمسّ شجرتك.
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
+                  {/* WHO */}
+                  <div>
+                    <div className="text-sm font-bold mb-2">من يدخل النسخة</div>
+                    <input
+                      type="text"
+                      value={copySearch}
+                      onChange={(e) => setCopySearch(e.target.value)}
+                      placeholder="ابحث عن فرد لحذفه…"
+                      className="w-full px-3 py-2 border rounded-md text-sm mb-2"
+                      dir="rtl"
+                    />
+                    {copySearch.trim() && (
+                      <div className="border rounded-md divide-y max-h-40 overflow-y-auto text-[12.5px] mb-3">
+                        {treePeople
+                          .filter(
+                            (p) =>
+                              !copyExcluded.includes(p.id) &&
+                              !copyStranded.includes(p.id) &&
+                              getGenealogicalName(p).includes(copySearch.trim()),
+                          )
+                          .slice(0, 20)
+                          .map((p) => (
+                            <div
+                              key={p.id}
+                              className="flex items-center justify-between px-3 py-2"
+                            >
+                              <span>{getGenealogicalName(p)}</span>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="text-red-600"
+                                onClick={() => askRemoveFromCopy(p)}
+                              >
+                                احذف
+                              </Button>
+                            </div>
+                          ))}
+                      </div>
+                    )}
+
+                    {/* The removed list is the MEMORY. Without a full list of
+                        the tree, nothing else shows what you did. */}
+                    {copyExcluded.length + copyStranded.length > 0 && (
+                      <>
+                        <div className="text-sm font-bold mb-1">
+                          محذوفون من النسخة ·{" "}
+                          {copyExcluded.length + copyStranded.length}
+                        </div>
+                        <div className="border rounded-md divide-y max-h-40 overflow-y-auto text-[12px]">
+                          {copyExcluded.map((id) => {
+                            const p = treePeople.find((x) => x.id === id);
+                            return (
+                              <div
+                                key={id}
+                                className="flex items-center justify-between px-3 py-1.5"
+                              >
+                                <span>{p ? getGenealogicalName(p) : id}</span>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => restoreToCopy(id)}
+                                >
+                                  أعِدها
+                                </Button>
+                              </div>
+                            );
+                          })}
+                          {/* Removed as a CONSEQUENCE — cannot be restored
+                              alone, or a branch hangs off nothing. */}
+                          {copyStranded.map((id) => {
+                            const p = treePeople.find((x) => x.id === id);
+                            return (
+                              <div
+                                key={id}
+                                className="flex items-center justify-between px-3 py-1.5 text-gray-500"
+                              >
+                                <span>
+                                  {p ? getGenealogicalName(p) : id}
+                                  <span className="text-[10.5px] text-gray-400">
+                                    {" "}· تبعاً لغيره
+                                  </span>
+                                </span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </>
+                    )}
+                  </div>
+
+                  {/* WHAT */}
+                  <div>
+                    <div className="text-sm font-bold mb-2">
+                      ماذا يُنسخ عن كل فرد
+                    </div>
+                    <div className="space-y-1">
+                      {/* Locked: the layout depends on them. Offering them would
+                          permit a copy that cannot be drawn. */}
+                      {["الاسم الأول", "الجنس", "ترتيب الأبناء"].map((label) => (
+                        <label
+                          key={label}
+                          className="flex items-center gap-2 h-8 cursor-default"
+                        >
+                          <input type="checkbox" checked disabled className="rounded" />
+                          <span className="text-sm text-gray-400">{label}</span>
+                          <span className="text-[10.5px] text-gray-300">
+                            — إجباري
+                          </span>
+                        </label>
+                      ))}
+                      {[
+                        ["lastName", "اسم العائلة"],
+                        ["birthDate", "تاريخ الميلاد"],
+                        ["birthPlace", "مكان الميلاد"],
+                        ["deathDate", "تاريخ الوفاة"],
+                        ["milk", "روابط الرضاعة"],
+                        ["summary", "الملخّص"],
+                      ].map(([key, label]) => (
+                        <label
+                          key={key}
+                          className="flex items-center gap-2 h-8 cursor-pointer"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={copyFields.includes(key)}
+                            onChange={() => toggleCopyField(key)}
+                            className="rounded"
+                          />
+                          <span className="text-sm">{label}</span>
+                          {key === "summary" && (
+                            <span className="text-[10.5px] text-amber-700">
+                              — نصّ حرّ، راجعه أولاً
+                            </span>
+                          )}
+                        </label>
+                      ))}
+                    </div>
+                    <div className="border rounded-md px-3 py-2 bg-gray-50 text-[11.5px] leading-6 mt-3">
+                      لا يتم نسخ رقم الهاتف أو البريد الإلكتروني.
+                    </div>
+                  </div>
+                </div>
+
+                <div className="border-t pt-4 flex items-center justify-between">
+                  <div className="text-[12.5px]">
+                    في النسخة:{" "}
+                    <b>{copyPreview ? copyPreview.peopleCount : "—"} فرداً</b> ·{" "}
+                    {copyPreview ? copyPreview.relationshipsCount : "—"} صلة
+                  </div>
+                  <div className="flex gap-2">
+                    <Button
+                      size="sm"
+                      onClick={createCopy}
+                      disabled={copyBusy || !copyPreview?.peopleCount}
+                    >
+                      إنشاء الرمز
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setShowPrepareCopy(false)}
+                    >
+                      إلغاء
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
+
+        {/* Cascade: names them, because a count alone cannot be judged. */}
+        <Dialog
+          open={!!copyCascade}
+          onOpenChange={(o) => !o && setCopyCascade(null)}
+        >
+          <DialogContent className="sm:max-w-md" dir="rtl" aria-describedby={undefined}>
+            <DialogHeader>
+              <DialogTitle className="text-right text-lg">
+                حذف {copyCascade?.person ? getGenealogicalName(copyCascade.person) : ""}
+              </DialogTitle>
+            </DialogHeader>
+            <p className="text-sm text-gray-700 leading-relaxed">
+              {copyCascade?.alsoRemoved?.length} لا يتصلون بالشجرة إلا عبره،
+              وسيُحذفون معه من النسخة:
+            </p>
+            <div className="border rounded-md divide-y max-h-44 overflow-y-auto text-[12.5px]">
+              {copyCascade?.alsoRemoved?.slice(0, 30).map((id) => {
+                const p = treePeople.find((x) => x.id === id);
+                return (
+                  <div key={id} className="px-3 py-1.5">
+                    {p ? getGenealogicalName(p) : id}
+                  </div>
+                );
+              })}
+              {copyCascade?.alsoRemoved?.length > 30 && (
+                <div className="px-3 py-1.5 text-gray-400">
+                  …و{copyCascade.alsoRemoved.length - 30} آخرين
+                </div>
+              )}
+            </div>
+            <div className="flex gap-2" dir="ltr">
+              <Button
+                size="sm"
+                className="bg-red-600 hover:bg-red-700"
+                onClick={confirmRemoveFromCopy}
+              >
+                احذفهم من النسخة
+              </Button>
+              <Button size="sm" variant="outline" onClick={() => setCopyCascade(null)}>
+                إلغاء
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* The log. On the code rows, not audit_logs — that prunes at 90 days,
+            and "who did I give my family's data to" should not be erased by a
+            cleanup job. Does NOT name who redeemed. */}
+        <Dialog open={showCopyLog} onOpenChange={setShowCopyLog}>
+          <DialogContent className="sm:max-w-lg" dir="rtl" aria-describedby={undefined}>
+            <DialogHeader>
+              <DialogTitle className="text-right text-lg">
+                سجلّ النسخ المرسلة
+              </DialogTitle>
+            </DialogHeader>
+            <div className="text-[11px] text-gray-400 leading-relaxed">
+              ما خرج من شجرتك، ومتى. يبقى هنا ولا يُحذف.
+            </div>
+            <div className="border rounded-md divide-y max-h-72 overflow-y-auto text-[12.5px]">
+              {copyLog.map((c) => (
+                <div key={c.id} className="px-3 py-2.5">
+                  <div className="flex justify-between items-start gap-2">
+                    <span>
+                      <b>{new Date(c.createdAt).toLocaleDateString("ar-AE")}</b> —{" "}
+                      {c.peopleCount} فرداً
+                    </span>
+                    <span className="text-[11px] whitespace-nowrap">
+                      {c.usedAt ? (
+                        <span className="text-green-700">
+                          استُعملت{" "}
+                          {new Date(c.usedAt).toLocaleDateString("ar-AE")}
+                        </span>
+                      ) : c.cancelledAt ? (
+                        <span className="text-gray-500">ألغيتها</span>
+                      ) : new Date(c.expiresAt) < new Date() ? (
+                        <span className="text-amber-700">انتهت دون استعمال</span>
+                      ) : (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="text-red-600"
+                          onClick={() => cancelCopy(c.id)}
+                        >
+                          إلغاء
+                        </Button>
+                      )}
+                    </span>
+                  </div>
+                  <div className="text-[11px] text-gray-400 mt-1">
+                    الحقول: {c.fields || "—"}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* A DIALOG, not a checkbox: a tick inside the card gets ticked unread.
+            Names the counts again at the moment of pressing. */}
+        <Dialog open={showRedeemConfirm} onOpenChange={setShowRedeemConfirm}>
+          <DialogContent className="sm:max-w-md" dir="rtl" aria-describedby={undefined}>
+            <DialogHeader>
+              <DialogTitle className="text-right text-lg">استبدال شجرتك</DialogTitle>
+            </DialogHeader>
+            <p className="text-sm text-gray-700 leading-relaxed">
+              سيُحذف من شجرتك <b>{redeemInfo?.myPeopleCount} فرداً</b>، وتحلّ
+              محلّها النسخة ({redeemInfo?.peopleCount} فرداً).
+            </p>
+            <p className="text-[12px] text-gray-500 leading-relaxed">
+              يمكنك التراجع من زرّ «تراجع» ما دمت في الجلسة نفسها. بعد تسجيل
+              الخروج لا يمكن.
+            </p>
+            <div className="flex gap-2" dir="ltr">
+              <Button
+                size="sm"
+                className="bg-red-600 hover:bg-red-700"
+                disabled={copyBusy}
+                onClick={redeem}
+              >
+                نعم، استبدل شجرتي
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setShowRedeemConfirm(false)}
+              >
+                إلغاء
+              </Button>
             </div>
           </DialogContent>
         </Dialog>
@@ -8178,6 +8929,59 @@ function App() {
                   <UserPlus className="w-5 h-5 ml-2" />
                   {t.addPerson}
                 </Button>
+
+                {/* The ONLY route in for a relative who was sent a code.
+                    الإعدادات and every other section are dimmed until the tree
+                    holds one person, so «استلام نسخة» there is unreachable —
+                    which would have forced someone to invent a person and
+                    delete them again. */}
+                <div className="mt-8 pt-6 border-t max-w-xs mx-auto">
+                  <div className="text-sm font-bold mb-1">لديك رمز نسخة؟</div>
+                  <div className="text-[11px] text-gray-400 mb-3 leading-relaxed">
+                    أرسل لك قريب نسخة من شجرته؟ أدخل الرمز لتصير شجرتك.
+                  </div>
+                  <div className="flex gap-2 justify-center h-9 items-stretch">
+                    <input
+                      type="text"
+                      value={redeemCode}
+                      onChange={(e) => {
+                        setRedeemCode(e.target.value.toUpperCase());
+                        setRedeemError("");
+                      }}
+                      placeholder="K7M29QX8"
+                      maxLength={8}
+                      dir="ltr"
+                      className={`h-9 w-36 px-3 border rounded-md text-sm tracking-widest text-center ${
+                        redeemError ? "border-red-300" : ""
+                      }`}
+                    />
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-9 w-24"
+                      onClick={checkRedeemCode}
+                      disabled={copyBusy}
+                    >
+                      تحقّق
+                    </Button>
+                  </div>
+                  {redeemError && (
+                    <div className="text-[11.5px] text-red-600 mt-2 leading-relaxed">
+                      {redeemError}
+                    </div>
+                  )}
+                  {redeemInfo && (
+                    <div className="mt-3 space-y-2">
+                      <div className="border rounded-md px-3 py-2 bg-gray-50 text-[11.5px] leading-6 text-right">
+                        نسخة من {redeemInfo.senderFamily || "قريبك"} —{" "}
+                        {redeemInfo.peopleCount} فرداً.
+                      </div>
+                      <Button size="sm" className="h-9" disabled={copyBusy} onClick={redeem}>
+                        استلام النسخة
+                      </Button>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           )}

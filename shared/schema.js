@@ -111,6 +111,47 @@ export const editHistory = pgTable("edit_history", {
 // Kept as a separate log rather than `deleted_at` columns on people, so no read
 // path anywhere has to filter deleted rows — a missed filter would resurrect
 // people as ghosts in the tree.
+// A prepared copy of a tree, waiting for a relative to redeem its code.
+//
+// SNAPSHOT, not a recipe. The rows the recipient will get are computed and
+// stored when the code is created, rather than recomputed at redemption from a
+// stored set of exclusions. The sender keeps editing their tree afterwards, and
+// a copy that silently grew to include people added after it was prepared —
+// possibly people the sender would have removed — is the wrong behaviour. The
+// same reasoning `deletions` uses: store what the rows WERE.
+//
+// It also makes the log honest: the entry records exactly what was handed over,
+// not an instruction that would produce something else today.
+export const treeCopies = pgTable("tree_copies", {
+  id: serial("id").primaryKey(),
+  // 8 chars, no separator, ambiguous characters excluded (0/O, 1/I/L) — this
+  // gets read aloud and retyped.
+  code: text("code").notNull().unique(),
+  sourceTreeId: integer("source_tree_id").notNull(),
+  createdBy: text("created_by").notNull(),
+  // The whitelist actually applied, comma-separated, same shape as
+  // trees.public_fields. Stored so the log can say WHICH fields were sent —
+  // "what did I send about them" is the half that gets forgotten.
+  fields: text("fields").notNull(),
+  // The rows themselves, already filtered by the whitelist and by whatever the
+  // sender removed. phone and email are NEVER in here.
+  people: jsonb("people").notNull(),
+  relationships: jsonb("relationships").notNull(),
+  // Denormalised for the log, so listing history needs no jsonb length maths.
+  peopleCount: integer("people_count").notNull(),
+  relationshipsCount: integer("relationships_count").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  expiresAt: timestamp("expires_at").notNull(),
+  // One use. Set when redeemed; the row is KEPT either way, because the log of
+  // where a family's data went should outlive audit_logs, which prunes at 90
+  // days. Distribution is not an edit.
+  usedAt: timestamp("used_at"),
+  // Who redeemed it is deliberately NOT stored. The sender is shown «استُعملت»
+  // and a date, which tells them it is gone; naming the account would expose
+  // someone who never asked to be identified to them.
+  cancelledAt: timestamp("cancelled_at"),
+});
+
 export const deletions = pgTable("deletions", {
   id: serial("id").primaryKey(),
   treeId: integer("tree_id").notNull(),
