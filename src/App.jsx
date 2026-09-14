@@ -7156,7 +7156,7 @@ function App() {
                     ) : (
                       <div className="border rounded-md px-3 py-2 bg-gray-50 text-[11.5px] leading-6">
                         {treePeople.length
-                          ? `شجرتك الحالية: ${arCount(treePeople.length)} — ستُستبدل بالنسخة.`
+                          ? `شجرتك الحالية: ${arCount(treePeople.length)} — ستُستبدل بالنسخة المستلمة.`
                           : "شجرتك فارغة، فلا شيء يُحذف."}
                       </div>
                     )}
