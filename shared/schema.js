@@ -257,15 +257,12 @@ export const people = pgTable("people", {
   milkMotherName: text("milk_mother_name"),
   phone: text("phone"),
   email: text("email"),
-  identificationNumber: text("identification_number"),
-  profession: text("profession"),
   // Free prose about the person, shown in the record card on الأفراد and in the
-  // public view. Replaces profession in the form; profession itself is LEFT IN
-  // PLACE — one production row still holds a value and dropping the column
-  // would destroy it for no gain.
+  // public view. Replaced the old `profession` field, which was dropped on
+  // 16 September along with `identification_number` and `photo_url` — all three
+  // were unread by any code path.
   summary: text("summary"),
   birthOrder: integer("birth_order"),
-  photoUrl: text("photo_url"), // URL to uploaded photo
   createdAt: timestamp("created_at").defaultNow().notNull(),
 }, (table) => [
   index("people_tree_id_idx").on(table.treeId),

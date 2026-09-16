@@ -635,7 +635,6 @@ function App() {
     deathDate: "تاريخ الوفاة",
     phone: "الهاتف",
     email: "البريد الإلكتروني",
-    profession: "المهنة",
     summary: "الملخّص",
     save: "حفظ",
     cancel: "إلغاء",
@@ -9526,7 +9525,6 @@ function PersonForm({
     deathDate: person?.deathDate || "",
     phone: person?.phone || "",
     email: person?.email || "",
-    profession: person?.profession || "",
     summary: person?.summary || "",
   });
 
@@ -9552,8 +9550,7 @@ function PersonForm({
       deathDate: person?.deathDate || "",
       phone: person?.phone || "",
       email: person?.email || "",
-      profession: person?.profession || "",
-    summary: person?.summary || "",
+      summary: person?.summary || "",
     });
   }, [
     person,

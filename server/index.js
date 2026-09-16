@@ -179,12 +179,6 @@ const decryptPII = (encrypted) => {
   }
 };
 
-// Normalize photo URL (photo upload removed, pass through as-is or null)
-const normalizePhotoUrl = (url) => {
-  if (!url) return null;
-  return url;
-};
-
 // sanitizeText and sanitizeUserInput removed. They escaped & < > " ' on the way
 // INTO the database. React escapes on render, so stored values were encoded twice
 // and a name containing & displayed as &amp;. Their only genuine consumer was the
@@ -470,10 +464,8 @@ const personSchema = z.object({
     .nullable()
     .or(z.literal(""))
     .or(z.null()),
-  profession: z.string().max(100).optional().nullable(),
   summary: z.string().max(520).optional().nullable(),
   birthOrder: z.number().int().optional().nullable(),
-  photoUrl: z.string().max(500).optional().nullable(),
 });
 
 const treeSchema = z.object({
@@ -712,7 +704,6 @@ const personUpdateSchema = z.object({
   isLiving: z.boolean().optional(),
   isBreastfed: z.boolean().optional(),
   phone: z.string().max(20).optional().nullable(),
-  profession: z.string().max(100).optional().nullable(),
   summary: z.string().max(520).optional().nullable(),
   email: z
     .string()
@@ -723,7 +714,6 @@ const personUpdateSchema = z.object({
     .or(z.literal(""))
     .or(z.null()),
   birthOrder: z.number().int().optional().nullable(),
-  photoUrl: z.string().max(500).optional().nullable(),
 });
 
 // A whole sibling group in one request. Capped at 64: a sibling group is
@@ -895,7 +885,7 @@ const logAudit = async (
 // recordEdit REMOVED, and with it every write to edit_history.
 //
 // It duplicated what `deletions` already stores — full before/after person rows,
-// names, dates, birth places, professions and encrypted phone/email — for every
+// names, dates, birth places, summaries and encrypted phone/email — for every
 // create, update and delete. The difference is that `deletions` is READ: it is
 // the undo stack, it marks rows restored, and the list endpoint caps at 50.
 // edit_history was read by exactly one endpoint, GET /api/history/:treeId, which
@@ -3803,7 +3793,6 @@ app.get("/api/people", authenticateUser, async (req, res) => {
           ...person,
           phone: decryptPII(person.phone),
           email: decryptPII(person.email),
-          photoUrl: normalizePhotoUrl(person.photoUrl),
         };
       } catch (decryptError) {
         console.error(`[${rid}][People] Decrypt error for person ${person.id}:`, decryptError.message);
@@ -3811,7 +3800,6 @@ app.get("/api/people", authenticateUser, async (req, res) => {
           ...person,
           phone: null,
           email: null,
-          photoUrl: normalizePhotoUrl(person.photoUrl),
         };
       }
     });
@@ -3836,7 +3824,7 @@ app.get("/api/people", authenticateUser, async (req, res) => {
 
 app.post("/api/people", authenticateUser, async (req, res) => {
   try {
-    // A person row is name, birth date, birth place, profession, phone and email.
+    // A person row is name, birth date, birth place, summary, phone and email.
     // phone/email are encrypted at rest and were being printed in PLAINTEXT here
     // on the way in, so the log undid the encryption for every person ever added.
     debugLog("POST /api/people received data:", req.body);
@@ -3869,10 +3857,8 @@ app.post("/api/people", authenticateUser, async (req, res) => {
           : false,
       phone: encryptPII(sanitizedData.phone),
       email: encryptPII(sanitizedData.email),
-      profession: sanitizedData.profession || null,
       summary: sanitizedData.summary || null,
       birthOrder: sanitizedData.birthOrder ?? null,
-      photoUrl: sanitizedData.photoUrl || null,
     };
     debugLog("Saving to DB:", personData);
     const [person] = await db.insert(people).values(personData).returning();
@@ -3964,14 +3950,10 @@ app.put("/api/people/:id", authenticateUser, async (req, res) => {
       personData.phone = encryptPII(sanitizedData.phone);
     if (sanitizedData.email !== undefined)
       personData.email = encryptPII(sanitizedData.email);
-    if (sanitizedData.profession !== undefined)
-      personData.profession = sanitizedData.profession || null;
     if (sanitizedData.summary !== undefined)
       personData.summary = sanitizedData.summary || null;
     if (sanitizedData.birthOrder !== undefined)
       personData.birthOrder = sanitizedData.birthOrder;
-    if (sanitizedData.photoUrl !== undefined)
-      personData.photoUrl = sanitizedData.photoUrl;
 
     debugLog("Updating in DB with:", personData);
     const [person] = await db
