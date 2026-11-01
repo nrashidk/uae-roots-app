@@ -44,7 +44,7 @@
     "tailwindcss": "^4.1.7",
     "twilio": "^5.10.7",
     "uuid": "^14.0.0",
-    "zod": "^3.24.4"
+    "zod": "^4.6.6"
   },
   "devDependencies": {
     "@eslint/js": "^9.25.0",
